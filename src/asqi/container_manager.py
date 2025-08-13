@@ -86,9 +86,15 @@ def extract_manifest_from_image(
                     tar_stream.write(chunk)
                 tar_stream.seek(0)
 
+                # Note: avoid tarfile.extractall used without any validation. Extract only the manifest file
                 with tarfile.open(fileobj=tar_stream, mode="r") as tar:
-                    tar.extractall(temp_path)
-
+                    for member in tar.getmembers():
+                        if (
+                            member.isfile()
+                            and not member.name.startswith("/")
+                            and ".." not in member.name
+                        ):
+                            tar.extract(member, temp_path)
                 # Read and parse manifest
                 if local_manifest_path.exists():
                     with open(local_manifest_path, "r") as f:
