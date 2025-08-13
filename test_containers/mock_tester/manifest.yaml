@@ -1,0 +1,18 @@
+name: "mock_tester"
+version: "1.0"
+description: "A lightweight mock container for testing the executor logic."
+image_name: "my-registry/mock_tester:latest"
+
+supported_suts:
+  - type: "llm_api"
+
+input_schema:
+  - name: "delay_seconds"
+    type: "integer"
+    required: false
+    description: "Seconds to sleep to simulate work."
+
+output_metrics:
+  - "success"
+  - "score"
+  - "delay_used"
