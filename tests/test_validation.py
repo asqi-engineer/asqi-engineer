@@ -6,7 +6,13 @@ import yaml
 
 from asqi.main import load_and_validate_plan
 from asqi.schemas import Manifest, SuiteConfig, SUTsConfig
-from asqi.validator import validate_test_plan
+from asqi.validation import (
+    create_test_execution_plan,
+    validate_manifests_against_tests,
+    validate_sut_compatibility,
+    validate_test_parameters,
+    validate_test_plan,
+)
 
 # Test data
 DEMO_SUITE_YAML = """
@@ -312,3 +318,112 @@ class TestEdgeCases:
 
         errors = validate_test_plan(suite, demo_suts, manifests)
         assert errors == []  # Should be valid since delay_seconds is optional
+
+
+class TestValidationFunctions:
+    def test_validate_test_parameters(self, manifests):
+        manifest = manifests["my-registry/mock_tester:latest"]
+
+        # Test with missing required param (none required)
+        class DummyTest:
+            name = "t1"
+            params = {}
+
+        test = DummyTest()
+        errors = validate_test_parameters(test, manifest)
+        assert errors == []
+
+        # Test with unknown param
+        test.params = {"foo": 1}
+        errors = validate_test_parameters(test, manifest)
+        assert any("Unknown parameter 'foo'" in e for e in errors)
+
+        # Test with required param (garak)
+        garak_manifest = manifests["my-registry/garak:latest"]
+        test2 = DummyTest()
+        test2.name = "t2"
+        test2.params = {}
+        errors = validate_test_parameters(test2, garak_manifest)
+        assert any("Missing required parameter 'probes'" in e for e in errors)
+        test2.params = {"probes": ["p1"]}
+        errors = validate_test_parameters(test2, garak_manifest)
+        assert errors == []
+
+    def test_validate_sut_compatibility(self, demo_suts, manifests):
+        manifest = manifests["my-registry/mock_tester:latest"]
+
+        class DummyTest:
+            name = "t1"
+            image = "my-registry/mock_tester:latest"
+            target_suts = ["my_llm_service", "my_backend_api"]
+
+        test = DummyTest()
+        errors = validate_sut_compatibility(
+            test, demo_suts.systems_under_test, manifest
+        )
+        # my_llm_service is supported, my_backend_api is not
+        assert any("does not support SUT type 'rest_api'" in e for e in errors)
+        assert not any("llm_api" in e for e in errors)
+
+        # Unknown SUT
+        test.target_suts = ["not_a_sut"]
+        errors = validate_sut_compatibility(
+            test, demo_suts.systems_under_test, manifest
+        )
+        assert any("Unknown SUT 'not_a_sut'" in e for e in errors)
+
+    def test_validate_manifests_against_tests(self, demo_suts, manifests):
+        # Valid test
+        suite_data = {
+            "suite_name": "Valid",
+            "test_suite": [
+                {
+                    "name": "t1",
+                    "image": "my-registry/mock_tester:latest",
+                    "target_suts": ["my_llm_service"],
+                    "params": {},
+                }
+            ],
+        }
+        suite = SuiteConfig(**suite_data)
+        errors = validate_manifests_against_tests(suite, demo_suts, manifests)
+        assert errors == []
+
+        # Missing manifest
+        suite_data["test_suite"][0]["image"] = "notfound:latest"
+        suite = SuiteConfig(**suite_data)
+        errors = validate_manifests_against_tests(suite, demo_suts, manifests)
+        assert any("No manifest available for image" in e for e in errors)
+
+    def test_create_test_execution_plan(self, demo_suts, manifests):
+        suite_data = {
+            "suite_name": "ExecPlan",
+            "test_suite": [
+                {
+                    "name": "t1",
+                    "image": "my-registry/mock_tester:latest",
+                    "target_suts": ["my_llm_service"],
+                    "params": {"delay_seconds": 1},
+                },
+                {
+                    "name": "t2",
+                    "image": "my-registry/mock_tester:latest",
+                    "target_suts": ["my_llm_service", "my_backend_api"],
+                    "params": {},
+                },
+            ],
+        }
+        suite = SuiteConfig(**suite_data)
+        image_availability = {"my-registry/mock_tester:latest": True}
+        plan = create_test_execution_plan(suite, demo_suts, image_availability)
+        # Should create 3 plans (1 + 2)
+        assert len(plan) == 3
+        names = [p["test_name"] for p in plan]
+        assert "t1_my_llm_service" in names
+        assert "t2_my_llm_service" in names
+        assert "t2_my_backend_api" in names
+
+        # If image not available, plan is empty
+        image_availability = {"my-registry/mock_tester:latest": False}
+        plan = create_test_execution_plan(suite, demo_suts, image_availability)
+        assert plan == []
