@@ -7,7 +7,13 @@ requires-python = ">=3.12"
 dependencies = ["dbos>=1.11.0", "pydantic>=2.11.7", "pyyaml>=6.0.2"]
 
 [dependency-groups]
-dev = ["bandit>=1.8.6", "pytest>=8.4.1", "pytest-cov>=6.2.1"]
+dev = [
+    "bandit>=1.8.6",
+    "pip-audit>=2.9.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.8",
+]
 
 [tool.bandit]
 exclude_dirs = [".venv", "tests", "test_containers/mock_tester"]
