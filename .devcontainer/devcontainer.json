@@ -1,0 +1,41 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/python
+{
+  "name": "${localWorkspaceFolderBasename}",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {}
+  },
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+  "onCreateCommand": {
+    "git-config": "git config --global --add safe.directory ${containerWorkspaceFolder}",
+    "python-setup": "uv python install 3.12 && uv tool install ruff && uv venv"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "[python]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+          },
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        "ruff.path": ["/home/vscode/.local/bin/ruff"],
+        "python.analysis.typeCheckingMode": "standard"
+      }
+    }
+  },
+  // Mount your local dotfiles
+  "mounts": [
+    "source=${localEnv:HOME}/.aliases,target=/home/vscode/.bash_aliases,type=bind,consistency=cached"
+  ]
+}
