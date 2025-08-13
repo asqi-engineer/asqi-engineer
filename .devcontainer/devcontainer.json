@@ -7,6 +7,7 @@
     "args": {}
   },
   "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
   },
   "onCreateCommand": {
@@ -34,7 +35,7 @@
       }
     }
   },
-  // Mount your local dotfiles
+  // Mount dotfiles
   "mounts": [
     "source=${localEnv:HOME}/.aliases,target=/home/vscode/.bash_aliases,type=bind,consistency=cached"
   ]

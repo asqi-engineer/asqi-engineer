@@ -1,0 +1,8 @@
+suite_name: "Mock Tester Sanity Check"
+test_suite:
+  - name: "run_mock_on_compatible_sut"
+    image: "my-registry/mock_tester:latest"
+    target_suts:
+      - "my_llm_service" # if using demo_suts, it should fail with other target_suts or my_backend_api
+    params:
+      delay_seconds: 1

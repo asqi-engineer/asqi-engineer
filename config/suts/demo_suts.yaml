@@ -1,0 +1,14 @@
+systems_under_test:
+  # This SUT is compatible with our mock_tester
+  my_llm_service:
+    type: "llm_api"
+    config:
+      provider: "some_provider"
+      model: "model-x"
+      api_key_env: "MY_LLM_API_KEY"
+
+  # This SUT is *not* compatible, for demonstrating validation failure
+  my_backend_api:
+    type: "rest_api"
+    config:
+      uri: "https://api.example.com/v1/data"
