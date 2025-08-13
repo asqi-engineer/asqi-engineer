@@ -112,8 +112,9 @@ def extract_manifest_from_image(
             if container:
                 try:
                     container.remove()
-                except Exception:
-                    pass
+                # TODO: more elegant exception handling and logging
+                except Exception as e:
+                    print(f"Warning: Failed to remove container during cleanup: {e}")
 
     return None
 
@@ -169,12 +170,12 @@ def run_container_with_args(
             try:
                 exit_status = container.wait(timeout=timeout_seconds)
                 result["exit_code"] = exit_status["StatusCode"]
-            except docker_errors.APIError as e:
+            except docker_errors.APIError as api_error:
                 try:
                     container.kill()
-                except Exception:
-                    pass
-                result["error"] = f"Container execution failed: {e}"
+                except Exception as e:
+                    print(f"Warning: Failed to kill container: {e}")
+                result["error"] = f"Container execution failed: {api_error}"
                 return result
 
             # Get output
@@ -198,7 +199,7 @@ def run_container_with_args(
             if container:
                 try:
                     container.remove(force=True)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Warning: Failed to remove container during cleanup: {e}")
 
     return result

@@ -316,9 +316,8 @@ def run_test_suite_workflow(
                 all_results.append(result)
                 try:
                     progress.advance(task)
-                except Exception:
-                    # If progress update fails, continue without it
-                    pass
+                except Exception as e:
+                    print(f"Warning: Failed to update progress: {e}")
 
     except Exception:
         # Fallback to simple execution without progress bar
