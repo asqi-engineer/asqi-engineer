@@ -104,7 +104,7 @@ class TestDefinition(BaseModel):
     )
 
 
-class TestSuiteConfig(BaseModel):
+class SuiteConfig(BaseModel):
     """Schema for the top-level Test Suite configuration file."""
 
     suite_name: str
