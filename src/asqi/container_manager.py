@@ -86,9 +86,15 @@ def extract_manifest_from_image(
                     tar_stream.write(chunk)
                 tar_stream.seek(0)
 
+                # Note: avoid tarfile.extractall used without any validation. Extract only the manifest file
                 with tarfile.open(fileobj=tar_stream, mode="r") as tar:
-                    tar.extractall(temp_path)
-
+                    for member in tar.getmembers():
+                        if (
+                            member.isfile()
+                            and not member.name.startswith("/")
+                            and ".." not in member.name
+                        ):
+                            tar.extract(member, temp_path)
                 # Read and parse manifest
                 if local_manifest_path.exists():
                     with open(local_manifest_path, "r") as f:
@@ -106,8 +112,9 @@ def extract_manifest_from_image(
             if container:
                 try:
                     container.remove()
-                except Exception:
-                    pass
+                # TODO: more elegant exception handling and logging
+                except Exception as e:
+                    print(f"Warning: Failed to remove container during cleanup: {e}")
 
     return None
 
@@ -163,12 +170,12 @@ def run_container_with_args(
             try:
                 exit_status = container.wait(timeout=timeout_seconds)
                 result["exit_code"] = exit_status["StatusCode"]
-            except docker_errors.APIError as e:
+            except docker_errors.APIError as api_error:
                 try:
                     container.kill()
-                except Exception:
-                    pass
-                result["error"] = f"Container execution failed: {e}"
+                except Exception as e:
+                    print(f"Warning: Failed to kill container: {e}")
+                result["error"] = f"Container execution failed: {api_error}"
                 return result
 
             # Get output
@@ -192,7 +199,7 @@ def run_container_with_args(
             if container:
                 try:
                     container.remove(force=True)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Warning: Failed to remove container during cleanup: {e}")
 
     return result

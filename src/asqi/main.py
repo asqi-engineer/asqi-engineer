@@ -112,8 +112,8 @@ def main():
             # Launch DBOS if not already launched
             try:
                 DBOS.launch()
-            except Exception:
-                pass  # DBOS might already be launched
+            except Exception as e:
+                print(f"Error launching DBOS: {e}")
 
             workflow_id = start_test_execution(
                 suite_path=args.suite_file,
