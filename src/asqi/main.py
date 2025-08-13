@@ -8,7 +8,7 @@ import yaml
 from pydantic import ValidationError
 
 from asqi.schemas import Manifest, SuiteConfig, SUTsConfig
-from asqi.validator import validate_test_plan
+from asqi.validation import validate_test_plan
 
 
 class ConfigError(Exception):
@@ -89,28 +89,73 @@ def main():
     )
     parser.add_argument(
         "--manifests-dir",
-        required=True,
-        help="Path to dir with test container manifests.",
+        help="Path to dir with test container manifests (for validation only).",
+    )
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Execute the test suite using DBOS workflow (requires Docker).",
+    )
+    parser.add_argument(
+        "--output-file", help="Path to save execution results JSON file."
     )
 
     args = parser.parse_args()
 
-    print("--- Running Verification ---")
+    if args.execute:
+        # Execute the test suite
+        print("--- 🚀 Executing Test Suite ---")
 
-    result = load_and_validate_plan(
-        suite_path=args.suite_file,
-        suts_path=args.suts_file,
-        manifests_path=args.manifests_dir,
-    )
+        try:
+            from asqi.workflow import DBOS, start_test_execution
 
-    if result["status"] == "failure":
-        print("\n❌ Test Plan Validation Failed:", file=sys.stderr)
-        for error in result["errors"]:
-            for line in str(error).splitlines():
-                print(f"  - {line}", file=sys.stderr)
-        sys.exit(1)
+            # Launch DBOS if not already launched
+            try:
+                DBOS.launch()
+            except Exception:
+                pass  # DBOS might already be launched
 
-    print("\n✨ Success! The test plan is valid.")
+            workflow_id = start_test_execution(
+                suite_path=args.suite_file,
+                suts_path=args.suts_file,
+                output_path=args.output_file,
+            )
+
+            print(f"\n✨ Execution completed! Workflow ID: {workflow_id}")
+
+        except ImportError:
+            print(
+                "❌ Error: DBOS workflow dependencies not available.", file=sys.stderr
+            )
+            print("Install with: pip install dbos", file=sys.stderr)
+            sys.exit(1)
+        except Exception as e:
+            print(f"❌ Execution failed: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    else:
+        # Validate the test plan
+        if not args.manifests_dir:
+            print("❌ Error: --manifests-dir required for validation.", file=sys.stderr)
+            sys.exit(1)
+
+        print("--- Running Verification ---")
+
+        result = load_and_validate_plan(
+            suite_path=args.suite_file,
+            suts_path=args.suts_file,
+            manifests_path=args.manifests_dir,
+        )
+
+        if result["status"] == "failure":
+            print("\n❌ Test Plan Validation Failed:", file=sys.stderr)
+            for error in result["errors"]:
+                for line in str(error).splitlines():
+                    print(f"  - {line}", file=sys.stderr)
+            sys.exit(1)
+
+        print("\n✨ Success! The test plan is valid.")
+        print("💡 Add --execute flag to run the test suite.")
 
 
 if __name__ == "__main__":
