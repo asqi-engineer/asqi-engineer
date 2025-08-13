@@ -19,7 +19,7 @@ def main():
 
     try:
         # Parse inputs
-        sut_config = json.loads(args.sut_config)
+        _sut_config = json.loads(args.sut_config)
         test_params = json.loads(args.test_params)
 
         # Extract delay parameter
