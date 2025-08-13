@@ -42,6 +42,7 @@ result.json
 .vscode/
 *.swp
 *.swo
+.DS_Store
 
 # Logs
 *.logconfig.yaml
