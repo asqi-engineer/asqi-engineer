@@ -1,0 +1,30 @@
+version: '3.9'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dbos
+      POSTGRES_DB: dbos_app_starter
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  asqi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+    environment:
+      DBOS_DATABASE_URL: postgres://postgres:dbos@db:5432/dbos_app_starter
+    restart: unless-stopped
+    volumes:
+      # Mount the workspace
+      - ..:/workspaces/asqi:cached
+    command: sleep infinity
+
+volumes:
+  pgdata:
