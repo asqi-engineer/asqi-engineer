@@ -45,8 +45,10 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "dbos" },
+    { name = "docker" },
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "rich" },
 ]
 
 [package.dev-dependencies]
@@ -61,8 +63,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dbos", specifier = ">=1.11.0" },
+    { name = "docker", specifier = ">=7.1.0" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "rich", specifier = ">=14.1.0" },
 ]
 
 [package.metadata.requires-dev]
