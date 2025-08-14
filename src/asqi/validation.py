@@ -129,7 +129,7 @@ def create_test_execution_plan(
 
             execution_plan.append(
                 {
-                    "test_name": f"{test_def.name}_{sut_name}",
+                    "test_name": test_def.name,
                     "image": test_def.image,
                     "sut_name": sut_name,
                     "sut_config": sut_config,
