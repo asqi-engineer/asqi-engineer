@@ -6,8 +6,6 @@ image_name: "my-registry/garak:latest"
 supported_suts:
   - type: "llm_api"
     required_config: ["provider", "model"]
-  - type: "rest_api"
-    required_config: ["uri"]
 
 input_schema:
   - name: "probes"
