@@ -126,6 +126,7 @@ def run_container_with_args(
     memory_limit: str = "512m",
     cpu_quota: int = 50000,
     cpu_period: int = 100000,
+    environment: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
     Run a Docker container with specified arguments and return results.
@@ -137,6 +138,7 @@ def run_container_with_args(
         memory_limit: Memory limit for container
         cpu_quota: CPU quota for container
         cpu_period: CPU period for container
+        environment: Optional dictionary of environment variables to pass to container
 
     Returns:
         Dictionary with execution results including exit_code, output, success, etc.
@@ -162,6 +164,7 @@ def run_container_with_args(
                 mem_limit=memory_limit,
                 cpu_period=cpu_period,
                 cpu_quota=cpu_quota,
+                environment=environment or {},
             )
 
             result["container_id"] = container.id or ""
