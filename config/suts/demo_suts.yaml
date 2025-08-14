@@ -1,4 +1,12 @@
 systems_under_test:
+  # OpenAI GPT-4o Mini for garak security testing
+  openai_gpt4o_mini:
+    type: "llm_api"
+    config:
+      provider: "openai"
+      model: "gpt-4o-mini"
+      api_key_env: "OPENAI_API_KEY"
+
   # This SUT is compatible with our mock_tester
   my_llm_service:
     type: "llm_api"
