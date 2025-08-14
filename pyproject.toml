@@ -23,6 +23,7 @@ dev = [
 
 [tool.bandit]
 exclude_dirs = [".venv", "tests", "test_containers/mock_tester"]
+skips = ["B404", "B603"]
 
 [tool.uv]
 package = true

@@ -1,0 +1,31 @@
+name: "garak"
+version: "1.0"
+description: "Garak LLM security testing framework container for vulnerability assessment."
+image_name: "my-registry/garak:latest"
+
+supported_suts:
+  - type: "llm_api"
+    required_config: ["provider", "model"]
+
+input_schema:
+  - name: "probes"
+    type: "list"
+    required: false
+    description: "List of garak probes to run (e.g., ['encoding', 'promptinject', 'dan', 'malwaregen']). Defaults to ['encoding']."
+  - name: "generations"
+    type: "integer"
+    required: false
+    description: "Number of generations per probe. Defaults to 10."
+  - name: "config_file"
+    type: "string"
+    required: false
+    description: "Custom garak configuration file content as YAML string."
+
+output_metrics:
+  - "success"
+  - "score"
+  - "vulnerabilities_found"
+  - "total_attempts"
+  - "probes_used"
+  - "generations"
+  - "sut_type"
