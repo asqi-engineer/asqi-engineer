@@ -118,31 +118,54 @@ class SuiteConfig(BaseModel):
 
 class PolicyFilter(BaseModel):
     """Defines which test results an indicator applies to."""
-    
-    test_name: str = Field(..., description="Test name to filter by, e.g., 'run_mock_on_compatible_sut_my_llm_service'")
+
+    test_name: str = Field(
+        ...,
+        description="Test name to filter by, e.g., 'run_mock_on_compatible_sut_my_llm_service'",
+    )
 
 
 class AssessmentRule(BaseModel):
     """Individual assessment outcome with condition."""
-    
-    outcome: str = Field(..., description="Assessment outcome, e.g., 'PASS', 'FAIL', 'A', 'F'")
-    condition: Literal["equal_to", "greater_than", "less_than", "greater_equal", "less_equal", "all_true", "any_false", "count_equals"] = Field(
-        ..., description="Condition to evaluate against the metric value"
+
+    outcome: str = Field(
+        ..., description="Assessment outcome, e.g., 'PASS', 'FAIL', 'A', 'F'"
     )
-    threshold: Optional[Union[int, float]] = Field(None, description="Threshold value for comparison conditions")
+    condition: Literal[
+        "equal_to",
+        "greater_than",
+        "less_than",
+        "greater_equal",
+        "less_equal",
+        "all_true",
+        "any_false",
+        "count_equals",
+    ] = Field(..., description="Condition to evaluate against the metric value")
+    threshold: Optional[Union[int, float]] = Field(
+        None, description="Threshold value for comparison conditions"
+    )
 
 
 class PolicyIndicator(BaseModel):
     """Individual policy indicator with filtering and assessment."""
-    
+
     name: str = Field(..., description="Human-readable name for this policy indicator")
-    apply_to: PolicyFilter = Field(..., description="Filter criteria for which test results this indicator applies to")
-    metric: str = Field(..., description="JSONPath into test_results object, e.g., 'success', 'score'")
-    assessment: List[AssessmentRule] = Field(..., description="List of assessment rules to evaluate against the metric")
+    apply_to: PolicyFilter = Field(
+        ...,
+        description="Filter criteria for which test results this indicator applies to",
+    )
+    metric: str = Field(
+        ..., description="JSONPath into test_results object, e.g., 'success', 'score'"
+    )
+    assessment: List[AssessmentRule] = Field(
+        ..., description="List of assessment rules to evaluate against the metric"
+    )
 
 
 class GradingPolicy(BaseModel):
     """Complete grading policy configuration."""
-    
+
     policy_name: str = Field(..., description="Name of the grading policy")
-    indicators: List[PolicyIndicator] = Field(..., description="List of policy indicators to evaluate")
+    indicators: List[PolicyIndicator] = Field(
+        ..., description="List of policy indicators to evaluate"
+    )
