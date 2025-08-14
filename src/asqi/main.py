@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 import yaml
 from pydantic import ValidationError
 
-from asqi.schemas import Manifest, SuiteConfig, SUTsConfig, GradingPolicy
+from asqi.schemas import GradingPolicy, Manifest, SuiteConfig, SUTsConfig
 from asqi.validation import validate_test_plan
 
 
@@ -31,7 +31,7 @@ def load_policy_file(policy_path: str) -> Dict[str, Any]:
     try:
         policy_data = load_yaml_file(policy_path)
         # Validate policy structure
-        policy = GradingPolicy(**policy_data)
+        _policy = GradingPolicy(**policy_data)
         return policy_data
     except ValidationError as e:
         raise ConfigError(f"Invalid policy configuration in '{policy_path}': {e}")
@@ -113,8 +113,7 @@ def main():
         "--output-file", help="Path to save execution results JSON file."
     )
     parser.add_argument(
-        "--policy-file",
-        help="Path to grading policy YAML file (optional)."
+        "--policy-file", help="Path to grading policy YAML file (optional)."
     )
 
     args = parser.parse_args()
@@ -138,7 +137,9 @@ def main():
                 try:
                     policy_config = load_policy_file(args.policy_file)
                     policy_configs = [policy_config]
-                    print(f"✅ Loaded grading policy: {policy_config.get('policy_name', 'unnamed')}")
+                    print(
+                        f"✅ Loaded grading policy: {policy_config.get('policy_name', 'unnamed')}"
+                    )
                 except ConfigError as e:
                     print(f"❌ Policy configuration error: {e}", file=sys.stderr)
                     sys.exit(1)
