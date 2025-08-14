@@ -419,9 +419,13 @@ class TestValidationFunctions:
         # Should create 3 plans (1 + 2)
         assert len(plan) == 3
         names = [p["test_name"] for p in plan]
-        assert "t1_my_llm_service" in names
-        assert "t2_my_llm_service" in names
-        assert "t2_my_backend_api" in names
+        assert names.count("t1") == 1
+        assert names.count("t2") == 2
+
+        # Check that different SUTs are included
+        sut_names = [p["sut_name"] for p in plan]
+        assert "my_llm_service" in sut_names
+        assert "my_backend_api" in sut_names
 
         # If image not available, plan is empty
         image_availability = {"my-registry/mock_tester:latest": False}
