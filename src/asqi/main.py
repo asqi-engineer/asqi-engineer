@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 import yaml
 from pydantic import ValidationError
 
-from asqi.schemas import Manifest, SuiteConfig, SUTsConfig
+from asqi.schemas import Manifest, SuiteConfig, SUTsConfig, GradingPolicy
 from asqi.validation import validate_test_plan
 
 
@@ -24,6 +24,19 @@ def load_yaml_file(file_path: str) -> Dict[str, Any]:
         raise ConfigError(f"File not found at '{file_path}'")
     except yaml.YAMLError as e:
         raise ConfigError(f"Could not parse YAML file '{file_path}': {e}")
+
+
+def load_policy_file(policy_path: str) -> Dict[str, Any]:
+    """Load and validate grading policy configuration."""
+    try:
+        policy_data = load_yaml_file(policy_path)
+        # Validate policy structure
+        policy = GradingPolicy(**policy_data)
+        return policy_data
+    except ValidationError as e:
+        raise ConfigError(f"Invalid policy configuration in '{policy_path}': {e}")
+    except Exception as e:
+        raise ConfigError(f"Failed to load policy file '{policy_path}': {e}")
 
 
 def load_and_validate_plan(
@@ -99,6 +112,10 @@ def main():
     parser.add_argument(
         "--output-file", help="Path to save execution results JSON file."
     )
+    parser.add_argument(
+        "--policy-file",
+        help="Path to grading policy YAML file (optional)."
+    )
 
     args = parser.parse_args()
 
@@ -115,10 +132,22 @@ def main():
             except Exception as e:
                 print(f"Error launching DBOS: {e}")
 
+            # Load policy configuration if provided
+            policy_configs = None
+            if args.policy_file:
+                try:
+                    policy_config = load_policy_file(args.policy_file)
+                    policy_configs = [policy_config]
+                    print(f"✅ Loaded grading policy: {policy_config.get('policy_name', 'unnamed')}")
+                except ConfigError as e:
+                    print(f"❌ Policy configuration error: {e}", file=sys.stderr)
+                    sys.exit(1)
+
             workflow_id = start_test_execution(
                 suite_path=args.suite_file,
                 suts_path=args.suts_file,
                 output_path=args.output_file,
+                policy_configs=policy_configs,
             )
 
             print(f"\n✨ Execution completed! Workflow ID: {workflow_id}")
