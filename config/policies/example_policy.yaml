@@ -1,0 +1,26 @@
+policy_name: "Individual Mock Test Evaluation Policy"
+indicators:
+  - name: "Mock test success requirement"
+    apply_to:
+      test_name: "run_mock_on_compatible_sut"
+    metric: "success"
+    assessment:
+      - { outcome: "PASS", condition: "equal_to", threshold: true }
+      - { outcome: "FAIL", condition: "equal_to", threshold: false }
+
+  - name: "Mock test score quality assessment"
+    apply_to:
+      test_name: "run_mock_on_compatible_sut"  
+    metric: "score"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 0.9 }
+      - { outcome: "B", condition: "greater_equal", threshold: 0.8 }
+      - { outcome: "C", condition: "less_than", threshold: 0.8 }
+
+  - name: "Mock test execution speed check"
+    apply_to:
+      test_name: "delay_test"
+    metric: "delay_used"
+    assessment:
+      - { outcome: "FAST", condition: "less_equal", threshold: 2 }
+      - { outcome: "SLOW", condition: "greater_than", threshold: 2 }
