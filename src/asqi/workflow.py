@@ -134,6 +134,17 @@ def execute_single_test(
     test_params_json = json.dumps(test_params)
     command_args = ["--sut-config", sut_config_json, "--test-params", test_params_json]
 
+    # Prepare environment variables from SUT config
+    container_env = {}
+    if "api_key_env" in sut_config:
+        api_key_env = sut_config["api_key_env"]
+        if api_key_env in os.environ:
+            container_env[api_key_env] = os.environ[api_key_env]
+        else:
+            DBOS.logger.warning(
+                f"Environment variable {api_key_env} not found in host environment"
+            )
+
     # Execute container
     result.start_time = time.time()
 
@@ -144,6 +155,7 @@ def execute_single_test(
         memory_limit=ContainerConfig.MEMORY_LIMIT,
         cpu_quota=ContainerConfig.CPU_QUOTA,
         cpu_period=ContainerConfig.CPU_PERIOD,
+        environment=container_env,
     )
 
     result.end_time = time.time()
