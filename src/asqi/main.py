@@ -34,7 +34,9 @@ def load_score_card_file(score_card_path: str) -> Dict[str, Any]:
         _score_card = ScoreCard(**score_card_data)
         return score_card_data
     except ValidationError as e:
-        raise ConfigError(f"Invalid score card configuration in '{score_card_path}': {e}")
+        raise ConfigError(
+            f"Invalid score card configuration in '{score_card_path}': {e}"
+        )
     except Exception as e:
         raise ConfigError(f"Failed to load score card file '{score_card_path}': {e}")
 
