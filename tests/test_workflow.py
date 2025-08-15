@@ -367,7 +367,7 @@ def test_evaluate_score_cards_workflow():
 
     with (
         patch("asqi.workflow.convert_test_results_to_objects") as mock_convert,
-        patch("asqi.workflow.evaluate_grading_policies") as mock_evaluate,
+        patch("asqi.workflow.evaluate_score_card") as mock_evaluate,
         patch("asqi.workflow.add_score_cards_to_results") as mock_add,
         patch("asqi.workflow.console") as mock_console,
     ):
