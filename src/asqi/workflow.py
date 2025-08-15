@@ -498,10 +498,43 @@ def run_test_suite_workflow(
                     f"[{status_color}]Score Card '{score_card_name}': {status_text}[/{status_color}]"
                 )
 
+    # Restructure score card evaluation results
+    score_card = None
+    if score_card_evaluation:
+        # Group evaluations by score card name
+        score_cards_by_name = {}
+        for evaluation in score_card_evaluation:
+            score_card_name = evaluation.get("score_card_name", "unknown")
+            if score_card_name not in score_cards_by_name:
+                score_cards_by_name[score_card_name] = []
+            # Remove score_card_name from individual assessment since it's now at parent level
+            assessment = {k: v for k, v in evaluation.items() if k != "score_card_name"}
+            score_cards_by_name[score_card_name].append(assessment)
+
+        # If only one score card, use single object structure
+        if len(score_cards_by_name) == 1:
+            score_card_name, assessments = next(iter(score_cards_by_name.items()))
+            score_card = {
+                "score_card_name": score_card_name,
+                "total_evaluations": len(assessments),
+                "assessments": assessments,
+            }
+        else:
+            # Multiple score cards - create array of score card objects
+            score_card = []
+            for score_card_name, assessments in score_cards_by_name.items():
+                score_card.append(
+                    {
+                        "score_card_name": score_card_name,
+                        "total_evaluations": len(assessments),
+                        "assessments": assessments,
+                    }
+                )
+
     return {
         "summary": summary,
         "results": [result.to_dict() for result in all_results],
-        "score_card_evaluation": score_card_evaluation,
+        "score_card": score_card,
     }
 
 
