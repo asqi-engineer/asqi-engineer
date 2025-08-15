@@ -116,7 +116,7 @@ class SuiteConfig(BaseModel):
 # ----------------------------------------------------------------------------
 
 
-class PolicyFilter(BaseModel):
+class ScoreCardFilter(BaseModel):
     """Defines which test results an indicator applies to."""
 
     test_name: str = Field(
@@ -146,11 +146,13 @@ class AssessmentRule(BaseModel):
     )
 
 
-class PolicyIndicator(BaseModel):
-    """Individual policy indicator with filtering and assessment."""
+class ScoreCardIndicator(BaseModel):
+    """Individual score card indicator with filtering and assessment."""
 
-    name: str = Field(..., description="Human-readable name for this policy indicator")
-    apply_to: PolicyFilter = Field(
+    name: str = Field(
+        ..., description="Human-readable name for this score card indicator"
+    )
+    apply_to: ScoreCardFilter = Field(
         ...,
         description="Filter criteria for which test results this indicator applies to",
     )
@@ -162,10 +164,10 @@ class PolicyIndicator(BaseModel):
     )
 
 
-class GradingPolicy(BaseModel):
-    """Complete grading policy configuration."""
+class ScoreCard(BaseModel):
+    """Complete grading score card configuration."""
 
-    policy_name: str = Field(..., description="Name of the grading policy")
-    indicators: List[PolicyIndicator] = Field(
-        ..., description="List of policy indicators to evaluate"
+    score_card_name: str = Field(..., description="Name of the grading score card")
+    indicators: List[ScoreCardIndicator] = Field(
+        ..., description="List of score card indicators to evaluate"
     )

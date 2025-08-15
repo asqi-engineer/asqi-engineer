@@ -1,14 +1,14 @@
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from asqi.schemas import GradingPolicy, PolicyIndicator
+from asqi.schemas import ScoreCard, ScoreCardIndicator
 from asqi.workflow import TestExecutionResult
 
 logger = logging.getLogger(__name__)
 
 
-class PolicyEvaluationResult:
-    """Result of evaluating a single policy indicator."""
+class ScoreCardEvaluationResult:
+    """Result of evaluating a single score_card indicator."""
 
     def __init__(self, indicator_name: str, test_name: str):
         self.indicator_name = indicator_name
@@ -36,8 +36,8 @@ class PolicyEvaluationResult:
         }
 
 
-class PolicyEngine:
-    """Core policy evaluation engine."""
+class ScoreCardEngine:
+    """Core score_card evaluation engine."""
 
     def filter_results_by_test_name(
         self, test_results: List[TestExecutionResult], target_test_name: str
@@ -151,9 +151,9 @@ class PolicyEngine:
             raise ValueError(f"Unknown condition: {condition}")
 
     def evaluate_indicator(
-        self, test_results: List[TestExecutionResult], indicator: PolicyIndicator
-    ) -> List[PolicyEvaluationResult]:
-        """Evaluate a single policy indicator against individual test results."""
+        self, test_results: List[TestExecutionResult], indicator: ScoreCardIndicator
+    ) -> List[ScoreCardEvaluationResult]:
+        """Evaluate a single score_card indicator against individual test results."""
         results = []
 
         try:
@@ -164,7 +164,7 @@ class PolicyEngine:
 
             if not filtered_results:
                 # Create a single error result when no tests match
-                error_result = PolicyEvaluationResult(
+                error_result = ScoreCardEvaluationResult(
                     indicator.name, indicator.apply_to.test_name
                 )
                 error_result.error = f"No test results found for test_name '{indicator.apply_to.test_name}'"
@@ -172,7 +172,7 @@ class PolicyEngine:
 
             # Evaluate each individual test result
             for test_result in filtered_results:
-                eval_result = PolicyEvaluationResult(
+                eval_result = ScoreCardEvaluationResult(
                     indicator.name, indicator.apply_to.test_name
                 )
                 eval_result.sut_name = test_result.sut_name
@@ -203,7 +203,7 @@ class PolicyEngine:
                                 if condition_met:
                                     eval_result.outcome = assessment_rule.outcome
                                     logger.info(
-                                        f"Policy indicator '{indicator.name}' for test '{test_result.test_name}' (SUT: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
+                                        f"score_card indicator '{indicator.name}' for test '{test_result.test_name}' (SUT: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
                                     )
                                     break
 
@@ -235,7 +235,7 @@ class PolicyEngine:
 
         except Exception as e:
             logger.error(f"Error evaluating indicator '{indicator.name}': {e}")
-            error_result = PolicyEvaluationResult(
+            error_result = ScoreCardEvaluationResult(
                 indicator.name, indicator.apply_to.test_name
             )
             error_result.error = str(e)
@@ -243,20 +243,20 @@ class PolicyEngine:
 
         return results
 
-    def evaluate_policy(
-        self, test_results: List[TestExecutionResult], policy: GradingPolicy
+    def evaluate_scorecard(
+        self, test_results: List[TestExecutionResult], score_card: ScoreCard
     ) -> List[Dict[str, Any]]:
-        """Evaluate a complete grading policy against test results."""
+        """Evaluate a complete grading score_card against test results."""
         all_test_evaluations = []
 
-        for indicator in policy.indicators:
+        for indicator in score_card.indicators:
             indicator_results = self.evaluate_indicator(test_results, indicator)
 
             for result in indicator_results:
                 all_test_evaluations.append(result.to_dict())
 
         logger.info(
-            f"Policy '{policy.policy_name}' evaluation completed with {len(all_test_evaluations)} individual evaluations"
+            f"score_card '{score_card.score_card_name}' evaluation completed with {len(all_test_evaluations)} individual evaluations"
         )
 
         return all_test_evaluations
