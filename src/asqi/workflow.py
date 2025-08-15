@@ -235,10 +235,9 @@ def evaluate_grading_policies(
 def run_test_suite_workflow(
     suite_config: Dict[str, Any],
     suts_config: Dict[str, Any],
-    score_card_configs: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
-    Execute a complete test suite with DBOS durability.
+    Execute a test suite with DBOS durability (tests only, no score card evaluation).
 
     This workflow:
     1. Validates image availability and extracts manifests
@@ -251,7 +250,7 @@ def run_test_suite_workflow(
         suts_config: Serialized SUTsConfig containing SUT configurations
 
     Returns:
-        Execution summary with metadata and individual test results
+        Execution summary with metadata and individual test results (no score cards)
     """
     workflow_start_time = time.time()
 
@@ -447,57 +446,40 @@ def run_test_suite_workflow(
         f"Workflow completed: {successful_tests}/{total_tests} tests passed"
     )
 
-    # Evaluate grading policies if provided
-    score_card_evaluation = []
-    if score_card_configs:
-        console.print("\n[bold blue]Evaluating grading policies...[/bold blue]")
-        score_card_evaluation = evaluate_grading_policies(
-            all_results, score_card_configs
+    return {
+        "summary": summary,
+        "results": [result.to_dict() for result in all_results],
+    }
+
+
+@DBOS.step()
+def convert_test_results_to_objects(
+    test_results_data: Dict[str, Any],
+) -> List[TestExecutionResult]:
+    """Convert test results data back to TestExecutionResult objects."""
+    test_results = []
+    for result_dict in test_results_data.get("results", []):
+        metadata = result_dict["metadata"]
+        result = TestExecutionResult(
+            metadata["test_name"], metadata["sut_name"], metadata["image"]
         )
+        result.start_time = metadata["start_time"]
+        result.end_time = metadata["end_time"]
+        result.success = metadata["success"]
+        result.container_id = metadata["container_id"]
+        result.exit_code = metadata["exit_code"]
+        result.container_output = result_dict["container_output"]
+        result.test_results = result_dict["test_results"]
+        result.error_message = result_dict["error_message"]
+        test_results.append(result)
+    return test_results
 
-        if score_card_evaluation:
-            # Group by score card name for display
-            policies_by_name = {}
-            for evaluation in score_card_evaluation:
-                score_card_name = evaluation.get("score_card_name", "unknown")
-                if score_card_name not in policies_by_name:
-                    policies_by_name[score_card_name] = []
-                policies_by_name[score_card_name].append(evaluation)
 
-            # Display summary for each score card
-            for score_card_name, evaluations in policies_by_name.items():
-                passed = sum(
-                    1
-                    for e in evaluations
-                    if e.get("outcome")
-                    and e["outcome"].upper()
-                    in ["PASS", "A", "GOOD", "SUCCESS", "EXCELLENT", "FAST"]
-                )
-                failed = sum(
-                    1
-                    for e in evaluations
-                    if e.get("outcome")
-                    and e["outcome"].upper()
-                    not in ["PASS", "A", "GOOD", "SUCCESS", "EXCELLENT", "FAST"]
-                )
-                errors = sum(1 for e in evaluations if e.get("error"))
-
-                if errors > 0:
-                    status_color = "red"
-                    status_text = (
-                        f"ERRORS ({passed} passed, {failed} failed, {errors} errors)"
-                    )
-                elif failed > 0:
-                    status_color = "yellow"
-                    status_text = f"MIXED ({passed} passed, {failed} failed)"
-                else:
-                    status_color = "green"
-                    status_text = f"ALL PASSED ({passed} passed)"
-
-                console.print(
-                    f"[{status_color}]Score Card '{score_card_name}': {status_text}[/{status_color}]"
-                )
-
+@DBOS.step()
+def add_score_cards_to_results(
+    test_results_data: Dict[str, Any], score_card_evaluation: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Add score card evaluation results to test results data."""
     # Restructure score card evaluation results
     score_card = None
     if score_card_evaluation:
@@ -531,11 +513,59 @@ def run_test_suite_workflow(
                     }
                 )
 
-    return {
-        "summary": summary,
-        "results": [result.to_dict() for result in all_results],
-        "score_card": score_card,
-    }
+    # Create updated results with score card data
+    updated_results = test_results_data.copy()
+    updated_results["score_card"] = score_card
+    return updated_results
+
+
+@DBOS.workflow()
+def evaluate_score_cards_workflow(
+    test_results_data: Dict[str, Any],
+    score_card_configs: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Evaluate score cards against existing test results.
+
+    Args:
+        test_results_data: Test execution results containing 'results' field
+        score_card_configs: List of score card configurations to evaluate
+
+    Returns:
+        Updated results with score card evaluation data
+    """
+    # 1. Convert test results back to TestExecutionResult objects
+    test_results = convert_test_results_to_objects(test_results_data)
+
+    # 2. Evaluate grading policies using existing step
+    console.print("\n[bold blue]Evaluating grading policies...[/bold blue]")
+    score_card_evaluation = evaluate_grading_policies(test_results, score_card_configs)
+
+    # 3. Add score card results to test data
+    return add_score_cards_to_results(test_results_data, score_card_evaluation)
+
+
+@DBOS.workflow()
+def run_end_to_end_workflow(
+    suite_config: Dict[str, Any],
+    suts_config: Dict[str, Any],
+    score_card_configs: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Execute a complete end-to-end workflow: test execution + score card evaluation.
+
+    Args:
+        suite_config: Serialized SuiteConfig containing test definitions
+        suts_config: Serialized SUTsConfig containing SUT configurations
+        score_card_configs: List of score card configurations to evaluate
+
+    Returns:
+        Complete execution results with test results and score card evaluations
+    """
+    test_results = run_test_suite_workflow(suite_config, suts_config)
+    final_results = evaluate_score_cards_workflow(test_results, score_card_configs)
+
+    return final_results
 
 
 @DBOS.step()
@@ -555,6 +585,7 @@ def start_test_execution(
     suts_path: str,
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
+    execution_mode: str = "end_to_end",
 ) -> str:
     """
     Start test suite execution and return the workflow ID.
@@ -564,6 +595,7 @@ def start_test_execution(
         suts_path: Path to SUTs YAML file
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
+        execution_mode: "tests_only", "score_cards_only", or "end_to_end"
 
     Returns:
         Workflow ID for tracking execution
@@ -573,9 +605,62 @@ def start_test_execution(
         suite_config = load_config_file(suite_path)
         suts_config = load_config_file(suts_path)
 
-        # Start workflow
+        # Start appropriate workflow based on execution mode
+        if execution_mode == "tests_only":
+            handle = DBOS.start_workflow(
+                run_test_suite_workflow, suite_config, suts_config
+            )
+        elif execution_mode == "end_to_end":
+            if not score_card_configs:
+                # Fall back to tests only if no score cards provided
+                handle = DBOS.start_workflow(
+                    run_test_suite_workflow, suite_config, suts_config
+                )
+            else:
+                handle = DBOS.start_workflow(
+                    run_end_to_end_workflow,
+                    suite_config,
+                    suts_config,
+                    score_card_configs,
+                )
+        else:
+            raise ValueError(f"Invalid execution mode: {execution_mode}")
+
+        if output_path:
+            results = handle.get_result()
+            save_results_to_file_step(results, output_path)
+        else:
+            handle.get_result()
+
+        return handle.get_workflow_id()
+
+    except FileNotFoundError as e:
+        console.print(f"[red]Configuration file not found:[/red] {e}")
+        raise
+
+
+def start_score_card_evaluation(
+    input_path: str,
+    score_card_configs: List[Dict[str, Any]],
+    output_path: Optional[str] = None,
+) -> str:
+    """
+    Start score card evaluation against existing test results and return the workflow ID.
+
+    Args:
+        input_path: Path to JSON file containing test execution results
+        score_card_configs: List of score card configurations to evaluate
+        output_path: Optional path to save updated results JSON file
+
+    Returns:
+        Workflow ID for tracking execution
+    """
+    try:
+        with open(input_path, "r") as f:
+            test_results_data = json.load(f)
+
         handle = DBOS.start_workflow(
-            run_test_suite_workflow, suite_config, suts_config, score_card_configs
+            evaluate_score_cards_workflow, test_results_data, score_card_configs
         )
 
         # Wait for completion and optionally save results
@@ -588,7 +673,10 @@ def start_test_execution(
         return handle.get_workflow_id()
 
     except FileNotFoundError as e:
-        console.print(f"[red]Configuration file not found:[/red] {e}")
+        console.print(f"[red]Input file not found:[/red] {e}")
+        raise
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Invalid JSON in input file:[/red] {e}")
         raise
     except Exception as e:
         console.print(f"[red]Failed to start test execution:[/red] {e}")
