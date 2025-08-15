@@ -183,10 +183,10 @@ def execute_single_test(
 
 
 @DBOS.step()
-def evaluate_grading_policies(
+def evaluate_score_card(
     test_results: List[TestExecutionResult], score_card_configs: List[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
-    """Evaluate grading policies against test execution results."""
+    """Evaluate score cards against test execution results."""
     from asqi.score_card_engine import ScoreCardEngine
 
     if not score_card_configs:
@@ -537,9 +537,9 @@ def evaluate_score_cards_workflow(
     # 1. Convert test results back to TestExecutionResult objects
     test_results = convert_test_results_to_objects(test_results_data)
 
-    # 2. Evaluate grading policies using existing step
-    console.print("\n[bold blue]Evaluating grading policies...[/bold blue]")
-    score_card_evaluation = evaluate_grading_policies(test_results, score_card_configs)
+    # 2. Evaluate score cards using existing step
+    console.print("\n[bold blue]Evaluating score cards...[/bold blue]")
+    score_card_evaluation = evaluate_score_card(test_results, score_card_configs)
 
     # 3. Add score card results to test data
     return add_score_cards_to_results(test_results_data, score_card_evaluation)

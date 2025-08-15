@@ -112,7 +112,7 @@ class SuiteConfig(BaseModel):
 
 
 # ----------------------------------------------------------------------------
-# Schema for grading policies (User-provided)
+# Schema for Score Card (User-provided)
 # ----------------------------------------------------------------------------
 
 
