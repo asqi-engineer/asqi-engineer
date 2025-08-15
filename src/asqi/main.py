@@ -1,9 +1,8 @@
-import argparse
 import glob
 import os
-import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+import typer
 import yaml
 from pydantic import ValidationError
 
@@ -31,7 +30,7 @@ def load_score_card_file(score_card_path: str) -> Dict[str, Any]:
     try:
         score_card_data = load_yaml_file(score_card_path)
         # Validate score card structure
-        _score_card = ScoreCard(**score_card_data)
+        ScoreCard(**score_card_data)
         return score_card_data
     except ValidationError as e:
         raise ConfigError(
@@ -91,203 +90,197 @@ def load_and_validate_plan(
     return {"status": "success", "errors": []}
 
 
-def main():
-    """Main CLI entrypoint. Handles argument parsing, calling logic, and printing results."""
-    parser = argparse.ArgumentParser(
-        description="A durable test executor for AI systems."
-    )
-    parser.add_argument("--suite-file", help="Path to the test suite YAML file.")
-    parser.add_argument("--suts-file", help="Path to the SUTs YAML file.")
-    parser.add_argument(
-        "--manifests-dir",
-        help="Path to dir with test container manifests (for validation only).",
-    )
-    parser.add_argument(
-        "--execute",
-        action="store_true",
-        help="Execute the complete end-to-end workflow: tests + score cards (requires Docker).",
-    )
-    parser.add_argument(
-        "--execute-tests",
-        action="store_true",
-        help="Execute only the test suite, skip score card evaluation (requires Docker).",
-    )
-    parser.add_argument(
-        "--evaluate-score-cards",
-        action="store_true",
-        help="Evaluate score cards against existing test results from JSON file.",
-    )
-    parser.add_argument(
-        "--output-file", help="Path to save execution results JSON file."
-    )
-    parser.add_argument(
-        "--input-file",
-        help="Path to JSON file with existing test results (for --evaluate-score-cards).",
-    )
-    parser.add_argument(
-        "--score-card-file", help="Path to grading score card YAML file (optional)."
+app = typer.Typer(help="A test executor for AI systems.")
+
+
+@app.command("validate", help="Validate test plan configuration without execution.")
+def validate(
+    suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
+    suts_file: str = typer.Option(..., help="Path to the SUTs YAML file."),
+    manifests_dir: str = typer.Option(
+        ..., help="Path to dir with test container manifests."
+    ),
+):
+    """Validate test plan configuration without execution."""
+    typer.echo("--- Running Verification ---")
+
+    result = load_and_validate_plan(
+        suite_path=suite_file,
+        suts_path=suts_file,
+        manifests_path=manifests_dir,
     )
 
-    args = parser.parse_args()
+    if result["status"] == "failure":
+        typer.echo("\n❌ Test Plan Validation Failed:", err=True)
+        for error in result["errors"]:
+            for line in str(error).splitlines():
+                typer.echo(f"  - {line}", err=True)
+        raise typer.Exit(1)
 
-    # Validate execution mode arguments
-    execution_modes = [args.execute, args.execute_tests, args.evaluate_score_cards]
-    if sum(execution_modes) > 1:
-        print("❌ Error: Cannot specify multiple execution modes.", file=sys.stderr)
-        sys.exit(1)
+    typer.echo("\n✨ Success! The test plan is valid.")
+    typer.echo("💡 Use 'execute' or 'execute-tests' commands to run tests.")
 
-    # Validate required arguments for each mode
-    if args.execute or args.execute_tests:
-        if not args.suite_file:
-            print(
-                "❌ Error: --suite-file required for test execution.", file=sys.stderr
-            )
-            sys.exit(1)
-        if not args.suts_file:
-            print("❌ Error: --suts-file required for test execution.", file=sys.stderr)
-            sys.exit(1)
-    elif args.evaluate_score_cards:
-        if not args.input_file:
-            print(
-                "❌ Error: --input-file required for score card evaluation.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        if not args.score_card_file:
-            print(
-                "❌ Error: --score-card-file required for score card evaluation.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-    else:
-        # Validation mode - check required args
-        if not args.suite_file:
-            print("❌ Error: --suite-file required for validation.", file=sys.stderr)
-            sys.exit(1)
-        if not args.suts_file:
-            print("❌ Error: --suts-file required for validation.", file=sys.stderr)
-            sys.exit(1)
-        if not args.manifests_dir:
-            print("❌ Error: --manifests-dir required for validation.", file=sys.stderr)
-            sys.exit(1)
 
-    if args.execute or args.execute_tests:
-        # Execute the test suite
-        print("--- 🚀 Executing Test Suite ---")
+@app.command()
+def execute(
+    suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
+    suts_file: str = typer.Option(..., help="Path to the SUTs YAML file."),
+    score_card_file: str = typer.Option(
+        ..., help="Path to grading score card YAML file."
+    ),
+    output_file: Optional[str] = typer.Option(
+        None, help="Path to save execution results JSON file."
+    ),
+):
+    """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
+    typer.echo("--- 🚀 Executing End-to-End Workflow ---")
 
+    try:
+        from asqi.workflow import DBOS, start_test_execution
+
+        # Launch DBOS if not already launched
         try:
-            from asqi.workflow import DBOS, start_test_execution
-
-            # Launch DBOS if not already launched
-            try:
-                DBOS.launch()
-            except Exception as e:
-                print(f"Error launching DBOS: {e}")
-
-            # Determine execution mode
-            execution_mode = "tests_only" if args.execute_tests else "end_to_end"
-
-            # Load score card configuration if provided
-            score_card_configs = None
-            if args.score_card_file:
-                try:
-                    score_card_config = load_score_card_file(args.score_card_file)
-                    score_card_configs = [score_card_config]
-                    print(
-                        f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
-                    )
-                except ConfigError as e:
-                    print(f"❌ score card configuration error: {e}", file=sys.stderr)
-                    sys.exit(1)
-
-            # Validate score card requirement for end-to-end mode
-            if execution_mode == "end_to_end" and not score_card_configs:
-                print(
-                    "⚠️  Warning: No score card provided for end-to-end execution. Running tests only."
-                )
-
-            workflow_id = start_test_execution(
-                suite_path=args.suite_file,
-                suts_path=args.suts_file,
-                output_path=args.output_file,
-                score_card_configs=score_card_configs,
-                execution_mode=execution_mode,
-            )
-
-            print(f"\n✨ Execution completed! Workflow ID: {workflow_id}")
-
-        except ImportError:
-            print(
-                "❌ Error: DBOS workflow dependencies not available.", file=sys.stderr
-            )
-            print("Install with: pip install dbos", file=sys.stderr)
-            sys.exit(1)
+            DBOS.launch()
         except Exception as e:
-            print(f"❌ Execution failed: {e}", file=sys.stderr)
-            sys.exit(1)
+            typer.echo(f"Error launching DBOS: {e}")
 
-    elif args.evaluate_score_cards:
-        # Evaluate score cards against existing test results
-        print("--- 📊 Evaluating Score Cards ---")
-
+        # Load score card configuration
+        score_card_configs = None
         try:
-            from asqi.workflow import DBOS, start_score_card_evaluation
+            score_card_config = load_score_card_file(score_card_file)
+            score_card_configs = [score_card_config]
+            typer.echo(
+                f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
+            )
+        except ConfigError as e:
+            typer.echo(f"❌ score card configuration error: {e}", err=True)
+            raise typer.Exit(1)
 
-            # Launch DBOS if not already launched
-            try:
-                DBOS.launch()
-            except Exception as e:
-                print(f"Error launching DBOS: {e}")
+        workflow_id = start_test_execution(
+            suite_path=suite_file,
+            suts_path=suts_file,
+            output_path=output_file,
+            score_card_configs=score_card_configs,
+            execution_mode="end_to_end",
+        )
 
-            # Load score card configuration
+        typer.echo(f"\n✨ Execution completed! Workflow ID: {workflow_id}")
+
+    except ImportError:
+        typer.echo("❌ Error: DBOS workflow dependencies not available.", err=True)
+        typer.echo("Install with: pip install dbos", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Execution failed: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command(name="execute-tests")
+def execute_tests(
+    suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
+    suts_file: str = typer.Option(..., help="Path to the SUTs YAML file."),
+    output_file: Optional[str] = typer.Option(
+        None, help="Path to save execution results JSON file."
+    ),
+    score_card_file: Optional[str] = typer.Option(
+        None, help="Path to grading score card YAML file (optional)."
+    ),
+):
+    """Execute only the test suite, skip score card evaluation (requires Docker)."""
+    typer.echo("--- 🚀 Executing Test Suite ---")
+
+    try:
+        from asqi.workflow import DBOS, start_test_execution
+
+        # Launch DBOS if not already launched
+        try:
+            DBOS.launch()
+        except Exception as e:
+            typer.echo(f"Error launching DBOS: {e}")
+
+        # Load score card configuration if provided
+        score_card_configs = None
+        if score_card_file:
             try:
-                score_card_config = load_score_card_file(args.score_card_file)
+                score_card_config = load_score_card_file(score_card_file)
                 score_card_configs = [score_card_config]
-                print(
+                typer.echo(
                     f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
                 )
             except ConfigError as e:
-                print(f"❌ score card configuration error: {e}", file=sys.stderr)
-                sys.exit(1)
+                typer.echo(f"❌ score card configuration error: {e}", err=True)
+                raise typer.Exit(1)
 
-            workflow_id = start_score_card_evaluation(
-                input_path=args.input_file,
-                score_card_configs=score_card_configs,
-                output_path=args.output_file,
-            )
-
-            print(f"\n✨ Score card evaluation completed! Workflow ID: {workflow_id}")
-
-        except ImportError:
-            print(
-                "❌ Error: DBOS workflow dependencies not available.", file=sys.stderr
-            )
-            print("Install with: pip install dbos", file=sys.stderr)
-            sys.exit(1)
-        except Exception as e:
-            print(f"❌ Score card evaluation failed: {e}", file=sys.stderr)
-            sys.exit(1)
-
-    else:
-        # Validate the test plan
-        print("--- Running Verification ---")
-
-        result = load_and_validate_plan(
-            suite_path=args.suite_file,
-            suts_path=args.suts_file,
-            manifests_path=args.manifests_dir,
+        workflow_id = start_test_execution(
+            suite_path=suite_file,
+            suts_path=suts_file,
+            output_path=output_file,
+            score_card_configs=score_card_configs,
+            execution_mode="tests_only",
         )
 
-        if result["status"] == "failure":
-            print("\n❌ Test Plan Validation Failed:", file=sys.stderr)
-            for error in result["errors"]:
-                for line in str(error).splitlines():
-                    print(f"  - {line}", file=sys.stderr)
-            sys.exit(1)
+        typer.echo(f"\n✨ Test execution completed! Workflow ID: {workflow_id}")
 
-        print("\n✨ Success! The test plan is valid.")
-        print("💡 Add --execute flag to run the test suite.")
+    except ImportError:
+        typer.echo("❌ Error: DBOS workflow dependencies not available.", err=True)
+        typer.echo("Install with: pip install dbos", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Test execution failed: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command(name="evaluate-score-cards")
+def evaluate_score_cards(
+    input_file: str = typer.Option(
+        ..., help="Path to JSON file with existing test results."
+    ),
+    score_card_file: str = typer.Option(
+        ..., help="Path to grading score card YAML file."
+    ),
+    output_file: Optional[str] = typer.Option(
+        None, help="Path to save evaluation results JSON file."
+    ),
+):
+    """Evaluate score cards against existing test results from JSON file."""
+    typer.echo("--- 📊 Evaluating Score Cards ---")
+
+    try:
+        from asqi.workflow import DBOS, start_score_card_evaluation
+
+        # Launch DBOS if not already launched
+        try:
+            DBOS.launch()
+        except Exception as e:
+            typer.echo(f"Error launching DBOS: {e}")
+
+        # Load score card configuration
+        try:
+            score_card_config = load_score_card_file(score_card_file)
+            score_card_configs = [score_card_config]
+            typer.echo(
+                f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
+            )
+        except ConfigError as e:
+            typer.echo(f"❌ score card configuration error: {e}", err=True)
+            raise typer.Exit(1)
+
+        workflow_id = start_score_card_evaluation(
+            input_path=input_file,
+            score_card_configs=score_card_configs,
+            output_path=output_file,
+        )
+
+        typer.echo(f"\n✨ Score card evaluation completed! Workflow ID: {workflow_id}")
+
+    except ImportError:
+        typer.echo("❌ Error: DBOS workflow dependencies not available.", err=True)
+        typer.echo("Install with: pip install dbos", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Score card evaluation failed: {e}", err=True)
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    app()
