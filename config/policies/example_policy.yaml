@@ -1,4 +1,4 @@
-policy_name: "Individual Mock Test Evaluation Policy"
+score_card_name: "Individual Mock Test Evaluation Score Card"
 indicators:
   - name: "Mock test success requirement"
     apply_to:

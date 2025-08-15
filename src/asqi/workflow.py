@@ -25,7 +25,7 @@ from asqi.output import (
     format_failure_summary,
     parse_container_json_output,
 )
-from asqi.schemas import GradingPolicy, Manifest, SuiteConfig, SUTsConfig
+from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
 from asqi.validation import (
     create_test_execution_plan,
     validate_manifests_against_tests,
@@ -184,47 +184,49 @@ def execute_single_test(
 
 @DBOS.step()
 def evaluate_grading_policies(
-    test_results: List[TestExecutionResult], policy_configs: List[Dict[str, Any]]
+    test_results: List[TestExecutionResult], score_card_configs: List[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
     """Evaluate grading policies against test execution results."""
-    from asqi.policy_engine import PolicyEngine
+    from asqi.score_card_engine import ScoreCardEngine
 
-    if not policy_configs:
+    if not score_card_configs:
         return []
 
-    policy_engine = PolicyEngine()
+    score_card_engine = ScoreCardEngine()
     all_evaluations = []
 
-    for policy_config in policy_configs:
+    for score_card_config in score_card_configs:
         try:
-            # Parse policy configuration
-            policy = GradingPolicy(**policy_config)
+            # Parse score card configuration
+            score_card = ScoreCard(**score_card_config)
 
-            # Evaluate policy against test results
-            policy_evaluations = policy_engine.evaluate_policy(test_results, policy)
+            # Evaluate score card against test results
+            score_card_evaluations = score_card_engine.evaluate_scorecard(
+                test_results, score_card
+            )
 
-            # Add policy name to each evaluation
-            for evaluation in policy_evaluations:
-                evaluation["policy_name"] = policy.policy_name
+            # Add score card name to each evaluation
+            for evaluation in score_card_evaluations:
+                evaluation["score_card_name"] = score_card.score_card_name
 
-            all_evaluations.extend(policy_evaluations)
+            all_evaluations.extend(score_card_evaluations)
 
             DBOS.logger.info(
-                f"Evaluated policy '{policy.policy_name}' with {len(policy_evaluations)} individual evaluations"
+                f"Evaluated score card '{score_card.score_card_name}' with {len(score_card_evaluations)} individual evaluations"
             )
 
         except Exception as e:
             error_result = {
-                "policy_name": policy_config.get("policy_name", "unknown"),
-                "error": f"Failed to evaluate policy: {e}",
-                "indicator_name": "POLICY_ERROR",
+                "score_card_name": score_card_config.get("score_card_name", "unknown"),
+                "error": f"Failed to evaluate score card: {e}",
+                "indicator_name": "SCORE_CARD_ERROR",
                 "test_name": "N/A",
                 "sut_name": "N/A",
                 "outcome": None,
                 "metric_value": None,
             }
             all_evaluations.append(error_result)
-            DBOS.logger.error(f"Failed to evaluate policy: {e}")
+            DBOS.logger.error(f"Failed to evaluate score card: {e}")
 
     return all_evaluations
 
@@ -233,7 +235,7 @@ def evaluate_grading_policies(
 def run_test_suite_workflow(
     suite_config: Dict[str, Any],
     suts_config: Dict[str, Any],
-    policy_configs: Optional[List[Dict[str, Any]]] = None,
+    score_card_configs: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Execute a complete test suite with DBOS durability.
@@ -446,22 +448,24 @@ def run_test_suite_workflow(
     )
 
     # Evaluate grading policies if provided
-    policy_evaluation = []
-    if policy_configs:
+    score_card_evaluation = []
+    if score_card_configs:
         console.print("\n[bold blue]Evaluating grading policies...[/bold blue]")
-        policy_evaluation = evaluate_grading_policies(all_results, policy_configs)
+        score_card_evaluation = evaluate_grading_policies(
+            all_results, score_card_configs
+        )
 
-        if policy_evaluation:
-            # Group by policy name for display
+        if score_card_evaluation:
+            # Group by score card name for display
             policies_by_name = {}
-            for evaluation in policy_evaluation:
-                policy_name = evaluation.get("policy_name", "unknown")
-                if policy_name not in policies_by_name:
-                    policies_by_name[policy_name] = []
-                policies_by_name[policy_name].append(evaluation)
+            for evaluation in score_card_evaluation:
+                score_card_name = evaluation.get("score_card_name", "unknown")
+                if score_card_name not in policies_by_name:
+                    policies_by_name[score_card_name] = []
+                policies_by_name[score_card_name].append(evaluation)
 
-            # Display summary for each policy
-            for policy_name, evaluations in policies_by_name.items():
+            # Display summary for each score card
+            for score_card_name, evaluations in policies_by_name.items():
                 passed = sum(
                     1
                     for e in evaluations
@@ -491,13 +495,13 @@ def run_test_suite_workflow(
                     status_text = f"ALL PASSED ({passed} passed)"
 
                 console.print(
-                    f"[{status_color}]Policy '{policy_name}': {status_text}[/{status_color}]"
+                    f"[{status_color}]Score Card '{score_card_name}': {status_text}[/{status_color}]"
                 )
 
     return {
         "summary": summary,
         "results": [result.to_dict() for result in all_results],
-        "policy_evaluation": policy_evaluation,
+        "score_card_evaluation": score_card_evaluation,
     }
 
 
@@ -517,7 +521,7 @@ def start_test_execution(
     suite_path: str,
     suts_path: str,
     output_path: Optional[str] = None,
-    policy_configs: Optional[List[Dict[str, Any]]] = None,
+    score_card_configs: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """
     Start test suite execution and return the workflow ID.
@@ -526,7 +530,7 @@ def start_test_execution(
         suite_path: Path to test suite YAML file
         suts_path: Path to SUTs YAML file
         output_path: Optional path to save results JSON file
-        policy_configs: Optional list of policy configurations to evaluate
+        score_card_configs: Optional list of score card configurations to evaluate
 
     Returns:
         Workflow ID for tracking execution
@@ -538,7 +542,7 @@ def start_test_execution(
 
         # Start workflow
         handle = DBOS.start_workflow(
-            run_test_suite_workflow, suite_config, suts_config, policy_configs
+            run_test_suite_workflow, suite_config, suts_config, score_card_configs
         )
 
         # Wait for completion and optionally save results

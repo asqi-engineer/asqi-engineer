@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 import yaml
 from pydantic import ValidationError
 
-from asqi.schemas import GradingPolicy, Manifest, SuiteConfig, SUTsConfig
+from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
 from asqi.validation import validate_test_plan
 
 
@@ -26,17 +26,17 @@ def load_yaml_file(file_path: str) -> Dict[str, Any]:
         raise ConfigError(f"Could not parse YAML file '{file_path}': {e}")
 
 
-def load_policy_file(policy_path: str) -> Dict[str, Any]:
-    """Load and validate grading policy configuration."""
+def load_score_card_file(score_card_path: str) -> Dict[str, Any]:
+    """Load and validate grading score card configuration."""
     try:
-        policy_data = load_yaml_file(policy_path)
-        # Validate policy structure
-        _policy = GradingPolicy(**policy_data)
-        return policy_data
+        score_card_data = load_yaml_file(score_card_path)
+        # Validate score card structure
+        _score_card = ScoreCard(**score_card_data)
+        return score_card_data
     except ValidationError as e:
-        raise ConfigError(f"Invalid policy configuration in '{policy_path}': {e}")
+        raise ConfigError(f"Invalid score card configuration in '{score_card_path}': {e}")
     except Exception as e:
-        raise ConfigError(f"Failed to load policy file '{policy_path}': {e}")
+        raise ConfigError(f"Failed to load score card file '{score_card_path}': {e}")
 
 
 def load_and_validate_plan(
@@ -113,7 +113,7 @@ def main():
         "--output-file", help="Path to save execution results JSON file."
     )
     parser.add_argument(
-        "--policy-file", help="Path to grading policy YAML file (optional)."
+        "--score-card-file", help="Path to grading score card YAML file (optional)."
     )
 
     args = parser.parse_args()
@@ -131,24 +131,24 @@ def main():
             except Exception as e:
                 print(f"Error launching DBOS: {e}")
 
-            # Load policy configuration if provided
-            policy_configs = None
-            if args.policy_file:
+            # Load score card configuration if provided
+            score_card_configs = None
+            if args.score_card_file:
                 try:
-                    policy_config = load_policy_file(args.policy_file)
-                    policy_configs = [policy_config]
+                    score_card_config = load_score_card_file(args.score_card_file)
+                    score_card_configs = [score_card_config]
                     print(
-                        f"✅ Loaded grading policy: {policy_config.get('policy_name', 'unnamed')}"
+                        f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
                     )
                 except ConfigError as e:
-                    print(f"❌ Policy configuration error: {e}", file=sys.stderr)
+                    print(f"❌ score card configuration error: {e}", file=sys.stderr)
                     sys.exit(1)
 
             workflow_id = start_test_execution(
                 suite_path=args.suite_file,
                 suts_path=args.suts_file,
                 output_path=args.output_file,
-                policy_configs=policy_configs,
+                score_card_configs=score_card_configs,
             )
 
             print(f"\n✨ Execution completed! Workflow ID: {workflow_id}")
