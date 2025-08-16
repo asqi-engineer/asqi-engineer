@@ -1,6 +1,9 @@
+import logging
 from typing import Any, Dict, List, Optional
 
 from asqi.schemas import Manifest, SuiteConfig, SUTsConfig
+
+logger = logging.getLogger()
 
 
 def validate_test_parameters(test, manifest: Manifest) -> List[str]:
@@ -138,14 +141,14 @@ def create_test_execution_plan(
 
     for test in suite.test_suite:
         if not (image := getattr(test, "image", None)):
-            print(f"Skipping test with missing image: {test}")
+            logger.warning(f"Skipping test with missing image: {test}")
             continue
 
         if image not in available_images:
             continue
 
         if not (target_suts := getattr(test, "target_suts", None)):
-            print(f"Skipping test '{test.name}' with no target SUTs")
+            logger.warning(f"Skipping test '{test.name}' with no target SUTs")
             continue
 
         # Process valid combinations

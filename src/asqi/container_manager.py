@@ -1,3 +1,4 @@
+import logging
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -7,7 +8,10 @@ import docker
 import yaml
 from docker import errors as docker_errors
 
+from asqi.logging_config import create_container_logger
 from asqi.schemas import Manifest
+
+logger = logging.getLogger(__name__)
 
 
 class ManifestExtractionError(Exception):
@@ -52,7 +56,7 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
                 availability[image] = False
             except docker_errors.APIError as e:
                 # Log specific Docker API errors but continue checking other images
-                print(f"Docker API error checking image {image}: {e}")
+                logger.warning(f"Docker API error checking image {image}: {e}")
                 availability[image] = False
             except ConnectionError as e:
                 raise ConnectionError(
@@ -203,7 +207,7 @@ def extract_manifest_from_image(
                 try:
                     container.remove()
                 except (docker_errors.APIError, docker_errors.NotFound) as e:
-                    print(f"Warning: Failed to remove container during cleanup: {e}")
+                    logger.warning(f"Failed to remove container during cleanup: {e}")
 
 
 def run_container_with_args(
@@ -214,6 +218,7 @@ def run_container_with_args(
     cpu_quota: int = 50000,
     cpu_period: int = 100000,
     environment: Optional[Dict[str, str]] = None,
+    stream_logs: bool = False,
 ) -> Dict[str, Any]:
     """
     Run a Docker container with specified arguments and return results.
@@ -226,6 +231,7 @@ def run_container_with_args(
         cpu_quota: CPU quota for container
         cpu_period: CPU period for container
         environment: Optional dictionary of environment variables to pass to container
+        stream_logs: If True, stream logs in real-time
 
     Returns:
         Dictionary with execution results including exit_code, output, success, etc.
@@ -237,11 +243,13 @@ def run_container_with_args(
         "error": "",
         "container_id": "",
     }
+    container_logger = create_container_logger(display_name=image)
 
     with docker_client() as client:
         container = None
         try:
             # Run container
+            logger.info(f"Running container for image '{image}' with args: {args}")
             container = client.containers.run(
                 image,
                 command=args,
@@ -256,6 +264,17 @@ def run_container_with_args(
 
             result["container_id"] = container.id or ""
 
+            output_lines = []
+            if stream_logs:
+                try:
+                    for log_line in container.logs(stream=True, follow=True):
+                        line = log_line.decode("utf-8", errors="replace").rstrip()
+                        if line:  # Only process non-empty lines
+                            output_lines.append(line)
+                            container_logger.info(line)
+                except (UnicodeDecodeError, docker_errors.APIError) as e:
+                    logger.warning(f"Failed to stream container logs: {e}")
+
             # Wait for completion
             try:
                 exit_status = container.wait(timeout=timeout_seconds)
@@ -264,18 +283,23 @@ def run_container_with_args(
                 try:
                     container.kill()
                 except (docker_errors.APIError, docker_errors.NotFound) as e:
-                    print(f"Warning: Failed to kill container {container.id}: {e}")
+                    logger.warning(f"Failed to kill container {container.id}: {e}")
                 result["error"] = (
                     f"Container execution failed with API error: {api_error}"
                 )
                 return result
 
-            # Get output
+            # Get output (use streamed output if available, otherwise get all logs)
             try:
-                result["output"] = container.logs().decode("utf-8", errors="replace")
+                if output_lines:
+                    result["output"] = "\n".join(output_lines)
+                else:
+                    result["output"] = container.logs().decode(
+                        "utf-8", errors="replace"
+                    )
             except (UnicodeDecodeError, docker_errors.APIError) as e:
-                result["output"] = ""
-                print(f"Warning: Failed to retrieve container logs: {e}")
+                result["output"] = "\n".join(output_lines) if output_lines else ""
+                logger.warning(f"Failed to retrieve container logs: {e}")
 
             result["success"] = result["exit_code"] == 0
 
@@ -299,6 +323,6 @@ def run_container_with_args(
                 try:
                     container.remove(force=True)
                 except (docker_errors.APIError, docker_errors.NotFound) as e:
-                    print(f"Warning: Failed to remove container during cleanup: {e}")
+                    logger.warning(f"Failed to remove container during cleanup: {e}")
 
     return result
