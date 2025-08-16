@@ -3,7 +3,14 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from rich.console import Console
-from rich.progress import BarColumn, Progress, TextColumn
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 
 def parse_container_json_output(output: str) -> Dict[str, Any]:
@@ -66,7 +73,7 @@ def parse_container_json_output(output: str) -> Dict[str, Any]:
     )
 
 
-def create_test_execution_progress(test_count: int, console: Console) -> Progress:
+def create_test_execution_progress(console: Console) -> Progress:
     """
     Create a progress bar for test execution tracking.
 
@@ -78,12 +85,16 @@ def create_test_execution_progress(test_count: int, console: Console) -> Progres
         Configured Progress instance
     """
     return Progress(
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(bar_width=30),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        TextColumn("({task.completed}/{task.total})"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        TextColumn("•"),
+        TimeRemainingColumn(),
         console=console,
-        transient=True,
+        transient=False,
+        expand=True,
     )
 
 

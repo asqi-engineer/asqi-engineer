@@ -444,9 +444,8 @@ def run_test_suite_workflow(
     console.print(f"\n[bold]Running {test_count} tests...[/bold]")
 
     try:
-        with create_test_execution_progress(test_count, console) as progress:
+        with create_test_execution_progress(console) as progress:
             task = progress.add_task("Executing tests", total=test_count)
-
             # Enqueue all tests for concurrent execution
             test_handles = []
             for test_plan in test_execution_plan:
