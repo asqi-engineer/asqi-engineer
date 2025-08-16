@@ -21,8 +21,16 @@ class InputParameter(BaseModel):
     """Defines a parameter that can be passed to the test container."""
 
     name: str
-    type: Literal["string", "integer", "boolean", "list"]
+    type: Literal["string", "integer", "float", "boolean", "list", "object"]
     required: bool = False
+    description: Optional[str] = None
+
+
+class OutputMetric(BaseModel):
+    """Defines a metric that will be present in the test container's output."""
+
+    name: str
+    type: Literal["string", "integer", "float", "boolean", "list", "object"]
     description: Optional[str] = None
 
 
@@ -47,8 +55,9 @@ class Manifest(BaseModel):
     input_schema: List[InputParameter] = Field(
         [], description="Defines the schema for the user-provided 'params' object."
     )
-    output_metrics: List[str] = Field(
-        [], description="Defines expected high-level metrics in the final JSON output."
+    output_metrics: Union[List[str], List[OutputMetric]] = Field(
+        [],
+        description="Defines expected high-level metrics in the final JSON output. Can be a simple list of strings or detailed metric definitions.",
     )
     output_artifacts: Optional[List[OutputArtifact]] = None
 
