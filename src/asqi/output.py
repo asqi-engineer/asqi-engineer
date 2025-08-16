@@ -17,12 +17,14 @@ def parse_container_json_output(output: str) -> Dict[str, Any]:
         Parsed JSON dictionary
 
     Raises:
-        ValueError: If no valid JSON found in output
+        ValueError: If no valid JSON found in output or output is empty
     """
     output = output.strip()
 
     if not output:
-        raise ValueError("Empty container output")
+        raise ValueError(
+            "Empty container output - test container produced no output (check container logs for details)"
+        )
 
     # Try direct parsing first
     if output.startswith("{") and output.endswith("}"):
@@ -59,7 +61,9 @@ def parse_container_json_output(output: str) -> Dict[str, Any]:
             except json.JSONDecodeError:
                 continue
 
-    raise ValueError("No valid JSON found in container output")
+    raise ValueError(
+        f"No valid JSON found in container output. Output preview: '{output[:100]}{'...' if len(output) > 100 else ''}'"
+    )
 
 
 def create_test_execution_progress(test_count: int, console: Console) -> Progress:
@@ -128,8 +132,11 @@ def format_failure_summary(
 
     console.print("\n[red]Failed tests:[/red]")
     for result in failed_results[:max_displayed]:
-        error_msg = result.error_message or "Test returned failure"
-        console.print(f"  • {result.test_name}: {error_msg}")
+        error_msg = (
+            result.error_message
+            or f"Test '{result.test_name}' returned failure status (exit code: {result.exit_code})"
+        )
+        console.print(f"  • {result.test_name} (SUT: {result.sut_name}): {error_msg}")
 
     if len(failed_results) > max_displayed:
         remaining = len(failed_results) - max_displayed
