@@ -10,6 +10,17 @@ from docker import errors as docker_errors
 from asqi.schemas import Manifest
 
 
+class ManifestExtractionError(Exception):
+    """Exception raised when manifest extraction fails."""
+
+    def __init__(
+        self, message: str, error_type: str, original_error: Optional[Exception] = None
+    ):
+        super().__init__(message)
+        self.error_type = error_type
+        self.original_error = original_error
+
+
 @contextmanager
 def docker_client():
     """Context manager for Docker client with proper cleanup."""
@@ -57,14 +68,28 @@ def extract_manifest_from_image(
 
     Returns:
         Parsed Manifest object or None if extraction fails
+
+    Raises:
+        ManifestExtractionError: If extraction fails with detailed error information
     """
     with docker_client() as client:
         container = None
         try:
             # Create container without starting it
-            container = client.containers.create(
-                image, command="echo 'manifest extraction'", detach=True
-            )
+            try:
+                container = client.containers.create(
+                    image, command="echo 'manifest extraction'", detach=True
+                )
+            except docker_errors.ImageNotFound as e:
+                raise ManifestExtractionError(
+                    f"Docker image '{image}' not found", "IMAGE_NOT_FOUND", e
+                )
+            except docker_errors.APIError as e:
+                raise ManifestExtractionError(
+                    f"Docker API error while creating container for image '{image}': {e}",
+                    "DOCKER_API_ERROR",
+                    e,
+                )
 
             # Create temporary directory for extraction
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -74,49 +99,99 @@ def extract_manifest_from_image(
                 try:
                     # Copy manifest from container
                     bits, _ = container.get_archive(manifest_path)
-                except docker_errors.NotFound:
-                    return None
+                except docker_errors.NotFound as e:
+                    raise ManifestExtractionError(
+                        f"Manifest file '{manifest_path}' not found in image '{image}'",
+                        "MANIFEST_FILE_NOT_FOUND",
+                        e,
+                    )
+                except docker_errors.APIError as e:
+                    raise ManifestExtractionError(
+                        f"Docker API error while extracting manifest from image '{image}': {e}",
+                        "DOCKER_API_ERROR",
+                        e,
+                    )
 
                 # Extract tar data
                 import io
                 import tarfile
 
-                tar_stream = io.BytesIO()
-                for chunk in bits:
-                    tar_stream.write(chunk)
-                tar_stream.seek(0)
+                try:
+                    tar_stream = io.BytesIO()
+                    for chunk in bits:
+                        tar_stream.write(chunk)
+                    tar_stream.seek(0)
 
-                # Note: avoid tarfile.extractall used without any validation. Extract only the manifest file
-                with tarfile.open(fileobj=tar_stream, mode="r") as tar:
-                    for member in tar.getmembers():
-                        if (
-                            member.isfile()
-                            and not member.name.startswith("/")
-                            and ".." not in member.name
-                        ):
-                            tar.extract(member, temp_path)
+                    # Note: avoid tarfile.extractall used without any validation. Extract only the manifest file
+                    with tarfile.open(fileobj=tar_stream, mode="r") as tar:
+                        for member in tar.getmembers():
+                            if (
+                                member.isfile()
+                                and not member.name.startswith("/")
+                                and ".." not in member.name
+                            ):
+                                tar.extract(member, temp_path)
+                except (tarfile.TarError, IOError) as e:
+                    raise ManifestExtractionError(
+                        f"Failed to extract tar archive from image '{image}': {e}",
+                        "TAR_EXTRACTION_ERROR",
+                        e,
+                    )
+
                 # Read and parse manifest
-                if local_manifest_path.exists():
+                if not local_manifest_path.exists():
+                    raise ManifestExtractionError(
+                        f"Manifest file was not found in extracted archive from image '{image}'",
+                        "MANIFEST_FILE_MISSING_AFTER_EXTRACTION",
+                    )
+
+                try:
                     with open(local_manifest_path, "r") as f:
                         manifest_data = yaml.safe_load(f)
+                except yaml.YAMLError as e:
+                    raise ManifestExtractionError(
+                        f"Failed to parse YAML in manifest file from image '{image}': {e}",
+                        "YAML_PARSING_ERROR",
+                        e,
+                    )
+                except (IOError, OSError) as e:
+                    raise ManifestExtractionError(
+                        f"Failed to read manifest file from image '{image}': {e}",
+                        "FILE_READ_ERROR",
+                        e,
+                    )
 
-                    try:
-                        return Manifest(**manifest_data)
-                    except Exception:
-                        return None
+                if manifest_data is None:
+                    raise ManifestExtractionError(
+                        f"Manifest file from image '{image}' is empty or contains only null values",
+                        "EMPTY_MANIFEST_FILE",
+                    )
 
-        except (docker_errors.ImageNotFound, docker_errors.APIError, Exception):
-            return None
+                try:
+                    return Manifest(**manifest_data)
+                except (TypeError, ValueError) as e:
+                    raise ManifestExtractionError(
+                        f"Failed to validate manifest schema from image '{image}': {e}",
+                        "SCHEMA_VALIDATION_ERROR",
+                        e,
+                    )
+
+        except ManifestExtractionError:
+            # Re-raise our custom exceptions
+            raise
+        except Exception as e:
+            raise ManifestExtractionError(
+                f"Unexpected error while extracting manifest from image '{image}': {e}",
+                "UNEXPECTED_ERROR",
+                e,
+            )
         finally:
             # Clean up container
             if container:
                 try:
                     container.remove()
-                # TODO: more elegant exception handling and logging
                 except Exception as e:
                     print(f"Warning: Failed to remove container during cleanup: {e}")
-
-    return None
 
 
 def run_container_with_args(
