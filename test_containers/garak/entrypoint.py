@@ -32,7 +32,7 @@ def main():
 
         # Extract test parameters
         probes = test_params.get("probes", ["blank"])
-        generations = test_params.get("generations", 10)
+        generations = test_params.get("generations", 1)
         config_file = test_params.get("config_file")
 
         # Create temporary directory for garak outputs
@@ -66,10 +66,6 @@ def main():
 
             # Add parallelism to speed up execution
             garak_cmd.extend(["--parallel_attempts", "8"])
-
-            # Try to limit probe attempts for testing
-            if generations == 1:  # If this is a quick test, limit attempts
-                garak_cmd.extend(["--probe_options", '{"max_prompts": 10}'])
 
             # Set report prefix to control output location
             report_prefix = str(output_dir / "garak_report")
@@ -149,11 +145,7 @@ def main():
                     sys.stderr.flush()
 
             handle_output()
-
-            # Wait for process to complete
             process.wait()
-
-            # Create result object
             result = subprocess.CompletedProcess(
                 args=garak_cmd,
                 returncode=process.returncode,
@@ -164,67 +156,104 @@ def main():
             # Parse garak results
             success = result.returncode == 0
 
-            # Try to extract metrics from garak output files
             score = 0.0
             vulnerabilities_found = 0
-            total_attempts = generations * len(probes)
+            total_attempts = 0
+            probe_results = {}
 
-            # Look for garak report files (should have report_prefix pattern)
-            report_files = list(output_dir.glob("garak_report*.jsonl"))
-            if not report_files:
-                # Fallback: look for any jsonl files
-                report_files = list(output_dir.glob("*.jsonl"))
+            if success:
+                # Find the correct report file using the report_prefix
+                report_files = list(
+                    output_dir.glob(f"{Path(report_prefix).name}*.report.jsonl")
+                )
 
-            if report_files:
-                try:
-                    # Parse the first report file found
-                    with open(report_files[0], "r") as f:
-                        lines = f.readlines()
-                        passed_count = 0
-                        failed_count = 0
+                if report_files:
+                    try:
+                        report_file = report_files[0]
+                        eval_entries = []
+                        _run_info = None
 
-                        # Count passes and failures from all entries
-                        for line in lines:
-                            try:
-                                entry = json.loads(line.strip())
-                                # Garak typically uses 'passed' field or status indicators
-                                if (
-                                    entry.get("passed", False)
-                                    or entry.get("status") == "PASS"
-                                ):
-                                    passed_count += 1
-                                elif (
-                                    entry.get("failed", False)
-                                    or entry.get("status") == "FAIL"
-                                ):
-                                    failed_count += 1
-                                elif "result" in entry:
-                                    # Some garak outputs use result field
-                                    if entry["result"] in ["PASS", "passed", True]:
-                                        passed_count += 1
-                                    elif entry["result"] in ["FAIL", "failed", False]:
-                                        failed_count += 1
-                            except json.JSONDecodeError:
-                                continue
+                        with open(report_file, "r") as f:
+                            for line in f:
+                                try:
+                                    entry = json.loads(line.strip())
+                                    entry_type = entry.get("entry_type")
 
-                        total = passed_count + failed_count
-                        if total > 0:
-                            score = passed_count / total
-                            vulnerabilities_found = failed_count
+                                    if entry_type == "eval":
+                                        eval_entries.append(entry)
+                                    elif entry_type == "start_run setup":
+                                        _run_info = entry
+
+                                except json.JSONDecodeError:
+                                    continue
+
+                        # Calculate results from eval entries
+                        if eval_entries:
+                            total_passed = 0
+                            total_attempts = 0
+
+                            for eval_entry in eval_entries:
+                                probe_name = eval_entry.get("probe", "unknown")
+                                detector_name = eval_entry.get("detector", "unknown")
+                                passed = eval_entry.get("passed", 0)
+                                total = eval_entry.get("total", 0)
+
+                                # Store individual probe results
+                                if probe_name not in probe_results:
+                                    probe_results[probe_name] = {}
+
+                                probe_results[probe_name][detector_name] = {
+                                    "passed": passed,
+                                    "total": total,
+                                    "score": passed / total if total > 0 else 0.0,
+                                }
+
+                                total_passed += passed
+                                total_attempts += total
+
+                            # Calculate overall score
+                            if total_attempts > 0:
+                                score = total_passed / total_attempts
+                                vulnerabilities_found = total_attempts - total_passed
+
+                            print(
+                                f"DEBUG: Found {len(eval_entries)} eval entries",
+                                file=sys.stderr,
+                            )
+                            print(
+                                f"DEBUG: Total attempts: {total_attempts}, Total passed: {total_passed}",
+                                file=sys.stderr,
+                            )
+
                         else:
-                            # Nothing was run - this indicates an error
+                            # No eval entries found - this indicates an error
                             success = False
                             score = 0.0
+                            print(
+                                "DEBUG: No eval entries found in report",
+                                file=sys.stderr,
+                            )
 
-                except (FileNotFoundError, KeyError, IndexError):
-                    # If we can't parse results, treat as failure
+                    except (FileNotFoundError, KeyError, IndexError) as e:
+                        # Can't parse results, treat as failure
+                        success = False
+                        score = 0.0
+                        print(f"DEBUG: Error parsing report file: {e}", file=sys.stderr)
+
+                else:
+                    # No report files generated - this indicates failure
                     success = False
                     score = 0.0
+                    print("DEBUG: No report files found", file=sys.stderr)
 
             else:
-                # No report files generated - this indicates failure
+                # Garak execution failed
                 success = False
                 score = 0.0
+                print(
+                    f"DEBUG: Garak execution failed with return code: {result.returncode}",
+                    file=sys.stderr,
+                )
 
             # Prepare result
             test_result = {
@@ -235,6 +264,7 @@ def main():
                 "probes_used": probes,
                 "generations": generations,
                 "sut_type": sut_type,
+                "probe_results": probe_results,
                 "garak_stdout": result.stdout[:1000],  # Truncate to avoid huge outputs
                 "garak_stderr": result.stderr[:1000] if result.stderr else "",
             }
