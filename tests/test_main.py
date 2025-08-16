@@ -294,5 +294,5 @@ class TestMainCLI:
         assert result.exit_code == 1
         assert (
             "❌ score card configuration error: Invalid score card format"
-            in result.stderr
+            in result.stdout
         )
