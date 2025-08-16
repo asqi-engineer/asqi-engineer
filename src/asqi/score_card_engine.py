@@ -241,7 +241,7 @@ class ScoreCardEngine:
                                 # If this rule's condition is satisfied, assign the outcome
                                 if condition_met:
                                     eval_result.outcome = assessment_rule.outcome
-                                    logger.info(
+                                    logger.debug(
                                         f"score_card indicator '{indicator.name}' for test '{test_result.test_name}' (SUT: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
                                     )
                                     break
@@ -304,9 +304,5 @@ class ScoreCardEngine:
 
             for result in indicator_results:
                 all_test_evaluations.append(result.to_dict())
-
-        logger.info(
-            f"score_card '{score_card.score_card_name}' evaluation completed with {len(all_test_evaluations)} individual evaluations"
-        )
 
         return all_test_evaluations

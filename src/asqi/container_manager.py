@@ -1,3 +1,4 @@
+import logging
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -8,6 +9,8 @@ import yaml
 from docker import errors as docker_errors
 
 from asqi.schemas import Manifest
+
+logger = logging.getLogger(__name__)
 
 
 class ManifestExtractionError(Exception):
@@ -52,7 +55,7 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
                 availability[image] = False
             except docker_errors.APIError as e:
                 # Log specific Docker API errors but continue checking other images
-                print(f"Docker API error checking image {image}: {e}")
+                logger.warning(f"Docker API error checking image {image}: {e}")
                 availability[image] = False
             except ConnectionError as e:
                 raise ConnectionError(
@@ -203,7 +206,7 @@ def extract_manifest_from_image(
                 try:
                     container.remove()
                 except (docker_errors.APIError, docker_errors.NotFound) as e:
-                    print(f"Warning: Failed to remove container during cleanup: {e}")
+                    logger.warning(f"Failed to remove container during cleanup: {e}")
 
 
 def run_container_with_args(
@@ -242,6 +245,7 @@ def run_container_with_args(
         container = None
         try:
             # Run container
+            logger.info(f"Running container for image '{image}' with args:c {args}")
             container = client.containers.run(
                 image,
                 command=args,
@@ -264,7 +268,7 @@ def run_container_with_args(
                 try:
                     container.kill()
                 except (docker_errors.APIError, docker_errors.NotFound) as e:
-                    print(f"Warning: Failed to kill container {container.id}: {e}")
+                    logger.warning(f"Failed to kill container {container.id}: {e}")
                 result["error"] = (
                     f"Container execution failed with API error: {api_error}"
                 )
@@ -275,7 +279,7 @@ def run_container_with_args(
                 result["output"] = container.logs().decode("utf-8", errors="replace")
             except (UnicodeDecodeError, docker_errors.APIError) as e:
                 result["output"] = ""
-                print(f"Warning: Failed to retrieve container logs: {e}")
+                logger.warning(f"Failed to retrieve container logs: {e}")
 
             result["success"] = result["exit_code"] == 0
 
@@ -299,6 +303,6 @@ def run_container_with_args(
                 try:
                     container.remove(force=True)
                 except (docker_errors.APIError, docker_errors.NotFound) as e:
-                    print(f"Warning: Failed to remove container during cleanup: {e}")
+                    logger.warning(f"Failed to remove container during cleanup: {e}")
 
     return result

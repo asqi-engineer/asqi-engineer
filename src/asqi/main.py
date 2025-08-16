@@ -7,9 +7,11 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
+from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
 from asqi.validation import validate_test_plan
 
+configure_logging()
 console = Console()
 
 
