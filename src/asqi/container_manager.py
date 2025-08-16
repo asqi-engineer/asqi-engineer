@@ -50,8 +50,14 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
                 availability[image] = True
             except docker_errors.ImageNotFound:
                 availability[image] = False
-            except (docker_errors.APIError, Exception):
+            except docker_errors.APIError as e:
+                # Log specific Docker API errors but continue checking other images
+                print(f"Docker API error checking image {image}: {e}")
                 availability[image] = False
+            except ConnectionError as e:
+                raise ConnectionError(
+                    f"Failed to connect to Docker daemon while checking image {image}: {e}"
+                )
 
     return availability
 
@@ -131,10 +137,16 @@ def extract_manifest_from_image(
                                 and ".." not in member.name
                             ):
                                 tar.extract(member, temp_path)
-                except (tarfile.TarError, IOError) as e:
+                except tarfile.TarError as e:
                     raise ManifestExtractionError(
-                        f"Failed to extract tar archive from image '{image}': {e}",
+                        f"Invalid tar archive from image '{image}': {e}",
                         "TAR_EXTRACTION_ERROR",
+                        e,
+                    )
+                except IOError as e:
+                    raise ManifestExtractionError(
+                        f"I/O error extracting tar archive from image '{image}': {e}",
+                        "TAR_IO_ERROR",
                         e,
                     )
 
@@ -190,7 +202,7 @@ def extract_manifest_from_image(
             if container:
                 try:
                     container.remove()
-                except Exception as e:
+                except (docker_errors.APIError, docker_errors.NotFound) as e:
                     print(f"Warning: Failed to remove container during cleanup: {e}")
 
 
@@ -251,33 +263,42 @@ def run_container_with_args(
             except docker_errors.APIError as api_error:
                 try:
                     container.kill()
-                except Exception as e:
-                    print(f"Warning: Failed to kill container: {e}")
-                result["error"] = f"Container execution failed: {api_error}"
+                except (docker_errors.APIError, docker_errors.NotFound) as e:
+                    print(f"Warning: Failed to kill container {container.id}: {e}")
+                result["error"] = (
+                    f"Container execution failed with API error: {api_error}"
+                )
                 return result
 
             # Get output
             try:
                 result["output"] = container.logs().decode("utf-8", errors="replace")
-            except Exception:
+            except (UnicodeDecodeError, docker_errors.APIError) as e:
                 result["output"] = ""
+                print(f"Warning: Failed to retrieve container logs: {e}")
 
             result["success"] = result["exit_code"] == 0
 
-        except docker_errors.ImageNotFound:
-            result["error"] = f"Docker image not found: {image}"
+        except docker_errors.ImageNotFound as e:
+            result["error"] = f"Docker image '{image}' not found: {e}"
         except docker_errors.ContainerError as e:
-            result["error"] = f"Container execution failed: {e}"
+            result["error"] = f"Container execution failed for image '{image}': {e}"
         except docker_errors.APIError as e:
-            result["error"] = f"Docker API error: {e}"
-        except Exception as e:
-            result["error"] = f"Unexpected error: {e}"
+            result["error"] = f"Docker API error running image '{image}': {e}"
+        except TimeoutError as e:
+            result["error"] = (
+                f"Container execution timed out after {timeout_seconds}s for image '{image}': {e}"
+            )
+        except ConnectionError as e:
+            raise ConnectionError(
+                f"Failed to connect to Docker daemon while running image '{image}': {e}"
+            )
         finally:
             # Clean up container
             if container:
                 try:
                     container.remove(force=True)
-                except Exception as e:
+                except (docker_errors.APIError, docker_errors.NotFound) as e:
                     print(f"Warning: Failed to remove container during cleanup: {e}")
 
     return result
