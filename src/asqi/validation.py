@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 from asqi.schemas import Manifest, SuiteConfig, SUTsConfig
 
@@ -21,13 +21,16 @@ def validate_test_parameters(test, manifest: Manifest) -> List[str]:
     for schema_param in manifest.input_schema:
         if schema_param.required and schema_param.name not in test.params:
             errors.append(
-                f"Test '{test.name}': Missing required parameter '{schema_param.name}'"
+                f"Test '{test.name}': Missing required parameter '{schema_param.name}' (type: {schema_param.type}, description: {schema_param.description or 'none'})"
             )
 
     # Check for unknown params
     for provided_param in test.params:
         if provided_param not in schema_params:
-            errors.append(f"Test '{test.name}': Unknown parameter '{provided_param}'")
+            valid_params = ", ".join(schema_params.keys()) if schema_params else "none"
+            errors.append(
+                f"Test '{test.name}': Unknown parameter '{provided_param}'. Valid parameters: {valid_params}"
+            )
 
     return errors
 
@@ -51,14 +54,22 @@ def validate_sut_compatibility(
 
     for sut_name in test.target_suts:
         if sut_name not in sut_definitions:
-            errors.append(f"Test '{test.name}': Unknown SUT '{sut_name}'")
+            available_suts = (
+                ", ".join(sut_definitions.keys()) if sut_definitions else "none"
+            )
+            errors.append(
+                f"Test '{test.name}': Unknown SUT '{sut_name}'. Available SUTs: {available_suts}"
+            )
             continue
 
         sut_def = sut_definitions[sut_name]
         if sut_def.type not in supported_sut_types:
+            supported_types = (
+                ", ".join(supported_sut_types) if supported_sut_types else "none"
+            )
             errors.append(
                 f"Test '{test.name}' on SUT '{sut_name}': "
-                f"Image '{test.image}' does not support SUT type '{sut_def.type}'"
+                f"Image '{test.image}' does not support SUT type '{sut_def.type}'. Supported types: {supported_types}"
             )
 
     return errors
@@ -84,8 +95,9 @@ def validate_manifests_against_tests(
     for test in suite.test_suite:
         # Check if manifest exists for test image
         if test.image not in manifests:
+            available_images = ", ".join(manifests.keys()) if manifests else "none"
             errors.append(
-                f"Test '{test.name}': No manifest available for image '{test.image}'"
+                f"Test '{test.name}': No manifest available for image '{test.image}'. Images with manifests: {available_images}"
             )
             continue
 
@@ -104,7 +116,7 @@ def validate_manifests_against_tests(
 
 def create_test_execution_plan(
     suite: SuiteConfig, suts: SUTsConfig, image_availability: Dict[str, bool]
-) -> List[Dict]:
+) -> List[Dict[str, Any]]:
     """
     Create execution plan for all valid test combinations.
 
@@ -116,28 +128,43 @@ def create_test_execution_plan(
     Returns:
         List of test execution plans
     """
-    execution_plan = []
+    if not suite or not suite.test_suite:
+        return []
+    if not suts or not suts.systems_under_test:
+        return []
 
-    for test_def in suite.test_suite:
-        # Skip if image not available
-        if not image_availability.get(test_def.image, False):
+    plan: List[Dict[str, Any]] = []
+    available_images = {img for img, ok in image_availability.items() if ok}
+
+    for test in suite.test_suite:
+        if not (image := getattr(test, "image", None)):
+            print(f"Skipping test with missing image: {test}")
             continue
 
-        for sut_name in test_def.target_suts:
-            sut_definition = suts.systems_under_test[sut_name]
-            sut_config = {"type": sut_definition.type, **sut_definition.config}
+        if image not in available_images:
+            continue
 
-            execution_plan.append(
+        if not (target_suts := getattr(test, "target_suts", None)):
+            print(f"Skipping test '{test.name}' with no target SUTs")
+            continue
+
+        # Process valid combinations
+        for sut_name in target_suts:
+            sut_def = suts.systems_under_test.get(sut_name)
+            if not sut_def or not getattr(sut_def, "type", None):
+                continue
+
+            plan.append(
                 {
-                    "test_name": test_def.name,
-                    "image": test_def.image,
+                    "test_name": test.name,
+                    "image": image,
                     "sut_name": sut_name,
-                    "sut_config": sut_config,
-                    "test_params": test_def.params,
+                    "sut_config": {"type": sut_def.type, **sut_def.config},
+                    "test_params": getattr(test, "params", {}),
                 }
             )
 
-    return execution_plan
+    return plan
 
 
 def validate_test_plan(
@@ -202,5 +229,147 @@ def validate_test_plan(
                     f"Test '{test.name}' on SUT '{sut_name}': Image '{test.image}' "
                     f"(supports: {supported_sut_types}) is not compatible with SUT type '{sut_def.type}'."
                 )
+
+    return errors
+
+
+def validate_execution_inputs(
+    suite_path: str,
+    suts_path: str,
+    execution_mode: str,
+    output_path: Optional[str] = None,
+) -> None:
+    """
+    Validate inputs for test execution workflows.
+
+    Args:
+        suite_path: Path to test suite YAML file
+        suts_path: Path to SUTs YAML file
+        execution_mode: Execution mode string
+        output_path: Optional output file path
+
+    Raises:
+        ValueError: If any input is invalid
+    """
+    if not suite_path or not isinstance(suite_path, str):
+        raise ValueError("Invalid suite_path: must be non-empty string")
+
+    if not suts_path or not isinstance(suts_path, str):
+        raise ValueError("Invalid suts_path: must be non-empty string")
+
+    if execution_mode not in ["tests_only", "end_to_end"]:
+        raise ValueError(
+            f"Invalid execution_mode '{execution_mode}': must be 'tests_only' or 'end_to_end'"
+        )
+
+    if output_path is not None and not isinstance(output_path, str):
+        raise ValueError("Invalid output_path: must be string or None")
+
+
+def validate_score_card_inputs(
+    input_path: str,
+    score_card_configs: List[Dict[str, Any]],
+    output_path: Optional[str] = None,
+) -> None:
+    """
+    Validate inputs for score card evaluation workflows.
+
+    Args:
+        input_path: Path to input JSON file
+        score_card_configs: List of score card configurations
+        output_path: Optional output file path
+
+    Raises:
+        ValueError: If any input is invalid
+    """
+    if not input_path or not isinstance(input_path, str):
+        raise ValueError("Invalid input_path: must be non-empty string")
+
+    if not score_card_configs or not isinstance(score_card_configs, list):
+        raise ValueError("Invalid score_card_configs: must be non-empty list")
+
+    if output_path is not None and not isinstance(output_path, str):
+        raise ValueError("Invalid output_path: must be string or None")
+
+
+def validate_test_execution_inputs(
+    test_name: str,
+    image: str,
+    sut_name: str,
+    sut_config: Dict[str, Any],
+    test_params: Dict[str, Any],
+) -> None:
+    """
+    Validate inputs for individual test execution.
+
+    Args:
+        test_name: Name of the test
+        image: Docker image name
+        sut_name: Name of the SUT
+        sut_config: SUT configuration dictionary
+        test_params: Test parameters dictionary
+
+    Raises:
+        ValueError: If any input is invalid
+    """
+    if not test_name or not isinstance(test_name, str):
+        raise ValueError("Invalid test name: must be non-empty string")
+
+    if not image or not isinstance(image, str):
+        raise ValueError("Invalid image: must be non-empty string")
+
+    if not sut_name or not isinstance(sut_name, str):
+        raise ValueError("Invalid SUT name: must be non-empty string")
+
+    if not isinstance(sut_config, dict):
+        raise ValueError("Invalid SUT configuration: must be dictionary")
+
+    if not isinstance(test_params, dict):
+        raise ValueError("Invalid test parameters: must be dictionary")
+
+
+def validate_workflow_configurations(
+    suite: SuiteConfig,
+    suts: SUTsConfig,
+    manifests: Optional[Dict[str, Manifest]] = None,
+) -> List[str]:
+    """
+    Comprehensive validation of workflow configurations.
+
+    Combines all configuration validation checks in one place.
+
+    Args:
+        suite: Test suite configuration
+        suts: SUTs configuration
+        manifests: Optional manifests dictionary
+
+    Returns:
+        List of validation error messages
+
+    Raises:
+        ValueError: If configuration objects are invalid
+    """
+    errors = []
+
+    # Basic structure validation
+    if not isinstance(suite, SuiteConfig):
+        raise ValueError("Invalid suite: must be SuiteConfig instance")
+
+    if not isinstance(suts, SUTsConfig):
+        raise ValueError("Invalid suts: must be SUTsConfig instance")
+
+    if manifests is not None and not isinstance(manifests, dict):
+        raise ValueError("Invalid manifests: must be dictionary")
+
+    # Content validation
+    if not suite.test_suite:
+        errors.append("Test suite is empty: no tests to validate")
+
+    if not suts.systems_under_test:
+        errors.append("SUTs configuration is empty: no systems under test defined")
+
+    # Detailed validation if manifests are provided
+    if manifests is not None and not errors:  # Only if basic validation passes
+        errors.extend(validate_manifests_against_tests(suite, suts, manifests))
 
     return errors
