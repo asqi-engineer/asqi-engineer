@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from dbos import DBOS, DBOSConfig, Queue
+from pydantic import ValidationError
 from rich.console import Console
 
 from asqi.config import (
@@ -28,7 +29,10 @@ from asqi.output import (
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
 from asqi.validation import (
     create_test_execution_plan,
-    validate_manifests_against_tests,
+    validate_execution_inputs,
+    validate_score_card_inputs,
+    validate_test_execution_inputs,
+    validate_workflow_configurations,
 )
 
 config: DBOSConfig = {
@@ -114,8 +118,22 @@ def extract_manifest_from_image_step(image: str) -> Optional[Manifest]:
 def validate_test_plan(
     suite: SuiteConfig, suts: SUTsConfig, manifests: Dict[str, Manifest]
 ) -> List[str]:
-    """Validate that all tests can be executed with available manifests."""
-    return validate_manifests_against_tests(suite, suts, manifests)
+    """
+    DBOS step wrapper for comprehensive test plan validation.
+
+    Delegates to validation.py for the actual validation logic.
+    This step exists to provide DBOS durability for validation results.
+
+    Args:
+        suite: Test suite configuration (pre-validated)
+        suts: SUTs configuration (pre-validated)
+        manifests: Available manifests (pre-validated)
+
+    Returns:
+        List of validation error messages
+    """
+    # Delegate to the comprehensive validation function
+    return validate_workflow_configurations(suite, suts, manifests)
 
 
 @DBOS.step()
@@ -126,13 +144,50 @@ def execute_single_test(
     sut_config: Dict[str, Any],
     test_params: Dict[str, Any],
 ) -> TestExecutionResult:
-    """Execute a single test in a Docker container."""
+    """Execute a single test in a Docker container.
+
+    Focuses solely on test execution. Input validation is handled separately
+    in validation.py to follow single responsibility principle.
+
+    Args:
+        test_name: Name of the test to execute (pre-validated)
+        image: Docker image to run (pre-validated)
+        sut_name: Name of the system under test (pre-validated)
+        sut_config: Configuration for the SUT (pre-validated)
+        test_params: Parameters for the test (pre-validated)
+
+    Returns:
+        TestExecutionResult containing execution metadata and results
+
+    Raises:
+        ValueError: If inputs fail validation or JSON output cannot be parsed
+        RuntimeError: If container execution fails
+    """
     result = TestExecutionResult(test_name, sut_name, image)
 
+    try:
+        validate_test_execution_inputs(
+            test_name, image, sut_name, sut_config, test_params
+        )
+    except ValueError as e:
+        result.error_message = str(e)
+        result.success = False
+        return result
+
     # Prepare command line arguments
-    sut_config_json = json.dumps(sut_config)
-    test_params_json = json.dumps(test_params)
-    command_args = ["--sut-config", sut_config_json, "--test-params", test_params_json]
+    try:
+        sut_config_json = json.dumps(sut_config)
+        test_params_json = json.dumps(test_params)
+        command_args = [
+            "--sut-config",
+            sut_config_json,
+            "--test-params",
+            test_params_json,
+        ]
+    except (TypeError, ValueError) as e:
+        result.error_message = f"Failed to serialize configuration to JSON: {e}"
+        result.success = False
+        return result
 
     # Prepare environment variables from SUT config
     container_env = {}
@@ -170,8 +225,13 @@ def execute_single_test(
             result.test_results = parse_container_json_output(result.container_output)
             result.success = result.test_results.get("success", False)
         except ValueError as e:
-            result.error_message = f"Failed to parse JSON output: {e}"
+            result.error_message = (
+                f"Failed to parse JSON output from test '{test_name}': {e}"
+            )
             result.success = False
+            DBOS.logger.error(
+                f"JSON parsing failed for test {test_name}: {result.container_output[:200]}..."
+            )
     else:
         result.success = False
 
@@ -215,18 +275,30 @@ def evaluate_score_card(
                 f"Evaluated score card '{score_card.score_card_name}' with {len(score_card_evaluations)} individual evaluations"
             )
 
-        except Exception as e:
+        except ValidationError as e:
             error_result = {
                 "score_card_name": score_card_config.get("score_card_name", "unknown"),
-                "error": f"Failed to evaluate score card: {e}",
-                "indicator_name": "SCORE_CARD_ERROR",
+                "error": f"Score card validation failed: {e}",
+                "indicator_name": "SCORE_CARD_VALIDATION_ERROR",
                 "test_name": "N/A",
                 "sut_name": "N/A",
                 "outcome": None,
                 "metric_value": None,
             }
             all_evaluations.append(error_result)
-            DBOS.logger.error(f"Failed to evaluate score card: {e}")
+            DBOS.logger.error(f"Score card validation failed: {e}")
+        except (KeyError, AttributeError, TypeError) as e:
+            error_result = {
+                "score_card_name": score_card_config.get("score_card_name", "unknown"),
+                "error": f"Score card evaluation error: {e}",
+                "indicator_name": "SCORE_CARD_EVALUATION_ERROR",
+                "test_name": "N/A",
+                "sut_name": "N/A",
+                "outcome": None,
+                "metric_value": None,
+            }
+            all_evaluations.append(error_result)
+            DBOS.logger.error(f"Score card evaluation error: {e}")
 
     return all_evaluations
 
@@ -258,8 +330,9 @@ def run_test_suite_workflow(
     try:
         suite = SuiteConfig(**suite_config)
         suts = SUTsConfig(**suts_config)
-    except Exception as e:
-        DBOS.logger.error(f"Configuration parsing failed: {e}")
+    except ValidationError as e:
+        error_msg = f"Configuration validation failed: {e}"
+        DBOS.logger.error(error_msg)
         return {
             "summary": create_workflow_summary(
                 suite_name="unknown",
@@ -269,7 +342,23 @@ def run_test_suite_workflow(
                 successful_tests=0,
                 failed_tests=0,
                 execution_time=time.time() - workflow_start_time,
-                error=str(e),
+                error=error_msg,
+            ),
+            "results": [],
+        }
+    except (TypeError, AttributeError) as e:
+        error_msg = f"Configuration structure error: {e}"
+        DBOS.logger.error(error_msg)
+        return {
+            "summary": create_workflow_summary(
+                suite_name="unknown",
+                workflow_id=DBOS.workflow_id or "",
+                status="CONFIG_ERROR",
+                total_tests=0,
+                successful_tests=0,
+                failed_tests=0,
+                execution_time=time.time() - workflow_start_time,
+                error=error_msg,
             ),
             "results": [],
         }
@@ -378,11 +467,14 @@ def run_test_suite_workflow(
                 all_results.append(result)
                 try:
                     progress.advance(task)
-                except Exception as e:
-                    print(f"Warning: Failed to update progress: {e}")
+                except (AttributeError, RuntimeError) as e:
+                    DBOS.logger.warning(f"Progress update failed: {e}")
 
-    except Exception:
-        # Fallback to simple execution without progress bar
+    except (ImportError, AttributeError) as e:
+        # Fallback to simple execution without progress bar if Rich components fail
+        DBOS.logger.warning(
+            f"Progress bar unavailable, falling back to simple execution: {e}"
+        )
         console.print("[yellow]Running tests without progress bar...[/yellow]")
 
         # Enqueue all tests for concurrent execution
@@ -575,9 +667,12 @@ def save_results_to_file_step(results: Dict[str, Any], output_path: str) -> None
         save_results_to_file(results, output_path)
         console.print(f"Results saved to [bold]{output_path}[/bold]")
         DBOS.logger.info(f"Results saved to {output_path}")
-    except Exception as e:
+    except (IOError, OSError, PermissionError) as e:
         console.print(f"[red]Failed to save results:[/red] {e}")
         DBOS.logger.error(f"Failed to save results to {output_path}: {e}")
+    except (TypeError, ValueError) as e:
+        console.print(f"[red]Invalid results data for saving:[/red] {e}")
+        DBOS.logger.error(f"Invalid results data cannot be saved to {output_path}: {e}")
 
 
 def start_test_execution(
@@ -588,18 +683,28 @@ def start_test_execution(
     execution_mode: str = "end_to_end",
 ) -> str:
     """
-    Start test suite execution and return the workflow ID.
+    Orchestrate test suite execution workflow.
+
+    Handles input validation, configuration loading, and workflow delegation.
+    Actual execution logic is handled by dedicated workflow functions.
 
     Args:
         suite_path: Path to test suite YAML file
         suts_path: Path to SUTs YAML file
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
-        execution_mode: "tests_only", "score_cards_only", or "end_to_end"
+        execution_mode: "tests_only" or "end_to_end"
 
     Returns:
         Workflow ID for tracking execution
+
+    Raises:
+        ValueError: If inputs are invalid
+        FileNotFoundError: If configuration files don't exist
+        PermissionError: If configuration files cannot be read
     """
+    validate_execution_inputs(suite_path, suts_path, execution_mode, output_path)
+
     try:
         # Load configurations
         suite_config = load_config_file(suite_path)
@@ -645,7 +750,10 @@ def start_score_card_evaluation(
     output_path: Optional[str] = None,
 ) -> str:
     """
-    Start score card evaluation against existing test results and return the workflow ID.
+    Orchestrate score card evaluation workflow.
+
+    Handles input validation, data loading, and workflow delegation.
+    Actual evaluation logic is handled by dedicated workflow functions.
 
     Args:
         input_path: Path to JSON file containing test execution results
@@ -654,7 +762,15 @@ def start_score_card_evaluation(
 
     Returns:
         Workflow ID for tracking execution
+
+    Raises:
+        ValueError: If inputs are invalid
+        FileNotFoundError: If input file doesn't exist
+        json.JSONDecodeError: If input file contains invalid JSON
+        PermissionError: If input file cannot be read
     """
+    validate_score_card_inputs(input_path, score_card_configs, output_path)
+
     try:
         with open(input_path, "r") as f:
             test_results_data = json.load(f)
@@ -678,8 +794,14 @@ def start_score_card_evaluation(
     except json.JSONDecodeError as e:
         console.print(f"[red]Invalid JSON in input file:[/red] {e}")
         raise
-    except Exception as e:
-        console.print(f"[red]Failed to start test execution:[/red] {e}")
+    except (IOError, OSError) as e:
+        console.print(f"[red]Failed to read input file:[/red] {e}")
+        raise
+    except (ValidationError, ValueError) as e:
+        console.print(f"[red]Invalid configuration or data:[/red] {e}")
+        raise
+    except RuntimeError as e:
+        console.print(f"[red]Workflow execution failed:[/red] {e}")
         raise
 
 
