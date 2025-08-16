@@ -276,9 +276,7 @@ class TestMainCLI:
     @patch("asqi.workflow.DBOS")
     def test_score_card_config_error(self, mock_dbos, mock_load_score):
         """Test handling score card configuration errors."""
-        from asqi.main import ConfigError
-
-        mock_load_score.side_effect = ConfigError("Invalid score card format")
+        mock_load_score.side_effect = ValueError("Invalid score card format")
 
         result = self.runner.invoke(
             app,
