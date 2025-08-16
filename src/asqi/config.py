@@ -33,10 +33,6 @@ def load_config_file(file_path: str) -> Dict[str, Any]:
 
     Returns:
         Parsed configuration dictionary
-
-    Raises:
-        FileNotFoundError: If file doesn't exist
-        yaml.YAMLError: If YAML is invalid
     """
     with open(file_path, "r") as f:
         return yaml.safe_load(f)
@@ -49,9 +45,6 @@ def save_results_to_file(results: Dict[str, Any], output_path: str) -> None:
     Args:
         results: Results dictionary to save
         output_path: Path to output JSON file
-
-    Raises:
-        Exception: If file writing fails
     """
     import json
 

@@ -10,34 +10,58 @@ from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
 from asqi.validation import validate_test_plan
 
 
-class ConfigError(Exception):
-    pass
-
-
 def load_yaml_file(file_path: str) -> Dict[str, Any]:
-    """Loads a YAML file, raising a ConfigError on failure."""
+    """Loads a YAML file.
+
+    Args:
+        file_path: Path to the YAML file to load
+
+    Returns:
+        Dictionary containing the parsed YAML data
+
+    Raises:
+        FileNotFoundError: If the specified file does not exist
+        ValueError: If the YAML file contains invalid syntax or cannot be parsed
+        PermissionError: If the file cannot be read due to permissions
+    """
     try:
         with open(file_path, "r") as f:
             return yaml.safe_load(f)
-    except FileNotFoundError:
-        raise ConfigError(f"File not found at '{file_path}'")
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"Configuration file not found: '{file_path}'") from e
     except yaml.YAMLError as e:
-        raise ConfigError(f"Could not parse YAML file '{file_path}': {e}")
+        raise ValueError(
+            f"Invalid YAML syntax in configuration file '{file_path}': {e}"
+        ) from e
+    except PermissionError as e:
+        raise PermissionError(
+            f"Permission denied accessing configuration file '{file_path}'"
+        ) from e
 
 
 def load_score_card_file(score_card_path: str) -> Dict[str, Any]:
-    """Load and validate grading score card configuration."""
+    """Load and validate grading score card configuration.
+
+    Args:
+        score_card_path: Path to the score card YAML file
+
+    Returns:
+        Dictionary containing the validated score card configuration
+
+    Raises:
+        FileNotFoundError: If the score card file does not exist
+        ValueError: If the YAML is invalid or score card schema validation fails
+        PermissionError: If the file cannot be read due to permissions
+    """
     try:
         score_card_data = load_yaml_file(score_card_path)
-        # Validate score card structure
+        # Validate score card structure - this will raise ValidationError if invalid
         ScoreCard(**score_card_data)
         return score_card_data
     except ValidationError as e:
-        raise ConfigError(
+        raise ValueError(
             f"Invalid score card configuration in '{score_card_path}': {e}"
-        )
-    except Exception as e:
-        raise ConfigError(f"Failed to load score card file '{score_card_path}': {e}")
+        ) from e
 
 
 def load_and_validate_plan(
@@ -79,7 +103,7 @@ def load_and_validate_plan(
                 pass
             manifests[manifest.image_name] = manifest
 
-    except (ConfigError, ValidationError) as e:
+    except (FileNotFoundError, ValueError, ValidationError, PermissionError) as e:
         errors.append(str(e))
         return {"status": "failure", "errors": errors}
 
@@ -152,7 +176,7 @@ def execute(
             typer.echo(
                 f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
             )
-        except ConfigError as e:
+        except (FileNotFoundError, ValueError, PermissionError) as e:
             typer.echo(f"❌ score card configuration error: {e}", err=True)
             raise typer.Exit(1)
 
@@ -207,7 +231,7 @@ def execute_tests(
                 typer.echo(
                     f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
                 )
-            except ConfigError as e:
+            except (FileNotFoundError, ValueError, PermissionError) as e:
                 typer.echo(f"❌ score card configuration error: {e}", err=True)
                 raise typer.Exit(1)
 
@@ -261,7 +285,7 @@ def evaluate_score_cards(
             typer.echo(
                 f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
             )
-        except ConfigError as e:
+        except (FileNotFoundError, ValueError, PermissionError) as e:
             typer.echo(f"❌ score card configuration error: {e}", err=True)
             raise typer.Exit(1)
 

@@ -42,7 +42,15 @@ class ScoreCardEngine:
     def filter_results_by_test_name(
         self, test_results: List[TestExecutionResult], target_test_name: str
     ) -> List[TestExecutionResult]:
-        """Filter test results to only include those with the specified test name."""
+        """Filter test results to only include those with the specified test name.
+
+        Args:
+            test_results: List of test execution results to filter
+            target_test_name: Name of test to filter for
+
+        Returns:
+            Filtered list of test results matching the target test name
+        """
         filtered = [
             result for result in test_results if result.test_name == target_test_name
         ]
@@ -54,7 +62,15 @@ class ScoreCardEngine:
     def extract_metric_values(
         self, test_results: List[TestExecutionResult], metric_path: str
     ) -> List[Any]:
-        """Extract metric values from test results using the specified path."""
+        """Extract metric values from test results using the specified path.
+
+        Args:
+            test_results: List of test execution results
+            metric_path: Path to metric within test results
+
+        Returns:
+            List of extracted metric values
+        """
         values = []
 
         for result in test_results:
@@ -64,12 +80,17 @@ class ScoreCardEngine:
                 if metric_path in result.test_results:
                     values.append(result.test_results[metric_path])
                 else:
+                    available_metrics = (
+                        ", ".join(result.test_results.keys())
+                        if result.test_results
+                        else "none"
+                    )
                     logger.warning(
-                        f"Metric '{metric_path}' not found in test result for {result.test_name}"
+                        f"Metric '{metric_path}' not found in test result for {result.test_name}. Available metrics: {available_metrics}"
                     )
             except (AttributeError, KeyError) as e:
                 logger.warning(
-                    f"Failed to extract metric '{metric_path}' from test result: {e}"
+                    f"Failed to extract metric '{metric_path}' from test result for {result.test_name}: {e}"
                 )
 
         return values
@@ -79,6 +100,11 @@ class ScoreCardEngine:
     ) -> Tuple[bool, str]:
         """
         Apply the specified condition to a single value.
+
+        Args:
+            value: Value to evaluate
+            condition: Condition to apply (e.g., 'equal_to', 'greater_than')
+            threshold: Threshold value for comparison (required for most conditions)
 
         Returns:
             Tuple of (condition_met, description)
@@ -153,7 +179,15 @@ class ScoreCardEngine:
     def evaluate_indicator(
         self, test_results: List[TestExecutionResult], indicator: ScoreCardIndicator
     ) -> List[ScoreCardEvaluationResult]:
-        """Evaluate a single score_card indicator against individual test results."""
+        """Evaluate a single score_card indicator against individual test results.
+
+        Args:
+            test_results: List of test execution results to evaluate
+            indicator: Score card indicator configuration
+
+        Returns:
+            List of evaluation results for each matching test
+        """
         results = []
 
         try:
@@ -167,7 +201,12 @@ class ScoreCardEngine:
                 error_result = ScoreCardEvaluationResult(
                     indicator.name, indicator.apply_to.test_name
                 )
-                error_result.error = f"No test results found for test_name '{indicator.apply_to.test_name}'"
+                available_tests = (
+                    ", ".join(set(r.test_name for r in test_results))
+                    if test_results
+                    else "none"
+                )
+                error_result.error = f"No test results found for test_name '{indicator.apply_to.test_name}'. Available tests: {available_tests}"
                 return [error_result]
 
             # Evaluate each individual test result
@@ -221,9 +260,12 @@ class ScoreCardEngine:
                             )
 
                     else:
-                        eval_result.error = (
-                            f"Metric '{indicator.metric}' not found in test result"
+                        available_metrics = (
+                            ", ".join(test_result.test_results.keys())
+                            if test_result.test_results
+                            else "none"
                         )
+                        eval_result.error = f"Metric '{indicator.metric}' not found in test result for '{test_result.test_name}'. Available metrics: {available_metrics}"
 
                 except Exception as e:
                     logger.error(
@@ -246,7 +288,15 @@ class ScoreCardEngine:
     def evaluate_scorecard(
         self, test_results: List[TestExecutionResult], score_card: ScoreCard
     ) -> List[Dict[str, Any]]:
-        """Evaluate a complete grading score_card against test results."""
+        """Evaluate a complete grading score_card against test results.
+
+        Args:
+            test_results: List of test execution results to evaluate
+            score_card: Complete score card configuration
+
+        Returns:
+            List of evaluation result dictionaries
+        """
         all_test_evaluations = []
 
         for indicator in score_card.indicators:

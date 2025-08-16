@@ -363,7 +363,8 @@ class TestValidationFunctions:
         )
         # my_llm_service is supported, my_backend_api is not
         assert any("does not support SUT type 'rest_api'" in e for e in errors)
-        assert not any("llm_api" in e for e in errors)
+        # Check that there's no error for the supported llm_api SUT type
+        assert not any("does not support SUT type 'llm_api'" in e for e in errors)
 
         # Unknown SUT
         test.target_suts = ["not_a_sut"]
