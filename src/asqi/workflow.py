@@ -211,6 +211,7 @@ def execute_single_test(
         cpu_quota=ContainerConfig.CPU_QUOTA,
         cpu_period=ContainerConfig.CPU_PERIOD,
         environment=container_env,
+        stream_logs=True,
     )
 
     result.end_time = time.time()

@@ -5,6 +5,34 @@ from typing import Optional
 asqi_logger = logging.getLogger("asqi")
 
 
+def create_container_logger(
+    name: str = "asqi.container_logs", display_name: Optional[str] = None
+) -> logging.Logger:
+    """
+    Create and configure a dedicated logger for container logs with a custom display name.
+
+    Args:
+        name: The internal name of the logger.
+        display_name: The display name to show in log messages (if provided).
+
+    Returns:
+        The configured logger instance.
+    """
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        log_display = display_name if display_name else name
+        formatter = logging.Formatter(
+            f"[%(asctime)s] [%(levelname)8s] [{log_display}] %(message)s",
+            datefmt="%H:%M:%S",
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    logger.propagate = False
+    logger.setLevel(logging.INFO)
+    return logger
+
+
 def configure_logging(
     app_log_level: Optional[str] = None,
     lib_log_level: str = "WARNING",
