@@ -234,9 +234,9 @@ class TestMainCLI:
         )
 
         assert result.exit_code == 1
-        assert "❌ Test Plan Validation Failed:" in result.stderr
-        assert "Error 1" in result.stderr
-        assert "Error 2" in result.stderr
+        assert "❌ Test Plan Validation Failed:" in result.stdout
+        assert "Error 1" in result.stdout
+        assert "Error 2" in result.stdout
 
     @patch("asqi.workflow.start_test_execution")
     @patch("asqi.main.load_score_card_file")

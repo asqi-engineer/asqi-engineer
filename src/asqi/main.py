@@ -5,9 +5,12 @@ from typing import Any, Dict, List, Optional
 import typer
 import yaml
 from pydantic import ValidationError
+from rich.console import Console
 
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
 from asqi.validation import validate_test_plan
+
+console = Console()
 
 
 def load_yaml_file(file_path: str) -> Dict[str, Any]:
@@ -126,7 +129,7 @@ def validate(
     ),
 ):
     """Validate test plan configuration without execution."""
-    typer.echo("--- Running Verification ---")
+    console.print("[blue]--- Running Verification ---[/blue]")
 
     result = load_and_validate_plan(
         suite_path=suite_file,
@@ -135,14 +138,16 @@ def validate(
     )
 
     if result["status"] == "failure":
-        typer.echo("\n❌ Test Plan Validation Failed:", err=True)
+        console.print("\n[red]❌ Test Plan Validation Failed:[/red]")
         for error in result["errors"]:
             for line in str(error).splitlines():
-                typer.echo(f"  - {line}", err=True)
+                console.print(f"  [red]- {line}[/red]")
         raise typer.Exit(1)
 
-    typer.echo("\n✨ Success! The test plan is valid.")
-    typer.echo("💡 Use 'execute' or 'execute-tests' commands to run tests.")
+    console.print("\n[green]✨ Success! The test plan is valid.[/green]")
+    console.print(
+        "[blue]💡 Use 'execute' or 'execute-tests' commands to run tests.[/blue]"
+    )
 
 
 @app.command()
@@ -157,7 +162,7 @@ def execute(
     ),
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
-    typer.echo("--- 🚀 Executing End-to-End Workflow ---")
+    console.print("[blue]--- 🚀 Executing End-to-End Workflow ---[/blue]")
 
     try:
         from asqi.workflow import DBOS, start_test_execution
@@ -166,18 +171,18 @@ def execute(
         try:
             DBOS.launch()
         except Exception as e:
-            typer.echo(f"Error launching DBOS: {e}")
+            console.print(f"[yellow]Warning: Error launching DBOS: {e}[/yellow]")
 
         # Load score card configuration
         score_card_configs = None
         try:
             score_card_config = load_score_card_file(score_card_file)
             score_card_configs = [score_card_config]
-            typer.echo(
-                f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
+            console.print(
+                f"[green]✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}[/green]"
             )
         except (FileNotFoundError, ValueError, PermissionError) as e:
-            typer.echo(f"❌ score card configuration error: {e}", err=True)
+            console.print(f"[red]❌ score card configuration error: {e}[/red]")
             raise typer.Exit(1)
 
         workflow_id = start_test_execution(
@@ -188,14 +193,16 @@ def execute(
             execution_mode="end_to_end",
         )
 
-        typer.echo(f"\n✨ Execution completed! Workflow ID: {workflow_id}")
+        console.print(
+            f"\n[green]✨ Execution completed! Workflow ID: {workflow_id}[/green]"
+        )
 
     except ImportError:
-        typer.echo("❌ Error: DBOS workflow dependencies not available.", err=True)
-        typer.echo("Install with: pip install dbos", err=True)
+        console.print("[red]❌ Error: DBOS workflow dependencies not available.[/red]")
+        console.print("[yellow]Install with: pip install dbos[/yellow]")
         raise typer.Exit(1)
     except Exception as e:
-        typer.echo(f"❌ Execution failed: {e}", err=True)
+        console.print(f"[red]❌ Execution failed: {e}[/red]")
         raise typer.Exit(1)
 
 
@@ -211,7 +218,7 @@ def execute_tests(
     ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
-    typer.echo("--- 🚀 Executing Test Suite ---")
+    console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
 
     try:
         from asqi.workflow import DBOS, start_test_execution
@@ -220,7 +227,7 @@ def execute_tests(
         try:
             DBOS.launch()
         except Exception as e:
-            typer.echo(f"Error launching DBOS: {e}")
+            console.print(f"[yellow]Warning: Error launching DBOS: {e}[/yellow]")
 
         # Load score card configuration if provided
         score_card_configs = None
@@ -228,11 +235,11 @@ def execute_tests(
             try:
                 score_card_config = load_score_card_file(score_card_file)
                 score_card_configs = [score_card_config]
-                typer.echo(
-                    f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
+                console.print(
+                    f"[green]✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}[/green]"
                 )
             except (FileNotFoundError, ValueError, PermissionError) as e:
-                typer.echo(f"❌ score card configuration error: {e}", err=True)
+                console.print(f"[red]❌ score card configuration error: {e}[/red]")
                 raise typer.Exit(1)
 
         workflow_id = start_test_execution(
@@ -243,14 +250,16 @@ def execute_tests(
             execution_mode="tests_only",
         )
 
-        typer.echo(f"\n✨ Test execution completed! Workflow ID: {workflow_id}")
+        console.print(
+            f"\n[green]✨ Test execution completed! Workflow ID: {workflow_id}[/green]"
+        )
 
     except ImportError:
-        typer.echo("❌ Error: DBOS workflow dependencies not available.", err=True)
-        typer.echo("Install with: pip install dbos", err=True)
+        console.print("[red]❌ Error: DBOS workflow dependencies not available.[/red]")
+        console.print("[yellow]Install with: pip install dbos[/yellow]")
         raise typer.Exit(1)
     except Exception as e:
-        typer.echo(f"❌ Test execution failed: {e}", err=True)
+        console.print(f"[red]❌ Test execution failed: {e}[/red]")
         raise typer.Exit(1)
 
 
@@ -267,7 +276,7 @@ def evaluate_score_cards(
     ),
 ):
     """Evaluate score cards against existing test results from JSON file."""
-    typer.echo("--- 📊 Evaluating Score Cards ---")
+    console.print("[blue]--- 📊 Evaluating Score Cards ---[/blue]")
 
     try:
         from asqi.workflow import DBOS, start_score_card_evaluation
@@ -276,17 +285,17 @@ def evaluate_score_cards(
         try:
             DBOS.launch()
         except Exception as e:
-            typer.echo(f"Error launching DBOS: {e}")
+            console.print(f"[yellow]Warning: Error launching DBOS: {e}[/yellow]")
 
         # Load score card configuration
         try:
             score_card_config = load_score_card_file(score_card_file)
             score_card_configs = [score_card_config]
-            typer.echo(
-                f"✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}"
+            console.print(
+                f"[green]✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}[/green]"
             )
         except (FileNotFoundError, ValueError, PermissionError) as e:
-            typer.echo(f"❌ score card configuration error: {e}", err=True)
+            console.print(f"[red]❌ score card configuration error: {e}[/red]")
             raise typer.Exit(1)
 
         workflow_id = start_score_card_evaluation(
@@ -295,14 +304,16 @@ def evaluate_score_cards(
             output_path=output_file,
         )
 
-        typer.echo(f"\n✨ Score card evaluation completed! Workflow ID: {workflow_id}")
+        console.print(
+            f"\n[green]✨ Score card evaluation completed! Workflow ID: {workflow_id}[/green]"
+        )
 
     except ImportError:
-        typer.echo("❌ Error: DBOS workflow dependencies not available.", err=True)
-        typer.echo("Install with: pip install dbos", err=True)
+        console.print("[red]❌ Error: DBOS workflow dependencies not available.[/red]")
+        console.print("[yellow]Install with: pip install dbos[/yellow]")
         raise typer.Exit(1)
     except Exception as e:
-        typer.echo(f"❌ Score card evaluation failed: {e}", err=True)
+        console.print(f"[red]❌ Score card evaluation failed: {e}[/red]")
         raise typer.Exit(1)
 
 
