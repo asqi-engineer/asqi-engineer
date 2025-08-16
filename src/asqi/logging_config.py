@@ -1,5 +1,3 @@
-"""Centralized logging configuration for the ASQI application."""
-
 import logging
 import os
 from typing import Optional
