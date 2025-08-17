@@ -67,6 +67,27 @@ class Manifest(BaseModel):
 # ----------------------------------------------------------------------------
 
 
+class LLMAPIConfig(BaseModel):
+    """Configuration for LLM API SUTs."""
+
+    base_url: str = Field(
+        ...,
+        description="Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
+    )
+    model: str = Field(
+        ...,
+        description="Model name to use with the API",
+    )
+    env_file: Optional[str] = Field(
+        None,
+        description="Path to .env file containing environment variables for authentication",
+    )
+    api_key: Optional[str] = Field(
+        None,
+        description="Direct API key for authentication (alternative to env_file)",
+    )
+
+
 class SUTDefinition(BaseModel):
     """A single System Under Test definition."""
 
@@ -76,7 +97,7 @@ class SUTDefinition(BaseModel):
     )
     config: Dict[str, Any] = Field(
         ...,
-        description="Configuration specific to the SUT type (e.g., API endpoint, model name).",
+        description="Configuration specific to the SUT type (e.g., base_url, model name, API key).",
     )
 
 
