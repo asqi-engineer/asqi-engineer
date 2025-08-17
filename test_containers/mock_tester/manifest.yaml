@@ -1,7 +1,6 @@
 name: "mock_tester"
 version: "1.0"
 description: "A lightweight mock container for testing the executor logic."
-image_name: "my-registry/mock_tester:latest"
 
 supported_suts:
   - type: "llm_api"

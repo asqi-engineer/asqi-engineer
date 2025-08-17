@@ -1,7 +1,6 @@
 name: "garak"
 version: "1.0"
 description: "Garak LLM security testing framework container for vulnerability assessment."
-image_name: "my-registry/garak:latest"
 
 supported_suts:
   - type: "llm_api"

@@ -48,7 +48,6 @@ class Manifest(BaseModel):
     name: str = Field(..., description="The canonical name for the test framework.")
     version: str
     description: Optional[str] = None
-    image_name: str = Field(..., description="The full Docker image name and tag.")
     supported_suts: List[SUTSupport] = Field(
         ..., description="Declares which SUT types this framework can handle."
     )

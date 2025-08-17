@@ -78,6 +78,41 @@ def validate_sut_compatibility(
     return errors
 
 
+def find_manifest_for_image(
+    image_name: str, manifests: Dict[str, Manifest]
+) -> Optional[Manifest]:
+    """
+    Find manifest for a given image name.
+
+    For runtime (workflow), manifests are keyed by full image names.
+    For local validation, manifests are keyed by container directory names.
+
+    Args:
+        image_name: Full image name (e.g., "my-registry/mock_tester:latest")
+        manifests: Dictionary of available manifests
+
+    Returns:
+        Manifest if found, None otherwise
+    """
+    # Try exact match first (for runtime/workflow usage)
+    if image_name in manifests:
+        return manifests[image_name]
+
+    # For local validation, try to match by container name
+    # Extract container name from image (e.g., "my-registry/mock_tester:latest" -> "mock_tester")
+    if "/" in image_name:
+        container_name = image_name.split("/")[-1].split(":")[0]
+        if container_name in manifests:
+            return manifests[container_name]
+
+    # Also try the base name without registry/tag
+    base_name = image_name.split(":")[0].split("/")[-1]
+    if base_name in manifests:
+        return manifests[base_name]
+
+    return None
+
+
 def validate_manifests_against_tests(
     suite: SuiteConfig, suts: SUTsConfig, manifests: Dict[str, Manifest]
 ) -> List[str]:
@@ -97,14 +132,13 @@ def validate_manifests_against_tests(
 
     for test in suite.test_suite:
         # Check if manifest exists for test image
-        if test.image not in manifests:
+        manifest = find_manifest_for_image(test.image, manifests)
+        if manifest is None:
             available_images = ", ".join(manifests.keys()) if manifests else "none"
             errors.append(
                 f"Test '{test.name}': No manifest available for image '{test.image}'. Images with manifests: {available_images}"
             )
             continue
-
-        manifest = manifests[test.image]
 
         # Validate test parameters
         param_errors = validate_test_parameters(test, manifest)
@@ -189,13 +223,12 @@ def validate_test_plan(
 
     for test in suite.test_suite:
         # 1. Check if the test's image has a corresponding manifest
-        if test.image not in manifests:
+        manifest = find_manifest_for_image(test.image, manifests)
+        if manifest is None:
             errors.append(
                 f"Test '{test.name}': Image '{test.image}' does not have a loaded manifest."
             )
             continue  # Cannot perform further validation for this test
-
-        manifest = manifests[test.image]
         supported_sut_types = [s.type for s in manifest.supported_suts]
 
         # 2. Check parameters against the manifest's input_schema

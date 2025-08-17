@@ -71,7 +71,6 @@ def test_run_test_suite_workflow_success():
         name="mock",
         version="1",
         description="",
-        image_name="test/image:latest",
         supported_suts=[SUTSupport(type="llm_api", required_config=None)],
         input_schema=[],
         output_metrics=[],
