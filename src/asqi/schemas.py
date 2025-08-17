@@ -95,9 +95,9 @@ class SUTDefinition(BaseModel):
         ...,
         description="e.g., 'llm_api', 'rest_api'. Used to match with test container capabilities.",
     )
-    config: Dict[str, Any] = Field(
+    params: Dict[str, Any] = Field(
         ...,
-        description="Configuration specific to the SUT type (e.g., base_url, model name, API key).",
+        description="Parameters specific to the SUT type (e.g., base_url, model name, API key).",
     )
 
 

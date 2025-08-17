@@ -142,7 +142,7 @@ def execute_single_test(
     test_name: str,
     image: str,
     sut_name: str,
-    sut_config: Dict[str, Any],
+    sut_params: Dict[str, Any],
     test_params: Dict[str, Any],
 ) -> TestExecutionResult:
     """Execute a single test in a Docker container.
@@ -168,20 +168,49 @@ def execute_single_test(
 
     try:
         validate_test_execution_inputs(
-            test_name, image, sut_name, sut_config, test_params
+            test_name, image, sut_name, sut_params, test_params
         )
     except ValueError as e:
         result.error_message = str(e)
         result.success = False
         return result
 
+    # Load environment variables for fallback values
+    env_file_path = sut_params.get("env_file", ".env")
+    env_vars = {}
+    if os.path.exists(env_file_path):
+        try:
+            env_vars = dotenv_values(env_file_path)
+            DBOS.logger.debug(
+                f"Loaded environment variables from {env_file_path} for fallbacks"
+            )
+        except Exception as e:
+            DBOS.logger.warning(
+                f"Failed to load environment file {env_file_path} for fallbacks: {e}"
+            )
+
+    # Apply environment variable fallbacks for global configuration
+    sut_params_with_fallbacks = sut_params.copy()
+
+    # Apply BASE_URL fallback if not specified
+    if "base_url" not in sut_params_with_fallbacks:
+        if base_url_env := env_vars.get("BASE_URL"):
+            sut_params_with_fallbacks["base_url"] = base_url_env
+            DBOS.logger.info(f"Using BASE_URL from .env file: {base_url_env}")
+
+    # Apply API_KEY fallback if not specified (this will be used in environment variable processing)
+    if "api_key" not in sut_params_with_fallbacks:
+        if api_key_env := env_vars.get("API_KEY"):
+            sut_params_with_fallbacks["api_key"] = api_key_env
+            DBOS.logger.info("Using API_KEY from .env file")
+
     # Prepare command line arguments
     try:
-        sut_config_json = json.dumps(sut_config)
+        sut_params_json = json.dumps(sut_params_with_fallbacks)
         test_params_json = json.dumps(test_params)
         command_args = [
-            "--sut-config",
-            sut_config_json,
+            "--sut-params",
+            sut_params_json,
             "--test-params",
             test_params_json,
         ]
@@ -190,27 +219,22 @@ def execute_single_test(
         result.success = False
         return result
 
-    # Prepare environment variables from SUT config
+    # Prepare environment variables from SUT params (reuse loaded env_vars)
     container_env = {}
 
-    # Default to .env in working directory if `env_file` is not specified
-    env_file_path = sut_config.get("env_file", ".env")
-    if os.path.exists(env_file_path):
-        try:
-            env_vars = dotenv_values(env_file_path)
-            container_env.update(env_vars)
-            DBOS.logger.info(f"Loaded environment variables from {env_file_path}")
-        except Exception as e:
-            DBOS.logger.warning(f"Failed to load environment file {env_file_path}: {e}")
+    # Use already loaded environment variables (avoid loading twice)
+    if env_vars:
+        container_env.update(env_vars)
+        DBOS.logger.info(f"Loaded environment variables from {env_file_path}")
     else:
-        if "env_file" in sut_config:
+        if "env_file" in sut_params_with_fallbacks:
             # User explicitly specified an env_file that doesn't exist
             DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
         else:
             DBOS.logger.debug("No .env file found in working directory")
 
-    if "api_key" in sut_config:
-        container_env["API_KEY"] = sut_config["api_key"]
+    if "api_key" in sut_params_with_fallbacks:
+        container_env["API_KEY"] = sut_params_with_fallbacks["api_key"]
         DBOS.logger.info(
             "Using direct API key for authentication (overriding any .env setting)"
         )
@@ -470,7 +494,7 @@ def run_test_suite_workflow(
                     test_plan["test_name"],
                     test_plan["image"],
                     test_plan["sut_name"],
-                    test_plan["sut_config"],
+                    test_plan["sut_params"],
                     test_plan["test_params"],
                 )
                 test_handles.append(handle)
@@ -500,7 +524,7 @@ def run_test_suite_workflow(
                 test_plan["test_name"],
                 test_plan["image"],
                 test_plan["sut_name"],
-                test_plan["sut_config"],
+                test_plan["sut_params"],
                 test_plan["test_params"],
             )
             test_handles.append(handle)

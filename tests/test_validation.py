@@ -31,7 +31,7 @@ systems_under_test:
   # This SUT is compatible with our mock_tester
   my_llm_service:
     type: "llm_api"
-    config:
+    params:
       provider: "some_provider"
       model: "model-x"
       api_key_env: "MY_LLM_API_KEY"
@@ -39,7 +39,7 @@ systems_under_test:
   # This SUT is *not* compatible, for demonstrating validation failure
   my_backend_api:
     type: "rest_api"
-    config:
+    params:
       uri: "https://api.example.com/v1/data"
 """
 
@@ -124,12 +124,12 @@ class TestSchemaValidation:
         # Check LLM service
         llm_sut = suts["my_llm_service"]
         assert llm_sut.type == "llm_api"
-        assert llm_sut.config["provider"] == "some_provider"
+        assert llm_sut.params["provider"] == "some_provider"
 
         # Check backend API
         api_sut = suts["my_backend_api"]
         assert api_sut.type == "rest_api"
-        assert api_sut.config["uri"] == "https://api.example.com/v1/data"
+        assert api_sut.params["uri"] == "https://api.example.com/v1/data"
 
     def test_manifest_schema_validation(self, manifests):
         """Test that manifests parse correctly."""
