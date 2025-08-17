@@ -103,10 +103,16 @@ def load_and_validate_plan(
                 continue
 
             manifest = Manifest(**manifest_data)
-            if manifest.image_name in manifests:
-                # If two manifests have the same image_name, we currently just overwrite and keep the last one.
+
+            # Use directory name to derive image name for local validation
+            # e.g., "test_containers/mock_tester/manifest.yaml" -> "mock_tester"
+            container_dir = os.path.basename(os.path.dirname(manifest_path))
+
+            # Check for duplicate container directories
+            if container_dir in manifests:
+                # If two manifests have the same container directory, we currently just overwrite and keep the last one.
                 pass
-            manifests[manifest.image_name] = manifest
+            manifests[container_dir] = manifest
 
     except (FileNotFoundError, ValueError, ValidationError, PermissionError) as e:
         errors.append(str(e))

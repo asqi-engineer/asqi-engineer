@@ -47,7 +47,6 @@ MOCK_TESTER_MANIFEST = {
     "name": "mock_tester",
     "version": "1.0.0",
     "description": "A minimal mock container for testing the executor interface.",
-    "image_name": "my-registry/mock_tester:latest",
     "supported_suts": [{"type": "llm_api"}],
     "input_schema": [
         {
@@ -64,7 +63,6 @@ MOCK_MULTIPLE_MANIFEST = {
     "name": "garak",
     "version": "0.2.0",
     "description": "A security and safety probing tool for Large Language Models.",
-    "image_name": "my-registry/garak:latest",
     "supported_suts": [{"type": "llm_api"}, {"type": "rest_api"}],
     "input_schema": [
         {
