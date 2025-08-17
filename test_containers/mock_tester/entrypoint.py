@@ -9,7 +9,7 @@ def main():
     """Main entrypoint that demonstrates the container interface."""
     parser = argparse.ArgumentParser(description="Mock test container")
     parser.add_argument(
-        "--sut-config", required=True, help="SUT configuration as JSON string"
+        "--sut-params", required=True, help="SUT parameters as JSON string"
     )
     parser.add_argument(
         "--test-params", required=True, help="Test parameters as JSON string"
@@ -19,18 +19,17 @@ def main():
 
     try:
         # Parse inputs
-        sut_config = json.loads(args.sut_config)
+        sut_params = json.loads(args.sut_params)
         test_params = json.loads(args.test_params)
 
         # Validate SUT type
-        sut_type = sut_config.get("type")
+        sut_type = sut_params.get("type")
         if sut_type not in ["llm_api"]:
             raise ValueError(f"Unsupported SUT type: {sut_type}")
 
-        # Extract SUT configuration
-        config = sut_config.get("config", {})
-        base_url = config.get("base_url", "")
-        model = config.get("model", "")
+        # Extract SUT parameters (flattened structure)
+        base_url = sut_params["base_url"]  # Required, validated upstream
+        model = sut_params["model"]  # Required, validated upstream
 
         # Extract delay parameter
         delay_seconds = test_params.get("delay_seconds", 0)

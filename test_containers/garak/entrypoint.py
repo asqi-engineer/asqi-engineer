@@ -12,7 +12,7 @@ def main():
     """Garak test container entrypoint that interfaces with the ASQI executor."""
     parser = argparse.ArgumentParser(description="Garak test container")
     parser.add_argument(
-        "--sut-config", required=True, help="SUT configuration as JSON string"
+        "--sut-params", required=True, help="SUT parameters as JSON string"
     )
     parser.add_argument(
         "--test-params", required=True, help="Test parameters as JSON string"
@@ -22,11 +22,11 @@ def main():
 
     try:
         # Parse inputs
-        sut_config = json.loads(args.sut_config)
+        sut_params = json.loads(args.sut_params)
         test_params = json.loads(args.test_params)
 
         # Validate SUT type
-        sut_type = sut_config.get("type")
+        sut_type = sut_params.get("type")
         if sut_type not in ["llm_api"]:
             raise ValueError(f"Unsupported SUT type: {sut_type}")
 
@@ -42,20 +42,17 @@ def main():
             # Build garak command
             garak_cmd = ["garak"]
 
-            # Configure model based on SUT type and config
+            # Configure model based on SUT type and params
             if sut_type == "llm_api":
-                provider = sut_config.get("config", {}).get("provider", "openai")
-                model = sut_config.get("config", {}).get("model", "gpt-3.5-turbo")
+                base_url = sut_params["base_url"]  # Required, validated upstream
+                model = sut_params["model"]  # Required, validated upstream
 
-                if provider == "openai":
-                    garak_cmd.extend(["--model_type", "openai", "--model_name", model])
-                elif provider == "huggingface":
-                    garak_cmd.extend(
-                        ["--model_type", "huggingface", "--model_name", model]
-                    )
-                else:
-                    # Default to treating as a generic API endpoint
-                    garak_cmd.extend(["--model_type", "rest", "--model_name", model])
+                # Use generic OpenAI-compatible API approach
+                # Set OPENAI_API_BASE for garak to use the custom endpoint
+                os.environ["OPENAI_API_BASE"] = base_url
+
+                # Use openai model type for all OpenAI-compatible APIs
+                garak_cmd.extend(["--model_type", "openai", "--model_name", model])
 
             # Add probes - garak expects comma-separated list
             probe_list = ",".join(probes)
@@ -86,6 +83,10 @@ def main():
 
             # Use current environment API keys
             env = os.environ.copy()
+
+            # Set OpenAI API key from generic API_KEY environment variable
+            if "API_KEY" in env:
+                env["OPENAI_API_KEY"] = env["API_KEY"]
 
             print(
                 f"DEBUG: About to run command: {' '.join(garak_cmd)}", file=sys.stderr

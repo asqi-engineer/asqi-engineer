@@ -162,7 +162,7 @@ def create_test_execution_plan(
                     "test_name": test.name,
                     "image": image,
                     "sut_name": sut_name,
-                    "sut_config": {"type": sut_def.type, **sut_def.config},
+                    "sut_params": {"type": sut_def.type, **sut_def.params},
                     "test_params": getattr(test, "params", {}),
                 }
             )
@@ -299,7 +299,7 @@ def validate_test_execution_inputs(
     test_name: str,
     image: str,
     sut_name: str,
-    sut_config: Dict[str, Any],
+    sut_params: Dict[str, Any],
     test_params: Dict[str, Any],
 ) -> None:
     """
@@ -309,7 +309,7 @@ def validate_test_execution_inputs(
         test_name: Name of the test
         image: Docker image name
         sut_name: Name of the SUT
-        sut_config: SUT configuration dictionary
+        sut_params: SUT parameters dictionary (flattened configuration)
         test_params: Test parameters dictionary
 
     Raises:
@@ -324,8 +324,8 @@ def validate_test_execution_inputs(
     if not sut_name or not isinstance(sut_name, str):
         raise ValueError("Invalid SUT name: must be non-empty string")
 
-    if not isinstance(sut_config, dict):
-        raise ValueError("Invalid SUT configuration: must be dictionary")
+    if not isinstance(sut_params, dict):
+        raise ValueError("Invalid SUT parameters: must be dictionary")
 
     if not isinstance(test_params, dict):
         raise ValueError("Invalid test parameters: must be dictionary")

@@ -62,7 +62,7 @@ def test_run_test_suite_workflow_success():
 
     suts_config = {
         "systems_under_test": {
-            "sutA": {"type": "llm_api", "config": {"endpoint": "http://x"}}
+            "sutA": {"type": "llm_api", "params": {"endpoint": "http://x"}}
         }
     }
 
@@ -100,7 +100,7 @@ def test_run_test_suite_workflow_success():
                 "test_name": "t1_sutA",
                 "image": "test/image:latest",
                 "sut_name": "sutA",
-                "sut_config": {"type": "llm_api", "endpoint": "http://x"},
+                "sut_params": {"type": "llm_api", "endpoint": "http://x"},
                 "test_params": {"p": "v"},
             }
         ]
@@ -133,7 +133,7 @@ def test_run_test_suite_workflow_validation_failure():
         ],
     }
 
-    suts_config = {"systems_under_test": {"sutA": {"type": "llm_api", "config": {}}}}
+    suts_config = {"systems_under_test": {"sutA": {"type": "llm_api", "params": {}}}}
 
     with (
         patch("asqi.workflow.check_image_availability") as mock_avail,
@@ -171,7 +171,7 @@ def test_execute_single_test_success():
             test_name="t1_sutA",
             image="test/image:latest",
             sut_name="sutA",
-            sut_config={"type": "llm_api"},
+            sut_params={"type": "llm_api"},
             test_params={"p": "v"},
         )
 
@@ -208,7 +208,7 @@ def test_execute_single_test_container_failure():
             test_name="failing_test",
             image="test/image:latest",
             sut_name="sutA",
-            sut_config={"type": "llm_api"},
+            sut_params={"type": "llm_api"},
             test_params={},
         )
 
@@ -233,7 +233,7 @@ def test_execute_single_test_invalid_json():
             test_name="json_test",
             image="test/image:latest",
             sut_name="sutA",
-            sut_config={"type": "llm_api"},
+            sut_params={"type": "llm_api"},
             test_params={},
         )
 

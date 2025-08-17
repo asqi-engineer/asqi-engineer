@@ -12,8 +12,8 @@ class TestEnvironmentVariables:
     """Test suite for environment variable handling."""
 
     @pytest.fixture
-    def sample_sut_config(self):
-        """Sample SUT configuration with API key environment variable."""
+    def sample_sut_params(self):
+        """Sample SUT parameters (flattened configuration)."""
         return {"type": "llm_api", "model": "gpt-4o-mini"}
 
     @pytest.fixture
@@ -41,7 +41,7 @@ class TestEnvironmentVariables:
             systems_under_test={
                 "test_sut": SUTDefinition(
                     type="llm_api",
-                    config={
+                    params={
                         "model": "gpt-4o-mini",
                         "api_key": "sk-123",
                     },
@@ -49,10 +49,10 @@ class TestEnvironmentVariables:
             }
         )
 
-    def test_create_test_execution_plan_flattens_sut_config(
+    def test_create_test_execution_plan_flattens_sut_params(
         self, sample_suite_config, sample_suts_config
     ):
-        """Test that create_test_execution_plan correctly flattens SUT configuration."""
+        """Test that create_test_execution_plan correctly flattens SUT parameters."""
         image_availability = {"my-registry/test:latest": True}
 
         execution_plan = create_test_execution_plan(
@@ -60,19 +60,19 @@ class TestEnvironmentVariables:
         )
 
         assert len(execution_plan) == 1
-        sut_config = execution_plan[0]["sut_config"]
+        sut_params = execution_plan[0]["sut_params"]
 
-        # Verify the SUT config is flattened correctly
-        assert sut_config["type"] == "llm_api"
-        assert sut_config["model"] == "gpt-4o-mini"
-        assert sut_config["api_key"] == "sk-123"
+        # Verify the SUT params are flattened correctly
+        assert sut_params["type"] == "llm_api"
+        assert sut_params["model"] == "gpt-4o-mini"
+        assert sut_params["api_key"] == "sk-123"
 
         # Ensure config is not nested
-        assert "config" not in sut_config
+        assert "config" not in sut_params
 
     @patch("asqi.workflow.run_container_with_args")
     def test_execute_single_test_passes_environment_variable_from_dotenv(
-        self, mock_run_container, sample_sut_config, tmp_path, monkeypatch
+        self, mock_run_container, sample_sut_params, tmp_path, monkeypatch
     ):
         """Test that execute_single_test loads TEST_API_KEY from .env file."""
         dotenv_content = "TEST_API_KEY=test_secret_key_12345\n"
@@ -94,7 +94,7 @@ class TestEnvironmentVariables:
             test_name="test_env_vars",
             image="my-registry/test:latest",
             sut_name="test_sut",
-            sut_config=sample_sut_config,
+            sut_params=sample_sut_params,
             test_params={"generations": 1},
         )
 
@@ -116,7 +116,7 @@ class TestEnvironmentVariables:
         dotenv_path.write_text(dotenv_content)
         monkeypatch.chdir(tmp_path)
 
-        sut_config = {
+        sut_params = {
             "type": "llm_api",
             "model": "gpt-4",
             "api_key": "sk-123",
@@ -136,7 +136,7 @@ class TestEnvironmentVariables:
             test_name="test_specific_env_var",
             image="my-registry/test:latest",
             sut_name="openai_sut",
-            sut_config=sut_config,
+            sut_params=sut_params,
             test_params={"generations": 2},
         )
 
