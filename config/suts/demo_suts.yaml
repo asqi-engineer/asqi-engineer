@@ -1,19 +1,26 @@
 systems_under_test:
-  # OpenAI GPT-4o Mini for garak security testing
   openai_gpt4o_mini:
     type: "llm_api"
     config:
-      provider: "openai"
-      model: "gpt-4o-mini"
-      api_key_env: "OPENAI_API_KEY"
+      base_url: "http://localhost:4000/v1"
+      model: "gpt-4o-mini" # Uses litellm configured model
+      api_key: "sk-1234" # API key configured in litellm proxy
 
-  # This SUT is compatible with our mock_tester
+  # Direct OpenAI API access with explicit API key
+  direct_openai:
+    type: "llm_api"
+    config:
+      base_url: "https://api.openai.com/v1"
+      model: "gpt-4o-mini"
+      api_key: "sk-your-openai-key-here"
+
+  # LiteLLM proxy with custom env file
   my_llm_service:
     type: "llm_api"
     config:
-      provider: "some_provider"
-      model: "model-x"
-      api_key_env: "MY_LLM_API_KEY"
+      base_url: "http://localhost:4000/v1"
+      model: "my-model"
+      env_file: ".env"  # Custom env file path
 
   # This SUT is *not* compatible, for demonstrating validation failure
   my_backend_api:

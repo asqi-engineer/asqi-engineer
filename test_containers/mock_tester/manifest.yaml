@@ -5,6 +5,7 @@ image_name: "my-registry/mock_tester:latest"
 
 supported_suts:
   - type: "llm_api"
+    required_config: ["model"]
 
 input_schema:
   - name: "delay_seconds"
@@ -22,3 +23,9 @@ output_metrics:
   - name: "delay_used"
     type: "integer"
     description: "The delay in seconds that was actually used"
+  - name: "base_url"
+    type: "string"
+    description: "The base URL that was used for the API"
+  - name: "model"
+    type: "string"
+    description: "The model name that was used"

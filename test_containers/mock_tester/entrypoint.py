@@ -19,8 +19,18 @@ def main():
 
     try:
         # Parse inputs
-        _sut_config = json.loads(args.sut_config)
+        sut_config = json.loads(args.sut_config)
         test_params = json.loads(args.test_params)
+
+        # Validate SUT type
+        sut_type = sut_config.get("type")
+        if sut_type not in ["llm_api"]:
+            raise ValueError(f"Unsupported SUT type: {sut_type}")
+
+        # Extract SUT configuration
+        config = sut_config.get("config", {})
+        base_url = config.get("base_url", "")
+        model = config.get("model", "")
 
         # Extract delay parameter
         delay_seconds = test_params.get("delay_seconds", 0)
@@ -29,11 +39,19 @@ def main():
         if delay_seconds > 0:
             time.sleep(delay_seconds)
 
+        # Simulate LLM API call (this is a mock, so we don't actually call the API)
+        # In a real test container, you would use:
+        # import openai
+        # client = openai.OpenAI(base_url=base_url, api_key=os.getenv("API_KEY"))
+        # response = client.chat.completions.create(model=model, messages=[...])
+
         # Always succeed with a random score
         result = {
             "success": True,
             "score": random.uniform(0.7, 1.0),
             "delay_used": delay_seconds,
+            "base_url": base_url,
+            "model": model,
         }
 
         # Output results as JSON

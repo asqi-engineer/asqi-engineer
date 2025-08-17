@@ -1,4 +1,3 @@
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,17 +14,7 @@ class TestEnvironmentVariables:
     @pytest.fixture
     def sample_sut_config(self):
         """Sample SUT configuration with API key environment variable."""
-        return {
-            "type": "llm_api",
-            "provider": "openai",
-            "model": "gpt-4o-mini",
-            "api_key_env": "TEST_API_KEY",
-        }
-
-    @pytest.fixture
-    def sample_sut_config_no_api_key(self):
-        """Sample SUT configuration without API key environment variable."""
-        return {"type": "llm_api", "provider": "openai", "model": "gpt-4o-mini"}
+        return {"type": "llm_api", "model": "gpt-4o-mini"}
 
     @pytest.fixture
     def sample_suite_config(self):
@@ -53,9 +42,8 @@ class TestEnvironmentVariables:
                 "test_sut": SUTDefinition(
                     type="llm_api",
                     config={
-                        "provider": "openai",
                         "model": "gpt-4o-mini",
-                        "api_key_env": "TEST_API_KEY",
+                        "api_key": "sk-123",
                     },
                 )
             }
@@ -76,19 +64,22 @@ class TestEnvironmentVariables:
 
         # Verify the SUT config is flattened correctly
         assert sut_config["type"] == "llm_api"
-        assert sut_config["provider"] == "openai"
         assert sut_config["model"] == "gpt-4o-mini"
-        assert sut_config["api_key_env"] == "TEST_API_KEY"
+        assert sut_config["api_key"] == "sk-123"
 
         # Ensure config is not nested
         assert "config" not in sut_config
 
-    @patch.dict(os.environ, {"TEST_API_KEY": "test_secret_key_12345"})
     @patch("asqi.workflow.run_container_with_args")
-    def test_execute_single_test_passes_environment_variable(
-        self, mock_run_container, sample_sut_config
+    def test_execute_single_test_passes_environment_variable_from_dotenv(
+        self, mock_run_container, sample_sut_config, tmp_path, monkeypatch
     ):
-        """Test that execute_single_test passes environment variables to container."""
+        """Test that execute_single_test loads TEST_API_KEY from .env file."""
+        dotenv_content = "TEST_API_KEY=test_secret_key_12345\n"
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text(dotenv_content)
+        monkeypatch.chdir(tmp_path)
+
         # Mock the container result
         mock_run_container.return_value = {
             "success": True,
@@ -107,88 +98,28 @@ class TestEnvironmentVariables:
             test_params={"generations": 1},
         )
 
-        # Verify run_container_with_args was called with environment variables
+        # Verify run_container_with_args was called with environment variables from .env
         mock_run_container.assert_called_once()
         call_kwargs = mock_run_container.call_args[1]
 
         assert "environment" in call_kwargs
         assert call_kwargs["environment"]["TEST_API_KEY"] == "test_secret_key_12345"
+        assert "OPENAI_API_KEY" not in call_kwargs["environment"]
 
-    @patch.dict(os.environ, {}, clear=True)  # Clear environment variables
-    @patch("asqi.workflow.run_container_with_args")
-    def test_execute_single_test_no_environment_variable_found(
-        self, mock_run_container, sample_sut_config
-    ):
-        """Test behavior when environment variable is not found."""
-        # Mock the container result
-        mock_run_container.return_value = {
-            "success": True,
-            "exit_code": 0,
-            "output": '{"success": true, "score": 0.8}',
-            "error": "",
-            "container_id": "test_container_123",
-        }
-
-        # Execute the test
-        _result = execute_single_test(
-            test_name="test_env_vars",
-            image="my-registry/test:latest",
-            sut_name="test_sut",
-            sut_config=sample_sut_config,
-            test_params={"generations": 1},
-        )
-
-        # Verify run_container_with_args was called with empty environment
-        mock_run_container.assert_called_once()
-        call_kwargs = mock_run_container.call_args[1]
-
-        assert "environment" in call_kwargs
-        assert call_kwargs["environment"] == {}
-
-    @patch("asqi.workflow.run_container_with_args")
-    def test_execute_single_test_no_api_key_env_specified(
-        self, mock_run_container, sample_sut_config_no_api_key
-    ):
-        """Test behavior when no api_key_env is specified in SUT config."""
-        # Mock the container result
-        mock_run_container.return_value = {
-            "success": True,
-            "exit_code": 0,
-            "output": '{"success": true, "score": 0.8}',
-            "error": "",
-            "container_id": "test_container_123",
-        }
-
-        # Execute the test
-        _result = execute_single_test(
-            test_name="test_no_api_key",
-            image="my-registry/test:latest",
-            sut_name="test_sut",
-            sut_config=sample_sut_config_no_api_key,
-            test_params={"generations": 1},
-        )
-
-        # Verify run_container_with_args was called with empty environment
-        mock_run_container.assert_called_once()
-        call_kwargs = mock_run_container.call_args[1]
-
-        assert "environment" in call_kwargs
-        assert call_kwargs["environment"] == {}
-
-    @patch.dict(
-        os.environ,
-        {"OPENAI_API_KEY": "real_openai_key", "HF_TOKEN": "huggingface_token"},
-    )
     @patch("asqi.workflow.run_container_with_args")
     def test_execute_single_test_multiple_environment_variables(
-        self, mock_run_container
+        self, mock_run_container, tmp_path, monkeypatch
     ):
-        """Test that only the specified environment variable is passed."""
+        """Test that api_key gets priority over environment variables."""
+        dotenv_content = "API_KEY=test_secret_key_12345\n"
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text(dotenv_content)
+        monkeypatch.chdir(tmp_path)
+
         sut_config = {
             "type": "llm_api",
-            "provider": "openai",
             "model": "gpt-4",
-            "api_key_env": "OPENAI_API_KEY",
+            "api_key": "sk-123",
         }
 
         # Mock the container result
@@ -214,9 +145,7 @@ class TestEnvironmentVariables:
         call_kwargs = mock_run_container.call_args[1]
 
         assert "environment" in call_kwargs
-        assert call_kwargs["environment"]["OPENAI_API_KEY"] == "real_openai_key"
-        assert "HF_TOKEN" not in call_kwargs["environment"]
-        assert len(call_kwargs["environment"]) == 1
+        assert call_kwargs["environment"]["API_KEY"] == "sk-123"
 
     @patch("asqi.container_manager.docker_client")
     def test_run_container_with_args_environment_parameter(self, mock_docker_client):
@@ -268,36 +197,3 @@ class TestEnvironmentVariables:
 
         assert "environment" in call_kwargs
         assert call_kwargs["environment"] == {}
-
-    def test_integration_sut_config_to_environment_variables(
-        self, sample_suite_config, sample_suts_config
-    ):
-        """Integration test: SUT config -> execution plan -> environment variables."""
-        image_availability = {"my-registry/test:latest": True}
-
-        # Create execution plan
-        execution_plan = create_test_execution_plan(
-            sample_suite_config, sample_suts_config, image_availability
-        )
-
-        # Verify the execution plan has the flattened SUT config
-        assert len(execution_plan) == 1
-        test_plan = execution_plan[0]
-        sut_config = test_plan["sut_config"]
-
-        # Verify API key environment variable is accessible at top level
-        assert "api_key_env" in sut_config
-        assert sut_config["api_key_env"] == "TEST_API_KEY"
-
-        # Simulate what execute_single_test would do
-        container_env = {}
-        if "api_key_env" in sut_config:
-            api_key_env = sut_config["api_key_env"]
-            # In real execution, this would check os.environ
-            # For this test, we simulate the environment variable exists
-            with patch.dict(os.environ, {api_key_env: "test_value"}):
-                if api_key_env in os.environ:
-                    container_env[api_key_env] = os.environ[api_key_env]
-
-        # Verify the environment variable would be passed
-        assert container_env == {"TEST_API_KEY": "test_value"}

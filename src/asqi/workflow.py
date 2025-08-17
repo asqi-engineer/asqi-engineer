@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from dbos import DBOS, DBOSConfig, Queue
+from dotenv import dotenv_values
 from pydantic import ValidationError
 from rich.console import Console
 
@@ -191,14 +192,28 @@ def execute_single_test(
 
     # Prepare environment variables from SUT config
     container_env = {}
-    if "api_key_env" in sut_config:
-        api_key_env = sut_config["api_key_env"]
-        if api_key_env in os.environ:
-            container_env[api_key_env] = os.environ[api_key_env]
+
+    # Default to .env in working directory if `env_file` is not specified
+    env_file_path = sut_config.get("env_file", ".env")
+    if os.path.exists(env_file_path):
+        try:
+            env_vars = dotenv_values(env_file_path)
+            container_env.update(env_vars)
+            DBOS.logger.info(f"Loaded environment variables from {env_file_path}")
+        except Exception as e:
+            DBOS.logger.warning(f"Failed to load environment file {env_file_path}: {e}")
+    else:
+        if "env_file" in sut_config:
+            # User explicitly specified an env_file that doesn't exist
+            DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
         else:
-            DBOS.logger.warning(
-                f"Environment variable {api_key_env} not found in host environment"
-            )
+            DBOS.logger.debug("No .env file found in working directory")
+
+    if "api_key" in sut_config:
+        container_env["API_KEY"] = sut_config["api_key"]
+        DBOS.logger.info(
+            "Using direct API key for authentication (overriding any .env setting)"
+        )
 
     # Execute container
     result.start_time = time.time()
