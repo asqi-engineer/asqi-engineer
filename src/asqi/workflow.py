@@ -36,10 +36,13 @@ from asqi.validation import (
     validate_workflow_configurations,
 )
 
+oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
 config: DBOSConfig = {
     "name": "asqi-test-executor",
     "database_url": os.environ.get("DBOS_DATABASE_URL"),
 }
+if oltp_endpoint:
+    config["otlp_traces_endpoints"] = [oltp_endpoint]
 DBOS(config=config)
 
 # Initialize Rich console and execution queue

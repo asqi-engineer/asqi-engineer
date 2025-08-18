@@ -6,7 +6,7 @@
   "service": "asqi",
   "workspaceFolder": "/workspaces/asqi",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
   },
   "onCreateCommand": {
@@ -36,12 +36,7 @@
   },
   // Mount dotfiles
   "mounts": [
-    "source=${localEnv:HOME}/.aliases,target=/home/vscode/.bash_aliases,type=bind,consistency=cached"
-  ],
-  "forwardPorts": [5432],
-  "portsAttributes": {
-    "5432": {
-      "label": "PostgreSQL"
-    }
-  }
+    "source=${localEnv:HOME}/.aliases,target=/home/vscode/.bash_aliases,type=bind,consistency=cached",
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ]
 }
