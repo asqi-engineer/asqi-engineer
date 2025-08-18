@@ -9,6 +9,7 @@ services:
       - db
     environment:
       DBOS_DATABASE_URL: postgres://postgres:asqi@db:5432/asqi_starter
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
     restart: unless-stopped
     volumes:
       # Mount the workspace
@@ -32,13 +33,16 @@ services:
       - "4000:4000"
     volumes:
       - ../litellm_config.yaml:/app/config.yaml
-    command: 
+    command:
       - "--config=/app/config.yaml"
     env_file:
       - ../.env
     environment:
       DATABASE_URL: "postgres://postgres:asqi@db:5432/asqi_starter"
       STORE_MODEL_IN_DB: "True" # allows adding models to proxy via UI
+      OTEL_EXPORTER_OTLP_PROTOCOL: "otlp_http"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318/v1/traces"
+      OTEL_DEBUG: "True"
     depends_on:
       - db
     healthcheck:
