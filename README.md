@@ -12,7 +12,13 @@ The easiest way to get started is using a dev container with all dependencies pr
    - Docker Desktop or Docker Engine
    - VS Code with Dev Containers extension
 
-2. **Using VS Code:**
+2. **What's Included:**
+   - Python 3.12+ with uv package manager
+   - PostgreSQL database (for DBOS durability)
+   - LiteLLM proxy server (for unified LLM API access)
+   - All development dependencies pre-installed
+
+3. **Using VS Code:**
    ```bash
    git clone <repository-url>
    cd asqi
@@ -20,7 +26,12 @@ The easiest way to get started is using a dev container with all dependencies pr
    # VS Code will prompt to "Reopen in Container" - click Yes
    ```
 
-4. **Verify setup:**
+4. **Docker Compose DevContainer Services:**
+   - PostgreSQL: `localhost:5432` (user: `postgres`, password: `asqi`, database: `asqi_starter`)
+   - LiteLLM Proxy: `http://localhost:4000` (OpenAI-compatible API endpoint), visit the UI with `http://localhost:4000/ui`.
+   - Jaeger: `http://localhost:16686` (Distributed tracing UI)
+
+5. **Verify setup:**
    ```bash
    uv run python -m asqi.main --help
    ```
@@ -49,6 +60,46 @@ If you prefer local development:
    uv run python -m asqi.main --help
    ```
 
+## Environment Configuration
+
+ASQI supports multiple LLM providers via the `llm_api` Systems Under Test (SUT) `type` through environment variables. Configure these in a `.env` file in the project root.
+
+### Required Environment Variables
+
+```bash
+# Copy the example file and configure your API keys
+cp .env.example .env
+```
+
+**LLM Provider API Keys:**
+```bash
+LITELLM_MASTER_KEY=sk-1234
+OPENAI_API_KEY=sk-your-openai-key
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
+AWS_BEARER_TOKEN_BEDROCK=your-bedrock-token
+
+BASE_URL=http://localhost:4000
+API_KEY=sk-1234
+```
+
+### How Environment Variables Work
+
+1. **SUT Configuration**: SUTs can specify `base_url` and optionally reference an `env_file` for API keys
+2. **Environment Fallbacks**: If not specified, ASQI uses `BASE_URL` and `API_KEY` from `.env`
+3. **Provider Keys**: Specific provider keys (e.g., `OPENAI_API_KEY`) are passed to test containers
+
+### Example SUT Configuration
+
+```yaml
+systems_under_test:
+  # Recommended: Uses env_file for API key security
+  direct_openai:
+    type: "llm_api"
+    params:
+      base_url: "https://api.openai.com/v1"
+      model: "gpt-4o-mini"
+      env_file: ".env"  # References OPENAI_API_KEY from .env file
+```
 
 ## Usage
 
@@ -64,7 +115,14 @@ uv run python -m asqi.main validate \
 ```
 
 ### 2. Test Execution Only
-Runs tests without score card evaluation:
+First, build the required test container:
+```bash
+cd test_containers/mock_tester
+docker build -t my-registry/mock_tester:latest .
+cd ../..
+```
+
+Then run tests without score card evaluation:
 ```bash
 uv run python -m asqi.main execute-tests \
   --suite-file config/suites/demo_suite.yaml \
