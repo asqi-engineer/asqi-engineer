@@ -1,17 +1,6 @@
 version: '3.9'
 
 services:
-  db:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: dbos
-      POSTGRES_DB: dbos_app_starter
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
   asqi:
     build:
       context: .
@@ -19,12 +8,54 @@ services:
     depends_on:
       - db
     environment:
-      DBOS_DATABASE_URL: postgres://postgres:dbos@db:5432/dbos_app_starter
+      DBOS_DATABASE_URL: postgres://postgres:asqi@db:5432/asqi_starter
     restart: unless-stopped
     volumes:
       # Mount the workspace
       - ..:/workspaces/asqi:cached
     command: sleep infinity
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: asqi
+      POSTGRES_DB: asqi_starter
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    ports:
+      - "4000:4000"
+    volumes:
+      - ../litellm_config.yaml:/app/config.yaml
+    command: 
+      - "--config=/app/config.yaml"
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: "postgres://postgres:asqi@db:5432/asqi_starter"
+      STORE_MODEL_IN_DB: "True" # allows adding models to proxy via UI
+    depends_on:
+      - db
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 http://localhost:4000/health/liveliness || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  jaeger:
+    image: jaegertracing/jaeger:2.9.0
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      - LOG_LEVEL=debug
 
 volumes:
   pgdata:
