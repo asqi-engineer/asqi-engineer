@@ -1,0 +1,47 @@
+name: "computer_vision_evaluator"
+version: "1.0"
+description: "Mocks an object detection evaluation using only input paths; returns deterministic fake metrics."
+
+supported_suts:
+  - type: "computer_vision"
+    required_config: [] 
+
+input_schema:
+  - name: "groundtruth_path"
+    type: "string"
+    required: true
+    description: "Path to ground-truth annotations (folder or file). Not read; only used to generate deterministic metrics."
+
+  - name: "prediction_path"
+    type: "string"
+    required: true
+    description: "Path to model predictions (folder or file). Not read; only used to generate deterministic metrics."
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the evaluation completed successfully."
+
+  - name: "map"
+    type: "float"
+    description: "mean Average Precision (0.0–1.0)."
+
+  - name: "precision"
+    type: "float"
+    description: "precision (0.0–1.0)."
+
+  - name: "recall"
+    type: "float"
+    description: "recall (0.0–1.0)."
+
+  - name: "num_images"
+    type: "integer"
+    description: "number of evaluated images."
+
+  - name: "groundtruth_path"
+    type: "string"
+    description: "Echo of the provided ground truth path."
+
+  - name: "prediction_path"
+    type: "string"
+    description: "Echo of the provided prediction path."
