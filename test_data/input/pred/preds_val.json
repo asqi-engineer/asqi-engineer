@@ -1,0 +1,57 @@
+[
+  {
+    "image_id": 1,
+    "category_id": 1,
+    "bbox": [
+      102,
+      118,
+      82,
+      162
+    ],
+    "score": 0.9
+  },
+  {
+    "image_id": 1,
+    "category_id": 1,
+    "bbox": [
+      400,
+      300,
+      50,
+      100
+    ],
+    "score": 0.35
+  },
+  {
+    "image_id": 2,
+    "category_id": 1,
+    "bbox": [
+      198,
+      148,
+      118,
+      222
+    ],
+    "score": 0.88
+  },
+  {
+    "image_id": 2,
+    "category_id": 1,
+    "bbox": [
+      352,
+      202,
+      88,
+      178
+    ],
+    "score": 0.85
+  },
+  {
+    "image_id": 2,
+    "category_id": 1,
+    "bbox": [
+      20,
+      20,
+      40,
+      80
+    ],
+    "score": 0.2
+  }
+]

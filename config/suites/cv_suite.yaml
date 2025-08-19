@@ -5,8 +5,8 @@ test_suite:
     target_suts:
       - "object_detection"
     volumes:
-      input : "/workspaces/asqi/data/input"
-      output : "/workspaces/asqi/data/outputs"
+      input : "/workspaces/asqi/test_data/input"
+      output : "/workspaces/asqi/test_data/outputs"
     params:
       groundtruth_path: "/input/gt/instances_val.json" 
       prediction_path:  "/input/pred/preds_val.json"
