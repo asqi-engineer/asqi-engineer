@@ -58,10 +58,7 @@ class TorchvisionFRCNNAdapter(Detector):
             self.model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
                 weights=None, num_classes=91
             )
-            try:
-                state = torch.load(weights, map_location="cpu", weights_only=True)
-            except TypeError:
-                state = torch.load(weights, map_location="cpu")
+            state = torch.load(weights, map_location="cpu", weights_only=True)
             self.model.load_state_dict(state)
         self.model.eval()
         self.device = torch.device(
