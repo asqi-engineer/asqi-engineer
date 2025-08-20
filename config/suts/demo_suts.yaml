@@ -2,7 +2,7 @@ systems_under_test:
   openai_gpt4o_mini:
     type: "llm_api"
     params:
-      base_url: "http://litellm:4000/v1" # Use docker service name, change to localhost if on host machine
+      base_url: "http://localhost:4000/v1" # Use litellm on port 4000
       model: "openai/gpt-4o-mini" # Uses litellm configured model
       api_key: "sk-1234" # API key configured in litellm proxy
 

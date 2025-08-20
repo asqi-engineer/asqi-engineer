@@ -362,6 +362,7 @@ def run_container_with_args(
     cpu_period: int = 100000,
     environment: Optional[Dict[str, str]] = None,
     stream_logs: bool = False,
+    network: str = "host",
 ) -> Dict[str, Any]:
     """
     Run a Docker container with specified arguments and return results.
@@ -375,6 +376,7 @@ def run_container_with_args(
         cpu_period: CPU period for container
         environment: Optional dictionary of environment variables to pass to container
         stream_logs: If True, stream logs in real-time
+        network: Docker network mode (default: "host")
 
     Returns:
         Dictionary with execution results including exit_code, output, success, etc.
@@ -403,7 +405,7 @@ def run_container_with_args(
                 command=args,
                 detach=True,
                 remove=False,
-                network_mode="bridge",
+                network_mode=network,
                 mem_limit=memory_limit,
                 cpu_period=cpu_period,
                 cpu_quota=cpu_quota,
