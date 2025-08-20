@@ -1,0 +1,34 @@
+score_card_name: "CV Score Card (A–E)"
+indicators:
+  - name: "mAP quality"
+    apply_to:
+      test_name: "mock_cv_eval"
+    metric: "map"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 0.60 }
+      - { outcome: "B", condition: "greater_equal", threshold: 0.55 }
+      - { outcome: "C", condition: "greater_equal", threshold: 0.50 }
+      - { outcome: "D", condition: "greater_equal", threshold: 0.45 }
+      - { outcome: "E", condition: "less_than", threshold: 0.45 }
+
+  - name: "Precision quality"
+    apply_to:
+      test_name: "mock_cv_eval"
+    metric: "precision"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 0.80 }
+      - { outcome: "B", condition: "greater_equal", threshold: 0.75 }
+      - { outcome: "C", condition: "greater_equal", threshold: 0.70 }
+      - { outcome: "D", condition: "greater_equal", threshold: 0.65 }
+      - { outcome: "E", condition: "less_than", threshold: 0.65 }
+
+  - name: "Recall quality"
+    apply_to:
+      test_name: "mock_cv_eval"
+    metric: "recall"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 0.70 }
+      - { outcome: "B", condition: "greater_equal", threshold: 0.60 }
+      - { outcome: "C", condition: "greater_equal", threshold: 0.50 }
+      - { outcome: "D", condition: "greater_equal", threshold: 0.45 }
+      - { outcome: "E", condition: "less_than", threshold: 0.45 }

@@ -1,0 +1,12 @@
+suite_name: "Mock CV Sanity Check"
+test_suite:
+  - name: "mock_cv_eval"
+    image: "my-registry/computer_vision:latest"
+    target_suts:
+      - "object_detection"
+    volumes:
+      input : "/workspaces/asqi/test_data/input"
+      output : "/workspaces/asqi/test_data/outputs"
+    params:
+      groundtruth_path: "/input/gt/instances_val.json" 
+      prediction_path:  "/input/pred/preds_val.json"

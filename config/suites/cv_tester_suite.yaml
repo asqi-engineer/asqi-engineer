@@ -1,0 +1,12 @@
+suite_name: "CV Check"
+test_suite:
+  - name: "cv_eval"
+    image: "my-registry/cv_tester:latest"
+    target_suts:
+      - "object_detection"
+    volumes:
+      input : "/workspaces/asqi/test_data/input"
+      output : "/workspaces/asqi/test_data/outputs"
+    params:
+      input_image_path : "/input/images"
+      groundtruth_path : "/input/gt"

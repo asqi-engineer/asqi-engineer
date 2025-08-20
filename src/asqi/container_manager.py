@@ -1,17 +1,23 @@
+import json
 import logging
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import docker
 import yaml
 from docker import errors as docker_errors
+from docker.types import Mount
 
 from asqi.logging_config import create_container_logger
 from asqi.schemas import Manifest
 
 logger = logging.getLogger(__name__)
+
+# === Constants ===
+INPUT_MOUNT_PATH = "/input"
+OUTPUT_MOUNT_PATH = "/output"
 
 
 class ManifestExtractionError(Exception):
@@ -210,6 +216,143 @@ def extract_manifest_from_image(
                     logger.warning(f"Failed to remove container during cleanup: {e}")
 
 
+def _resolve_abs(p: str) -> str:
+    """
+    Resolve a given path string to an absolute normalized path.
+
+    - Expands '~' (user home) if present.
+    - Converts relative paths to absolute.
+    - Ensures normalization (resolves '..' and symlinks).
+    - Unlike realpath, it doesn’t require the path to exist.
+
+    Args:
+        p: Input path string.
+
+    Returns:
+        Absolute normalized path string.
+    """
+    return str(Path(p).expanduser().resolve())
+
+
+def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
+    """
+    Translate a devcontainer path to its corresponding host path if possible.
+
+    - If the path starts with `/workspaces/...`, attempts to resolve it
+      to the host machine’s mount path using Docker inspection.
+    - Otherwise, assumes it's already a host path and just normalizes it.
+
+    Args:
+        client: Docker client used for inspecting container mounts.
+        maybe_dev_path: Path string that may belong to the devcontainer.
+
+    Returns:
+        Host path string corresponding to the given path, or a normalized fallback.
+    """
+    try:
+        # Short-circuit if it's clearly a host path (macOS /Users, Windows drive, etc.)
+        if not maybe_dev_path.startswith("/workspaces/"):
+            return _resolve_abs(maybe_dev_path)
+
+        # Inspect *this* container, then map Destination -> Source
+        cid = Path("/etc/hostname").read_text().strip()
+        info = client.api.inspect_container(cid)
+        for m in info.get("Mounts", []):
+            dest = m.get("Destination") or m.get("Target")
+            src = m.get("Source")
+            if dest and src and maybe_dev_path.startswith(dest):
+                rel = maybe_dev_path[len(dest) :]
+                return _resolve_abs(src + rel)
+    except Exception as e:
+        logger.error("Failed to resolve devcontainer path '%s': %s", maybe_dev_path, e)
+    return _resolve_abs(maybe_dev_path)
+
+
+class MountExtractionError(Exception):
+    """Exception raised when extracting mounts from args fails."""
+
+    pass
+
+
+def _extract_mounts_from_args(
+    client, args: List[str]
+) -> Tuple[List[str], Optional[List[Mount]]]:
+    """
+    Extract and validate volume mount definitions from the '--test-params' CLI argument.
+
+    The '--test-params' JSON may include a special key:
+      "__volumes": {
+          "input": <host_path>,
+          "output": <host_path>
+      }
+
+    - The input path is mounted read-only at `INPUT_MOUNT_PATH` (e.g., "/input").
+    - The output path is mounted read-write at `OUTPUT_MOUNT_PATH` (e.g., "/output").
+    - The '__volumes' key is removed from the final '--test-params' JSON passed to the container.
+
+    Args:
+        client: Docker client used to resolve devcontainer → host paths.
+        args: List of CLI arguments (potentially containing '--test-params').
+
+    Returns:
+        Tuple (new_args, mounts):
+          - new_args: The CLI args with a cleaned/updated '--test-params' JSON.
+          - mounts: A list of Docker `Mount` objects if volumes were specified, otherwise None.
+
+    Raises:
+        MountExtractionError: If '--test-params' is present but malformed, if JSON parsing fails,
+            if '__volumes' is invalid, or if mount resolution/creation fails.
+            Absence of '--test-params' does not raise and is treated as no mounts.
+    """
+    if not args:
+        return args, None
+
+    new_args = list(args)
+    mounts: List[Mount] = []
+
+    try:
+        idx = next(i for i, v in enumerate(new_args) if v == "--test-params")
+        raw = new_args[idx + 1]
+        tp = json.loads(raw)
+
+        vols = tp.pop("__volumes", None)
+        if vols:
+            inp = vols.get("input")
+            outp = vols.get("output")
+
+            if inp:
+                host_in = _devcontainer_host_path(client, inp)
+                mounts.append(
+                    Mount(
+                        target=INPUT_MOUNT_PATH,
+                        source=host_in,
+                        type="bind",
+                        read_only=True,
+                    )
+                )
+
+            if outp:
+                host_out = _devcontainer_host_path(client, outp)
+                mounts.append(
+                    Mount(
+                        target=OUTPUT_MOUNT_PATH,
+                        source=host_out,
+                        type="bind",
+                        read_only=False,
+                    )
+                )
+
+            # write back cleaned test-params
+            new_args[idx + 1] = json.dumps(tp)
+
+    except StopIteration:
+        return args, None  # no --test-params found is fine
+    except Exception as e:
+        raise MountExtractionError(f"Failed to extract mounts from args: {e}") from e
+
+    return new_args, (mounts or None)
+
+
 def run_container_with_args(
     image: str,
     args: List[str],
@@ -251,9 +394,12 @@ def run_container_with_args(
         container = None
         try:
             # Run container
-            logger.info(
-                f"Running container for image '{image}' with args: {args} on network: {network}"
-            )
+            args, mounts = _extract_mounts_from_args(client, args)
+
+            logger.info(f"Running container for image '{image}' with args: {args}")
+            if mounts:
+                logger.info(f"Mounts: {mounts}")
+
             container = client.containers.run(
                 image,
                 command=args,
@@ -264,6 +410,7 @@ def run_container_with_args(
                 cpu_period=cpu_period,
                 cpu_quota=cpu_quota,
                 environment=environment or {},
+                mounts=mounts,
             )
 
             result["container_id"] = container.id or ""

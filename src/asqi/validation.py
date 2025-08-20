@@ -191,13 +191,23 @@ def create_test_execution_plan(
             if not sut_def or not getattr(sut_def, "type", None):
                 continue
 
+            vols = getattr(test, "volumes", None)
+            base_params = getattr(test, "params", None)
+
+            if vols:
+                _params = dict(base_params or {})
+                _params["__volumes"] = vols  # reserved key
+                test_params = _params
+            else:
+                test_params = base_params or {}
+
             plan.append(
                 {
                     "test_name": test.name,
                     "image": image,
                     "sut_name": sut_name,
                     "sut_params": {"type": sut_def.type, **sut_def.params},
-                    "test_params": getattr(test, "params", {}),
+                    "test_params": test_params,
                 }
             )
 

@@ -131,6 +131,9 @@ class TestDefinition(BaseModel):
     params: Dict[str, Any] = Field(
         {}, description="Parameters to be passed to the test container's entrypoint."
     )
+    volumes: Optional[Dict[str, Any]] = Field(
+        {}, description="Optional input/output mounts."
+    )
 
 
 class SuiteConfig(BaseModel):

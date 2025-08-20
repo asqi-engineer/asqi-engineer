@@ -1,0 +1,69 @@
+{
+  "info": {
+    "description": "Tiny COCO GT for testing",
+    "version": "1.0"
+  },
+  "licenses": [],
+  "images": [
+    {
+      "id": 1,
+      "file_name": "img_0001.jpg",
+      "width": 640,
+      "height": 480
+    },
+    {
+      "id": 2,
+      "file_name": "img_0002.jpg",
+      "width": 640,
+      "height": 480
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        100,
+        120,
+        80,
+        160
+      ],
+      "area": 12800,
+      "iscrowd": 0
+    },
+    {
+      "id": 2,
+      "image_id": 2,
+      "category_id": 1,
+      "bbox": [
+        200,
+        150,
+        120,
+        220
+      ],
+      "area": 26400,
+      "iscrowd": 0
+    },
+    {
+      "id": 3,
+      "image_id": 2,
+      "category_id": 1,
+      "bbox": [
+        350,
+        200,
+        90,
+        180
+      ],
+      "area": 16200,
+      "iscrowd": 0
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "person",
+      "supercategory": "person"
+    }
+  ]
+}
