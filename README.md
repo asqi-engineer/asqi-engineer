@@ -33,7 +33,7 @@ The easiest way to get started is using a dev container with all dependencies pr
 
 5. **Verify setup:**
    ```bash
-   uv run python -m asqi.main --help
+   asqi --help
    ```
 
 ### Option 2: Local Development
@@ -57,7 +57,7 @@ If you prefer local development:
 
 2. **Verify installation:**
    ```bash
-   uv run python -m asqi.main --help
+   asqi --help
    ```
 
 ## Environment Configuration
@@ -108,7 +108,7 @@ ASQI provides four main execution modes via typer subcommands:
 ### 1. Validation Mode
 Validates configurations without executing tests:
 ```bash
-uv run python -m asqi.main validate \
+asqi validate \
   --suite-file config/suites/demo_suite.yaml \
   --suts-file config/suts/demo_suts.yaml \
   --manifests-dir test_containers/
@@ -124,7 +124,7 @@ cd ../..
 
 Then run tests without score card evaluation:
 ```bash
-uv run python -m asqi.main execute-tests \
+asqi execute-tests \
   --suite-file config/suites/demo_suite.yaml \
   --suts-file config/suts/demo_suts.yaml \
   --output-file results.json
@@ -133,7 +133,7 @@ uv run python -m asqi.main execute-tests \
 ### 3. Score Card Evaluation Only
 Evaluates existing test results against score card criteria:
 ```bash
-uv run python -m asqi.main evaluate-score-cards \
+asqi evaluate-score-cards \
   --input-file results.json \
   --score-card-file config/score_cards/example_score_card.yaml \
   --output-file results_with_score_card.json
@@ -142,7 +142,7 @@ uv run python -m asqi.main evaluate-score-cards \
 ### 4. End-to-End Execution
 Combines test execution and score card evaluation:
 ```bash
-uv run python -m asqi.main execute \
+asqi execute \
   --suite-file config/suites/demo_suite.yaml \
   --suts-file config/suts/demo_suts.yaml \
   --score-card-file config/score_cards/example_score_card.yaml \
@@ -185,7 +185,7 @@ cd test_containers/garak
 docker build -t my-registry/garak:latest .
 
 # Run security tests
-uv run python -m asqi.main execute-tests \
+asqi execute-tests \
   --suite-file config/suites/security_test.yaml \
   --suts-file config/suts/demo_suts.yaml \
   --output-file garak_results.json
@@ -231,6 +231,27 @@ supported_suts:
   - type: "llm_api"
     required_config: ["provider", "model"]
 output_metrics: ["success", "score"]
+```
+
+## Building and Distribution
+
+ASQI can be packaged and distributed as a Python wheel for easy installation and sharing.
+
+### Building the Package
+
+```bash
+# Build only wheel
+uv build --wheel
+```
+
+This creates files in `dist/`:
+- `asqi-[version]-py3-none-any.whl` (wheel - binary distribution)
+
+
+#### CLI Entry Point
+The `asqi` command maps to `src/asqi/main.py` and provides all functionality:
+```bash
+asqi execute --suite-file config/suites/demo_suite.yaml --suts-file config/suts/demo_suts.yaml
 ```
 
 ## Contributing
