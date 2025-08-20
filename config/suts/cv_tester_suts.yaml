@@ -2,6 +2,6 @@ systems_under_test:
   object_detection:
     type: "computer_vision"
     params:
-      model: "yolov8s.pt"
+      type: "ultralytics"
+      model: "yolov8n.pt"
       env_file: ".env" 
-      # No base_url or api_key specified - will use fallbacks from .env

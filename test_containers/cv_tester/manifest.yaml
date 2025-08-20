@@ -4,7 +4,7 @@ description: "An object detection evaluator that compares model predictions agai
 
 supported_suts:
   - type: "computer_vision"
-    required_config: [] 
+    required_config: [type, model] 
 
 input_schema:
   - name: "input_image_path"
