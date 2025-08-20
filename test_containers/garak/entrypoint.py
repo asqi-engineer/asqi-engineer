@@ -33,7 +33,19 @@ def main():
         # Extract test parameters
         probes = test_params.get("probes", ["blank"])
         generations = test_params.get("generations", 1)
-        config_file = test_params.get("config_file")
+        parallel_attempts = test_params.get("parallel_attempts", 8)
+
+        # Determine if this is the official OpenAI API or a compatible endpoint
+        is_openai_official = False
+        model = ""
+        base_url = ""
+        api_key = ""
+        API_ENV = "OPENAICOMPATIBLE_API_KEY"
+        if sut_type == "llm_api":
+            base_url = sut_params["base_url"]  # Required, validated upstream
+            is_openai_official = "api.openai.com" in base_url
+            model = sut_params["model"]  # Required, validated upstream
+            api_key = sut_params["api_key"]
 
         # Create temporary directory for garak outputs
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -44,15 +56,27 @@ def main():
 
             # Configure model based on SUT type and params
             if sut_type == "llm_api":
-                base_url = sut_params["base_url"]  # Required, validated upstream
-                model = sut_params["model"]  # Required, validated upstream
+                if is_openai_official:
+                    # Use standard OpenAI model type for official OpenAI API
+                    garak_cmd.extend(["--model_type", "openai", "--model_name", model])
+                    API_ENV = "OPENAI_API_KEY"
+                else:
+                    # Use OpenAI-compatible model type for LiteLLM proxy and other compatible APIs
+                    # Create garak config file with OpenAI-compatible endpoint configuration
+                    garak_config = {"openai": {"OpenAICompatible": {"uri": base_url}}}
+                    config_path = output_dir / "garak_config.json"
+                    with open(config_path, "w") as f:
+                        json.dump(garak_config, f, indent=2)
 
-                # Use generic OpenAI-compatible API approach
-                # Set OPENAI_API_BASE for garak to use the custom endpoint
-                os.environ["OPENAI_API_BASE"] = base_url
-
-                # Use openai model type for all OpenAI-compatible APIs
-                garak_cmd.extend(["--model_type", "openai", "--model_name", model])
+                    garak_cmd.extend(["-G", str(config_path)])
+                    garak_cmd.extend(
+                        [
+                            "--model_type",
+                            "openai.OpenAICompatible",
+                            "--model_name",
+                            model,
+                        ]
+                    )
 
             # Add probes - garak expects comma-separated list
             probe_list = ",".join(probes)
@@ -62,31 +86,20 @@ def main():
             garak_cmd.extend(["--generations", str(generations)])
 
             # Add parallelism to speed up execution
-            garak_cmd.extend(["--parallel_attempts", "8"])
+            garak_cmd.extend(["--parallel_attempts", str(parallel_attempts)])
 
             # Set report prefix to control output location
             report_prefix = str(output_dir / "garak_report")
             garak_cmd.extend(["--report_prefix", report_prefix])
 
-            # Add custom config file if provided
-            if config_file:
-                # Assume config_file is provided as a JSON string that we write to a temp file
-                config_path = output_dir / "garak_config.yaml"
-                with open(config_path, "w") as f:
-                    if isinstance(config_file, str):
-                        f.write(config_file)
-                    else:
-                        import yaml
-
-                        yaml.dump(config_file, f)
-                garak_cmd.extend(["--config", str(config_path)])
-
             # Use current environment API keys
             env = os.environ.copy()
 
-            # Set OpenAI API key from generic API_KEY environment variable
-            if "API_KEY" in env:
-                env["OPENAI_API_KEY"] = env["API_KEY"]
+            # Set appropriate API key environment variable based on model type
+            if api_key:
+                env[API_ENV] = api_key
+            else:
+                env[API_ENV] = env["API_KEY"]
 
             print(
                 f"DEBUG: About to run command: {' '.join(garak_cmd)}", file=sys.stderr

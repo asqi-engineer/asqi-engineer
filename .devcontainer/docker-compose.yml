@@ -42,7 +42,6 @@ services:
       STORE_MODEL_IN_DB: "True" # allows adding models to proxy via UI
       OTEL_EXPORTER_OTLP_PROTOCOL: "otlp_http"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318/v1/traces"
-      OTEL_DEBUG: "True"
     depends_on:
       - db
     healthcheck:

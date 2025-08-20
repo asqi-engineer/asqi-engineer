@@ -13,6 +13,9 @@ dependencies = [
     "typer>=0.16.0",
 ]
 
+[project.scripts]
+asqi = "asqi.main:app"
+
 [dependency-groups]
 dev = [
     "bandit>=1.8.6",
