@@ -263,8 +263,8 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
             if dest and src and maybe_dev_path.startswith(dest):
                 rel = maybe_dev_path[len(dest) :]
                 return _resolve_abs(src + rel)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("Failed to resolve devcontainer path '%s': %s", maybe_dev_path, e)
     return _resolve_abs(maybe_dev_path)
 
 

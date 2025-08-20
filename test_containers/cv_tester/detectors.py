@@ -3,6 +3,9 @@ from abc import ABC, abstractmethod
 from typing import Tuple
 
 import numpy as np
+import torch
+import torchvision
+from ultralytics import YOLO
 
 
 class Detector(ABC):
@@ -19,9 +22,6 @@ class Detector(ABC):
 
 
 # -------- Ultralytics YOLO adapter --------
-from ultralytics import YOLO
-
-
 class YoloUltralyticsAdapter(Detector):
     def __init__(self, weights: str, device: str | None = None):
         self.model = YOLO(weights)
@@ -43,10 +43,6 @@ class YoloUltralyticsAdapter(Detector):
 
 
 # -------- TorchVision Faster R-CNN adapter (example) --------
-import torch
-import torchvision
-
-
 class TorchvisionFRCNNAdapter(Detector):
     def __init__(
         self,
@@ -62,7 +58,10 @@ class TorchvisionFRCNNAdapter(Detector):
             self.model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
                 weights=None, num_classes=91
             )
-            state = torch.load(weights, map_location="cpu")
+            try:
+                state = torch.load(weights, map_location="cpu", weights_only=True)
+            except TypeError:
+                state = torch.load(weights, map_location="cpu")
             self.model.load_state_dict(state)
         self.model.eval()
         self.device = torch.device(
