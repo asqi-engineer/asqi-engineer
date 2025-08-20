@@ -15,6 +15,10 @@ from asqi.schemas import Manifest
 
 logger = logging.getLogger(__name__)
 
+# === Constants ===
+INPUT_MOUNT_PATH = "/input"
+OUTPUT_MOUNT_PATH = "/output"
+
 
 class ManifestExtractionError(Exception):
     """Exception raised when manifest extraction fails."""
@@ -264,30 +268,41 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
     return _resolve_abs(maybe_dev_path)
 
 
+class MountExtractionError(Exception):
+    """Exception raised when extracting mounts from args fails."""
+
+    pass
+
+
 def _extract_mounts_from_args(
     client, args: List[str]
 ) -> Tuple[List[str], Optional[List[Mount]]]:
     """
-    Extract volume mount definitions from '--test-params' argument if present.
+    Extract and validate volume mount definitions from the '--test-params' CLI argument.
 
-    Expected structure inside '--test-params' JSON:
+    The '--test-params' JSON may include a special key:
       "__volumes": {
           "input": <host_path>,
           "output": <host_path>
       }
 
-    - Input path is mounted read-only at `/input`.
-    - Output path is mounted read-write at `/outputs`.
-    - The `__volumes` key is removed from the final test-params JSON.
+    - The input path is mounted read-only at `INPUT_MOUNT_PATH` (e.g., "/input").
+    - The output path is mounted read-write at `OUTPUT_MOUNT_PATH` (e.g., "/output").
+    - The '__volumes' key is removed from the final '--test-params' JSON passed to the container.
 
     Args:
-        client: Docker client to help resolve devcontainer → host paths.
-        args: List of CLI arguments.
+        client: Docker client used to resolve devcontainer → host paths.
+        args: List of CLI arguments (potentially containing '--test-params').
 
     Returns:
         Tuple (new_args, mounts):
-          - new_args: CLI args with cleaned test-params JSON.
-          - mounts: List of Docker `Mount` objects, or None if none found.
+          - new_args: The CLI args with a cleaned/updated '--test-params' JSON.
+          - mounts: A list of Docker `Mount` objects if volumes were specified, otherwise None.
+
+    Raises:
+        MountExtractionError: If '--test-params' is present but malformed, if JSON parsing fails,
+            if '__volumes' is invalid, or if mount resolution/creation fails.
+            Absence of '--test-params' does not raise and is treated as no mounts.
     """
     if not args:
         return args, None
@@ -308,14 +323,22 @@ def _extract_mounts_from_args(
             if inp:
                 host_in = _devcontainer_host_path(client, inp)
                 mounts.append(
-                    Mount(target="/input", source=host_in, type="bind", read_only=True)
+                    Mount(
+                        target=INPUT_MOUNT_PATH,
+                        source=host_in,
+                        type="bind",
+                        read_only=True,
+                    )
                 )
 
             if outp:
                 host_out = _devcontainer_host_path(client, outp)
                 mounts.append(
                     Mount(
-                        target="/outputs", source=host_out, type="bind", read_only=False
+                        target=OUTPUT_MOUNT_PATH,
+                        source=host_out,
+                        type="bind",
+                        read_only=False,
                     )
                 )
 
@@ -323,10 +346,9 @@ def _extract_mounts_from_args(
             new_args[idx + 1] = json.dumps(tp)
 
     except StopIteration:
-        pass
-    except Exception:
-        # if something goes wrong, don’t block execution; just run without mounts
-        return args, None
+        return args, None  # no --test-params found is fine
+    except Exception as e:
+        raise MountExtractionError(f"Failed to extract mounts from args: {e}") from e
 
     return new_args, (mounts or None)
 
