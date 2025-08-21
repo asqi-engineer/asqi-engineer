@@ -43,6 +43,20 @@
           "description": "Parameters to be passed to the test container's entrypoint.",
           "title": "Params",
           "type": "object"
+        },
+        "volumes": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": {},
+          "description": "Optional input/output mounts.",
+          "title": "Volumes"
         }
       },
       "required": [

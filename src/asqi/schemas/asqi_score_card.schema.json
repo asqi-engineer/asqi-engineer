@@ -32,6 +32,9 @@
               "type": "number"
             },
             {
+              "type": "boolean"
+            },
+            {
               "type": "null"
             }
           ],

@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
 suite_name: "Mock Tester Sanity Check"
 test_suite:
   - name: "run_mock_on_compatible_sut"

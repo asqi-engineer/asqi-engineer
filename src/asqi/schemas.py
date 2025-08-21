@@ -173,7 +173,7 @@ class AssessmentRule(BaseModel):
         "any_false",
         "count_equals",
     ] = Field(..., description="Condition to evaluate against the metric value")
-    threshold: Optional[Union[int, float]] = Field(
+    threshold: Optional[Union[int, float, bool]] = Field(
         None, description="Threshold value for comparison conditions"
     )
 
