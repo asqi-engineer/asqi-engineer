@@ -516,8 +516,8 @@ def _decommission_container(container):
     try:
         # try to stop gracefully first
         container.stop(timeout=1)
-    except Exception:
-        pass
+    except (docker_errors.APIError, docker_errors.NotFound) as e:
+        logger.debug(f"Failed to gracefully stop container: {e}")
     try:
         container.remove(force=True)
     except (docker_errors.APIError, docker_errors.NotFound) as e:
