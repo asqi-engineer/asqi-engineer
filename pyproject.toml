@@ -31,5 +31,15 @@ containers = ["deepteam>=0.2.3"]
 exclude_dirs = [".venv", "tests", "test_containers/mock_tester"]
 skips = ["B404", "B603"]
 
+[build-system]
+requires = ["hatchling", "pydantic>=2.11.7"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/asqi"]
+
+[tool.hatch.build.hooks.custom]
+path = "scripts/build_hooks.py"
+
 [tool.uv]
 package = true
