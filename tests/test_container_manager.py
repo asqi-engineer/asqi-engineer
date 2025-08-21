@@ -1,7 +1,10 @@
+import io
+import tarfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
 from docker import errors as docker_errors
 
 from asqi.container_manager import (
@@ -10,8 +13,10 @@ from asqi.container_manager import (
     _resolve_abs,
     check_images_availability,
     docker_client,
+    extract_manifest_from_image,
     run_container_with_args,
 )
+from asqi.schemas import Manifest
 
 
 class TestResolveAbs:
@@ -181,6 +186,222 @@ class TestCheckImagesAvailability:
         """Test with empty image list."""
         result = check_images_availability([])
         assert result == {}
+
+
+class TestExtractManifestFromImage:
+    """Test suite for extract_manifest_from_image function."""
+
+    @pytest.fixture
+    def sample_manifest_data(self):
+        """Sample manifest YAML data for testing."""
+        return {
+            "name": "test_container",
+            "version": "1.0",
+            "description": "Test container",
+            "supported_suts": [{"type": "llm_api", "required_config": ["model"]}],
+            "input_schema": [
+                {"name": "test_param", "type": "string", "required": False}
+            ],
+            "output_metrics": [
+                {"name": "success", "type": "boolean", "description": "Test success"}
+            ],
+        }
+
+    @pytest.fixture
+    def mock_docker_setup(self):
+        """Reusable Docker client and container mock setup."""
+        with patch("asqi.container_manager.docker_client") as mock_docker_client:
+            mock_client = MagicMock()
+            mock_container = MagicMock()
+            mock_client.containers.create.return_value = mock_container
+            mock_docker_client.return_value.__enter__.return_value = mock_client
+            yield mock_client, mock_container
+
+    def create_tar_archive(self, manifest_content: str) -> bytes:
+        """Create a mock tar archive containing manifest.yaml."""
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+            manifest_bytes = manifest_content.encode("utf-8")
+            manifest_info = tarfile.TarInfo(name="manifest.yaml")
+            manifest_info.size = len(manifest_bytes)
+            tar.addfile(manifest_info, io.BytesIO(manifest_bytes))
+        tar_buffer.seek(0)
+        return tar_buffer.read()
+
+    def test_extract_manifest_success(self, mock_docker_setup, sample_manifest_data):
+        """Test successful manifest extraction and parsing."""
+        mock_client, mock_container = mock_docker_setup
+        manifest_yaml = yaml.dump(sample_manifest_data)
+        tar_data = self.create_tar_archive(manifest_yaml)
+        mock_container.get_archive.return_value = (iter([tar_data]), {})
+        result = extract_manifest_from_image("test:latest")
+
+        assert isinstance(result, Manifest)
+        assert result.name == "test_container"
+        mock_container.get_archive.assert_called_once_with("/app/manifest.yaml")
+        mock_container.remove.assert_called_once()
+
+    def test_extract_manifest_custom_path(
+        self, mock_docker_setup, sample_manifest_data
+    ):
+        """Test manifest extraction with custom manifest path."""
+        mock_client, mock_container = mock_docker_setup
+        tar_data = self.create_tar_archive(yaml.dump(sample_manifest_data))
+        mock_container.get_archive.return_value = (iter([tar_data]), {})
+        result = extract_manifest_from_image("test:latest", "/custom/manifest.yaml")
+        assert isinstance(result, Manifest)
+        mock_container.get_archive.assert_called_once_with("/custom/manifest.yaml")
+
+    @pytest.mark.parametrize(
+        "exception,expected_error_type,expected_message",
+        [
+            (
+                docker_errors.ImageNotFound("Image not found"),
+                "IMAGE_NOT_FOUND",
+                "not found",
+            ),
+            (
+                docker_errors.APIError("API Error"),
+                "DOCKER_API_ERROR",
+                "API error while creating container",
+            ),
+            (RuntimeError("Unexpected"), "UNEXPECTED_ERROR", "Unexpected error"),
+        ],
+    )
+    def test_extract_manifest_container_creation_errors(
+        self, mock_docker_setup, exception, expected_error_type, expected_message
+    ):
+        """Test various container creation errors."""
+        mock_client, mock_container = mock_docker_setup
+        mock_client.containers.create.side_effect = exception
+
+        with pytest.raises(ManifestExtractionError) as exc_info:
+            extract_manifest_from_image("test:latest")
+
+        assert exc_info.value.error_type == expected_error_type
+        assert expected_message in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        "exception,expected_error_type,expected_message",
+        [
+            (
+                docker_errors.NotFound("File not found"),
+                "MANIFEST_FILE_NOT_FOUND",
+                "not found in image",
+            ),
+            (
+                docker_errors.APIError("Extract API Error"),
+                "DOCKER_API_ERROR",
+                "API error while extracting manifest",
+            ),
+        ],
+    )
+    def test_extract_manifest_archive_extraction_errors(
+        self, mock_docker_setup, exception, expected_error_type, expected_message
+    ):
+        """Test various archive extraction errors."""
+        mock_client, mock_container = mock_docker_setup
+        mock_container.get_archive.side_effect = exception
+
+        with pytest.raises(ManifestExtractionError) as exc_info:
+            extract_manifest_from_image("test:latest")
+
+        assert exc_info.value.error_type == expected_error_type
+        assert expected_message in str(exc_info.value)
+        mock_container.remove.assert_called_once()
+
+    def test_extract_manifest_tar_processing_errors(self, mock_docker_setup):
+        """Test tar processing errors."""
+        mock_client, mock_container = mock_docker_setup
+
+        # Test invalid tar data
+        mock_container.get_archive.return_value = (iter([b"invalid_tar_data"]), {})
+        with pytest.raises(ManifestExtractionError) as exc_info:
+            extract_manifest_from_image("test:latest")
+        assert exc_info.value.error_type == "TAR_EXTRACTION_ERROR"
+
+        # Test I/O error during tar processing
+        mock_container.get_archive.return_value = (iter([b"some_data"]), {})
+        with patch("tarfile.open", side_effect=IOError("I/O Error")):
+            with pytest.raises(ManifestExtractionError) as exc_info:
+                extract_manifest_from_image("test:latest")
+            assert exc_info.value.error_type == "TAR_IO_ERROR"
+
+    def test_extract_manifest_file_processing_errors(
+        self, mock_docker_setup, sample_manifest_data
+    ):
+        """Test file processing errors."""
+        mock_client, mock_container = mock_docker_setup
+
+        # Test empty tar
+        empty_tar = io.BytesIO()
+        with tarfile.open(fileobj=empty_tar, mode="w"):
+            pass
+        empty_tar.seek(0)
+        mock_container.get_archive.return_value = (iter([empty_tar.read()]), {})
+
+        with pytest.raises(ManifestExtractionError) as exc_info:
+            extract_manifest_from_image("test:latest")
+        assert exc_info.value.error_type == "MANIFEST_FILE_MISSING_AFTER_EXTRACTION"
+
+        # Test YAML parsing error
+        invalid_yaml = "invalid: yaml: content: [unclosed"
+        mock_container.get_archive.return_value = (
+            iter([self.create_tar_archive(invalid_yaml)]),
+            {},
+        )
+
+        with pytest.raises(ManifestExtractionError) as exc_info:
+            extract_manifest_from_image("test:latest")
+        assert exc_info.value.error_type == "YAML_PARSING_ERROR"
+
+        # Test empty file
+        mock_container.get_archive.return_value = (
+            iter([self.create_tar_archive("")]),
+            {},
+        )
+
+        with pytest.raises(ManifestExtractionError) as exc_info:
+            extract_manifest_from_image("test:latest")
+        assert exc_info.value.error_type == "EMPTY_MANIFEST_FILE"
+
+        # Test file read error
+        tar_data = self.create_tar_archive(yaml.dump(sample_manifest_data))
+        mock_container.get_archive.return_value = (iter([tar_data]), {})
+
+        with patch("builtins.open", side_effect=IOError("File read error")):
+            with pytest.raises(ManifestExtractionError) as exc_info:
+                extract_manifest_from_image("test:latest")
+            assert exc_info.value.error_type == "FILE_READ_ERROR"
+
+    def test_extract_manifest_schema_validation_error(self, mock_docker_setup):
+        """Test schema validation errors."""
+        mock_client, mock_container = mock_docker_setup
+
+        invalid_manifest = {"invalid_field": "missing required fields"}
+        tar_data = self.create_tar_archive(yaml.dump(invalid_manifest))
+        mock_container.get_archive.return_value = (iter([tar_data]), {})
+
+        with pytest.raises(ManifestExtractionError) as exc_info:
+            extract_manifest_from_image("test:latest")
+
+        assert exc_info.value.error_type == "SCHEMA_VALIDATION_ERROR"
+
+    def test_extract_manifest_cleanup_error(
+        self, mock_docker_setup, sample_manifest_data
+    ):
+        """Test that cleanup errors are handled gracefully."""
+        mock_client, mock_container = mock_docker_setup
+
+        # Setup successful extraction but failing cleanup
+        tar_data = self.create_tar_archive(yaml.dump(sample_manifest_data))
+        mock_container.get_archive.return_value = (iter([tar_data]), {})
+        mock_container.remove.side_effect = docker_errors.APIError("Cleanup failed")
+
+        # Should still succeed despite cleanup error
+        result = extract_manifest_from_image("test:latest")
+        assert isinstance(result, Manifest)
+        mock_container.remove.assert_called_once()
 
 
 class TestRunContainerWithArgs:
