@@ -1,0 +1,78 @@
+{
+  "$defs": {
+    "TestDefinition": {
+      "description": "A single test to be executed.",
+      "properties": {
+        "name": {
+          "description": "A unique, human-readable name for this test instance.",
+          "title": "Name",
+          "type": "string"
+        },
+        "image": {
+          "description": "The Docker image to run for this test, e.g., 'my-registry/garak:latest'.",
+          "title": "Image",
+          "type": "string"
+        },
+        "target_suts": {
+          "description": "A list of SUT names (from suts.yaml) to run this test against.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Suts",
+          "type": "array"
+        },
+        "tags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional tags for filtering and reporting.",
+          "title": "Tags"
+        },
+        "params": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Parameters to be passed to the test container's entrypoint.",
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "image",
+        "target_suts"
+      ],
+      "title": "TestDefinition",
+      "type": "object"
+    }
+  },
+  "description": "Schema for the top-level Test Suite configuration file.",
+  "properties": {
+    "suite_name": {
+      "title": "Suite Name",
+      "type": "string"
+    },
+    "test_suite": {
+      "items": {
+        "$ref": "#/$defs/TestDefinition"
+      },
+      "title": "Test Suite",
+      "type": "array"
+    }
+  },
+  "required": [
+    "suite_name",
+    "test_suite"
+  ],
+  "title": "ASQI SuiteConfig",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

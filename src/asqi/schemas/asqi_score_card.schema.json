@@ -1,0 +1,124 @@
+{
+  "$defs": {
+    "AssessmentRule": {
+      "description": "Individual assessment outcome with condition.",
+      "properties": {
+        "outcome": {
+          "description": "Assessment outcome, e.g., 'PASS', 'FAIL', 'A', 'F'",
+          "title": "Outcome",
+          "type": "string"
+        },
+        "condition": {
+          "description": "Condition to evaluate against the metric value",
+          "enum": [
+            "equal_to",
+            "greater_than",
+            "less_than",
+            "greater_equal",
+            "less_equal",
+            "all_true",
+            "any_false",
+            "count_equals"
+          ],
+          "title": "Condition",
+          "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Threshold value for comparison conditions",
+          "title": "Threshold"
+        }
+      },
+      "required": [
+        "outcome",
+        "condition"
+      ],
+      "title": "AssessmentRule",
+      "type": "object"
+    },
+    "ScoreCardFilter": {
+      "description": "Defines which test results an indicator applies to.",
+      "properties": {
+        "test_name": {
+          "description": "Test name to filter by, e.g., 'run_mock_on_compatible_sut_my_llm_service'",
+          "title": "Test Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "test_name"
+      ],
+      "title": "ScoreCardFilter",
+      "type": "object"
+    },
+    "ScoreCardIndicator": {
+      "description": "Individual score card indicator with filtering and assessment.",
+      "properties": {
+        "name": {
+          "description": "Human-readable name for this score card indicator",
+          "title": "Name",
+          "type": "string"
+        },
+        "apply_to": {
+          "$ref": "#/$defs/ScoreCardFilter",
+          "description": "Filter criteria for which test results this indicator applies to"
+        },
+        "metric": {
+          "description": "JSONPath into test_results object, e.g., 'success', 'score'",
+          "title": "Metric",
+          "type": "string"
+        },
+        "assessment": {
+          "description": "List of assessment rules to evaluate against the metric",
+          "items": {
+            "$ref": "#/$defs/AssessmentRule"
+          },
+          "title": "Assessment",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "apply_to",
+        "metric",
+        "assessment"
+      ],
+      "title": "ScoreCardIndicator",
+      "type": "object"
+    }
+  },
+  "description": "Complete grading score card configuration.",
+  "properties": {
+    "score_card_name": {
+      "description": "Name of the grading score card",
+      "title": "Score Card Name",
+      "type": "string"
+    },
+    "indicators": {
+      "description": "List of score card indicators to evaluate",
+      "items": {
+        "$ref": "#/$defs/ScoreCardIndicator"
+      },
+      "title": "Indicators",
+      "type": "array"
+    }
+  },
+  "required": [
+    "score_card_name",
+    "indicators"
+  ],
+  "title": "ASQI ScoreCard",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
