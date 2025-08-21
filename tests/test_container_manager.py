@@ -83,12 +83,15 @@ class TestDecommissionContainer:
         mock_container.id = "test_container"
 
         mock_active_containers.add(mock_container.id)
-        mock_container.stop.side_effect = Exception("Stop failed")
+        mock_container.stop.side_effect = docker_errors.APIError("Stop failed")
 
         _decommission_container(mock_container)
 
         mock_container.stop.assert_called_once_with(timeout=1)
         mock_container.remove.assert_called_once_with(force=True)
+        mock_logger.debug.assert_called_once_with(
+            "Failed to gracefully stop container: Stop failed"
+        )
         mock_logger.warning.assert_not_called()  # Ensure no log generated for stop failure
         assert mock_container.id not in mock_active_containers
 
