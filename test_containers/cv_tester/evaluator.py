@@ -65,6 +65,41 @@ def iou_xyxy(
 
 
 # ---------- API helpers ----------
+def _parse_yolo_line(
+    line: str,
+) -> Optional[Tuple[int, float, float, float, float, float]]:
+    """
+    Parse one YOLO line:
+      <class> <xc> <yc> <w> <h> [<conf>]
+    Returns (cls, xc, yc, w, h, conf) or None if invalid.
+    """
+    s = line.strip()
+    if not s or s.startswith("#"):
+        return None
+
+    parts = s.split()
+    n = len(parts)
+    if n not in (5, 6):
+        return None
+
+    try:
+        if n == 6:
+            c, xc, yc, w, h, conf = parts
+            return (
+                int(float(c)),
+                float(xc),
+                float(yc),
+                float(w),
+                float(h),
+                float(conf),
+            )
+        else:  # n == 5
+            c, xc, yc, w, h = parts
+            return (int(float(c)), float(xc), float(yc), float(w), float(h), 1.0)
+    except (ValueError, TypeError):
+        return None
+
+
 def parse_yolo_predictions(
     text: str,
 ) -> List[Tuple[int, float, float, float, float, float]]:
@@ -73,31 +108,11 @@ def parse_yolo_predictions(
       <class> <xc> <yc> <w> <h> [<conf>]
     Returns list of (cls, xc, yc, w, h, conf). Missing conf -> 1.0.
     """
-    preds = []
-    for raw in text.strip().splitlines():
-        parts = raw.strip().split()
-        if not parts:
-            continue
-        try:
-            if len(parts) == 6:
-                c, xc, yc, w, h, conf = parts
-                preds.append(
-                    (
-                        int(float(c)),
-                        float(xc),
-                        float(yc),
-                        float(w),
-                        float(h),
-                        float(conf),
-                    )
-                )
-            elif len(parts) == 5:
-                c, xc, yc, w, h = parts
-                preds.append(
-                    (int(float(c)), float(xc), float(yc), float(w), float(h), 1.0)
-                )
-        except Exception:
-            continue
+    preds: List[Tuple[int, float, float, float, float, float]] = []
+    for raw in text.splitlines():
+        parsed = _parse_yolo_line(raw)
+        if parsed is not None:
+            preds.append(parsed)
     return preds
 
 
@@ -149,6 +164,9 @@ def inference(
                     api_params = {
                       "headers": {"Authorization": "Bearer <token>"}
                     }
+              - timeout (float):   request timeout in seconds; if omitted defaults to 30.0
+                           (handled explicitly; not passed through in **kwargs)
+
 
     Expected API response body:
         The API **must** return plaintext YOLO-format lines, one detection per line.
@@ -186,6 +204,8 @@ def inference(
 
     # Extract and remove the only special key we care about
     input_field: str = req_kwargs.pop("input_field", "file")
+    # Extract timeout explicitly; default to 30.0 if not provided
+    timeout: float = float(req_kwargs.pop("timeout", 30.0))
 
     # Ensure no one overrides 'files' via api_params
     if "files" in req_kwargs:
@@ -195,7 +215,7 @@ def inference(
         files = {
             input_field: (os.path.basename(image_path), f, "application/octet-stream")
         }
-        resp = requests.post(endpoint, files=files, **req_kwargs)
+        resp = requests.post(endpoint, files=files, timeout=timeout, **req_kwargs)
 
     if resp.status_code != 200:
         raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
