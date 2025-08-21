@@ -1,5 +1,7 @@
+import atexit
 import glob
 import os
+import signal
 from typing import Any, Dict, List, Optional
 
 import typer
@@ -7,6 +9,7 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
+from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
 from asqi.validation import validate_test_plan
@@ -126,6 +129,42 @@ def load_and_validate_plan(
 
 
 app = typer.Typer(help="A test executor for AI systems.")
+
+
+@app.callback()
+def _cli_startup_callback():
+    """Global CLI callback invoked before any subcommand.
+
+    Registers shutdown handlers for container cleanup once per process.
+    Using a callback keeps registration in the CLI layer and avoids
+    side-effects at import time in libraries or tests.
+    """
+    # Ensure cleanup on normal interpreter exit
+    atexit.register(_handle_shutdown)
+
+    # Handle common termination signals
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            signal.signal(sig, _handle_shutdown)
+        except Exception as e:
+            console.print(f"\n[red]❌Could not register handler for {sig}: {e}[/red]")
+
+
+def _handle_shutdown(signum=None, frame=None):
+    signame = None
+    if isinstance(signum, int):
+        try:
+            signame = signal.Signals(signum).name
+        except Exception:
+            signame = str(signum)
+
+    if not signame:
+        return
+
+    console.print(
+        f"[yellow] Shutdown signal received ({signame}). Cleaning up ...[/yellow]"
+    )
+    shutdown_containers()
 
 
 @app.command("validate", help="Validate test plan configuration without execution.")
