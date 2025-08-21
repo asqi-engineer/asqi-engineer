@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
 suite_name: "CV Check"
 test_suite:
   - name: "cv_eval"

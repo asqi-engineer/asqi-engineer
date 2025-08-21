@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suts_config.schema.json
 systems_under_test:
   openai_gpt4o_mini:
     type: "llm_api"

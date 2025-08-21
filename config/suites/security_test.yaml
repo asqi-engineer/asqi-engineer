@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
 suite_name: "Security Testing Suite with Garak"
 test_suite:
   # Basic security probes using garak
@@ -34,6 +35,3 @@ test_suite:
     tags:
       - "connectivity"
       - "baseline"
-
-
-
