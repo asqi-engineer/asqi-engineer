@@ -1,7 +1,12 @@
 systems_under_test:
   object_detection:
-    type: "computer_vision"
+    type: "object_detection_api"
     params:
-      type: "ultralytics"
-      model: "yolov8n.pt"
-      env_file: ".env" 
+      endpoint: "http://host.docker.internal:8000/predict"  # FULL URL to POST the image
+      iou_thr: 0.5                         # Eval-time IoU threshold for GT ↔ pred matching
+      api_params:                          # Request details forwarded to requests.post(**kwargs) to communicate with the API
+        input_field: "file"                # Multipart field name for the image upload
+        params:                            # Query-string args appended to the URL:
+          conf: 0.3                        #  -> model confidence threshold (API-side)
+          iou: 0.5                         #  -> NMS IoU threshold (API-side)
+

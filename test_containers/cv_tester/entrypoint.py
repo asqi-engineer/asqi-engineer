@@ -4,13 +4,13 @@ import json
 import os
 import sys
 
-from detectors import build_detector
-from dotenv import load_dotenv
 from evaluator import evaluate_dataset
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Computer Vision SUT entrypoint")
+    parser = argparse.ArgumentParser(
+        description="CV SUT entrypoint (API-based, with full endpoint)"
+    )
     parser.add_argument(
         "--sut-params", required=True, help="JSON string with SUT params"
     )
@@ -23,15 +23,31 @@ def main():
         # Parse params
         sut_params = json.loads(args.sut_params)
         test_params = json.loads(args.test_params)
+        if not sut_params or not test_params:
+            raise ValueError("Missing SUT or test parameters")
 
-        # Load .env (explicit path wins; fallback to default .env if present)
-        env_file = sut_params.get("env_file") or os.getenv("ENV_FILE")
-        if env_file and os.path.exists(env_file):
-            load_dotenv(env_file)
-            print(f"[DEBUG] Loaded environment from: {env_file}")
-        else:
-            load_dotenv()
-            print("[DEBUG] Loaded environment from default .env (if present)")
+        # Validate SUT type
+        sut_type = sut_params.get("type")
+        if sut_type not in ["object_detection_api"]:
+            raise ValueError(f"Unsupported SUT type: {sut_type}")
+
+        # Required: full endpoint URL
+        endpoint = sut_params.get("endpoint")
+        if not endpoint:
+            raise ValueError("Missing 'endpoint' in sut_params (must be full URL)")
+
+        # Grouped API params (must include input_field)
+        api_params = sut_params.get("api_params", {})
+        if "input_field" not in api_params or not api_params["input_field"]:
+            raise ValueError(
+                "api_params must include 'input_field', which specifies the multipart form field "
+                "name used to upload the image. For example, if your API endpoint is defined as "
+                "`def predict(file: UploadFile = File(...))`, then use input_field='file'. "
+                "If it expects `image: UploadFile`, set input_field='image'."
+            )
+
+        # Evaluation knobs
+        iou_thr = float(sut_params.get("iou_thr", 0.5))
 
         # Required test params
         img_dir = test_params.get("input_image_path")
@@ -41,33 +57,20 @@ def main():
         if not gt_dir or not os.path.isdir(gt_dir):
             raise ValueError("Invalid or missing groundtruth_path")
 
-        # Optional knobs (defaults preserve your original behavior)
-        conf_thr = float(sut_params.get("conf_thr", 0.0))
-        iou_thr = float(sut_params.get("iou_thr", 0.5))
-        use_classes = bool(sut_params.get("use_classes", False))
+        print(f"[DEBUG] Evaluating via API endpoint: {endpoint}")
+        print(f"[DEBUG] IoU={iou_thr}")
 
-        # Build detector via adapter factory (Ultralytics/TorchVision/ONNX/etc.)
-        print("[DEBUG] Building detector from sut_params...")
-        detector = build_detector(sut_params)
-        print("[DEBUG] Detector ready.")
-
-        print(
-            f"[DEBUG] Starting evaluation | IoU={iou_thr}, conf>={conf_thr}, use_classes={use_classes}"
-        )
         map_score, precision, recall, num_images = evaluate_dataset(
-            detector=detector,
             img_dir=img_dir,
             gt_dir=gt_dir,
+            endpoint=endpoint,
             iou_thr=iou_thr,
-            conf_thr=conf_thr,
-            use_classes=use_classes,
+            api_params=api_params,
         )
 
         result = {
             "success": True,
-            "map": round(
-                float(map_score), 4
-            ),  # NOTE: this is mean IoU of matches (your original "mAP")
+            "map": round(float(map_score), 4),
             "precision": round(float(precision), 4),
             "recall": round(float(recall), 4),
             "num_images": int(num_images),

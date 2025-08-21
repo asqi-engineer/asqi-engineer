@@ -10,7 +10,6 @@ WORKDIR /app
 COPY manifest.yaml .
 COPY entrypoint.py .
 COPY evaluator.py .
-COPY detectors.py .
 
 # System dependencies for OpenCV/TorchVision
 RUN apt-get update && apt-get install -y --no-install-recommends \
