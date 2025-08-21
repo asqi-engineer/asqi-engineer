@@ -40,7 +40,9 @@ load_dotenv()
 oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
 database_url = os.environ.get("DBOS_DATABASE_URL")
 if not database_url:
-    raise ValueError("Database URL must be provided through DBOS_DATABASE_URL environment variable")
+    raise ValueError(
+        "Database URL must be provided through DBOS_DATABASE_URL environment variable"
+    )
 
 config: DBOSConfig = {
     "name": "asqi-test-executor",

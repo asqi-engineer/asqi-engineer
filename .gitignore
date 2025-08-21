@@ -48,3 +48,4 @@ coverage.xml
 *.logconfig.yaml
 *.log
 logs/
+output.json
