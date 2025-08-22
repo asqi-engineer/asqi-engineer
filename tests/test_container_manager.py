@@ -405,102 +405,150 @@ class TestExtractManifestFromImage:
 
 
 class TestRunContainerWithArgs:
-    """Test suite for run_container_with_args function (moved from test_environment_variables.py)."""
+    """Test suite for run_container_with_args function."""
 
-    @patch("asqi.container_manager.docker_client")
-    def test_run_container_with_args_environment_parameter(self, mock_docker_client):
-        """Test that run_container_with_args correctly passes environment variables to Docker."""
-        # Mock Docker client and container
-        mock_client = MagicMock()
-        mock_container = MagicMock()
-        mock_container.id = "test_container_789"
-        mock_container.wait.return_value = {"StatusCode": 0}
-        mock_container.logs.return_value = b'{"success": true}'
+    @pytest.fixture
+    def mock_container_setup(self):
+        """Reusable Docker client and container mock setup."""
+        with (
+            patch("asqi.container_manager.docker_client") as mock_docker_client,
+            patch(
+                "asqi.container_manager._extract_mounts_from_args"
+            ) as mock_extract_mounts,
+            patch("asqi.container_manager.create_container_logger"),
+        ):
+            mock_client = MagicMock()
+            mock_container = MagicMock()
+            mock_container.id = "test_container_123"
+            mock_container.wait.return_value = {"StatusCode": 0}
+            mock_container.logs.return_value = b'{"success": true}'
+            mock_client.containers.run.return_value = mock_container
+            mock_docker_client.return_value.__enter__.return_value = mock_client
+            mock_extract_mounts.return_value = (["--test"], None)
+            yield mock_client, mock_container, mock_extract_mounts
 
-        mock_client.containers.run.return_value = mock_container
-        mock_docker_client.return_value.__enter__.return_value = mock_client
+    def test_run_container_success(self, mock_container_setup):
+        """Test successful container execution."""
+        mock_client, mock_container, _ = mock_container_setup
 
-        # Test environment variables
-        test_env = {"API_KEY": "secret123", "MODEL_NAME": "gpt-4"}
+        # Basic success
+        result = run_container_with_args(image="test:latest", args=["--test"])
+        assert result["success"] is True
+        assert result["exit_code"] == 0
+        assert result["container_id"] == "test_container_123"
+        mock_container.remove.assert_called_with(force=True)
 
-        # Call run_container_with_args with environment
-        result = run_container_with_args(
-            image="test:latest", args=["--test", "arg"], environment=test_env
+        # Env
+        test_env = {"API_KEY": "secret", "MODEL": "gpt-4"}
+        run_container_with_args(
+            image="test:latest", args=["--test"], environment=test_env
         )
-
-        # Verify Docker container was created with correct environment
-        mock_client.containers.run.assert_called_once()
         call_kwargs = mock_client.containers.run.call_args[1]
-
-        assert "environment" in call_kwargs
         assert call_kwargs["environment"] == test_env
 
-        # Verify result
-        assert result["success"] is True
-        assert result["exit_code"] == 0
-
-    @patch("asqi.container_manager.docker_client")
-    def test_run_container_with_args_no_environment_parameter(self, mock_docker_client):
-        """Test that run_container_with_args handles missing environment parameter."""
-        # Mock Docker client and container
-        mock_client = MagicMock()
-        mock_container = MagicMock()
-        mock_container.id = "test_container_999"
-        mock_container.wait.return_value = {"StatusCode": 0}
-        mock_container.logs.return_value = b'{"success": true}'
-
-        mock_client.containers.run.return_value = mock_container
-        mock_docker_client.return_value.__enter__.return_value = mock_client
-
-        # Call run_container_with_args without environment parameter
-        result = run_container_with_args(image="test:latest", args=["--test", "arg"])
-
-        # Verify Docker container was created with empty environment
-        mock_client.containers.run.assert_called_once()
-        call_kwargs = mock_client.containers.run.call_args[1]
-
-        assert "environment" in call_kwargs
-        assert call_kwargs["environment"] == {}
-
-        # Verify result
-        assert result["success"] is True
-        assert result["exit_code"] == 0
-
-    @patch("asqi.container_manager.docker_client")
-    def test_run_container_with_args_image_not_found(self, mock_docker_client):
-        """Test handling of ImageNotFound error."""
-        mock_client = MagicMock()
-        mock_docker_client.return_value.__enter__.return_value = mock_client
-
-        mock_client.containers.run.side_effect = docker_errors.ImageNotFound(
-            "Image not found"
+        # Resource/network
+        run_container_with_args(
+            image="test:latest",
+            args=["--test"],
+            memory_limit="1g",
+            cpu_quota=100000,
+            network="bridge",
         )
+        call_kwargs = mock_client.containers.run.call_args[1]
+        assert call_kwargs["mem_limit"] == "1g"
+        assert call_kwargs["cpu_quota"] == 100000
+        assert call_kwargs["network_mode"] == "bridge"
 
-        result = run_container_with_args(image="missing:latest", args=["--test"])
+    def test_run_container_streaming_logs(self, mock_container_setup):
+        """Test log streaming functionality and error handling."""
+        mock_client, mock_container, mock_extract_mounts = mock_container_setup
+        log_lines = [b"Line 1\n", b"Line 2\n"]
+        mock_container.logs.return_value = iter(log_lines)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], stream_logs=True
+        )
+        mock_container.logs.assert_called_with(stream=True, follow=True)
+        assert "Line 1" in result["output"] and "Line 2" in result["output"]
 
-        assert result["success"] is False
-        assert "not found" in result["error"]
+    def test_run_container_volume_mounting(self, mock_container_setup):
+        """Test that volume mounts are correctly extracted and applied."""
+        mock_client, _, mock_extract_mounts = mock_container_setup
+        from docker.types import Mount
 
-    @patch("asqi.container_manager.docker_client")
-    def test_run_container_with_args_api_error(self, mock_docker_client):
-        """Test handling of Docker API error."""
-        mock_client = MagicMock()
-        mock_docker_client.return_value.__enter__.return_value = mock_client
+        test_mounts = [
+            Mount(target="/input", source="/host/input", type="bind", read_only=True)
+        ]
+        mock_extract_mounts.return_value = (["--test"], test_mounts)
+        run_container_with_args(
+            image="test:latest",
+            args=["--test", "--test-params", '{"__volumes": {"input": "/host/input"}}'],
+        )
+        mock_extract_mounts.assert_called_once()
+        call_kwargs = mock_client.containers.run.call_args[1]
+        assert call_kwargs["mounts"] == test_mounts
 
-        mock_client.containers.run.side_effect = docker_errors.APIError("API Error")
-
+    @pytest.mark.parametrize(
+        "exception,expected_error_message",
+        [
+            (docker_errors.ImageNotFound("Image not found"), "not found"),
+            (
+                docker_errors.ContainerError(MagicMock(), 1, "cmd", "image", "error"),
+                "Container execution failed",
+            ),
+            (docker_errors.APIError("API Error"), "Docker API error"),
+            (TimeoutError("Timeout"), "timed out"),
+        ],
+    )
+    def test_run_container_exception_handling(
+        self, mock_container_setup, exception, expected_error_message
+    ):
+        """Test container run exception handling."""
+        mock_client, _, _ = mock_container_setup
+        mock_client.containers.run.side_effect = exception
         result = run_container_with_args(image="test:latest", args=["--test"])
-
         assert result["success"] is False
-        assert "Docker API error" in result["error"]
+        assert expected_error_message in result["error"]
 
-    @patch("asqi.container_manager.docker_client")
-    def test_run_container_with_args_connection_error(self, mock_docker_client):
+    def test_run_container_connection_error_propagated(self, mock_container_setup):
         """Test that ConnectionError is propagated."""
-        mock_client = MagicMock()
-        mock_docker_client.return_value.__enter__.return_value = mock_client
-
+        mock_client, _, _ = mock_container_setup
         mock_client.containers.run.side_effect = ConnectionError("Connection failed")
-
         with pytest.raises(ConnectionError, match="Failed to connect to Docker daemon"):
             run_container_with_args(image="test:latest", args=["--test"])
+
+    def test_run_container_execution_edge_cases(self, mock_container_setup):
+        """Test edge cases in container execution."""
+        mock_client, mock_container, _ = mock_container_setup
+
+        # Non-zero exit code
+        mock_container.wait.return_value = {"StatusCode": 1}
+        mock_container.logs.return_value = b"error output"
+        result = run_container_with_args(image="test:latest", args=["--test"])
+        assert result["success"] is False
+        assert result["exit_code"] == 1
+
+        # Wait API error with successful kill
+        mock_container.wait.side_effect = docker_errors.APIError("Wait error")
+        result = run_container_with_args(image="test:latest", args=["--test"])
+        mock_container.kill.assert_called_once()
+        assert result["success"] is False
+        assert "Container execution failed with API error" in result["error"]
+
+        # Wait API error with kill failure
+        mock_container.kill.side_effect = docker_errors.APIError("Kill failed")
+        result = run_container_with_args(image="test:latest", args=["--test"])
+        assert result["success"] is False
+
+        # Log retrieval error
+        mock_container.wait.side_effect = None
+        mock_container.wait.return_value = {"StatusCode": 0}
+        mock_container.logs.side_effect = docker_errors.APIError("Log error")
+        result = run_container_with_args(image="test:latest", args=["--test"])
+        assert result["output"] == ""
+
+        # Cleanup failure
+        mock_container.logs.side_effect = None
+        mock_container.logs.return_value = b"output"
+        mock_container.remove.side_effect = docker_errors.APIError("Remove failed")
+        result = run_container_with_args(image="test:latest", args=["--test"])
+        assert result["success"] is True  # Should succeed despite cleanup failure
