@@ -43,7 +43,4 @@ output_metrics:
   - name: "dataset_results"
     type: "object"
     description: "Individual results for each dataset, with dataset name as key containing both generation and evaluation results"
-  
-  - name: "total_samples"
-    type: "integer"
-    description: "Total number of test samples processed across all datasets"
+ 
