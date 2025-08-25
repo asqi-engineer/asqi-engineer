@@ -149,6 +149,79 @@ def _hf_json_to_yolo_lines(text: str, image_path: str) -> str:
     return "\n".join(lines)
 
 
+def _ultra_json_to_yolo_lines(text: str) -> str:
+    """
+    Convert Ultralytics predict.ultralytics.com JSON into YOLO lines:
+      <class_id> <xc_norm> <yc_norm> <w_norm> <h_norm> <conf>
+
+    Expects payload like:
+    {
+      "images": [
+        {
+          "results": [
+            {"box": {"x1":..., "x2":..., "y1":..., "y2":...},
+             "class": 16, "confidence": 0.68, "name": "dog"}
+          ],
+          "shape": [H, W],
+          ...
+        }
+      ],
+      "metadata": {...}
+    }
+    """
+    try:
+        j = json.loads(text)
+    except Exception:
+        return ""
+
+    images = j.get("images", [])
+    if not images or not isinstance(images, list):
+        return ""
+
+    # Ultralytics returns one or more images; we concatenate detections from all
+    lines: List[str] = []
+
+    for img in images:
+        shape = img.get("shape") or []
+        if not isinstance(shape, (list, tuple)) or len(shape) < 2:
+            # If shape missing, skip this image
+            continue
+        H, W = float(shape[0] or 0), float(shape[1] or 0)
+        if H <= 0 or W <= 0:
+            continue
+
+        results = img.get("results", []) or []
+        for det in results:
+            box = det.get("box", {}) or {}
+            x1 = float(box.get("x1", 0.0))
+            x2 = float(box.get("x2", 0.0))
+            y1 = float(box.get("y1", 0.0))
+            y2 = float(box.get("y2", 0.0))
+
+            # clamp to image bounds
+            x1 = max(0.0, min(x1, W))
+            x2 = max(0.0, min(x2, W))
+            y1 = max(0.0, min(y1, H))
+            y2 = max(0.0, min(y2, H))
+
+            bw = max(0.0, x2 - x1)
+            bh = max(0.0, y2 - y1)
+            cx = x1 + bw / 2.0
+            cy = y1 + bh / 2.0
+
+            xc = cx / W if W > 0 else 0.0
+            yc = cy / H if H > 0 else 0.0
+            w = bw / W if W > 0 else 0.0
+            h = bh / H if H > 0 else 0.0
+
+            cls_id = int(det.get("class", 0))
+            conf = float(det.get("confidence", 0.0))
+
+            lines.append(f"{cls_id} {xc:.6f} {yc:.6f} {w:.6f} {h:.6f} {conf:.6f}")
+
+    return "\n".join(lines)
+
+
 # ---- new adapter functions (logic unchanged) ----
 def prepare_request_body(
     headers: Dict[str, Any],
@@ -188,13 +261,30 @@ def prepare_request_body(
         with open(image_path, "rb") as f:
             req_kwargs[input_field] = f.read()
 
-    else:
-        # default: JSON body {input_field: "<base64>"}
+    elif ct == "application/json":
         req_kwargs["json"] = {input_field: payload_value}
 
-    resp = requests.post(endpoint, **req_kwargs)
-    if resp.status_code != 200:
-        raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
+    else:
+        if mode != "ultralytics":
+            raise ValueError(f"Unsupported Content-Type: {ct}")
+
+    if mode == "ultralytics":
+        with open(image_path, "rb") as image_file:
+            req_kwargs["files"] = {input_field: image_file}
+
+            resp = requests.post(
+                endpoint,
+                headers=req_kwargs.get("headers"),
+                files=req_kwargs.get("files"),
+                data=req_kwargs.get("params"),
+            )
+            if resp.status_code != 200:
+                raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
+
+    else:
+        resp = requests.post(endpoint, **req_kwargs)
+        if resp.status_code != 200:
+            raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
 
     yolo_text = None
     if mode.lower() in ("roboflow", "rf"):
@@ -229,5 +319,16 @@ def prepare_request_body(
             raise RuntimeError(f"Hugging Face error: {j.get('error')}")
 
         yolo_text = _hf_json_to_yolo_lines(resp.text, image_path)
+
+    elif mode.lower() in ("ultralytics", "ul"):
+        try:
+            j = resp.json()
+        except Exception:
+            raise RuntimeError(f"Ultralytics response not JSON: {resp.text[:200]}")
+
+        if isinstance(j, dict) and "error" in j:
+            raise RuntimeError(f"Ultralytics error: {j.get('error')}")
+
+        yolo_text = _ultra_json_to_yolo_lines(resp.text)
 
     return parse_yolo_predictions(yolo_text if yolo_text is not None else resp.text)

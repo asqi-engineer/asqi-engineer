@@ -99,6 +99,37 @@ def main():
 
             api_params["headers"] = headers
 
+        elif mode == "ultralytics":
+            ul_token = os.getenv("ULTRALYTICS_API_KEY")
+            ul_endpoint = os.getenv("ULTRALYTICS_ENDPOINT")
+
+            if not ul_token:
+                raise ValueError("ULTRALYTICS_API_KEY not found in environment")
+            if not ul_endpoint:
+                raise ValueError("ULTRALYTICS_ENDPOINT not found in environment")
+
+            endpoint = ul_endpoint
+
+            # Ensure api_params exists
+            if not isinstance(api_params, dict):
+                api_params = {}
+
+            # Headers
+            headers = dict(api_params.get("headers", {}) or {})
+
+            x_api_key_val = headers.get("x-api-key")
+
+            if x_api_key_val:
+                if "${ULTRALYTICS_API_KEY}" in x_api_key_val:
+                    headers["x-api-key"] = x_api_key_val.replace(
+                        "${ULTRALYTICS_API_KEY}", ul_token
+                    )
+            else:
+                raise ValueError(
+                    "api_params.headers must include 'x-api-key' for Ultralytics API"
+                )
+            api_params["headers"] = headers
+
         else:  # mode == "local"
             endpoint = os.getenv("LOCAL_ENDPOINT")
 

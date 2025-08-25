@@ -11,6 +11,8 @@ systems_under_test:
           conf: 0.3                        #  -> model confidence threshold (API-side)
           iou: 0.5                         #  -> NMS IoU threshold (API-side)
           timeout : 30.0                   #  -> Request timeout in seconds
+        headers:                           # HTTP headers:
+          Content-Type : "application/json" #  -> API expects base64-encoded image in JSON payload
   roboflow_object_detection:
     type: "object_detection_api"
     params:
@@ -36,3 +38,15 @@ systems_under_test:
         headers:
           Authorization : "Bearer ${HUGGINGFACE_API_KEY}"
           Content-Type: "image/jpeg"
+  ultralytics_object_detection:
+    type: "object_detection_api"
+    params:
+      endpoint: "${ULTRALYTICS_ENDPOINT}"  # FULL URL to POST the image from .env
+      iou_thr: 0.5
+      mode : "ultralytics"                         
+      api_params:                        
+        input_field: "file"               
+        params:                          
+          model : "https://hub.ultralytics.com/models/7wzkDSKNMcwkPTs8ZVJC" #YOLO11n
+        headers:
+          x-api-key : "${ULTRALYTICS_API_KEY}"
