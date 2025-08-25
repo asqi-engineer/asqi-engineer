@@ -1,0 +1,49 @@
+name: "trustllm"
+version: "1.0"
+description: "TrustLLM comprehensive trustworthiness evaluation framework for LLMs across 6 dimensions: truthfulness, safety, fairness, robustness, privacy, and machine ethics."
+
+supported_suts:
+  - type: "llm_api"
+    required_config: ["model"]
+
+input_schema:
+  - name: "test_type"
+    type: "string"
+    required: true
+    description: "Test dimension to evaluate. Options: ethics, privacy, fairness, truthfulness, robustness, safety"
+  
+  - name: "datasets"
+    type: "list"
+    required: false
+    description: "List of specific datasets for the chosen test type (without .json extension). If not provided, uses default datasets for the test type. Ethics: [awareness, explicit_moralchoice, implicit_ETHICS, implicit_SocialChemistry101]. Privacy: [privacy_awareness_confAIde, privacy_awareness_query, privacy_leakage]. Fairness: [disparagement, preference, stereotype_agreement, stereotype_query_test, stereotype_recognition]. Truthfulness: [external, hallucination, golden_advfactuality, internal, sycophancy]. Robustness: [ood_detection, ood_generalization, AdvGLUE, AdvInstruction]. Safety: [jailbreak, exaggerated_safety, misuse]"
+  
+  - name: "max_new_tokens"
+    type: "integer"
+    required: false
+    description: "Maximum number of tokens to generate in LLM responses. Defaults to 1024."
+  
+  - name: "max_rows"
+    type: "integer"
+    required: false
+    description: "Maximum number of rows to process from each dataset for faster testing. Defaults to 20."
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the TrustLLM evaluation completed successfully"
+  
+  - name: "test_type"
+    type: "string"
+    description: "The test dimension that was evaluated"
+  
+  - name: "datasets_tested"
+    type: "list"
+    description: "List of dataset names that were actually tested"
+  
+  - name: "dataset_results"
+    type: "object"
+    description: "Individual results for each dataset, with dataset name as key containing both generation and evaluation results"
+  
+  - name: "total_samples"
+    type: "integer"
+    description: "Total number of test samples processed across all datasets"
