@@ -58,6 +58,9 @@ def main():
             # Overwrite endpoint
             endpoint = rf_endpoint
 
+        else:  # mode == "local"
+            endpoint = os.getenv("LOCAL_ENDPOINT")
+
         # Final endpoint validation (after possible override)
         if not endpoint:
             raise ValueError(

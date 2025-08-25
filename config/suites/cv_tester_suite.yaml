@@ -4,7 +4,7 @@ test_suite:
   - name: "cv_eval"
     image: "my-registry/cv_tester:latest"
     target_suts:
-      - "roboflow_object_detection" # or "object_detection"
+      - "object_detection" # or "object_detection" or # roboflow_object_detectionq
     volumes:
       input : "/home/ubuntu/code/asqi/test_data/input" # Mac path : "/workspaces/asqi/test_data/input"
       output : "/home/ubuntu/code/asqi/test_data/output" # Mac path : "/workspaces/asqi/test_data/output"

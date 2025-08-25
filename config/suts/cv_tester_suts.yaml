@@ -2,7 +2,7 @@ systems_under_test:
   object_detection:
     type: "object_detection_api"
     params:
-      endpoint: "http://localhost:8000/predict"  # FULL URL to POST the image
+      endpoint: "${LOCAL_ENDPOINT}"  # FULL URL to POST the image
       iou_thr: 0.5                         # Eval-time IoU threshold for GT ↔ pred matching
       mode : "local"
       api_params:                          # Request details forwarded to requests.post(**kwargs) to communicate with the API
