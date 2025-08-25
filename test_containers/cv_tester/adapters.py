@@ -282,8 +282,10 @@ def prepare_request_body(
         if resp.status_code != 200:
             raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
 
-    yolo_text = None
+    yolo_text = ""
+
     if mode.lower() in ("roboflow", "rf"):
+        # Roboflow returns JSON with "predictions" and "image" keys
         content_type = resp.headers.get("Content-Type", "")
         try:
             if "application/json" not in content_type:
@@ -306,6 +308,7 @@ def prepare_request_body(
             )
 
     elif mode.lower() in ("huggingface", "hf"):
+        # Hugging Face Inference API → list of detections with pixel coords
         try:
             j = resp.json()
         except Exception:
@@ -327,4 +330,10 @@ def prepare_request_body(
 
         yolo_text = _ultra_json_to_yolo_lines(resp.text)
 
-    return parse_yolo_predictions(yolo_text if yolo_text is not None else resp.text)
+    else:
+        # Fallback: Assume the response body is already raw YOLO text
+        # (e.g., custom API that directly outputs "<class> <xc> <yc> <w> <h> [<conf>]" lines)
+
+        yolo_text = resp.text
+
+    return parse_yolo_predictions(yolo_text)
