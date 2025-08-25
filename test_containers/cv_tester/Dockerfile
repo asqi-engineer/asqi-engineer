@@ -11,25 +11,22 @@ COPY manifest.yaml .
 COPY entrypoint.py .
 COPY evaluator.py .
 
-# System dependencies for OpenCV/TorchVision
+# Minimal runtime deps for opencv-python-headless + HTTPS
+# (libglib and image codecs are typically required by OpenCV;
+# ca-certificates for requests over HTTPS)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libglib2.0-0 \
-        libsm6 \
-        libxrender1 \
-        libxext6 \
-        libgl1 \
         libjpeg62-turbo \
         libpng16-16 \
+        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Python dependencies
+# Python dependencies actually used by the scripts
 RUN pip install --no-cache-dir \
-        ultralytics \
         opencv-python-headless \
         numpy \
-        python-dotenv \
-        torch \
-        torchvision
+        requests \
+        python-dotenv
 
 RUN chmod +x entrypoint.py
 

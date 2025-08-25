@@ -4,10 +4,10 @@ test_suite:
   - name: "cv_eval"
     image: "my-registry/cv_tester:latest"
     target_suts:
-      - "object_detection"
+      - "roboflow_object_detection" # or "object_detection"
     volumes:
-      input : "/workspaces/asqi/test_data/input"
-      output : "/workspaces/asqi/test_data/outputs"
+      input : "/home/ubuntu/code/asqi/test_data/input" # Mac path : "/workspaces/asqi/test_data/input"
+      output : "/home/ubuntu/code/asqi/test_data/output" # Mac path : "/workspaces/asqi/test_data/output"
     params:
       input_image_path : "/input/images"
       groundtruth_path : "/input/gt"

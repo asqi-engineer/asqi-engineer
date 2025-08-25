@@ -4,6 +4,7 @@ import json
 import os
 import sys
 
+from dotenv import load_dotenv
 from evaluator import evaluate_dataset
 
 
@@ -20,6 +21,8 @@ def main():
     args = parser.parse_args()
 
     try:
+        load_dotenv()
+
         # Parse params
         sut_params = json.loads(args.sut_params)
         test_params = json.loads(args.test_params)
@@ -33,11 +36,34 @@ def main():
 
         # Required: full endpoint URL
         endpoint = sut_params.get("endpoint")
-        if not endpoint:
-            raise ValueError("Missing 'endpoint' in sut_params (must be full URL)")
-
-        # Grouped API params (must include input_field)
+        mode = sut_params.get("mode", "local")
         api_params = sut_params.get("api_params", {})
+
+        # Handle Roboflow mode: inject API key + endpoint from .env
+        if mode == "roboflow":
+            rf_key = os.getenv("ROBOFLOW_API_KEY")
+            rf_endpoint = os.getenv("ROBOFLOW_ENDPOINT")
+
+            if not rf_key:
+                raise ValueError("ROBOFLOW_API_KEY not found in environment")
+
+            if not rf_endpoint:
+                raise ValueError("ROBOFLOW_ENDPOINT not found in environment")
+
+            # Inject/overwrite api_key
+            if "params" not in api_params:
+                api_params["params"] = {}
+            api_params["params"]["api_key"] = rf_key
+
+            # Overwrite endpoint
+            endpoint = rf_endpoint
+
+        # Final endpoint validation (after possible override)
+        if not endpoint:
+            raise ValueError(
+                "Missing 'endpoint' (sut_params or ROBOFLOW_ENDPOINT must provide a full URL)"
+            )
+
         if "input_field" not in api_params or not api_params["input_field"]:
             raise ValueError(
                 "api_params must include 'input_field', which specifies the multipart form field "
@@ -64,6 +90,7 @@ def main():
             img_dir=img_dir,
             gt_dir=gt_dir,
             endpoint=endpoint,
+            mode=mode,
             iou_thr=iou_thr,
             api_params=api_params,
         )

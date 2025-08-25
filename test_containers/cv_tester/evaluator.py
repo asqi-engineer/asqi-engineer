@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
+
+import base64
 import glob
+import json
 import os
+import warnings
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
@@ -116,111 +120,170 @@ def parse_yolo_predictions(
     return preds
 
 
+def _rf_json_to_yolo_lines(text: str) -> str:
+    """
+    Convert Roboflow JSON (center coords in pixels) to YOLO lines:
+      <class_id> <xc_norm> <yc_norm> <w_norm> <h_norm> <conf>
+    """
+    j = json.loads(text)
+    iw = float(j.get("image", {}).get("width", 0) or 0)
+    ih = float(j.get("image", {}).get("height", 0) or 0)
+    if iw <= 0 or ih <= 0:
+        return ""
+
+    lines = []
+    for p in j.get("predictions", []):
+        cx = float(p["x"])
+        cy = float(p["y"])
+        bw = float(p["width"])
+        bh = float(p["height"])
+        # normalize to 0..1 (YOLO format expects normalized center/size)
+        xc = cx / iw
+        yc = cy / ih
+        w = bw / iw
+        h = bh / ih
+        # clamp just in case
+        xc = max(0.0, min(1.0, xc))
+        yc = max(0.0, min(1.0, yc))
+        w = max(0.0, min(1.0, w))
+        h = max(0.0, min(1.0, h))
+
+        cls_id = int(p.get("class_id", 0))
+        conf = float(p.get("confidence", 0.0))
+        lines.append(f"{cls_id} {xc:.6f} {yc:.6f} {w:.6f} {h:.6f} {conf:.6f}")
+    return "\n".join(lines)
+
+
 def inference(
     endpoint: str,
+    mode: str,
     image_path: str,
     api_params: Optional[Dict[str, Any]] = None,
 ) -> List[Tuple[int, float, float, float, float, float]]:
     """
-    Send one image to an external detection API and parse YOLO-style predictions.
+    Send one image to an external detection API and parse predictions into YOLO format.
 
     Args:
-        endpoint:
-            Full URL of the API endpoint, e.g. "http://host.docker.internal:8000/predict".
+        endpoint (str):
+            Full URL of the API endpoint (e.g. "http://localhost:8000/predict").
 
-        image_path:
-            Local path to the image file to upload.
+        mode (str):
+            API mode. Special handling is applied for:
+              - "roboflow" / "rf":
+                  Expects Roboflow JSON response with "predictions" and "image" keys.
+                  Converts to YOLO lines internally.
+              - any other value:
+                  Expects the server to return YOLO-format plaintext directly.
 
-        api_params:
-            A dict of keyword arguments forwarded **verbatim** to `requests.post(**kwargs)`,
-            except for the special key `"input_field"` which controls the multipart field name.
-            This gives you full flexibility to match any API without changing code.
+        image_path (str):
+            Local path to the image file.
 
-            Common keys you can use in `api_params`:
-              - input_field (str):
-                  The multipart/form-data field name the API expects for the image upload.
-                  Examples:
-                    * FastAPI: `def predict(file: UploadFile = File(...))`  -> input_field="file"
-                    * FastAPI: `def predict(image: UploadFile = File(...))` -> input_field="image"
-                  If omitted, defaults to "file".
+        api_params (dict, optional):
+            Dictionary of request options. Keys:
+              - "input_field" (str, default="image"):
+                    Field name for the uploaded image.
+              - "params" (dict):
+                    Query string arguments appended to the endpoint.
+              - "headers" (dict):
+                    Extra HTTP headers (e.g. Content-Type, Authorization).
+              - "timeout" (float):
+                    Request timeout in seconds (default 30.0).
+              - Any other keys are forwarded into `requests.post`.
 
-              - params (dict):
-                  Query string parameters appended to the URL. Use this for arguments your API
-                  declares as `Query(...)`. Example:
-                    api_params = {
-                      "params": {"conf": 0.25, "iou": 0.45}
-                    }
-                  This yields: POST /predict?conf=0.25&iou=0.45
+            Request body depends on headers:
+              - If headers["Content-Type"] == "application/x-www-form-urlencoded":
+                    Sends image base64 string in form field.
+              - If headers["Content-Type"] == "multipart/form-data":
+                    Sends image as a file upload.
+              - Otherwise (default):
+                    Sends JSON body {input_field: "<base64 string>"}.
 
-              - data (dict):
-                  Extra **form fields** sent alongside the file in the multipart body
-                  (server-side read as regular form fields). Example:
-                    api_params = {
-                      "data": {"model": "yolov8n", "resize": "640"}
-                    }
-
-              - headers (dict):
-                  HTTP headers (e.g., auth keys/tokens). Example:
-                    api_params = {
-                      "headers": {"Authorization": "Bearer <token>"}
-                    }
-              - timeout (float):   request timeout in seconds; if omitted defaults to 30.0
-                           (handled explicitly; not passed through in **kwargs)
-
-
-    Expected API response body:
-        The API **must** return plaintext YOLO-format lines, one detection per line.
-        Coordinates must be **normalized** to [0,1].
-
-        Accepted formats (5 or 6 values per line):
-          1) "<class> <xc> <yc> <w> <h> <conf>"
-          2) "<class> <xc> <yc> <w> <h>"
-
-        Where:
-          - class: integer class id (e.g., 0, 1, 27)
-          - xc, yc: box center (normalized)
-          - w, h:  box width/height (normalized)
-          - conf:  optional confidence [0..1] (if absent, defaults to 1.0)
-
-        Examples:
-          "0 0.651806 0.579156 0.310504 0.817682 0.903626"
-          "27 0.383923 0.554457 0.057366 0.521665 0.885660"
-          "0 0.393904 0.500242 0.268452 0.973209"            # no conf -> treated as 1.0
-
-        ⚠️ If your model/server returns another schema (JSON, pixels, absolute coords, etc.),
-           put a small proxy in front of it to convert into the exact YOLO text format above.
+    Expected API response:
+        - For "local" or custom APIs:
+              Plaintext YOLO lines, one per detection:
+                  "<class> <xc> <yc> <w> <h> [<conf>]"
+              Coordinates normalized to [0,1]. Confidence optional (default 1.0).
+        - For "roboflow" mode:
+              JSON with structure:
+                  {"predictions": [...], "image": {"width": W, "height": H}}
+              Each prediction must include fields "x", "y", "width", "height",
+              "class_id", and "confidence". Converted automatically to YOLO lines.
 
     Returns:
-        List of predictions as tuples:
-          [(class_id, xc, yc, w, h, conf), ...]
-        with all values as floats except class_id (int).
+        List of detections as tuples:
+            [(class_id, xc, yc, w, h, conf), ...]
+        where coords are normalized floats and class_id is int.
 
     Raises:
-        RuntimeError: if the HTTP status is not 200.
+        FileNotFoundError: if image_path does not exist.
+        ValueError: if image is empty or response cannot be parsed.
+        RuntimeError: if the API returns non-200 status or explicit error JSON.
     """
-    params_in = api_params or {}
-    # Work on a copy so we don't mutate the caller's dict
-    req_kwargs: Dict[str, Any] = dict(params_in)
 
-    # Extract and remove the only special key we care about
-    input_field: str = req_kwargs.pop("input_field", "file")
-    # Extract timeout explicitly; default to 30.0 if not provided
-    timeout: float = float(req_kwargs.pop("timeout", 30.0))
+    params_in = dict(api_params or {})
 
-    # Ensure no one overrides 'files' via api_params
-    if "files" in req_kwargs:
-        req_kwargs.pop("files")
+    # Controls (support timeout at top-level OR inside nested params)
+    input_field: str = params_in.pop("input_field", "image")
+    nested_params = params_in.pop("params", {}) or {}
+    timeout: float = float(params_in.pop("timeout", nested_params.pop("timeout", 30.0)))
 
+    # headers + query params
+    headers = params_in.pop("headers", {}) or {}
+    query_params: Dict[str, Any] = {**params_in, **nested_params}
+
+    req_kwargs: Dict[str, Any] = {"params": dict(query_params), "timeout": timeout}
+    if headers:
+        req_kwargs["headers"] = dict(headers)
+
+    # local file → base64
+    if not os.path.isfile(image_path):
+        raise FileNotFoundError(f"Image file not found: {image_path}")
     with open(image_path, "rb") as f:
-        files = {
-            input_field: (os.path.basename(image_path), f, "application/octet-stream")
-        }
-        resp = requests.post(endpoint, files=files, timeout=timeout, **req_kwargs)
+        data = f.read()
+        if not data:
+            raise ValueError(f"Image file is empty: {image_path}")
+        payload_value = base64.b64encode(data).decode("utf-8")
 
+    # body: raw base64 for Roboflow (form-urlencoded) OR JSON for local
+    ct = headers.get("Content-Type", "")
+    if ct == "application/x-www-form-urlencoded":
+        req_kwargs[input_field] = payload_value
+    elif ct == "multipart/form-data":
+        filename = os.path.basename(image_path)
+        req_kwargs["files"] = {input_field: (filename, open(image_path, "rb"))}
+    else:
+        # default: JSON body {input_field: "<base64>"}
+        req_kwargs["json"] = {input_field: payload_value}
+
+    resp = requests.post(endpoint, **req_kwargs)
     if resp.status_code != 200:
         raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
 
-    return parse_yolo_predictions(resp.text)
+    # only convert when mode indicates Roboflow
+    yolo_text = None
+    if mode.lower() in ("roboflow", "rf"):
+        content_type = resp.headers.get("Content-Type", "")
+        try:
+            if "application/json" not in content_type:
+                raise ValueError(f"Non-JSON Content-Type: {content_type}")
+            j = resp.json()
+            if isinstance(j, dict) and "error" in j:
+                raise RuntimeError(f"Remote API error: {j.get('error')}")
+            if isinstance(j, dict) and "predictions" in j and "image" in j:
+                yolo_text = _rf_json_to_yolo_lines(resp.text)
+            else:
+                warnings.warn(
+                    "JSON received but missing expected keys ('predictions','image'); "
+                    "falling back to raw text."
+                )
+        except ValueError as e:
+            snippet = resp.text[:200].replace("\n", " ")
+            warnings.warn(
+                f"Failed to parse JSON ({e}). Content-Type='{content_type}'. "
+                f"Body starts with: {snippet!r}"
+            )
+
+    return parse_yolo_predictions(yolo_text if yolo_text is not None else resp.text)
 
 
 # ---------- Evaluation ----------
@@ -228,6 +291,7 @@ def evaluate_dataset(
     img_dir: str,
     gt_dir: str,
     endpoint: str,
+    mode: str,
     iou_thr: float = 0.5,
     api_params: Optional[Dict[str, Any]] = None,
 ) -> Tuple[float, float, float, int]:
@@ -259,7 +323,7 @@ def evaluate_dataset(
         gt_abs = yolo_to_xyxy_abs(gt_norm, w, h)
 
         # Predictions from API
-        preds = inference(endpoint, img_path, api_params=api_params)
+        preds = inference(endpoint, mode, img_path, api_params=api_params)
 
         # Convert preds to abs xyxy
         pred_items: List[Tuple[int, float, float, float, float, float]] = []
