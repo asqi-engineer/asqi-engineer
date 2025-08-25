@@ -9,8 +9,8 @@ class ContainerConfig:
     """Configuration constants for container execution."""
 
     TIMEOUT_SECONDS: int = 300
-    MEMORY_LIMIT: str = "512m"
-    CPU_QUOTA: int = 50000
+    MEMORY_LIMIT: str = "2g"
+    CPU_QUOTA: int = 200000
     CPU_PERIOD: int = 100000
     MANIFEST_PATH: str = "/app/manifest.yaml"
 
