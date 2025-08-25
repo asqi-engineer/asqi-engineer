@@ -265,21 +265,17 @@ def prepare_request_body(
         req_kwargs["json"] = {input_field: payload_value}
 
     else:
-        if mode != "ultralytics":
-            raise ValueError(f"Unsupported Content-Type: {ct}")
+        raise ValueError(f"Unsupported Content-Type: {ct}")
 
     if mode == "ultralytics":
-        with open(image_path, "rb") as image_file:
-            req_kwargs["files"] = {input_field: image_file}
-
-            resp = requests.post(
-                endpoint,
-                headers=req_kwargs.get("headers"),
-                files=req_kwargs.get("files"),
-                data=req_kwargs.get("params"),
-            )
-            if resp.status_code != 200:
-                raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
+        resp = requests.post(
+            endpoint,
+            headers=req_kwargs.get("headers"),
+            files=req_kwargs.get("files"),
+            data=req_kwargs.get("params"),
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
 
     else:
         resp = requests.post(endpoint, **req_kwargs)
