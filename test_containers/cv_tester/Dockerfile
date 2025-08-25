@@ -10,6 +10,8 @@ WORKDIR /app
 COPY manifest.yaml .
 COPY entrypoint.py .
 COPY evaluator.py .
+COPY adapters.py .
+COPY coco_labels.py .
 
 # Minimal runtime deps for opencv-python-headless + HTTPS
 # (libglib and image codecs are typically required by OpenCV;
@@ -26,7 +28,8 @@ RUN pip install --no-cache-dir \
         opencv-python-headless \
         numpy \
         requests \
-        python-dotenv
+        python-dotenv \ 
+        pillow
 
 RUN chmod +x entrypoint.py
 

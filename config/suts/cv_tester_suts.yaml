@@ -23,3 +23,16 @@ systems_under_test:
           api_key: "${ROBOFLOW_API_KEY}" # Injected from .env at runtime          
         headers:
           Content-Type : "application/x-www-form-urlencoded"
+  huggingface_object_detection:
+    type: "object_detection_api"
+    params:
+      endpoint: "${HUGGINGFACE_ENDPOINT}"  # FULL URL to POST the image from .env
+      iou_thr: 0.5
+      mode : "huggingface"                         
+      api_params:                        
+        input_field: "data"               
+        params:                      
+          api_key: "${HUGGINGFACE_API_KEY}" # Injected from .env at runtime          
+        headers:
+          Authorization : "Bearer ${HUGGINGFACE_API_KEY}"
+          Content-Type: "image/jpeg"

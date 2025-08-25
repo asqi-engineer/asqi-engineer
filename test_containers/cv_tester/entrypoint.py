@@ -58,6 +58,47 @@ def main():
             # Overwrite endpoint
             endpoint = rf_endpoint
 
+        elif mode == "huggingface":
+            # Read token + optional endpoint from env
+            hf_token = os.getenv("HUGGINGFACE_API_KEY")
+            hf_endpoint = os.getenv("HUGGINGFACE_ENDPOINT")
+
+            if not hf_token:
+                raise ValueError(
+                    "HF_TOKEN (or HUGGINGFACE_API_KEY) not found in environment"
+                )
+
+            if not hf_endpoint:
+                raise ValueError("HUGGINGFACE_ENDPOINT not found in environment")
+
+            # If endpoint wasn’t provided in sut_params, use env
+            endpoint = hf_endpoint
+
+            # Ensure api_params exists
+            if not isinstance(api_params, dict):
+                api_params = {}
+
+            # Headers
+            headers = dict(api_params.get("headers", {}) or {})
+
+            auth_val = headers.get("Authorization")
+            if auth_val:
+                if "${HUGGINGFACE_API_KEY}" in auth_val:
+                    if not hf_token:
+                        raise ValueError("HUGGINGFACE_API_KEY not set in environment")
+                    headers["Authorization"] = auth_val.replace(
+                        "${HUGGINGFACE_API_KEY}", hf_token
+                    )
+            else:
+                # If no Authorization provided at all, inject it
+                if not hf_token:
+                    raise ValueError(
+                        "HF_TOKEN or HUGGINGFACE_API_KEY not found in environment"
+                    )
+                headers["Authorization"] = f"Bearer {hf_token}"
+
+            api_params["headers"] = headers
+
         else:  # mode == "local"
             endpoint = os.getenv("LOCAL_ENDPOINT")
 
