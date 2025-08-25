@@ -13,7 +13,7 @@ systems_under_test:
           timeout : 30.0                   #  -> Request timeout in seconds
         headers:                           # HTTP headers:
           Content-Type : "application/json" #  -> API expects base64-encoded image in JSON payload
-  roboflow_object_detection:
+  roboflow_object_detection: # reference for Roboflow API usage : https://docs.roboflow.com/deploy/serverless/object-detection
     type: "object_detection_api"
     params:
       endpoint: "${ROBOFLOW_ENDPOINT}"  # FULL URL to POST the image from .env
@@ -25,7 +25,7 @@ systems_under_test:
           api_key: "${ROBOFLOW_API_KEY}" # Injected from .env at runtime          
         headers:
           Content-Type : "application/x-www-form-urlencoded"
-  huggingface_object_detection:
+  huggingface_object_detection: # reference for Huggingface API usage : https://huggingface.co/docs/inference-providers/en/tasks/object-detection
     type: "object_detection_api"
     params:
       endpoint: "${HUGGINGFACE_ENDPOINT}"  # FULL URL to POST the image from .env
@@ -38,7 +38,7 @@ systems_under_test:
         headers:
           Authorization : "Bearer ${HUGGINGFACE_API_KEY}"
           Content-Type: "image/jpeg"
-  ultralytics_object_detection:
+  ultralytics_object_detection: #reference for Ultralytics API usage : https://docs.ultralytics.com/hub/inference-api/#python
     type: "object_detection_api"
     params:
       endpoint: "${ULTRALYTICS_ENDPOINT}"  # FULL URL to POST the image from .env
@@ -50,3 +50,4 @@ systems_under_test:
           model : "https://hub.ultralytics.com/models/7wzkDSKNMcwkPTs8ZVJC" #YOLO11n
         headers:
           x-api-key : "${ULTRALYTICS_API_KEY}"
+          Content-Type: "multipart/form-data"
