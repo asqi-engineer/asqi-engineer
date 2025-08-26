@@ -508,18 +508,21 @@ def prepare_request_body(
     else:
         raise ValueError(f"Unsupported Content-Type: {ct}")
 
+    timeout_val = float(req_kwargs.pop("timeout", 30.0))
+
     if mode == "ultralytics":
         resp = requests.post(
             endpoint,
             headers=req_kwargs.get("headers"),
             files=req_kwargs.get("files"),
             data=req_kwargs.get("params"),
+            timeout=timeout_val,
         )
         if resp.status_code != 200:
             raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
 
     else:
-        resp = requests.post(endpoint, **req_kwargs)
+        resp = requests.post(endpoint, timeout=timeout_val, **req_kwargs)
         if resp.status_code != 200:
             raise RuntimeError(f"API {resp.status_code}: {resp.text[:200]}")
 
