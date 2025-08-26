@@ -10,8 +10,12 @@ from adapters import (
 )
 
 
-# ---------- I/O helpers ----------
 def list_images(img_dir: str) -> List[str]:
+    """
+    List image file paths in a directory.
+    Input: directory path (str).
+    Output: sorted list of image file paths with common extensions.
+    """
     exts = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tif", "*.tiff", "*.webp")
     paths: List[str] = []
     for e in exts:
@@ -20,7 +24,11 @@ def list_images(img_dir: str) -> List[str]:
 
 
 def load_yolo_labels(label_path: str) -> List[Tuple[int, float, float, float, float]]:
-    """Load YOLO-format labels (class xc yc w h), normalized to [0,1]."""
+    """
+    Load YOLO-format ground-truth labels.
+    Input: .txt file path with lines "<class> <xc> <yc> <w> <h>" (normalized).
+    Output: list of (class_id, xc, yc, w, h).
+    """
     if not os.path.exists(label_path):
         return []
     boxes = []
@@ -39,6 +47,11 @@ def yolo_to_xyxy_abs(
     img_w: int,
     img_h: int,
 ) -> List[Tuple[int, float, float, float, float]]:
+    """
+    Convert YOLO normalized boxes to absolute [x1,y1,x2,y2].
+    Input: list of (cls, xc, yc, w, h), image width and height.
+    Output: list of (cls, x1, y1, x2, y2) in absolute pixel coords.
+    """
     converted = []
     for cls, xc, yc, w, h in boxes:
         x1 = (xc - w / 2.0) * img_w
@@ -49,10 +62,14 @@ def yolo_to_xyxy_abs(
     return converted
 
 
-# ---------- Geometry ----------
 def iou_xyxy(
     a: Tuple[float, float, float, float], b: Tuple[float, float, float, float]
 ) -> float:
+    """
+    Compute IoU between two [x1,y1,x2,y2] boxes.
+    Input: box a (x1,y1,x2,y2), box b (x1,y1,x2,y2).
+    Output: IoU value in [0,1].
+    """
     x1 = max(a[0], b[0])
     y1 = max(a[1], b[1])
     x2 = min(a[2], b[2])
@@ -72,14 +89,17 @@ def inference(
     image_path: str,
     api_params: Optional[Dict[str, Any]] = None,
 ) -> List[Tuple[int, float, float, float, float, float]]:
+    """
+    Run inference for one image via API.
+    Input: endpoint URL, mode ("local","huggingface",...), image_path, optional api_params dict.
+    Output: list of predictions (cls, xc, yc, w, h, conf), YOLO normalized format.
+    """
     params_in = dict(api_params or {})
 
-    # Controls (support timeout at top-level OR inside nested params)
     input_field: str = params_in.pop("input_field", "image")
     nested_params = params_in.pop("params", {}) or {}
     timeout: float = float(params_in.pop("timeout", nested_params.pop("timeout", 30.0)))
 
-    # headers + query params
     headers = params_in.pop("headers", {}) or {}
     query_params: Dict[str, Any] = {**params_in, **nested_params}
 
@@ -97,7 +117,6 @@ def inference(
     )
 
 
-# ---------- Evaluation ----------
 def evaluate_dataset(
     img_dir: str,
     gt_dir: str,
@@ -107,9 +126,15 @@ def evaluate_dataset(
     api_params: Optional[Dict[str, Any]] = None,
 ) -> Tuple[float, float, float, int]:
     """
-    Run inference via external API (endpoint) and evaluate vs YOLO ground-truth labels.
-    Returns:
-      map_score (mean IoU of matched predictions), precision, recall, num_images
+    Evaluate predictions from an API against YOLO ground truth labels.
+    Input:
+        img_dir   = directory with input images,
+        gt_dir    = directory with YOLO .txt ground-truth labels,
+        endpoint  = API endpoint URL,
+        mode      = API mode ("local","huggingface",...),
+        iou_thr   = IoU threshold for matching,
+        api_params = optional dict of extra API params.
+    Output: (map_score, precision, recall, num_images).
     """
     img_paths = list_images(img_dir)
     if not img_paths:

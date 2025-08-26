@@ -1,4 +1,83 @@
 #!/usr/bin/env python3
+"""
+===============================================================================
+CV SUT Entrypoint (API-based evaluation with YOLO-compatible format)
+===============================================================================
+
+This script is the **entrypoint** for evaluating computer vision Systems Under Test (SUTs).
+It connects to external inference APIs (Hugging Face, Roboflow, Ultralytics, or local endpoints),
+runs predictions on a dataset of images, and compares them against YOLO-format ground-truth labels.
+
+-------------------------------------------------------------------------------
+How it works
+-------------------------------------------------------------------------------
+1. Loads system parameters (SUT) and test parameters (dataset) from JSON strings:
+     --sut-params '{"type":"object_detection_api", ...}'
+     --test-params '{"input_image_path":"...", "groundtruth_path":"..."}'
+
+2. Reads API credentials and endpoints from environment variables:
+   - Copy `.env.example` → `.env` and fill in API keys and endpoints.
+   - Examples:
+       ROBOFLOW_API_KEY, ROBOFLOW_ENDPOINT
+       HUGGINGFACE_API_KEY, HUGGINGFACE_ENDPOINT
+       ULTRALYTICS_API_KEY, ULTRALYTICS_ENDPOINT
+       LOCAL_ENDPOINT
+
+3. Selects which API mode to use (`mode` field in sut_params):
+   - "roboflow"     → Roboflow API
+   - "huggingface"  → Hugging Face Inference API
+   - "ultralytics"  → Ultralytics hosted API
+   - "local"        → Custom/local endpoint
+
+4. Calls the selected API for each image in the dataset.
+   - The API must accept image uploads via the `input_field` specified in `api_params`
+     (e.g., `file` or `image` in a FastAPI endpoint).
+   - The API response is parsed and converted into YOLO-format predictions.
+
+5. Evaluates predictions vs ground truth:
+   - Computes precision, recall, mean IoU, and number of images.
+
+-------------------------------------------------------------------------------
+Where configs are defined
+-------------------------------------------------------------------------------
+- `suts/` folder:
+    Contains definitions of supported SUTs and parameters.
+- `cv_tester_suts.yaml`:
+    Defines available SUTs you can run tests against.
+- `suites/cv_tester_suite.yaml`:
+    Defines test suites (datasets + configs) that call into the SUTs.
+
+-------------------------------------------------------------------------------
+Prediction result formats
+-------------------------------------------------------------------------------
+Our **native format** is YOLO text lines:
+    <class> <xc> <yc> <w> <h> [<conf>]
+
+However, we also try to adapt common API response formats automatically:
+  ✓ Raw YOLO text
+  ✓ COCO-like JSON (list of {bbox, category_id, score})
+  ✓ LabelMe JSON (imageWidth, imageHeight, shapes with points)
+  ✓ Pascal VOC XML (<size>, <object><bndbox>)
+
+Special cases (handled internally):
+  - Roboflow API JSON
+  - Hugging Face inference API JSON
+  - Ultralytics predict API JSON
+
+If your API outputs another format, it may not be supported yet.
+Check `adapters.py` for the parsing logic, and extend it if needed.
+
+-------------------------------------------------------------------------------
+Summary
+-------------------------------------------------------------------------------
+- Supports evaluation of SUTs via Hugging Face, Roboflow, Ultralytics, or custom/local APIs.
+- Ground truth labels must be in YOLO format.
+- Predictions are auto-parsed into YOLO format wherever possible.
+- Outputs metrics: mAP (mean IoU of matched boxes), precision, recall, and dataset size.
+
+===============================================================================
+"""
+
 import argparse
 import json
 import os
@@ -59,7 +138,6 @@ def main():
             endpoint = rf_endpoint
 
         elif mode == "huggingface":
-            # Read token + optional endpoint from env
             hf_token = os.getenv("HUGGINGFACE_API_KEY")
             hf_endpoint = os.getenv("HUGGINGFACE_ENDPOINT")
 
@@ -71,16 +149,11 @@ def main():
             if not hf_endpoint:
                 raise ValueError("HUGGINGFACE_ENDPOINT not found in environment")
 
-            # If endpoint wasn’t provided in sut_params, use env
             endpoint = hf_endpoint
-
-            # Ensure api_params exists
             if not isinstance(api_params, dict):
                 api_params = {}
 
-            # Headers
             headers = dict(api_params.get("headers", {}) or {})
-
             auth_val = headers.get("Authorization")
             if auth_val:
                 if "${HUGGINGFACE_API_KEY}" in auth_val:
@@ -90,7 +163,6 @@ def main():
                         "${HUGGINGFACE_API_KEY}", hf_token
                     )
             else:
-                # If no Authorization provided at all, inject it
                 if not hf_token:
                     raise ValueError(
                         "HF_TOKEN or HUGGINGFACE_API_KEY not found in environment"
@@ -109,12 +181,8 @@ def main():
                 raise ValueError("ULTRALYTICS_ENDPOINT not found in environment")
 
             endpoint = ul_endpoint
-
-            # Ensure api_params exists
             if not isinstance(api_params, dict):
                 api_params = {}
-
-            # Headers
             headers = dict(api_params.get("headers", {}) or {})
 
             x_api_key_val = headers.get("x-api-key")

@@ -13,9 +13,6 @@ COPY evaluator.py .
 COPY adapters.py .
 COPY coco_labels.py .
 
-# Minimal runtime deps for opencv-python-headless + HTTPS
-# (libglib and image codecs are typically required by OpenCV;
-# ca-certificates for requests over HTTPS)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libglib2.0-0 \
         libjpeg62-turbo \

@@ -1,4 +1,7 @@
-# coco_labels.py
+"""
+COCO dataset class labels (80 categories).
+These are the standard COCO object detection labels used in YOLO and many other models.
+"""
 
 COCO80 = [
     "person",
@@ -83,4 +86,9 @@ COCO80 = [
     "toothbrush",
 ]
 
+"""
+Dictionary mapping COCO label names to their numeric IDs (0–79).
+Example:
+    COCO_LABEL_TO_ID["dog"] == 16
+"""
 COCO_LABEL_TO_ID = {name: i for i, name in enumerate(COCO80)}
