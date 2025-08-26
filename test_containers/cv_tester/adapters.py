@@ -3,11 +3,253 @@ import base64
 import json
 import os
 import warnings
+import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from coco_labels import COCO_LABEL_TO_ID
 from PIL import Image
+
+
+def _looks_like_yolo_text(s: str) -> bool:
+    for line in s.splitlines():
+        t = line.strip()
+        if not t or t.startswith("#"):
+            continue
+        parts = t.split()
+        if len(parts) in (5, 6):
+            try:
+                int(float(parts[0]))
+                for x in parts[1:]:
+                    float(x)
+                return True
+            except Exception:
+                pass
+    return False
+
+
+def _extract_dims_anywhere(j: dict) -> tuple[float, float] | None:
+    """
+    Find image dimensions inside a JSON payload.
+    Input: dict (possibly nested) with fields like imageWidth/imageHeight or width/height.
+    Output: (W, H) as floats if found, else None.
+    """
+
+    # LabelMe style
+    if j.get("imageWidth") and j.get("imageHeight"):
+        return float(j["imageWidth"]), float(j["imageHeight"])
+    # top-level width/height
+    if j.get("width") and j.get("height"):
+        return float(j["width"]), float(j["height"])
+    # nested dicts
+    for v in j.values():
+        if isinstance(v, dict):
+            dims = _extract_dims_anywhere(v)
+            if dims:
+                return dims
+    return None
+
+
+def _bbox_is_xyxy(b: list[float]) -> bool:
+    """
+    Check if a bbox is in [x1, y1, x2, y2] format.
+    Input: list of 4 floats [x1, y1, x2, y2].
+    Output: True if x2 >= x1 and y2 >= y1, else False.
+    """
+
+    if len(b) != 4:
+        return False
+    x1, y1, x2, y2 = b
+    return x2 >= x1 and y2 >= y1
+
+
+def _norm_from_xyxy(
+    b: list[float], W: float, H: float
+) -> tuple[float, float, float, float]:
+    """
+    Normalize an [x1, y1, x2, y2] bbox to YOLO format.
+    Input: bbox [x1, y1, x2, y2], image width W, height H.
+    Output: (xc, yc, w, h) normalized to [0,1].
+    """
+
+    x1, y1, x2, y2 = b
+    bw = max(0.0, x2 - x1)
+    bh = max(0.0, y2 - y1)
+    cx = x1 + bw / 2.0
+    cy = y1 + bh / 2.0
+    return cx / W, cy / H, bw / W, bh / H
+
+
+def _parse_coco_like_list(
+    arr: list, top_dims: tuple[float, float] | None
+) -> str | None:
+    """
+    Parse COCO-like detection list into YOLO lines.
+    Input: list of dicts with "bbox":[x,y,w,h] or [x1,y1,x2,y2], plus "category_id"/"class"/"label", optional "score".
+           top_dims = (W,H) if not in each dict.
+    Output: YOLO-format string or None if no detections.
+    """
+    lines = []
+    for det in arr:
+        if not isinstance(det, dict) or "bbox" not in det:
+            continue
+        bbox = det["bbox"]
+        if not (isinstance(bbox, (list, tuple)) and len(bbox) == 4):
+            continue
+        # dimensions
+        W = det.get("image_width") or (top_dims[0] if top_dims else None)
+        H = det.get("image_height") or (top_dims[1] if top_dims else None)
+        if not W or not H or W <= 0 or H <= 0:
+            continue
+        b = list(map(float, bbox))
+        if _bbox_is_xyxy(b):
+            xc, yc, w, h = _norm_from_xyxy(b, W, H)
+        else:
+            x, y, w_, h_ = b
+            xc, yc, w, h = _norm_from_xyxy([x, y, x + w_, y + h_], W, H)
+        cls_id = det.get("category_id", det.get("class", 0))
+        try:
+            cls_id = int(cls_id)
+        except Exception:
+            cls_id = 0
+        score = float(det.get("score", 1.0))
+        lines.append(
+            f"{cls_id} {xc:.6f} {yc:.6f} {w:.6f} {h:.6f} {max(0, min(1, score)):.6f}"
+        )
+    return "\n".join(lines) if lines else None
+
+
+def _parse_labelme_like(j: dict) -> str | None:
+    """
+    Parse LabelMe JSON into YOLO lines.
+    Input: dict with "imageWidth","imageHeight","shapes":[{"points":[[x,y],...],"label":...},...].
+    Output: YOLO-format string or None if invalid.
+    """
+    if not (
+        j.get("imageWidth")
+        and j.get("imageHeight")
+        and isinstance(j.get("shapes"), list)
+    ):
+        return None
+    W, H = float(j["imageWidth"]), float(j["imageHeight"])
+    lines = []
+    for s in j["shapes"]:
+        pts = s.get("points")
+        if not (isinstance(pts, list) and len(pts) >= 2):
+            continue
+        xs = [float(p[0]) for p in pts]
+        ys = [float(p[1]) for p in pts]
+        x1, y1, x2, y2 = min(xs), min(ys), max(xs), max(ys)
+        xc, yc, w, h = _norm_from_xyxy([x1, y1, x2, y2], W, H)
+        label = s.get("label", 0)
+        try:
+            cid = int(label)
+        except Exception:
+            cid = 0
+        lines.append(f"{cid} {xc:.6f} {yc:.6f} {w:.6f} {h:.6f} 1.000000")
+    return "\n".join(lines) if lines else None
+
+
+def _parse_voc_xml_text(xml_text: str) -> str | None:
+    """
+    Parse Pascal VOC XML into YOLO lines.
+    Input: XML string with <size><width>,<height> and <object><bndbox>.
+    Output: YOLO-format string or None if invalid.
+    """
+    try:
+        root = ET.fromstring(xml_text)
+    except Exception:
+        return None
+    W = H = None
+    sz = root.find(".//size")
+    if sz is not None:
+        try:
+            W = float(sz.findtext("width") or 0)
+            H = float(sz.findtext("height") or 0)
+        except Exception:
+            pass
+    if not W or not H or W <= 0 or H <= 0:
+        return None
+    lines = []
+    for obj in root.findall(".//object"):
+        b = obj.find("bndbox")
+        if b is None:
+            continue
+        try:
+            x1 = float(b.findtext("xmin") or 0)
+            y1 = float(b.findtext("ymin") or 0)
+            x2 = float(b.findtext("xmax") or 0)
+            y2 = float(b.findtext("ymax") or 0)
+        except Exception:
+            continue
+        xc, yc, w, h = _norm_from_xyxy([x1, y1, x2, y2], W, H)
+        name = obj.findtext("name") or "0"
+        try:
+            cid = int(name)
+        except Exception:
+            cid = 0
+        lines.append(f"{cid} {xc:.6f} {yc:.6f} {w:.6f} {h:.6f} 1.000000")
+    return "\n".join(lines) if lines else None
+
+
+def auto_to_yolo_lines_from_text(text: str) -> str:
+    """
+    Auto-parse response text into YOLO lines.
+    Supported:
+      - Raw YOLO text
+      - COCO-like JSON (list of dicts with 'bbox')
+      - LabelMe JSON (imageWidth,imageHeight,shapes)
+      - Pascal VOC XML
+    Else: raise ValueError.
+    """
+    if not text or not text.strip():
+        raise ValueError("Empty response body")
+
+    # Raw YOLO
+    if _looks_like_yolo_text(text):
+        return text
+
+    # Try JSON
+    try:
+        j = json.loads(text)
+    except Exception:
+        j = None
+
+    if isinstance(j, dict):
+        # LabelMe
+        out = _parse_labelme_like(j)
+        if out:
+            return out
+
+        # COCO-like possibly nested
+        dims = _extract_dims_anywhere(j)
+        for k in ("results", "predictions", "detections", "annotations"):
+            arr = j.get(k)
+            if isinstance(arr, list) and arr:
+                out = _parse_coco_like_list(arr, dims)
+                if out:
+                    return out
+
+        # Single dict with bbox
+        if "bbox" in j:
+            out = _parse_coco_like_list([j], dims)
+            if out:
+                return out
+
+    if isinstance(j, list):
+        out = _parse_coco_like_list(j, None)
+        if out:
+            return out
+
+    # Try Pascal VOC XML
+    out = _parse_voc_xml_text(text)
+    if out:
+        return out
+
+    # Otherwise fail
+    raise ValueError(
+        "Unrecognized response format (not YOLO, COCO-like JSON, LabelMe JSON, or VOC XML)"
+    )
 
 
 # ---- moved helpers exactly as-is in logic ----
@@ -222,7 +464,6 @@ def _ultra_json_to_yolo_lines(text: str) -> str:
     return "\n".join(lines)
 
 
-# ---- new adapter functions (logic unchanged) ----
 def prepare_request_body(
     headers: Dict[str, Any],
     input_field: str,
@@ -320,6 +561,7 @@ def prepare_request_body(
         yolo_text = _hf_json_to_yolo_lines(resp.text, image_path)
 
     elif mode.lower() in ("ultralytics", "ul"):
+        # Ultralytics inference API → JSON with "images" key
         try:
             j = resp.json()
         except Exception:
@@ -331,9 +573,7 @@ def prepare_request_body(
         yolo_text = _ultra_json_to_yolo_lines(resp.text)
 
     else:
-        # Fallback: Assume the response body is already raw YOLO text
-        # (e.g., custom API that directly outputs "<class> <xc> <yc> <w> <h> [<conf>]" lines)
-
-        yolo_text = resp.text
+        # Default: try to auto-parse response text
+        yolo_text = auto_to_yolo_lines_from_text(resp.text)
 
     return parse_yolo_predictions(yolo_text)
