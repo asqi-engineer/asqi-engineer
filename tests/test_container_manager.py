@@ -1,14 +1,11 @@
 import io
 import tarfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import yaml
-from unittest.mock import Mock, patch
-
 from docker import errors as docker_errors
-from asqi.container_manager import _decommission_container, run_container_with_args
 
 from asqi.container_manager import (
     ManifestExtractionError,
@@ -19,6 +16,7 @@ from asqi.container_manager import (
     extract_manifest_from_image,
     run_container_with_args,
 )
+from asqi.container_manager import _decommission_container
 from asqi.schemas import Manifest
 
 
