@@ -51,14 +51,29 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
     """
     Check if Docker images are available locally.
 
-    - First try exact image:tag.
-    - If not found, check if other tags exist for that repo and log them as recommendations.
-    - Keep availability dict with the original requested image names as keys.
+    - Tries to fetch each image by exact name:tag.
+    - Records availability in a dict.
+    - If any images are missing, lists available tags for the repo
+    and raises MissingImageException with recommendations.
     """
-    availability: Dict[str, bool] = {}
-    missing = {}
+    availability = {}
+    missing = []
 
     with docker_client() as client:
+        for image in images:
+            try:
+                client.images.get(image)
+                availability[image] = True
+            except docker_errors.ImageNotFound:
+                availability[image] = False
+                missing.append(image)
+            except docker_errors.APIError as e:
+                logger.warning(f"Docker API error checking {image}: {e}")
+                availability[image] = False
+            except ConnectionError as e:
+                raise ConnectionError(f"Failed to connect to Docker daemon: {e}")
+
+    if missing:
         try:
             local_images = client.images.list()
             local_tags = [tag for img in local_images for tag in img.tags]
@@ -66,33 +81,14 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
             logger.warning(f"Failed to list local Docker images: {e}")
             local_tags = []
 
-        for image in images:
-            try:
-                client.images.get(image)
-                availability[image] = True
-            except docker_errors.ImageNotFound:
-                repo = image.rsplit(":", 1)[0] if ":" in image else image
-                repo_tags = [tag for tag in local_tags if tag.startswith(repo + ":")]
+        msgs = []
+        for image in missing:
+            repo = image.rsplit(":", 1)[0] if ":" in image else image
+            repo_tags = [tag for tag in local_tags if tag.startswith(repo + ":")]
+            msg = f"- {repo}: requested [{image}], available {repo_tags or '[None]'}"
+            msgs.append(msg)
 
-                if repo_tags:
-                    msg = f"- {repo}: requested [{image}], available {repo_tags}"
-                else:
-                    msg = f"- {repo}: requested [{image}], available [None]"
-
-                logger.error(msg)
-                availability[image] = False
-                missing[image] = msg
-            except docker_errors.APIError as e:
-                logger.warning(f"Docker API error checking {image}: {e}")
-                availability[image] = False
-            except ConnectionError as e:
-                raise ConnectionError(
-                    f"Failed to connect to Docker daemon while checking {image}: {e}"
-                )
-
-    if missing:
-        error_msg = "Missing Docker images detected:\n" + "\n".join(missing.values())
-        raise MissingImageException(error_msg)
+        raise MissingImageException("Missing Docker images:\n" + "\n".join(msgs))
 
     return availability
 
