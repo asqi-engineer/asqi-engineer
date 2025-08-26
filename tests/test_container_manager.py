@@ -9,6 +9,7 @@ from docker import errors as docker_errors
 
 from asqi.container_manager import (
     ManifestExtractionError,
+    MissingImageException,
     MountExtractionError,
     _resolve_abs,
     check_images_availability,
@@ -148,11 +149,21 @@ class TestCheckImagesAvailability:
 
         mock_client.images.get.side_effect = mock_get_image
 
-        images = ["available:latest", "missing:latest"]
-        result = check_images_availability(images)
+        # Ensure no local tags exist (so repo_tags = [])
+        mock_client.images.list.return_value = []
 
-        expected = {"available:latest": True, "missing:latest": False}
-        assert result == expected
+        images = ["available:latest", "missing:latest"]
+
+        # Since the function now raises MissingImageException
+        # when at least one image is missing, we expect that here.
+        with pytest.raises(MissingImageException) as excinfo:
+            check_images_availability(images)
+
+        # Verify that the exception message correctly reports the missing image.
+        # Example message:
+        # "Missing Docker images detected:
+        #  - missing: requested [missing:latest], available [None]"
+        assert "missing: requested [missing:latest]" in str(excinfo.value)
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_api_error(self, mock_docker_client):
