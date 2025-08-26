@@ -16,6 +16,7 @@ from asqi.config import (
     save_results_to_file,
 )
 from asqi.container_manager import (
+    MissingImageException,
     check_images_availability,
     extract_manifest_from_image,
     run_container_with_args,
@@ -48,12 +49,6 @@ DBOS(config=config)
 # Initialize Rich console and execution queue
 console = Console()
 test_queue = Queue("test_execution", concurrency=ExecutorConfig.CONCURRENT_TESTS)
-
-
-class MissingImageException(Exception):
-    """Exception raised when required Docker images are missing."""
-
-    pass
 
 
 class TestExecutionResult:
