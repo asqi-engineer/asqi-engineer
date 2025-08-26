@@ -749,25 +749,36 @@ def start_test_execution(
 
         # if test_names provided, filter suite_config
         if test_names:
-            selected = set(test_names)
+            # Parse test names: handle both repeated flags and comma-separated values
+            parsed_test_names = []
+            for item in test_names:
+                parsed_test_names.extend(
+                    [name.strip() for name in item.split(",") if name.strip()]
+                )
+
             original_tests = suite_config.get("test_suite", [])
-            original_count = len(suite_config.get("test_suite", []))
-            suite_config["test_suite"] = [
-                t
-                for t in suite_config.get("test_suite", [])
-                if t.get("name") in selected
-            ]
-            console.print(
-                f"[cyan]ℹ️  Selected {len(suite_config['test_suite'])} / {original_count} tests "
-                f"based on test_names filter[/cyan]"
-            )
-            if not suite_config["test_suite"]:
-                available_tests = [t.get("name") for t in original_tests]
+            available_tests = [t.get("name") for t in original_tests]
+            selected = set(parsed_test_names)
+
+            # 🔑 check if any requested tests are missing
+            missing = selected - set(available_tests)
+            if missing:
                 raise ValueError(
-                    "No matching tests found for given test_names\n"
-                    f"  • Requested: {', '.join(test_names)}\n"
+                    "Some requested tests do not exist in the suite\n"
+                    f"  • Requested: {', '.join(parsed_test_names)}\n"
+                    f"  • Missing: {', '.join(missing)}\n"
                     f"  • Available: {', '.join(available_tests) if available_tests else 'None'}"
                 )
+
+            # ✅ safe to filter since all exist
+            suite_config["test_suite"] = [
+                t for t in original_tests if t.get("name") in selected
+            ]
+
+            console.print(
+                f"[cyan]ℹ️  Selected {len(suite_config['test_suite'])} / {len(original_tests)} tests "
+                f"based on test_names filter[/cyan]"
+            )
 
         # Start appropriate workflow based on execution mode
         if execution_mode == "tests_only":
