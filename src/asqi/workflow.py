@@ -716,6 +716,7 @@ def start_test_execution(
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
     execution_mode: str = "end_to_end",
+    test_names: Optional[List[str]] = None,
 ) -> str:
     """
     Orchestrate test suite execution workflow.
@@ -729,6 +730,7 @@ def start_test_execution(
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
         execution_mode: "tests_only" or "end_to_end"
+        test_names: Optional list of test names to filter from suite
 
     Returns:
         Workflow ID for tracking execution
@@ -744,6 +746,28 @@ def start_test_execution(
         # Load configurations
         suite_config = load_config_file(suite_path)
         suts_config = load_config_file(suts_path)
+
+        # if test_names provided, filter suite_config
+        if test_names:
+            selected = set(test_names)
+            original_tests = suite_config.get("test_suite", [])
+            original_count = len(suite_config.get("test_suite", []))
+            suite_config["test_suite"] = [
+                t
+                for t in suite_config.get("test_suite", [])
+                if t.get("name") in selected
+            ]
+            console.print(
+                f"[cyan]ℹ️  Selected {len(suite_config['test_suite'])} / {original_count} tests "
+                f"based on test_names filter[/cyan]"
+            )
+            if not suite_config["test_suite"]:
+                available_tests = [t.get("name") for t in original_tests]
+                raise ValueError(
+                    "No matching tests found for given test_names\n"
+                    f"  • Requested: {', '.join(test_names)}\n"
+                    f"  • Available: {', '.join(available_tests) if available_tests else 'None'}"
+                )
 
         # Start appropriate workflow based on execution mode
         if execution_mode == "tests_only":

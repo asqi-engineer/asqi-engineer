@@ -168,6 +168,11 @@ def execute(
     output_file: Optional[str] = typer.Option(
         None, help="Path to save execution results JSON file."
     ),
+    test_names: Optional[List[str]] = typer.Option(
+        None,
+        "--test-names",
+        help="Comma-separated list of test names to run (matches suite test names).",
+    ),
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
     console.print("[blue]--- 🚀 Executing End-to-End Workflow ---[/blue]")
@@ -199,6 +204,7 @@ def execute(
             output_path=output_file,
             score_card_configs=score_card_configs,
             execution_mode="end_to_end",
+            test_names=test_names,
         )
 
         console.print(
@@ -223,6 +229,11 @@ def execute_tests(
     ),
     score_card_file: Optional[str] = typer.Option(
         None, help="Path to grading score card YAML file (optional)."
+    ),
+    test_names: Optional[List[str]] = typer.Option(
+        None,
+        "--test-names",
+        help="Comma-separated list of test names to run (matches suite test names).",
     ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
@@ -256,6 +267,7 @@ def execute_tests(
             output_path=output_file,
             score_card_configs=score_card_configs,
             execution_mode="tests_only",
+            test_names=test_names,
         )
 
         console.print(
