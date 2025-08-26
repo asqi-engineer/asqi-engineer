@@ -111,6 +111,7 @@ class TestMainCLI:
             output_path="output.json",
             score_card_configs=None,
             execution_mode="tests_only",
+            test_names=None,
         )
         assert "✨ Test execution completed! Workflow ID: workflow-123" in result.stdout
 
@@ -145,6 +146,7 @@ class TestMainCLI:
             output_path="output.json",
             score_card_configs=[{"score_card_name": "Test scorecard"}],
             execution_mode="end_to_end",
+            test_names=None,
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
         assert "✨ Execution completed! Workflow ID: workflow-456" in result.stdout
@@ -269,6 +271,7 @@ class TestMainCLI:
             output_path=None,
             score_card_configs=[{"score_card_name": "Test scorecard"}],
             execution_mode="tests_only",
+            test_names=None,
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
 
@@ -296,3 +299,36 @@ class TestMainCLI:
             "❌ score card configuration error: Invalid score card format"
             in result.stdout
         )
+
+    @patch("asqi.workflow.start_test_execution")
+    @patch("asqi.workflow.DBOS")
+    def test_execute_tests_with_test_names_success(self, mock_dbos, mock_start):
+        """Test execute-tests succeeds when valid test-names are passed."""
+        mock_start.return_value = "workflow-888"
+
+        result = self.runner.invoke(
+            app,
+            [
+                "execute-tests",
+                "--suite-file",
+                "suite.yaml",
+                "--suts-file",
+                "suts.yaml",
+                "--test-names",
+                "t1",
+                "--output-file",
+                "out.json",
+            ],
+        )
+
+        assert result.exit_code == 0
+        mock_dbos.launch.assert_called_once()
+        mock_start.assert_called_once_with(
+            suite_path="suite.yaml",
+            suts_path="suts.yaml",
+            output_path="out.json",
+            score_card_configs=None,
+            execution_mode="tests_only",
+            test_names=["t1"],
+        )
+        assert "✨ Test execution completed! Workflow ID: workflow-888" in result.stdout
