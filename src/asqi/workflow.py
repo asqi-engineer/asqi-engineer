@@ -50,6 +50,12 @@ console = Console()
 test_queue = Queue("test_execution", concurrency=ExecutorConfig.CONCURRENT_TESTS)
 
 
+class MissingImageException(Exception):
+    """Exception raised when required Docker images are missing."""
+
+    pass
+
+
 class TestExecutionResult:
     """Represents the result of a single test execution."""
 
@@ -102,7 +108,9 @@ def check_image_availability(images: List[str]) -> Dict[str, bool]:
     # Log warnings for missing images
     missing_images = [img for img, available in availability.items() if not available]
     if missing_images:
-        DBOS.logger.warning(f"Missing images: {missing_images}")
+        error_msg = f"Missing required images: {missing_images}"
+        DBOS.logger.error(error_msg)
+        raise MissingImageException(error_msg)
 
     return availability
 
