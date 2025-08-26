@@ -26,7 +26,8 @@ RUN pip install --no-cache-dir \
         numpy \
         requests \
         python-dotenv \ 
-        pillow
+        pillow \
+        defusedxml
 
 RUN chmod +x entrypoint.py
 

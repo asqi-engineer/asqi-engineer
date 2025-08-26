@@ -3,11 +3,11 @@ import base64
 import json
 import os
 import warnings
-import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from coco_labels import COCO_LABEL_TO_ID
+from defusedxml import ElementTree as ET
 from PIL import Image
 
 
@@ -23,8 +23,8 @@ def _looks_like_yolo_text(s: str) -> bool:
                 for x in parts[1:]:
                     float(x)
                 return True
-            except Exception:
-                pass
+            except (ValueError, TypeError) as e:
+                raise RuntimeError(f"Invalid YOLO line format: {parts}") from e
     return False
 
 
@@ -158,7 +158,7 @@ def _parse_voc_xml_text(xml_text: str) -> str | None:
     """
     try:
         root = ET.fromstring(xml_text)
-    except Exception:
+    except ET.ParseError:
         return None
     W = H = None
     sz = root.find(".//size")
@@ -166,8 +166,8 @@ def _parse_voc_xml_text(xml_text: str) -> str | None:
         try:
             W = float(sz.findtext("width") or 0)
             H = float(sz.findtext("height") or 0)
-        except Exception:
-            pass
+        except (ValueError, TypeError, AttributeError) as e:
+            raise RuntimeError("Invalid width/height values in VOC XML") from e
     if not W or not H or W <= 0 or H <= 0:
         return None
     lines = []
@@ -180,8 +180,8 @@ def _parse_voc_xml_text(xml_text: str) -> str | None:
             y1 = float(b.findtext("ymin") or 0)
             x2 = float(b.findtext("xmax") or 0)
             y2 = float(b.findtext("ymax") or 0)
-        except Exception:
-            continue
+        except (ValueError, TypeError, AttributeError) as e:
+            raise RuntimeError("Invalid bounding box values in VOC XML") from e
         xc, yc, w, h = _norm_from_xyxy([x1, y1, x2, y2], W, H)
         name = obj.findtext("name") or "0"
         try:
