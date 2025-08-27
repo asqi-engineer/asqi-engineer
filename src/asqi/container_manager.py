@@ -1,6 +1,7 @@
 import json
 import logging
 import tempfile
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -18,6 +19,11 @@ logger = logging.getLogger(__name__)
 # === Constants ===
 INPUT_MOUNT_PATH = "/input"
 OUTPUT_MOUNT_PATH = "/output"
+
+# === Active container tracking and shutdown handling ===
+_active_lock = threading.Lock()
+_active_containers: set[str] = set()
+_shutdown_in_progress = False
 
 
 class ManifestExtractionError(Exception):
@@ -390,6 +396,12 @@ def run_container_with_args(
     }
     container_logger = create_container_logger(display_name=image)
 
+    with _active_lock:
+        if _shutdown_in_progress:
+            logger.warning(
+                f"Attempting to run container '{image}' during shutdown, skipping..."
+            )
+            return result
     with docker_client() as client:
         container = None
         try:
@@ -413,8 +425,10 @@ def run_container_with_args(
                 mounts=mounts,
             )
 
-            result["container_id"] = container.id or ""
+            with _active_lock:
+                _active_containers.add(container.id)
 
+            result["container_id"] = container.id or ""
             output_lines = []
             if stream_logs:
                 try:
@@ -469,11 +483,46 @@ def run_container_with_args(
                 f"Failed to connect to Docker daemon while running image '{image}': {e}"
             )
         finally:
-            # Clean up container
-            if container:
-                try:
-                    container.remove(force=True)
-                except (docker_errors.APIError, docker_errors.NotFound) as e:
-                    logger.warning(f"Failed to remove container during cleanup: {e}")
-
+            _decommission_container(container)
     return result
+
+
+def shutdown_containers() -> None:
+    """Force-remove any containers that are still tracked as active.
+
+    This is intended to run during atexit or signal handling to ensure
+    worker containers do not linger if the main process is interrupted.
+    """
+    # Make a snapshot under lock to avoid long-held lock during Docker calls
+    with _active_lock:
+        global _shutdown_in_progress
+        _shutdown_in_progress = True
+        active_ids = list(_active_containers)
+    if not active_ids:
+        return
+
+    with docker_client() as client:
+        for cid in active_ids:
+            try:
+                c = client.containers.get(cid)
+                _decommission_container(c)
+            except (docker_errors.NotFound, docker_errors.APIError):
+                pass
+
+
+def _decommission_container(container):
+    if not container:
+        return
+
+    try:
+        # try to stop gracefully first
+        container.stop(timeout=1)
+    except (docker_errors.APIError, docker_errors.NotFound) as e:
+        logger.debug(f"Failed to gracefully stop container: {e}")
+    try:
+        container.remove(force=True)
+    except (docker_errors.APIError, docker_errors.NotFound) as e:
+        logger.warning(f"Failed to remove container during cleanup: {e}")
+    # and remove from active containers
+    with _active_lock:
+        _active_containers.discard(container.id)
