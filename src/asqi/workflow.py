@@ -2,6 +2,7 @@ import json
 import os
 import time
 from datetime import datetime
+from difflib import get_close_matches
 from typing import Any, Dict, List, Optional
 
 from dbos import DBOS, DBOSConfig, Queue
@@ -723,6 +724,7 @@ def start_test_execution(
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
     execution_mode: str = "end_to_end",
+    test_names: Optional[List[str]] = None,
 ) -> str:
     """
     Orchestrate test suite execution workflow.
@@ -736,6 +738,7 @@ def start_test_execution(
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
         execution_mode: "tests_only" or "end_to_end"
+        test_names: Optional list of test names to filter from suite
 
     Returns:
         Workflow ID for tracking execution
@@ -751,6 +754,46 @@ def start_test_execution(
         # Load configurations
         suite_config = load_config_file(suite_path)
         suts_config = load_config_file(suts_path)
+
+        # if test_names provided, filter suite_config
+        if test_names:
+            # Parse test names: handle both repeated flags and comma-separated values
+            parsed_test_names = []
+            for item in test_names:
+                parsed_test_names.extend(
+                    [name.strip() for name in item.split(",") if name.strip()]
+                )
+
+            original_tests = suite_config.get("test_suite", [])
+            available_tests = [t.get("name") for t in original_tests]
+
+            # map lowercase → original name
+            available_map = {name.lower(): name for name in available_tests}
+            # set of normalized requested names
+            requested_set = {name.lower() for name in parsed_test_names}
+
+            missing = requested_set - set(available_map.keys())
+            if missing:
+                msg_lines = []
+                for m in missing:
+                    # use original user input instead of lowercase
+                    user_input = next(
+                        (n for n in parsed_test_names if n.lower() == m), m
+                    )
+                    suggestions = get_close_matches(m, available_map.keys(), n=1)
+                    if suggestions:
+                        suggestion = available_map[suggestions[0]]
+                        msg_lines.append(
+                            f"❌ Test not found: {user_input}\n   Did you mean: {suggestion}"
+                        )
+                    else:
+                        msg_lines.append(f"❌ Test not found: {user_input}")
+                raise ValueError("\n".join(msg_lines))
+
+            # filter using lowercase
+            suite_config["test_suite"] = [
+                t for t in original_tests if t.get("name").lower() in requested_set
+            ]
 
         # Start appropriate workflow based on execution mode
         if execution_mode == "tests_only":

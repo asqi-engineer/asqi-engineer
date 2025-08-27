@@ -260,6 +260,11 @@ def execute_tests(
     output_file: Optional[str] = typer.Option(
         None, help="Path to save execution results JSON file."
     ),
+    test_names: Optional[List[str]] = typer.Option(
+        None,
+        "--test-names",
+        help="Comma-separated list of test names to run (matches suite test names).",
+    ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
@@ -279,6 +284,7 @@ def execute_tests(
             output_path=output_file,
             score_card_configs=None,
             execution_mode="tests_only",
+            test_names=test_names,
         )
 
         console.print(
