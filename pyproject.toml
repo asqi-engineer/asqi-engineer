@@ -25,7 +25,11 @@ dev = [
     "pytest-cov>=6.2.1",
     "ruff>=0.12.8",
 ]
-containers = ["deepteam>=0.2.3"]
+containers = [
+    "deepteam==0.2.4",
+    "litellm>=1.76.0",
+    "openevals>=0.1.0",
+]
 
 [tool.bandit]
 exclude_dirs = [".venv", "tests", "test_containers/mock_tester"]
