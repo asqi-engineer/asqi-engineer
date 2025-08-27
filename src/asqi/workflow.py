@@ -14,6 +14,7 @@ from asqi.config import (
     ContainerConfig,
     ExecutorConfig,
     load_config_file,
+    merge_defaults_into_suite,
     save_results_to_file,
 )
 from asqi.container_manager import (
@@ -752,7 +753,7 @@ def start_test_execution(
 
     try:
         # Load configurations
-        suite_config = load_config_file(suite_path)
+        suite_config = merge_defaults_into_suite(load_config_file(suite_path))
         suts_config = load_config_file(suts_path)
 
         # if test_names provided, filter suite_config
