@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass
 from typing import Any, Dict
 
@@ -36,6 +37,54 @@ def load_config_file(file_path: str) -> Dict[str, Any]:
     """
     with open(file_path, "r") as f:
         return yaml.safe_load(f)
+
+
+def merge_defaults_into_suite(config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Merge `test_suite_default` values into each entry of `test_suite`.
+
+    Args:
+        config: The parsed config dictionary
+
+    Returns:
+        Config with defaults merged into `test_suite`
+    """
+    if "test_suite_default" not in config:
+        return config  # nothing to do
+
+    default = config["test_suite_default"]
+
+    def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+        merged = copy.deepcopy(base)
+        for k, v in override.items():
+            if k in merged and isinstance(merged[k], dict) and isinstance(v, dict):
+                merged[k] = deep_merge(merged[k], v)
+            else:
+                merged[k] = v
+        return merged
+
+    # Apply defaults to each test
+    new_suite = []
+    for test in config["test_suite"]:
+        merged_test = deep_merge(default, test)
+        new_suite.append(merged_test)
+
+    config["test_suite"] = new_suite
+    return config
+
+
+def load_suite_config_file(file_path: str) -> Dict[str, Any]:
+    """
+    Load suite config file with support for `test_suite_default`.
+
+    Args:
+        file_path: Path to YAML file
+
+    Returns:
+        Final merged config dictionary
+    """
+    config = load_config_file(file_path)
+    return merge_defaults_into_suite(config)
 
 
 def save_results_to_file(results: Dict[str, Any], output_path: str) -> None:
