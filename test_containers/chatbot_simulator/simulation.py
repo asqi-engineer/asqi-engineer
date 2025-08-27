@@ -58,7 +58,8 @@ class PersonaBasedConversationTester:
             self.history[thread_id].append(inputs)
 
             content = inputs["content"]
-            assert isinstance(content, str), "Message content must be a string"
+            if not isinstance(content, str):
+                raise TypeError("Message content must be a string")
             response_content = await self.model_callback(content)
 
             # Create response message
