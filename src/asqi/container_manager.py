@@ -428,7 +428,7 @@ def run_container_with_args(
             )
 
             with _active_lock:
-                _active_containers.add(container.id)
+                _active_containers.add(container.id)  # type: ignore
 
             result["container_id"] = container.id or ""
             output_lines = []
