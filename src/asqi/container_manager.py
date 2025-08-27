@@ -87,7 +87,7 @@ def dbos_check_images_availabilty(images: List[str]) -> Dict[str, bool]:
             repo = image.rsplit(":", 1)[0] if ":" in image else image
             repo_tags = [tag for tag in local_tags if tag.startswith(repo + ":")]
 
-            suggestion = get_close_matches(image, local_tags, n=1, cutoff=0.5)
+            suggestion = get_close_matches(image, local_tags, n=1)
 
             if repo_tags:  # different tags
                 msg = f"❌ Container not found: {image}\nDid you mean: {repo_tags[0]}"
