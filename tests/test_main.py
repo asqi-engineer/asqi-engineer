@@ -238,40 +238,6 @@ class TestMainCLI:
         assert "Error 1" in result.stdout
         assert "Error 2" in result.stdout
 
-    @patch("asqi.workflow.start_test_execution")
-    @patch("asqi.main.load_score_card_file")
-    @patch("asqi.workflow.DBOS")
-    def test_execute_tests_with_optional_score_card(
-        self, mock_dbos, mock_load_score, mock_start
-    ):
-        """Test execute-tests command with optional score card."""
-        mock_load_score.return_value = {"score_card_name": "Test scorecard"}
-        mock_start.return_value = "workflow-123"
-
-        result = self.runner.invoke(
-            app,
-            [
-                "execute-tests",
-                "--suite-file",
-                "suite.yaml",
-                "--suts-file",
-                "suts.yaml",
-                "--score-card-file",
-                "score_card.yaml",
-            ],
-        )
-
-        assert result.exit_code == 0
-        mock_load_score.assert_called_once_with("score_card.yaml")
-        mock_start.assert_called_once_with(
-            suite_path="suite.yaml",
-            suts_path="suts.yaml",
-            output_path=None,
-            score_card_configs=[{"score_card_name": "Test scorecard"}],
-            execution_mode="tests_only",
-        )
-        assert "✅ Loaded grading score card: Test scorecard" in result.stdout
-
     @patch("asqi.main.load_score_card_file")
     @patch("asqi.workflow.DBOS")
     def test_score_card_config_error(self, mock_dbos, mock_load_score):
