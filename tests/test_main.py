@@ -111,6 +111,7 @@ class TestMainCLI:
             output_path="output.json",
             score_card_configs=None,
             execution_mode="tests_only",
+            concurrent_tests=3,
         )
         assert "✨ Test execution completed! Workflow ID: workflow-123" in result.stdout
 
@@ -269,6 +270,7 @@ class TestMainCLI:
             output_path=None,
             score_card_configs=[{"score_card_name": "Test scorecard"}],
             execution_mode="tests_only",
+            concurrent_tests=3,
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
 

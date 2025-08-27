@@ -89,7 +89,7 @@ def test_run_test_suite_workflow_success():
         patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
         patch("asqi.workflow.create_test_execution_plan") as mock_plan,
-        patch("asqi.workflow.test_queue") as mock_queue,
+        patch("asqi.workflow.Queue") as mock_queue_class,
     ):
         mock_avail.return_value = {"test/image:latest": True}
         mock_extract.return_value = manifest
@@ -105,6 +105,7 @@ def test_run_test_suite_workflow_success():
         ]
 
         # Enqueue returns a handle with get_result -> success_result
+        mock_queue = mock_queue_class.return_value
         mock_queue.enqueue.side_effect = lambda *args, **kwargs: DummyHandle(
             success_result
         )
@@ -391,6 +392,7 @@ def test_run_end_to_end_workflow():
     suite_config = {"suite_name": "test"}
     suts_config = {"systems_under_test": {}}
     score_card_configs = [{"score_card_name": "test"}]
+    concurrent_tests = 3
 
     test_results = {"summary": {"status": "COMPLETED"}, "results": []}
     final_results = {
@@ -409,9 +411,13 @@ def test_run_end_to_end_workflow():
         inner_workflow = getattr(
             run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow
         )
-        result = inner_workflow(suite_config, suts_config, score_card_configs)
+        result = inner_workflow(
+            suite_config, suts_config, score_card_configs, concurrent_tests
+        )
 
-        mock_test_workflow.assert_called_once_with(suite_config, suts_config)
+        mock_test_workflow.assert_called_once_with(
+            suite_config, suts_config, concurrent_tests
+        )
         mock_score_workflow.assert_called_once_with(test_results, score_card_configs)
         assert result == final_results
 
