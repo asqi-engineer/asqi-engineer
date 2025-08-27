@@ -260,9 +260,6 @@ def execute_tests(
     output_file: Optional[str] = typer.Option(
         None, help="Path to save execution results JSON file."
     ),
-    score_card_file: Optional[str] = typer.Option(
-        None, help="Path to grading score card YAML file (optional)."
-    ),
     test_names: Optional[List[str]] = typer.Option(
         None,
         "--test-names",
@@ -281,24 +278,11 @@ def execute_tests(
         except Exception as e:
             console.print(f"[yellow]Warning: Error launching DBOS: {e}[/yellow]")
 
-        # Load score card configuration if provided
-        score_card_configs = None
-        if score_card_file:
-            try:
-                score_card_config = load_score_card_file(score_card_file)
-                score_card_configs = [score_card_config]
-                console.print(
-                    f"[green]✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}[/green]"
-                )
-            except (FileNotFoundError, ValueError, PermissionError) as e:
-                console.print(f"[red]❌ score card configuration error: {e}[/red]")
-                raise typer.Exit(1)
-
         workflow_id = start_test_execution(
             suite_path=suite_file,
             suts_path=suts_file,
             output_path=output_file,
-            score_card_configs=score_card_configs,
+            score_card_configs=None,
             execution_mode="tests_only",
             test_names=test_names,
         )
