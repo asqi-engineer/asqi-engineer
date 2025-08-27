@@ -16,7 +16,7 @@ from asqi.config import (
     save_results_to_file,
 )
 from asqi.container_manager import (
-    check_images_availability,
+    dbos_check_images_availabilty,
     extract_manifest_from_image,
     run_container_with_args,
 )
@@ -104,14 +104,7 @@ class TestExecutionResult:
 @DBOS.step()
 def check_image_availability(images: List[str]) -> Dict[str, bool]:
     """Check if all required Docker images are available locally."""
-    availability = check_images_availability(images)
-
-    # Log warnings for missing images
-    missing_images = [img for img, available in availability.items() if not available]
-    if missing_images:
-        DBOS.logger.warning(f"Missing images: {missing_images}")
-
-    return availability
+    return dbos_check_images_availabilty(images)
 
 
 @DBOS.step()
