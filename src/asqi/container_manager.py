@@ -2,6 +2,7 @@ import json
 import logging
 import tempfile
 from contextlib import contextmanager
+from difflib import get_close_matches
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -47,7 +48,7 @@ def docker_client():
         client.close()
 
 
-def check_images_availability(images: List[str]) -> Dict[str, bool]:
+def dbos_check_images_availabilty(images: List[str]) -> Dict[str, bool]:
     """
     Check if Docker images are available locally.
 
@@ -85,10 +86,18 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
         for image in missing:
             repo = image.rsplit(":", 1)[0] if ":" in image else image
             repo_tags = [tag for tag in local_tags if tag.startswith(repo + ":")]
-            msg = f"- {repo}: requested [{image}], available {repo_tags or '[None]'}"
+
+            suggestion = get_close_matches(image, local_tags, n=1, cutoff=0.5)
+
+            if repo_tags:  # different tags
+                msg = f"❌ Container not found: {image}\nDid you mean: {repo_tags[0]}"
+            elif suggestion:  # similar names
+                msg = f"❌ Container not found: {image}\nDid you mean: {suggestion[0]}"
+            else:
+                msg = f"❌ Container not found: {image}\nNo similar images found."
             msgs.append(msg)
 
-        raise MissingImageException("Missing Docker images:\n" + "\n".join(msgs))
+        raise MissingImageException("\n\n".join(msgs))
 
     return availability
 
