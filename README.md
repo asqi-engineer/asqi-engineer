@@ -57,6 +57,7 @@ If you prefer local development:
 
 2. **Verify installation:**
    ```bash
+   # source ./.venv/bin/activate
    asqi --help
    ```
 

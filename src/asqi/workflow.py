@@ -6,7 +6,7 @@ from difflib import get_close_matches
 from typing import Any, Dict, List, Optional
 
 from dbos import DBOS, DBOSConfig, Queue
-from dotenv import dotenv_values
+from dotenv import dotenv_values, load_dotenv
 from pydantic import ValidationError
 from rich.console import Console
 
@@ -17,7 +17,7 @@ from asqi.config import (
     save_results_to_file,
 )
 from asqi.container_manager import (
-    check_images_availability,
+    dbos_check_images_availabilty,
     extract_manifest_from_image,
     run_container_with_args,
 )
@@ -37,10 +37,17 @@ from asqi.validation import (
     validate_workflow_configurations,
 )
 
+load_dotenv()
 oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+database_url = os.environ.get("DBOS_DATABASE_URL")
+if not database_url:
+    raise ValueError(
+        "Database URL must be provided through DBOS_DATABASE_URL environment variable"
+    )
+
 config: DBOSConfig = {
     "name": "asqi-test-executor",
-    "database_url": os.environ.get("DBOS_DATABASE_URL"),
+    "database_url": database_url,
 }
 if oltp_endpoint:
     config["otlp_traces_endpoints"] = [oltp_endpoint]
@@ -98,7 +105,7 @@ class TestExecutionResult:
 @DBOS.step()
 def check_image_availability(images: List[str]) -> Dict[str, bool]:
     """Check if all required Docker images are available locally."""
-    return check_images_availability(images)
+    return dbos_check_images_availabilty(images)
 
 
 @DBOS.step()

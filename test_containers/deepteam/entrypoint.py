@@ -24,14 +24,17 @@ from deepteam.attacks.single_turn import (
     PromptProbing,
     Roleplay,
 )
-
-# DeepTeam imports based on the actual library structure
 from deepteam.red_teamer import RedTeamer
 from deepteam.vulnerabilities import (
+    BFLA,
+    BOLA,
+    RBAC,
+    SSRF,
     Bias,
     Competition,
-    CustomVulnerability,
+    DebugAccess,
     ExcessiveAgency,
+    GoalTheft,
     GraphicContent,
     IllegalActivity,
     IntellectualProperty,
@@ -39,7 +42,10 @@ from deepteam.vulnerabilities import (
     PersonalSafety,
     PIILeakage,
     PromptLeakage,
+    RecursiveHijacking,
     Robustness,
+    ShellInjection,
+    SQLInjection,
     Toxicity,
 )
 
@@ -49,18 +55,33 @@ class DeepTeamRedTeamTester:
 
     # Map vulnerability names to classes for easy configuration
     VULNERABILITY_MAP = {
+        # Data Privacy
+        "pii_leakage": PIILeakage,
+        "prompt_leakage": PromptLeakage,
+        # Responsible AI
         "bias": Bias,
         "toxicity": Toxicity,
-        "misinformation": Misinformation,
+        # Security
+        "bfla": BFLA,
+        "bola": BOLA,
+        "rbac": RBAC,
+        "debug_access": DebugAccess,
+        "shell_injection": ShellInjection,
+        "sql_injection": SQLInjection,
+        "ssrf": SSRF,
+        # Safety
         "illegal_activity": IllegalActivity,
-        "prompt_leakage": PromptLeakage,
-        "pii_leakage": PIILeakage,
-        "excessive_agency": ExcessiveAgency,
-        "robustness": Robustness,
-        "intellectual_property": IntellectualProperty,
-        "competition": Competition,
         "graphic_content": GraphicContent,
         "personal_safety": PersonalSafety,
+        # Business
+        "misinformation": Misinformation,
+        "intellectual_property": IntellectualProperty,
+        "competition": Competition,
+        # Agentic
+        "goal_theft": GoalTheft,
+        "recursive_hijacking": RecursiveHijacking,
+        "excessive_agency": ExcessiveAgency,
+        "robustness": Robustness,
     }
 
     # Single-turn attack methods
@@ -132,17 +153,6 @@ class DeepTeamRedTeamTester:
                 else:
                     vulnerability = vuln_class()
                 vulnerabilities.append(vulnerability)
-            elif vuln_name == "custom":
-                # Handle custom vulnerabilities
-                custom_vuln = CustomVulnerability(
-                    name=config.get("custom_name", "Custom Vulnerability"),
-                    criteria=config.get(
-                        "criteria", "The system should behave appropriately"
-                    ),
-                    types=vuln_types,
-                    custom_prompt=config.get("custom_prompt"),
-                )
-                vulnerabilities.append(custom_vuln)
             else:
                 print(f"Warning: Unknown vulnerability '{vuln_name}'. Skipping.")
 
@@ -221,7 +231,7 @@ class DeepTeamRedTeamTester:
             # Run red team assessment
             print("Starting red team assessment...")
             risk_assessment = red_teamer.red_team(
-                model_callback=self._model_callback,
+                model_callback=self._model_callback,  # type: ignore
                 vulnerabilities=vulnerabilities,
                 attacks=attacks,
                 attacks_per_vulnerability_type=attacks_per_vulnerability_type,
@@ -376,14 +386,43 @@ def validate_inputs(sut_params: Dict[str, Any], test_params: Dict[str, Any]):
     if sut_params["type"] != "llm_api":
         raise ValueError(f"Unsupported SUT type: {sut_params['type']}")
 
-    # Validate test params (all optional with defaults)
+    # Validate vulnerabilities
     valid_vulnerabilities = set(DeepTeamRedTeamTester.VULNERABILITY_MAP.keys())
-
     vuln_configs = test_params.get("vulnerabilities", [])
-    for vuln_config in vuln_configs:
-        vuln_name = vuln_config.get("name", "").lower()
-        if vuln_name not in valid_vulnerabilities and vuln_name != "custom":
-            print(f"Warning: Unknown vulnerability '{vuln_name}' will be skipped")
+
+    if vuln_configs:
+        invalid_vulnerabilities = []
+        for vuln_config in vuln_configs:
+            vuln_name = vuln_config.get("name", "").lower()
+            if vuln_name not in valid_vulnerabilities and vuln_name != "custom":
+                invalid_vulnerabilities.append(vuln_name)
+
+        if invalid_vulnerabilities:
+            valid_vuln_list = sorted(valid_vulnerabilities)
+            raise ValueError(
+                f"Invalid vulnerability names: {invalid_vulnerabilities}. "
+                f"Valid vulnerabilities are: {valid_vuln_list}"
+            )
+
+    # Validate attacks
+    valid_single_turn = set(DeepTeamRedTeamTester.SINGLE_TURN_ATTACKS.keys())
+    valid_multi_turn = set(DeepTeamRedTeamTester.MULTI_TURN_ATTACKS.keys())
+    valid_attacks = valid_single_turn | valid_multi_turn
+
+    attack_list = test_params.get("attacks", [])
+    if attack_list:
+        invalid_attacks = []
+        for attack_name in attack_list:
+            attack_name_lower = attack_name.lower()
+            if attack_name_lower not in valid_attacks:
+                invalid_attacks.append(attack_name)
+
+        if invalid_attacks:
+            valid_attack_list = sorted(valid_attacks)
+            raise ValueError(
+                f"Invalid attack names: {invalid_attacks}. "
+                f"Valid attacks are: {valid_attack_list}"
+            )
 
     # Validate numeric parameters
     numeric_params = ["max_concurrent", "attacks_per_vulnerability_type"]

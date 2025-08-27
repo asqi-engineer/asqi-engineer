@@ -13,7 +13,7 @@ RUN apt-get update && \
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Install garak and its dependencies
-RUN pip install --no-cache-dir garak
+RUN pip install --no-cache-dir garak==0.12.0
 
 COPY manifest.yaml .
 COPY entrypoint.py .

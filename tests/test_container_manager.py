@@ -1,7 +1,7 @@
 import io
 import tarfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import yaml
@@ -12,11 +12,12 @@ from asqi.container_manager import (
     MissingImageException,
     MountExtractionError,
     _resolve_abs,
-    check_images_availability,
+    dbos_check_images_availabilty,
     docker_client,
     extract_manifest_from_image,
     run_container_with_args,
 )
+from asqi.container_manager import _decommission_container
 from asqi.schemas import Manifest
 
 
@@ -117,7 +118,7 @@ class TestDockerClient:
 
 
 class TestCheckImagesAvailability:
-    """Test suite for check_images_availability function."""
+    """Test suite for dbos_check_images_availabilty function."""
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_all_available(self, mock_docker_client):
@@ -129,7 +130,7 @@ class TestCheckImagesAvailability:
         mock_client.images.get.return_value = MagicMock()
 
         images = ["image1:latest", "image2:latest"]
-        result = check_images_availability(images)
+        result = dbos_check_images_availabilty(images)
 
         expected = {"image1:latest": True, "image2:latest": True}
         assert result == expected
@@ -149,21 +150,38 @@ class TestCheckImagesAvailability:
 
         mock_client.images.get.side_effect = mock_get_image
 
-        # Ensure no local tags exist (so repo_tags = [])
-        mock_client.images.list.return_value = []
+        # Local images: one correct + used for suggestion
+        mock_client.images.list.return_value = [
+            MagicMock(tags=["availabel:latest"]),  # typo image in local list
+            MagicMock(tags=["available:latest"]),  # correct local image
+        ]
 
-        images = ["available:latest", "missing:latest"]
+        images = [
+            "available:latest",
+            "availabel:latest",
+            "available:second",
+            "missing:latest",
+        ]
 
-        # Since the function now raises MissingImageException
-        # when at least one image is missing, we expect that here.
         with pytest.raises(MissingImageException) as excinfo:
-            check_images_availability(images)
+            dbos_check_images_availabilty(images)
 
-        # Verify that the exception message correctly reports the missing image.
-        # Example message:
-        # "Missing Docker images detected:
-        #  - missing: requested [missing:latest], available [None]"
-        assert "missing: requested [missing:latest]" in str(excinfo.value)
+        message = str(excinfo.value)
+
+        # ✅ Correct image should not appear in error message
+        assert "❌ Container not found: available:latest" not in message
+
+        # ❌ Typo case: should suggest "available:latest"
+        assert "❌ Container not found: availabel:latest" in message
+        assert "Did you mean: available:latest" in message
+
+        # ❌ Wrong tag case: should suggest "available:latest"
+        assert "❌ Container not found: available:second" in message
+        assert "Did you mean: available:latest" in message
+
+        # ❌ Completely missing should say no similar images
+        assert "❌ Container not found: missing:latest" in message
+        assert "No similar images found." in message
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_api_error(self, mock_docker_client):
@@ -174,7 +192,7 @@ class TestCheckImagesAvailability:
         mock_client.images.get.side_effect = docker_errors.APIError("API Error")
 
         images = ["problem:latest"]
-        result = check_images_availability(images)
+        result = dbos_check_images_availabilty(images)
 
         expected = {"problem:latest": False}
         assert result == expected
@@ -190,12 +208,12 @@ class TestCheckImagesAvailability:
         images = ["test:latest"]
 
         with pytest.raises(ConnectionError, match="Failed to connect to Docker daemon"):
-            check_images_availability(images)
+            dbos_check_images_availabilty(images)
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_empty_list(self, mock_docker_client):
         """Test with empty image list."""
-        result = check_images_availability([])
+        result = dbos_check_images_availabilty([])
         assert result == {}
 
 
@@ -563,3 +581,122 @@ class TestRunContainerWithArgs:
         mock_container.remove.side_effect = docker_errors.APIError("Remove failed")
         result = run_container_with_args(image="test:latest", args=["--test"])
         assert result["success"] is True  # Should succeed despite cleanup failure
+
+    @patch("asqi.container_manager.logger")
+    @patch("asqi.container_manager.docker_client")
+    @patch("asqi.container_manager._shutdown_in_progress", new=True)
+    def test_no_run_when_shutdown_in_progress(self, mock_docker_client, mock_logger):
+        """Ensure no containers are executed when shutdown has started."""
+        # Act
+        result = run_container_with_args(
+            image="some/image:tag",
+            args=["--foo", "bar"],
+            timeout_seconds=1,
+        )
+
+        # Assert: docker_client context manager must not be invoked at all
+        mock_docker_client.assert_not_called()
+
+        # Assert: the function returns the default 'skipped' result
+        assert result == {
+            "success": False,
+            "exit_code": -1,
+            "output": "",
+            "error": "",
+            "container_id": "",
+        }
+
+        # And a warning was logged about skipping due to shutdown
+        mock_logger.warning.assert_called()
+
+
+class TestDecommissionContainer:
+    """Test decommissioning of containers."""
+
+    def test_decommission_container_no_container(self):
+        """Test decommissioning when container is None."""
+        _decommission_container(None)  # No exception should be raised
+
+    @patch("asqi.container_manager._active_lock")
+    @patch("asqi.container_manager._active_containers", new_callable=set)
+    def test_decommission_container_success(
+        self, mock_active_containers, mock_active_lock
+    ):
+        """Test successful decommissioning of a container."""
+        mock_container = Mock()
+        mock_container.id = "test_container"
+
+        mock_active_containers.add(mock_container.id)
+
+        _decommission_container(mock_container)
+
+        mock_container.stop.assert_called_once_with(timeout=1)
+        mock_container.remove.assert_called_once_with(force=True)
+        assert mock_container.id not in mock_active_containers
+
+    @patch("asqi.container_manager.logger")
+    @patch("asqi.container_manager._active_lock")
+    @patch("asqi.container_manager._active_containers", new_callable=set)
+    def test_decommission_container_api_error(
+        self, mock_active_containers, mock_active_lock, mock_logger
+    ):
+        """Test decommissioning when container removal raises APIError."""
+        mock_container = Mock()
+        mock_container.id = "test_container"
+
+        mock_active_containers.add(mock_container.id)
+        mock_container.remove.side_effect = docker_errors.APIError("API Error")
+
+        _decommission_container(mock_container)
+
+        mock_container.stop.assert_called_once_with(timeout=1)
+        mock_container.remove.assert_called_once_with(force=True)
+        mock_logger.warning.assert_called_once_with(
+            "Failed to remove container during cleanup: API Error"
+        )
+        assert mock_container.id not in mock_active_containers
+
+    @patch("asqi.container_manager.logger")
+    @patch("asqi.container_manager._active_lock")
+    @patch("asqi.container_manager._active_containers", new_callable=set)
+    def test_decommission_container_not_found_error(
+        self, mock_active_containers, mock_active_lock, mock_logger
+    ):
+        """Test decommissioning when container removal raises NotFound error."""
+        mock_container = Mock()
+        mock_container.id = "test_container"
+
+        mock_active_containers.add(mock_container.id)
+        mock_container.remove.side_effect = docker_errors.NotFound("Not Found")
+
+        _decommission_container(mock_container)
+
+        mock_container.stop.assert_called_once_with(timeout=1)
+        mock_container.remove.assert_called_once_with(force=True)
+        mock_logger.warning.assert_called_once_with(
+            "Failed to remove container during cleanup: Not Found"
+        )
+        assert mock_container.id not in mock_active_containers
+
+    @patch("asqi.container_manager.logger")
+    @patch("asqi.container_manager._active_lock")
+    @patch("asqi.container_manager._active_containers", new_callable=set)
+    def test_decommission_container_stop_exception(
+        self, mock_active_containers, mock_active_lock, mock_logger
+    ):
+        """Test decommissioning when container stop raises a general exception."""
+        mock_container = Mock()
+        mock_container.id = "test_container"
+
+        mock_active_containers.add(mock_container.id)
+        mock_container.stop.side_effect = docker_errors.APIError("Stop failed")
+
+        _decommission_container(mock_container)
+
+        mock_container.stop.assert_called_once_with(timeout=1)
+        mock_container.remove.assert_called_once_with(force=True)
+        mock_logger.debug.assert_called_once_with(
+            "Failed to gracefully stop container: Stop failed"
+        )
+        mock_logger.warning.assert_not_called()  # Ensure no log generated for stop failure
+        assert mock_container.id not in mock_active_containers
