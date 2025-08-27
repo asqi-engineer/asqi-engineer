@@ -257,6 +257,12 @@ def execute(
 def execute_tests(
     suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
     suts_file: str = typer.Option(..., help="Path to the SUTs YAML file."),
+    concurrent_tests: int = typer.Option(
+        3,
+        "--concurrent-tests",
+        "-c",
+        help="Number of tests to run concurrently (must be > 0, default: 3)",
+    ),
     output_file: Optional[str] = typer.Option(
         None, help="Path to save execution results JSON file."
     ),
@@ -269,6 +275,10 @@ def execute_tests(
 
     try:
         from asqi.workflow import DBOS, start_test_execution
+
+        if concurrent_tests <= 0:
+            msg = "Invalid value for --concurrent-tests: must be greater than 0"
+            raise typer.BadParameter(msg)
 
         # Launch DBOS if not already launched
         try:
@@ -295,6 +305,7 @@ def execute_tests(
             output_path=output_file,
             score_card_configs=score_card_configs,
             execution_mode="tests_only",
+            concurrent_tests=concurrent_tests,
         )
 
         console.print(

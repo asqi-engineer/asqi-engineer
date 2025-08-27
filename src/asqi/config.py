@@ -19,7 +19,6 @@ class ContainerConfig:
 class ExecutorConfig:
     """Configuration for test executor behavior."""
 
-    CONCURRENT_TESTS: int = 3
     MAX_FAILURES_DISPLAYED: int = 3
     PROGRESS_UPDATE_INTERVAL: int = 4  # Update every 25% for fallback progress
 

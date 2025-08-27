@@ -54,7 +54,6 @@ DBOS(config=config)
 
 # Initialize Rich console and execution queue
 console = Console()
-test_queue = Queue("test_execution", concurrency=ExecutorConfig.CONCURRENT_TESTS)
 
 
 class TestExecutionResult:
@@ -357,6 +356,7 @@ def evaluate_score_card(
 def run_test_suite_workflow(
     suite_config: Dict[str, Any],
     suts_config: Dict[str, Any],
+    concurrent_tests: Optional[int] = 3,
 ) -> Dict[str, Any]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
@@ -370,11 +370,14 @@ def run_test_suite_workflow(
     Args:
         suite_config: Serialized SuiteConfig containing test definitions
         suts_config: Serialized SUTsConfig containing SUT configurations
+        concurrent_tests: Maximum number of tests to run concurrently (default: 3), where higher values increase parallel load on the system and SUT.
 
     Returns:
         Execution summary with metadata and individual test results (no score cards)
     """
     workflow_start_time = time.time()
+
+    test_queue = Queue("test_execution", concurrency=concurrent_tests)
 
     # Parse configurations
     try:
@@ -691,6 +694,7 @@ def run_end_to_end_workflow(
     suite_config: Dict[str, Any],
     suts_config: Dict[str, Any],
     score_card_configs: List[Dict[str, Any]],
+    concurrent_tests: int,
 ) -> Dict[str, Any]:
     """
     Execute a complete end-to-end workflow: test execution + score card evaluation.
@@ -703,7 +707,8 @@ def run_end_to_end_workflow(
     Returns:
         Complete execution results with test results and score card evaluations
     """
-    test_results = run_test_suite_workflow(suite_config, suts_config)
+
+    test_results = run_test_suite_workflow(suite_config, suts_config, concurrent_tests)
     final_results = evaluate_score_cards_workflow(test_results, score_card_configs)
 
     return final_results
@@ -730,6 +735,7 @@ def start_test_execution(
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
     execution_mode: str = "end_to_end",
+    concurrent_tests: int = 3,
 ) -> str:
     """
     Orchestrate test suite execution workflow.
@@ -743,6 +749,9 @@ def start_test_execution(
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
         execution_mode: "tests_only" or "end_to_end"
+        concurrent_tests: Maximum number of tests to run concurrently.
+            Defaults to 3. Each test may generate multiple API requests,
+            so increasing this value can put more load on the system.
 
     Returns:
         Workflow ID for tracking execution
@@ -762,13 +771,13 @@ def start_test_execution(
         # Start appropriate workflow based on execution mode
         if execution_mode == "tests_only":
             handle = DBOS.start_workflow(
-                run_test_suite_workflow, suite_config, suts_config
+                run_test_suite_workflow, suite_config, suts_config, concurrent_tests
             )
         elif execution_mode == "end_to_end":
             if not score_card_configs:
                 # Fall back to tests only if no score cards provided
                 handle = DBOS.start_workflow(
-                    run_test_suite_workflow, suite_config, suts_config
+                    run_test_suite_workflow, suite_config, suts_config, concurrent_tests
                 )
             else:
                 handle = DBOS.start_workflow(
@@ -776,6 +785,7 @@ def start_test_execution(
                     suite_config,
                     suts_config,
                     score_card_configs,
+                    concurrent_tests,
                 )
         else:
             raise ValueError(f"Invalid execution mode: {execution_mode}")
