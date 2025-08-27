@@ -2,6 +2,7 @@ import json
 import os
 import time
 from datetime import datetime
+from difflib import get_close_matches
 from typing import Any, Dict, List, Optional
 
 from dbos import DBOS, DBOSConfig, Queue
@@ -758,27 +759,34 @@ def start_test_execution(
 
             original_tests = suite_config.get("test_suite", [])
             available_tests = [t.get("name") for t in original_tests]
-            selected = set(parsed_test_names)
 
-            # 🔑 check if any requested tests are missing
-            missing = selected - set(available_tests)
+            # map lowercase → original name
+            available_map = {name.lower(): name for name in available_tests}
+            # set of normalized requested names
+            requested_set = {name.lower() for name in parsed_test_names}
+
+            missing = requested_set - set(available_map.keys())
             if missing:
-                raise ValueError(
-                    "Some requested tests do not exist in the suite\n"
-                    f"  • Requested: {', '.join(parsed_test_names)}\n"
-                    f"  • Missing: {', '.join(missing)}\n"
-                    f"  • Available: {', '.join(available_tests) if available_tests else 'None'}"
-                )
+                msg_lines = []
+                for m in missing:
+                    # use original user input instead of lowercase
+                    user_input = next(
+                        (n for n in parsed_test_names if n.lower() == m), m
+                    )
+                    suggestions = get_close_matches(m, available_map.keys(), n=1)
+                    if suggestions:
+                        suggestion = available_map[suggestions[0]]
+                        msg_lines.append(
+                            f"❌ Test not found: {user_input}\n   Did you mean: {suggestion}"
+                        )
+                    else:
+                        msg_lines.append(f"❌ Test not found: {user_input}")
+                raise ValueError("\n".join(msg_lines))
 
-            # ✅ safe to filter since all exist
+            # ✅ filter using lowercase
             suite_config["test_suite"] = [
-                t for t in original_tests if t.get("name") in selected
+                t for t in original_tests if t.get("name").lower() in requested_set
             ]
-
-            console.print(
-                f"[cyan]ℹ️  Selected {len(suite_config['test_suite'])} / {len(original_tests)} tests "
-                f"based on test_names filter[/cyan]"
-            )
 
         # Start appropriate workflow based on execution mode
         if execution_mode == "tests_only":
