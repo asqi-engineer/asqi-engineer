@@ -13,11 +13,11 @@ RUN apt-get update && \
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Install deepteam and its dependencies
-RUN pip install --no-cache-dir deepteam
-
+RUN pip install --no-cache-dir deepteam==0.2.4 litellm==1.76.0
 COPY manifest.yaml .
 COPY entrypoint.py .
 
+ENV DEEPTEAM_TELEMETRY_OPT_OUT="YES"
 RUN chmod +x entrypoint.py
 
 ENTRYPOINT ["python", "./entrypoint.py"]
