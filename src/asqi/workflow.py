@@ -783,7 +783,7 @@ def start_test_execution(
                         msg_lines.append(f"❌ Test not found: {user_input}")
                 raise ValueError("\n".join(msg_lines))
 
-            # ✅ filter using lowercase
+            # filter using lowercase
             suite_config["test_suite"] = [
                 t for t in original_tests if t.get("name").lower() in requested_set
             ]
