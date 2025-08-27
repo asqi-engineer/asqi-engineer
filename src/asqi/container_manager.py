@@ -394,7 +394,9 @@ def run_container_with_args(
         "error": "",
         "container_id": "",
     }
-    container_logger = create_container_logger(display_name=image)
+    # e.g. my-registry/deepteam:latest -> deepteam
+    image_name_only = image.split("/")[-1].split(":")[0]
+    container_logger = create_container_logger(display_name=image_name_only)
 
     with _active_lock:
         if _shutdown_in_progress:
@@ -426,7 +428,7 @@ def run_container_with_args(
             )
 
             with _active_lock:
-                _active_containers.add(container.id)
+                _active_containers.add(container.id)  # type: ignore
 
             result["container_id"] = container.id or ""
             output_lines = []
