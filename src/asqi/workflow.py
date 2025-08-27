@@ -13,7 +13,7 @@ from asqi.config import (
     ContainerConfig,
     ExecutorConfig,
     load_config_file,
-    load_suite_config_file,
+    merge_defaults_into_suite,
     save_results_to_file,
 )
 from asqi.container_manager import (
@@ -757,10 +757,8 @@ def start_test_execution(
 
     try:
         # Load configurations
-        suite_config = load_suite_config_file(suite_path)
+        suite_config = merge_defaults_into_suite(load_config_file(suite_path))
         suts_config = load_config_file(suts_path)
-
-        console.print(f"suite_config: {suite_config}")
 
         # Start appropriate workflow based on execution mode
         if execution_mode == "tests_only":

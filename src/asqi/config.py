@@ -50,7 +50,7 @@ def merge_defaults_into_suite(config: Dict[str, Any]) -> Dict[str, Any]:
         Config with defaults merged into `test_suite`
     """
     if "test_suite_default" not in config:
-        return config  # nothing to do
+        return config
 
     default = config["test_suite_default"]
 
@@ -63,7 +63,6 @@ def merge_defaults_into_suite(config: Dict[str, Any]) -> Dict[str, Any]:
                 merged[k] = v
         return merged
 
-    # Apply defaults to each test
     new_suite = []
     for test in config["test_suite"]:
         merged_test = deep_merge(default, test)
@@ -71,20 +70,6 @@ def merge_defaults_into_suite(config: Dict[str, Any]) -> Dict[str, Any]:
 
     config["test_suite"] = new_suite
     return config
-
-
-def load_suite_config_file(file_path: str) -> Dict[str, Any]:
-    """
-    Load suite config file with support for `test_suite_default`.
-
-    Args:
-        file_path: Path to YAML file
-
-    Returns:
-        Final merged config dictionary
-    """
-    config = load_config_file(file_path)
-    return merge_defaults_into_suite(config)
 
 
 def save_results_to_file(results: Dict[str, Any], output_path: str) -> None:
