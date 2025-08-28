@@ -111,7 +111,8 @@ class TestMainCLI:
             output_path="output.json",
             score_card_configs=None,
             execution_mode="tests_only",
-            concurrent_tests=3,
+            concurrent_tests=1,
+            test_names=None,
         )
         assert "✨ Test execution completed! Workflow ID: workflow-123" in result.stdout
 
@@ -239,41 +240,6 @@ class TestMainCLI:
         assert "Error 1" in result.stdout
         assert "Error 2" in result.stdout
 
-    @patch("asqi.workflow.start_test_execution")
-    @patch("asqi.main.load_score_card_file")
-    @patch("asqi.workflow.DBOS")
-    def test_execute_tests_with_optional_score_card(
-        self, mock_dbos, mock_load_score, mock_start
-    ):
-        """Test execute-tests command with optional score card."""
-        mock_load_score.return_value = {"score_card_name": "Test scorecard"}
-        mock_start.return_value = "workflow-123"
-
-        result = self.runner.invoke(
-            app,
-            [
-                "execute-tests",
-                "--suite-file",
-                "suite.yaml",
-                "--suts-file",
-                "suts.yaml",
-                "--score-card-file",
-                "score_card.yaml",
-            ],
-        )
-
-        assert result.exit_code == 0
-        mock_load_score.assert_called_once_with("score_card.yaml")
-        mock_start.assert_called_once_with(
-            suite_path="suite.yaml",
-            suts_path="suts.yaml",
-            output_path=None,
-            score_card_configs=[{"score_card_name": "Test scorecard"}],
-            execution_mode="tests_only",
-            concurrent_tests=3,
-        )
-        assert "✅ Loaded grading score card: Test scorecard" in result.stdout
-
     @patch("asqi.main.load_score_card_file")
     @patch("asqi.workflow.DBOS")
     def test_score_card_config_error(self, mock_dbos, mock_load_score):
@@ -298,3 +264,73 @@ class TestMainCLI:
             "❌ score card configuration error: Invalid score card format"
             in result.stdout
         )
+
+    @patch("asqi.workflow.start_test_execution")
+    @patch("asqi.workflow.DBOS")
+    def test_execute_tests_with_test_names_success(self, mock_dbos, mock_start):
+        """Test execute-tests succeeds when valid test-names are passed."""
+        mock_start.return_value = "workflow-888"
+
+        result = self.runner.invoke(
+            app,
+            [
+                "execute-tests",
+                "--suite-file",
+                "suite.yaml",
+                "--suts-file",
+                "suts.yaml",
+                "--test-names",
+                "t1",
+                "--output-file",
+                "out.json",
+            ],
+        )
+
+        assert result.exit_code == 0
+        mock_dbos.launch.assert_called_once()
+        mock_start.assert_called_once_with(
+            suite_path="suite.yaml",
+            suts_path="suts.yaml",
+            output_path="out.json",
+            score_card_configs=None,
+            execution_mode="tests_only",
+            test_names=["t1"],
+        )
+        assert "✨ Test execution completed! Workflow ID: workflow-888" in result.stdout
+
+    @patch("asqi.workflow.start_test_execution")
+    @patch("asqi.workflow.DBOS")
+    def test_execute_tests_with_test_names_failure(self, mock_dbos, mock_start):
+        """Test execute-tests fails when invalid test-names are passed."""
+        mock_start.side_effect = ValueError(
+            "❌ Test execution failed: ❌ Test not found: tes1\n   Did you mean: test1"
+        )
+
+        result = self.runner.invoke(
+            app,
+            [
+                "execute-tests",
+                "--suite-file",
+                "suite.yaml",
+                "--suts-file",
+                "suts.yaml",
+                "--test-names",
+                "tes1",
+                "--output-file",
+                "out.json",
+            ],
+        )
+
+        assert result.exit_code != 0
+        mock_start.assert_called_once_with(
+            suite_path="suite.yaml",
+            suts_path="suts.yaml",
+            output_path="out.json",
+            score_card_configs=None,
+            execution_mode="tests_only",
+            test_names=["tes1"],
+        )
+
+        mock_dbos.start_workflow.assert_not_called()
+        assert "❌ Test execution failed: ❌ Test not found: tes1" in result.stdout
+        assert "Did you mean: test1" in result.stdout

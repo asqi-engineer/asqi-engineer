@@ -9,9 +9,10 @@ from docker import errors as docker_errors
 
 from asqi.container_manager import (
     ManifestExtractionError,
+    MissingImageException,
     MountExtractionError,
     _resolve_abs,
-    check_images_availability,
+    check_images_availabilty,
     docker_client,
     extract_manifest_from_image,
     run_container_with_args,
@@ -117,7 +118,7 @@ class TestDockerClient:
 
 
 class TestCheckImagesAvailability:
-    """Test suite for check_images_availability function."""
+    """Test suite for check_images_availabilty function."""
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_all_available(self, mock_docker_client):
@@ -129,7 +130,7 @@ class TestCheckImagesAvailability:
         mock_client.images.get.return_value = MagicMock()
 
         images = ["image1:latest", "image2:latest"]
-        result = check_images_availability(images)
+        result = check_images_availabilty(images)
 
         expected = {"image1:latest": True, "image2:latest": True}
         assert result == expected
@@ -149,11 +150,38 @@ class TestCheckImagesAvailability:
 
         mock_client.images.get.side_effect = mock_get_image
 
-        images = ["available:latest", "missing:latest"]
-        result = check_images_availability(images)
+        # Local images: one correct + used for suggestion
+        mock_client.images.list.return_value = [
+            MagicMock(tags=["availabel:latest"]),  # typo image in local list
+            MagicMock(tags=["available:latest"]),  # correct local image
+        ]
 
-        expected = {"available:latest": True, "missing:latest": False}
-        assert result == expected
+        images = [
+            "available:latest",
+            "availabel:latest",
+            "available:second",
+            "missing:latest",
+        ]
+
+        with pytest.raises(MissingImageException) as excinfo:
+            check_images_availabilty(images)
+
+        message = str(excinfo.value)
+
+        # ✅ Correct image should not appear in error message
+        assert "❌ Container not found: available:latest" not in message
+
+        # ❌ Typo case: should suggest "available:latest"
+        assert "❌ Container not found: availabel:latest" in message
+        assert "Did you mean: available:latest" in message
+
+        # ❌ Wrong tag case: should suggest "available:latest"
+        assert "❌ Container not found: available:second" in message
+        assert "Did you mean: available:latest" in message
+
+        # ❌ Completely missing should say no similar images
+        assert "❌ Container not found: missing:latest" in message
+        assert "No similar images found." in message
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_api_error(self, mock_docker_client):
@@ -164,7 +192,7 @@ class TestCheckImagesAvailability:
         mock_client.images.get.side_effect = docker_errors.APIError("API Error")
 
         images = ["problem:latest"]
-        result = check_images_availability(images)
+        result = check_images_availabilty(images)
 
         expected = {"problem:latest": False}
         assert result == expected
@@ -180,12 +208,12 @@ class TestCheckImagesAvailability:
         images = ["test:latest"]
 
         with pytest.raises(ConnectionError, match="Failed to connect to Docker daemon"):
-            check_images_availability(images)
+            check_images_availabilty(images)
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_empty_list(self, mock_docker_client):
         """Test with empty image list."""
-        result = check_images_availability([])
+        result = check_images_availabilty([])
         assert result == {}
 
 

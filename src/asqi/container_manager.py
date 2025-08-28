@@ -3,6 +3,7 @@ import logging
 import tempfile
 import threading
 from contextlib import contextmanager
+from difflib import get_close_matches
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -37,6 +38,12 @@ class ManifestExtractionError(Exception):
         self.original_error = original_error
 
 
+class MissingImageException(Exception):
+    """Exception raised when required Docker images are missing."""
+
+    pass
+
+
 @contextmanager
 def docker_client():
     """Context manager for Docker client with proper cleanup."""
@@ -47,17 +54,17 @@ def docker_client():
         client.close()
 
 
-def check_images_availability(images: List[str]) -> Dict[str, bool]:
+def check_images_availabilty(images: List[str]) -> Dict[str, bool]:
     """
     Check if Docker images are available locally.
 
-    Args:
-        images: List of image names to check
-
-    Returns:
-        Dictionary mapping image names to availability status
+    - Tries to fetch each image by exact name:tag.
+    - Records availability in a dict.
+    - If any images are missing, lists available tags for the repo
+    and raises MissingImageException with recommendations.
     """
     availability = {}
+    missing = []
 
     with docker_client() as client:
         for image in images:
@@ -66,14 +73,37 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
                 availability[image] = True
             except docker_errors.ImageNotFound:
                 availability[image] = False
+                missing.append(image)
             except docker_errors.APIError as e:
-                # Log specific Docker API errors but continue checking other images
-                logger.warning(f"Docker API error checking image {image}: {e}")
+                logger.warning(f"Docker API error checking {image}: {e}")
                 availability[image] = False
             except ConnectionError as e:
-                raise ConnectionError(
-                    f"Failed to connect to Docker daemon while checking image {image}: {e}"
-                )
+                raise ConnectionError(f"Failed to connect to Docker daemon: {e}")
+
+    if missing:
+        try:
+            local_images = client.images.list()
+            local_tags = [tag for img in local_images for tag in img.tags]
+        except docker_errors.APIError as e:
+            logger.warning(f"Failed to list local Docker images: {e}")
+            local_tags = []
+
+        msgs = []
+        for image in missing:
+            repo = image.rsplit(":", 1)[0] if ":" in image else image
+            repo_tags = [tag for tag in local_tags if tag.startswith(repo + ":")]
+
+            suggestion = get_close_matches(image, local_tags, n=1)
+
+            if repo_tags:  # different tags
+                msg = f"❌ Container not found: {image}\nDid you mean: {repo_tags[0]}"
+            elif suggestion:  # similar names
+                msg = f"❌ Container not found: {image}\nDid you mean: {suggestion[0]}"
+            else:
+                msg = f"❌ Container not found: {image}\nNo similar images found."
+            msgs.append(msg)
+
+        raise MissingImageException("\n\n".join(msgs))
 
     return availability
 

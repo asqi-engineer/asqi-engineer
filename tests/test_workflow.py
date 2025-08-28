@@ -85,7 +85,7 @@ def test_run_test_suite_workflow_success():
     success_result.test_results = {"success": True}
 
     with (
-        patch("asqi.workflow.check_image_availability") as mock_avail,
+        patch("asqi.workflow.dbos_check_images_availabilty") as mock_avail,
         patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
         patch("asqi.workflow.create_test_execution_plan") as mock_plan,
@@ -136,7 +136,7 @@ def test_run_test_suite_workflow_validation_failure():
     suts_config = {"systems_under_test": {"sutA": {"type": "llm_api", "params": {}}}}
 
     with (
-        patch("asqi.workflow.check_image_availability") as mock_avail,
+        patch("asqi.workflow.dbos_check_images_availabilty") as mock_avail,
         patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
     ):
