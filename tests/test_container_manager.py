@@ -509,6 +509,7 @@ class TestRunContainerWithArgs:
             Mount(target="/input", source="/host/input", type="bind", read_only=True)
         ]
         mock_extract_mounts.return_value = (["--test"], test_mounts)
+        container_config.set_stream_logs(False)
         run_container_with_args(
             image="test:latest",
             args=["--test", "--test-params", '{"__volumes": {"input": "/host/input"}}'],

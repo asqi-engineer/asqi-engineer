@@ -446,10 +446,6 @@ def run_container_with_args(
 
             result["container_id"] = container.id or ""
             output_lines = []
-            logger.info(f"stream : {container_config.STREAM_LOGS}")
-            logger.info(
-                f"container.logs(stream=True, follow=True) :  {container.logs(stream=True, follow=True)}"
-            )
             if container_config.STREAM_LOGS:
                 try:
                     for log_line in container.logs(stream=True, follow=True):
