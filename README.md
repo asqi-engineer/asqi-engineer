@@ -22,6 +22,7 @@ The easiest way to get started is using a dev container with all dependencies pr
    ```bash
    git clone <repository-url>
    cd asqi
+   cp .env.example .env
    code .
    # VS Code will prompt to "Reopen in Container" - click Yes
    ```
