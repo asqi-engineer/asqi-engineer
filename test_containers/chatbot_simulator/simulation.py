@@ -18,10 +18,17 @@ from rich.text import Text
 ConversationalTestCase = Dict[str, Any]
 
 
+def _convert_to_chat_completion_message(
+    self, text: str, role: str = "user"
+) -> ChatCompletionMessage:
+    """Convert plain text to ChatCompletionMessage"""
+    return ChatCompletionMessage(role=role, content=text)
+
+
 class PersonaBasedConversationTester:
     def __init__(
         self,
-        model_callback: Callable[[str], Awaitable[str]],
+        model_callback: Callable[[list[ChatCompletionMessage]], Awaitable[str]],
         chatbot_purpose: str,
         simulator_model: str = "gpt-4o-mini",
         max_turns: int = 4,
@@ -49,24 +56,21 @@ class PersonaBasedConversationTester:
     def create_app(self):
         """Create OpenEvals-compatible app function"""
 
-        async def app(inputs: ChatCompletionMessage, *, thread_id: str):
+        async def app(input: ChatCompletionMessage, *, thread_id: str):
             # Initialize history for new threads
             if thread_id not in self.history:
                 self.history[thread_id] = []
 
             # Add user message to history
-            self.history[thread_id].append(inputs)
+            self.history[thread_id].append(input)
 
-            content = inputs["content"]
-            if not isinstance(content, str):
-                raise TypeError("Message content must be a string")
-            response_content = await self.model_callback(content)
+            response_content = await self.model_callback(self.history[thread_id])
 
             # Create response message
-            response_message: ChatCompletionMessage = {
-                "role": "assistant",
-                "content": response_content,
-            }
+            response_message: ChatCompletionMessage = ChatCompletionMessage(
+                role="assistant",
+                content=response_content,
+            )
 
             # Add to history
             self.history[thread_id].append(response_message)
@@ -82,7 +86,9 @@ class PersonaBasedConversationTester:
 Provide a 2-3 sentence description of this persona's characteristics, communication style, and how they typically interact with customer service. Focus on their behavior and approach to asking questions."""
 
         try:
-            description_text = await self.model_callback(prompt)
+            description_text = await self.model_callback(
+                _convert_to_chat_completion_message(prompt)
+            )
             description = description_text.strip()
 
             return {
@@ -181,7 +187,9 @@ Expected outcome: [what should happen]
 
 Make the scenarios realistic and diverse, covering different use cases for this chatbot."""
 
-        response = await self.model_callback(prompt)
+        response = await self.model_callback(
+            _convert_to_chat_completion_message(prompt)
+        )
 
         # Parse LLM response into scenarios
         scenarios = []
