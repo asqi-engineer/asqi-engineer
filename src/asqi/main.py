@@ -9,6 +9,7 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
+from asqi.config import container_config
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
@@ -207,12 +208,20 @@ def execute(
     output_file: Optional[str] = typer.Option(
         None, help="Path to save execution results JSON file."
     ),
+    container_config_file: str = typer.Option(
+        "config/docker/container.yaml",
+        "--container-config",
+        help="Optional path to container configuration YAML (default: config/docker/container.yaml).",
+    ),
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
     console.print("[blue]--- 🚀 Executing End-to-End Workflow ---[/blue]")
 
     try:
         from asqi.workflow import DBOS, start_test_execution
+
+        # Load container configuration
+        container_config.load_from_yaml(container_config_file)
 
         # Launch DBOS if not already launched
         try:
@@ -265,12 +274,20 @@ def execute_tests(
         "--test-names",
         help="Comma-separated list of test names to run (matches suite test names).",
     ),
+    container_config_file: str = typer.Option(
+        "config/docker/container.yaml",
+        "--container-config",
+        help="Optional path to container configuration YAML (default: config/docker/container.yaml).",
+    ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
 
     try:
         from asqi.workflow import DBOS, start_test_execution
+
+        # Load container configuration
+        container_config.load_from_yaml(container_config_file)
 
         # Launch DBOS if not already launched
         try:

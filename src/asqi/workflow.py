@@ -11,8 +11,8 @@ from pydantic import ValidationError
 from rich.console import Console
 
 from asqi.config import (
-    ContainerConfig,
     ExecutorConfig,
+    container_config,
     load_config_file,
     merge_defaults_into_suite,
     save_results_to_file,
@@ -112,7 +112,7 @@ def dbos_check_images_availabilty(images: List[str]) -> Dict[str, bool]:
 @DBOS.step()
 def extract_manifest_from_image_step(image: str) -> Optional[Manifest]:
     """Extract and parse manifest.yaml from a Docker image."""
-    manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
+    manifest = extract_manifest_from_image(image, container_config.MANIFEST_PATH)
 
     if not manifest:
         DBOS.logger.warning(f"Failed to extract manifest from {image}")
@@ -250,12 +250,7 @@ def execute_single_test(
     container_result = run_container_with_args(
         image=image,
         args=command_args,
-        timeout_seconds=ContainerConfig.TIMEOUT_SECONDS,
-        memory_limit=ContainerConfig.MEMORY_LIMIT,
-        cpu_quota=ContainerConfig.CPU_QUOTA,
-        cpu_period=ContainerConfig.CPU_PERIOD,
         environment=container_env,
-        stream_logs=True,
     )
 
     result.end_time = time.time()

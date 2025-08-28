@@ -7,17 +7,18 @@ import pytest
 import yaml
 from docker import errors as docker_errors
 
+from asqi.config import container_config
 from asqi.container_manager import (
     ManifestExtractionError,
     MissingImageException,
     MountExtractionError,
+    _decommission_container,
     _resolve_abs,
     check_images_availabilty,
     docker_client,
     extract_manifest_from_image,
     run_container_with_args,
 )
-from asqi.container_manager import _decommission_container
 from asqi.schemas import Manifest
 
 
@@ -475,13 +476,14 @@ class TestRunContainerWithArgs:
         call_kwargs = mock_client.containers.run.call_args[1]
         assert call_kwargs["environment"] == test_env
 
+        container_config.set_run_param("mem_limit", "1g")
+        container_config.set_run_param("cpu_quota", 100000)
+        container_config.set_run_param("network_mode", "bridge")
+
         # Resource/network
         run_container_with_args(
             image="test:latest",
             args=["--test"],
-            memory_limit="1g",
-            cpu_quota=100000,
-            network="bridge",
         )
         call_kwargs = mock_client.containers.run.call_args[1]
         assert call_kwargs["mem_limit"] == "1g"
@@ -493,9 +495,8 @@ class TestRunContainerWithArgs:
         mock_client, mock_container, mock_extract_mounts = mock_container_setup
         log_lines = [b"Line 1\n", b"Line 2\n"]
         mock_container.logs.return_value = iter(log_lines)
-        result = run_container_with_args(
-            image="test:latest", args=["--test"], stream_logs=True
-        )
+        container_config.set_stream_logs(True)
+        result = run_container_with_args(image="test:latest", args=["--test"])
         mock_container.logs.assert_called_with(stream=True, follow=True)
         assert "Line 1" in result["output"] and "Line 2" in result["output"]
 
@@ -591,7 +592,6 @@ class TestRunContainerWithArgs:
         result = run_container_with_args(
             image="some/image:tag",
             args=["--foo", "bar"],
-            timeout_seconds=1,
         )
 
         # Assert: docker_client context manager must not be invoked at all
