@@ -5,10 +5,11 @@ This module provides reusable evaluation functions using LLM-as-a-judge methodol
 for assessing answer accuracy and context relevance based on RAGAS metrics.
 """
 
+import asyncio
 import math
 from typing import Any, Dict, List, Optional
 
-from openevals.llm import create_llm_as_judge
+from openevals.llm import create_async_llm_as_judge
 from openevals.types import ChatCompletionMessage
 
 
@@ -96,25 +97,25 @@ class ConversationEvaluator:
         )
 
         # Create evaluator instances
-        self.accuracy_evaluator1 = create_llm_as_judge(
+        self.accuracy_evaluator1 = create_async_llm_as_judge(
             prompt=template_accuracy1,
             choices=[0, 2, 4],
             model=self.model,
         )
 
-        self.accuracy_evaluator2 = create_llm_as_judge(
+        self.accuracy_evaluator2 = create_async_llm_as_judge(
             prompt=template_accuracy2,
             choices=[0, 2, 4],
             model=self.model,
         )
 
-        self.relevance_evaluator1 = create_llm_as_judge(
+        self.relevance_evaluator1 = create_async_llm_as_judge(
             prompt=template_relevance1,
             choices=[0, 1, 2],
             model=self.model,
         )
 
-        self.relevance_evaluator2 = create_llm_as_judge(
+        self.relevance_evaluator2 = create_async_llm_as_judge(
             prompt=template_relevance2,
             choices=[0, 1, 2],
             model=self.model,
@@ -142,7 +143,7 @@ class ConversationEvaluator:
 
         # Extract questions and responses from trajectory
         questions_and_responses = self._extract_qa_pairs(trajectory)
-
+        print(f"Evaluating trajectory with {len(questions_and_responses)} Q&A pairs.")
         if not questions_and_responses:
             return self._get_empty_trajectory_results()
 
@@ -153,11 +154,13 @@ class ConversationEvaluator:
                 accuracy_result = await self._evaluate_answer_accuracy(
                     question, response, expected_answers[i]
                 )
+                print(f"Accuracy result for Q{i+1}: {accuracy_result}")
                 if accuracy_result is not None:
                     evaluator_results.append(accuracy_result)
 
             # Answer Relevance evaluation
             relevance_result = await self._evaluate_answer_relevance(question, response)
+            print(f"Relevance result for Q{i+1}: {relevance_result}")
             if relevance_result is not None:
                 evaluator_results.append(relevance_result)
 
@@ -194,6 +197,42 @@ class ConversationEvaluator:
 
         return qa_pairs
 
+    async def _evaluate_accuracy_template1(
+        self, question: str, user_answer: str, reference_answer: str
+    ) -> float:
+        """Evaluate using first accuracy template with retries"""
+        for _ in range(self.retry_count):
+            result = await self.accuracy_evaluator1(
+                query=question,
+                answer0="User Answer",
+                answer1="Reference Answer",
+                sentence_inference=user_answer,
+                sentence_true=reference_answer,
+                outputs={},
+            )
+            score = self._process_accuracy_score(result)
+            if not math.isnan(score):
+                return score
+        return float("nan")
+
+    async def _evaluate_accuracy_template2(
+        self, question: str, user_answer: str, reference_answer: str
+    ) -> float:
+        """Evaluate using second accuracy template with retries (swap roles)"""
+        for _ in range(self.retry_count):
+            result = await self.accuracy_evaluator2(
+                query=question,
+                answer0="Reference Answer",
+                answer1="User Answer",
+                sentence_inference=reference_answer,
+                sentence_true=user_answer,
+                outputs={},
+            )
+            score = self._process_accuracy_score(result)
+            if not math.isnan(score):
+                return score
+        return float("nan")
+
     async def _evaluate_answer_accuracy(
         self, question: str, user_answer: str, reference_answer: str
     ) -> Dict[str, Any] | None:
@@ -209,37 +248,11 @@ class ConversationEvaluator:
             Evaluation result dict or None if evaluation fails
         """
         try:
-            score_ref_gen = score_gen_ref = float("nan")
-
-            # First template evaluation
-            for _ in range(self.retry_count):
-                result1 = self.accuracy_evaluator1(
-                    query=question,
-                    answer0="User Answer",
-                    answer1="Reference Answer",
-                    sentence_inference=user_answer,
-                    sentence_true=reference_answer,
-                    outputs={},
-                )
-
-                score_ref_gen = self._process_accuracy_score(result1)
-                if not math.isnan(score_ref_gen):
-                    break
-
-            # Second template evaluation (swap roles)
-            for _ in range(self.retry_count):
-                result2 = self.accuracy_evaluator2(
-                    query=question,
-                    answer0="Reference Answer",
-                    answer1="User Answer",
-                    sentence_inference=reference_answer,
-                    sentence_true=user_answer,
-                    outputs={},
-                )
-
-                score_gen_ref = self._process_accuracy_score(result2)
-                if not math.isnan(score_gen_ref):
-                    break
+            # Run both evaluations concurrently
+            score_ref_gen, score_gen_ref = await asyncio.gather(
+                self._evaluate_accuracy_template1(question, user_answer, reference_answer),
+                self._evaluate_accuracy_template2(question, user_answer, reference_answer)
+            )
 
             # Average the scores
             final_score = self._average_scores(score_ref_gen, score_gen_ref)
@@ -252,6 +265,36 @@ class ConversationEvaluator:
         except Exception as e:
             print(f"Warning: Answer accuracy evaluation failed: {e}")
             return None
+
+    async def _evaluate_relevance_template1(
+        self, user_question: str, assistant_answer: str
+    ) -> float:
+        """Evaluate using first relevance template with retries"""
+        for _ in range(self.retry_count):
+            result = await self.relevance_evaluator1(
+                user_question=user_question,
+                assistant_answer=assistant_answer,
+                outputs={},
+            )
+            score = self._process_relevance_score(result)
+            if not math.isnan(score):
+                return score
+        return float("nan")
+
+    async def _evaluate_relevance_template2(
+        self, user_question: str, assistant_answer: str
+    ) -> float:
+        """Evaluate using second relevance template with retries"""
+        for _ in range(self.retry_count):
+            result = await self.relevance_evaluator2(
+                user_question=user_question,
+                assistant_answer=assistant_answer,
+                outputs={},
+            )
+            score = self._process_relevance_score(result)
+            if not math.isnan(score):
+                return score
+        return float("nan")
 
     async def _evaluate_answer_relevance(
         self, user_question: str, assistant_answer: str
@@ -270,31 +313,11 @@ class ConversationEvaluator:
             return None
 
         try:
-            score1 = score2 = float("nan")
-
-            # First template evaluation
-            for _ in range(self.retry_count):
-                result1 = self.relevance_evaluator1(
-                    user_question=user_question,
-                    assistant_answer=assistant_answer,
-                    outputs={},
-                )
-
-                score1 = self._process_relevance_score(result1)
-                if not math.isnan(score1):
-                    break
-
-            # Second template evaluation
-            for _ in range(self.retry_count):
-                result2 = self.relevance_evaluator2(
-                    user_question=user_question,
-                    assistant_answer=assistant_answer,
-                    outputs={},
-                )
-
-                score2 = self._process_relevance_score(result2)
-                if not math.isnan(score2):
-                    break
+            # Run both evaluations concurrently
+            score1, score2 = await asyncio.gather(
+                self._evaluate_relevance_template1(user_question, assistant_answer),
+                self._evaluate_relevance_template2(user_question, assistant_answer)
+            )
 
             # Average the scores
             final_score = self._average_scores(score1, score2)
@@ -367,7 +390,7 @@ class ConversationEvaluator:
         for turn in trajectory:
             role = turn.get("role", "unknown")
             content = turn.get("content", "")
-            conversation_text += f"{role.title()}: {content}\n"
+            conversation_text += f"{role.title()}: {content}\n\n"
         return conversation_text
 
     def _get_empty_trajectory_results(self) -> List[Dict[str, Any]]:

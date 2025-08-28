@@ -1,10 +1,11 @@
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from evaluator import ConversationEvaluator
 from openevals.simulators import (
-    create_llm_simulated_user,
+    create_async_llm_simulated_user,
     run_multiturn_simulation_async,
 )
 from openevals.types import ChatCompletionMessage
@@ -256,7 +257,7 @@ Make the scenarios realistic and diverse, covering different use cases for this 
             base_prompt += "Stay in character throughout the conversation."
 
             # Create simulated user
-            user = create_llm_simulated_user(
+            user = create_async_llm_simulated_user(
                 system=base_prompt,
                 model=self.simulator_model,
             )
@@ -288,9 +289,8 @@ Make the scenarios realistic and diverse, covering different use cases for this 
         app = self.create_app()
         simulated_users = self.create_simulated_users(scenarios)
 
-        test_cases = []
-
-        for i, user_data in enumerate(simulated_users):
+        async def run_single_simulation(i: int, user_data: Dict[str, Any]) -> ConversationalTestCase:
+            """Run a single simulation asynchronously"""
             print(
                 f" Simulating conversation {i + 1}/{len(simulated_users)} - {user_data['scenario_id']}"
             )
@@ -301,17 +301,17 @@ Make the scenarios realistic and diverse, covering different use cases for this 
                     user=user_data["user"],
                     max_turns=self.max_turns,
                 )
-
+                print(f"Result for {user_data['scenario_id']}: {result}")
                 # Evaluate the trajectory using the conversation evaluator
                 expected_answers = None
                 if user_data.get("expected_output"):
                     expected_answers = [user_data["expected_output"]]
-
+                print(f"Expected answers: {expected_answers}")
                 evaluator_results = await self.evaluator.evaluate_trajectory(
                     result.get("trajectory", []), expected_answers=expected_answers
                 )
 
-                test_case = {
+                return {
                     "turns": result["trajectory"],
                     "evaluator_results": evaluator_results,
                     "additional_metadata": {
@@ -326,12 +326,11 @@ Make the scenarios realistic and diverse, covering different use cases for this 
                         "simulation_run": user_data.get("simulation_run", 1),
                     },
                 }
-                test_cases.append(test_case)
 
             except Exception as e:
                 print(f"❌ Failed to simulate {user_data['scenario_id']}: {e}")
                 # Create a minimal test case for failed simulations
-                test_case = {
+                return {
                     "turns": [],
                     "evaluator_results": [],
                     "additional_metadata": {
@@ -347,7 +346,15 @@ Make the scenarios realistic and diverse, covering different use cases for this 
                         "error": str(e),
                     },
                 }
-                test_cases.append(test_case)
+
+        # Create tasks for all simulations to run concurrently
+        tasks = [
+            run_single_simulation(i, user_data) 
+            for i, user_data in enumerate(simulated_users)
+        ]
+
+        # Run all simulations concurrently
+        test_cases = list(await asyncio.gather(*tasks))
 
         return test_cases
 
@@ -474,6 +481,8 @@ class ConversationTestAnalyzer:
                 "intent": metadata.get("intent", "unknown"),
                 "sycophancy_level": metadata.get("sycophancy_level", "unknown"),
                 "total_turns": len(turns),
+                "expected_outcome": metadata.get("expected_outcome", ""),
+                "expected_output": metadata.get("expected_output", ""),
                 "evaluation_scores": evaluation_scores,
                 "turns": [
                     {
