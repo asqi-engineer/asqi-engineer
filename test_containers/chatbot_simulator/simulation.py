@@ -3,11 +3,13 @@ import os
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import openai
+from langchain_openai import ChatOpenAI
 from openevals.simulators import (
     create_llm_simulated_user,
     run_multiturn_simulation_async,
 )
 from openevals.types import ChatCompletionMessage
+from pydantic import SecretStr
 
 # For display functionality
 from rich.console import Console
@@ -37,6 +39,25 @@ def setup_client(base_url: str = "https://api.openai.com/v1") -> openai.AsyncOpe
     return openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
 
 
+def setup_langchain_client(
+    base_url: str = "https://api.openai.com/v1", model: str = "gpt-4o-mini"
+) -> ChatOpenAI:
+    """Setup LangChain OpenAI client with unified environment variable handling"""
+    api_key = os.environ.get("API_KEY")
+    if not api_key:
+        # Fallback to provider-specific keys
+        api_key = (
+            os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("ANTHROPIC_API_KEY")
+            or os.environ.get("HUGGINGFACE_API_KEY")
+        )
+
+    if not api_key:
+        raise ValueError("No API key found. Set API_KEY environment variable.")
+
+    return ChatOpenAI(model=model, api_key=SecretStr(api_key), base_url=base_url)
+
+
 class PersonaBasedConversationTester:
     def __init__(
         self,
@@ -61,14 +82,16 @@ class PersonaBasedConversationTester:
         self.custom_scenarios = custom_scenarios
         self.simulations_per_scenario = simulations_per_scenario
 
-        # Setup OpenAI client for simulator tasks (persona generation, scenario generation)
         self.simulator_client = setup_client(simulator_base_url)
-
-        # Setup evaluator client
-        self.evaluator_client = setup_client(evaluator_base_url)
-
-        # Initialize the conversation evaluator with the client
-        self.evaluator = ConversationEvaluator(model=evaluation_model)
+        self.simulator_langchain_client = setup_langchain_client(
+            simulator_base_url, simulator_model
+        )
+        self.evaluator_langchain_client = setup_langchain_client(
+            evaluator_base_url, evaluation_model
+        )
+        self.evaluator = ConversationEvaluator(
+            evaluator_client=self.evaluator_langchain_client
+        )
 
         # History to track conversations by thread_id
         self.history: Dict[str, List[ChatCompletionMessage]] = {}
@@ -76,14 +99,7 @@ class PersonaBasedConversationTester:
     def create_app(self):
         """Create OpenEvals-compatible app function"""
 
-        async def app(inputs: ChatCompletionMessage, *, thread_id: str):
-            # Initialize history for new threads
-            if thread_id not in self.history:
-                self.history[thread_id] = []
-
-            # Add user message to history
-            self.history[thread_id].append(inputs)
-
+        async def app(inputs: ChatCompletionMessage, thread_id: str = None, **kwargs):
             content = inputs["content"]
             if not isinstance(content, str):
                 raise TypeError("Message content must be a string")
@@ -94,9 +110,6 @@ class PersonaBasedConversationTester:
                 "role": "assistant",
                 "content": response_content,
             }
-
-            # Add to history
-            self.history[thread_id].append(response_message)
 
             return response_message
 
@@ -272,10 +285,9 @@ Make the scenarios realistic and diverse, covering different use cases for this 
 
             base_prompt += "Stay in character throughout the conversation."
 
-            # Create simulated user
             user = create_llm_simulated_user(
                 system=base_prompt,
-                model=self.simulator_model,
+                client=self.simulator_langchain_client,
             )
 
             # Use the configured max_turns
