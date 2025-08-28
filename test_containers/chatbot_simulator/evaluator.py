@@ -143,21 +143,37 @@ class ConversationEvaluator:
         if not questions_and_responses:
             return self._get_empty_trajectory_results()
 
-        # Evaluate each question-answer pair
-        for i, (question, response) in enumerate(questions_and_responses):
-            # Answer Accuracy evaluation
-            if expected_answers and i < len(expected_answers):
-                accuracy_result = await self._evaluate_answer_accuracy(
-                    question, response, expected_answers[i]
-                )
-                if accuracy_result is not None:
-                    evaluator_results.append(accuracy_result)
-
-            # Answer Relevance evaluation
+        # Evaluate each question-answer pair for relevancy
+        for question, response in questions_and_responses:
             relevance_result = await self._evaluate_answer_relevance(question, response)
             if relevance_result is not None:
                 evaluator_results.append(relevance_result)
 
+        # Answer Accuracy evaluation - evaluate first question against all responses, take max score
+        if expected_answers and questions_and_responses:
+            first_question = questions_and_responses[0][0]  # Get the first question
+            expected_answer = expected_answers[0]  # Use the first expected answer
+
+            accuracy_scores = []
+
+            # Evaluate the first question against each response in the conversation
+            for _, response in questions_and_responses:
+                accuracy_result = await self._evaluate_answer_accuracy(
+                    first_question, response, expected_answer
+                )
+                if accuracy_result is not None and "score" in accuracy_result:
+                    accuracy_scores.append(accuracy_result["score"])
+
+            # Take the maximum accuracy score across all responses
+            if accuracy_scores:
+                max_accuracy_score = max(accuracy_scores)
+                evaluator_results.append(
+                    {
+                        "key": "answer_accuracy",
+                        "score": max_accuracy_score,
+                    }
+                )
+        print(evaluator_results)
         # If no evaluations were performed, return empty results
         if not evaluator_results:
             return self._get_empty_trajectory_results()
