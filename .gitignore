@@ -35,7 +35,7 @@ coverage.xml
 # Configuration
 /config.yaml
 
-result.json
+/result*.json
 
 # IDE
 .idea/
@@ -48,3 +48,4 @@ result.json
 *.logconfig.yaml
 *.log
 logs/
+output.json

@@ -1,5 +1,7 @@
+import atexit
 import glob
 import os
+import signal
 from typing import Any, Dict, List, Optional
 
 import typer
@@ -7,6 +9,7 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
+from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
 from asqi.validation import validate_test_plan
@@ -128,6 +131,42 @@ def load_and_validate_plan(
 app = typer.Typer(help="A test executor for AI systems.")
 
 
+@app.callback()
+def _cli_startup_callback():
+    """Global CLI callback invoked before any subcommand.
+
+    Registers shutdown handlers for container cleanup once per process.
+    Using a callback keeps registration in the CLI layer and avoids
+    side-effects at import time in libraries or tests.
+    """
+    # Ensure cleanup on normal interpreter exit
+    atexit.register(_handle_shutdown)
+
+    # Handle common termination signals
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            signal.signal(sig, _handle_shutdown)
+        except Exception as e:
+            console.print(f"\n[red]❌Could not register handler for {sig}: {e}[/red]")
+
+
+def _handle_shutdown(signum=None, frame=None):
+    signame = None
+    if isinstance(signum, int):
+        try:
+            signame = signal.Signals(signum).name
+        except Exception:
+            signame = str(signum)
+
+    if not signame:
+        return
+
+    console.print(
+        f"[yellow] Shutdown signal received ({signame}). Cleaning up ...[/yellow]"
+    )
+    shutdown_containers()
+
+
 @app.command("validate", help="Validate test plan configuration without execution.")
 def validate(
     suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
@@ -221,8 +260,10 @@ def execute_tests(
     output_file: Optional[str] = typer.Option(
         None, help="Path to save execution results JSON file."
     ),
-    score_card_file: Optional[str] = typer.Option(
-        None, help="Path to grading score card YAML file (optional)."
+    test_names: Optional[List[str]] = typer.Option(
+        None,
+        "--test-names",
+        help="Comma-separated list of test names to run (matches suite test names).",
     ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
@@ -237,25 +278,13 @@ def execute_tests(
         except Exception as e:
             console.print(f"[yellow]Warning: Error launching DBOS: {e}[/yellow]")
 
-        # Load score card configuration if provided
-        score_card_configs = None
-        if score_card_file:
-            try:
-                score_card_config = load_score_card_file(score_card_file)
-                score_card_configs = [score_card_config]
-                console.print(
-                    f"[green]✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}[/green]"
-                )
-            except (FileNotFoundError, ValueError, PermissionError) as e:
-                console.print(f"[red]❌ score card configuration error: {e}[/red]")
-                raise typer.Exit(1)
-
         workflow_id = start_test_execution(
             suite_path=suite_file,
             suts_path=suts_file,
             output_path=output_file,
-            score_card_configs=score_card_configs,
+            score_card_configs=None,
             execution_mode="tests_only",
+            test_names=test_names,
         )
 
         console.print(

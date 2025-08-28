@@ -1,7 +1,9 @@
 import json
 import logging
 import tempfile
+import threading
 from contextlib import contextmanager
+from difflib import get_close_matches
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -19,6 +21,11 @@ logger = logging.getLogger(__name__)
 INPUT_MOUNT_PATH = "/input"
 OUTPUT_MOUNT_PATH = "/output"
 
+# === Active container tracking and shutdown handling ===
+_active_lock = threading.Lock()
+_active_containers: set[str] = set()
+_shutdown_in_progress = False
+
 
 class ManifestExtractionError(Exception):
     """Exception raised when manifest extraction fails."""
@@ -31,6 +38,12 @@ class ManifestExtractionError(Exception):
         self.original_error = original_error
 
 
+class MissingImageException(Exception):
+    """Exception raised when required Docker images are missing."""
+
+    pass
+
+
 @contextmanager
 def docker_client():
     """Context manager for Docker client with proper cleanup."""
@@ -41,17 +54,17 @@ def docker_client():
         client.close()
 
 
-def check_images_availability(images: List[str]) -> Dict[str, bool]:
+def check_images_availabilty(images: List[str]) -> Dict[str, bool]:
     """
     Check if Docker images are available locally.
 
-    Args:
-        images: List of image names to check
-
-    Returns:
-        Dictionary mapping image names to availability status
+    - Tries to fetch each image by exact name:tag.
+    - Records availability in a dict.
+    - If any images are missing, lists available tags for the repo
+    and raises MissingImageException with recommendations.
     """
     availability = {}
+    missing = []
 
     with docker_client() as client:
         for image in images:
@@ -60,14 +73,37 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
                 availability[image] = True
             except docker_errors.ImageNotFound:
                 availability[image] = False
+                missing.append(image)
             except docker_errors.APIError as e:
-                # Log specific Docker API errors but continue checking other images
-                logger.warning(f"Docker API error checking image {image}: {e}")
+                logger.warning(f"Docker API error checking {image}: {e}")
                 availability[image] = False
             except ConnectionError as e:
-                raise ConnectionError(
-                    f"Failed to connect to Docker daemon while checking image {image}: {e}"
-                )
+                raise ConnectionError(f"Failed to connect to Docker daemon: {e}")
+
+    if missing:
+        try:
+            local_images = client.images.list()
+            local_tags = [tag for img in local_images for tag in img.tags]
+        except docker_errors.APIError as e:
+            logger.warning(f"Failed to list local Docker images: {e}")
+            local_tags = []
+
+        msgs = []
+        for image in missing:
+            repo = image.rsplit(":", 1)[0] if ":" in image else image
+            repo_tags = [tag for tag in local_tags if tag.startswith(repo + ":")]
+
+            suggestion = get_close_matches(image, local_tags, n=1)
+
+            if repo_tags:  # different tags
+                msg = f"❌ Container not found: {image}\nDid you mean: {repo_tags[0]}"
+            elif suggestion:  # similar names
+                msg = f"❌ Container not found: {image}\nDid you mean: {suggestion[0]}"
+            else:
+                msg = f"❌ Container not found: {image}\nNo similar images found."
+            msgs.append(msg)
+
+        raise MissingImageException("\n\n".join(msgs))
 
     return availability
 
@@ -388,8 +424,16 @@ def run_container_with_args(
         "error": "",
         "container_id": "",
     }
-    container_logger = create_container_logger(display_name=image)
+    # e.g. my-registry/deepteam:latest -> deepteam
+    image_name_only = image.split("/")[-1].split(":")[0]
+    container_logger = create_container_logger(display_name=image_name_only)
 
+    with _active_lock:
+        if _shutdown_in_progress:
+            logger.warning(
+                f"Attempting to run container '{image}' during shutdown, skipping..."
+            )
+            return result
     with docker_client() as client:
         container = None
         try:
@@ -413,8 +457,10 @@ def run_container_with_args(
                 mounts=mounts,
             )
 
-            result["container_id"] = container.id or ""
+            with _active_lock:
+                _active_containers.add(container.id)  # type: ignore
 
+            result["container_id"] = container.id or ""
             output_lines = []
             if stream_logs:
                 try:
@@ -469,11 +515,46 @@ def run_container_with_args(
                 f"Failed to connect to Docker daemon while running image '{image}': {e}"
             )
         finally:
-            # Clean up container
-            if container:
-                try:
-                    container.remove(force=True)
-                except (docker_errors.APIError, docker_errors.NotFound) as e:
-                    logger.warning(f"Failed to remove container during cleanup: {e}")
-
+            _decommission_container(container)
     return result
+
+
+def shutdown_containers() -> None:
+    """Force-remove any containers that are still tracked as active.
+
+    This is intended to run during atexit or signal handling to ensure
+    worker containers do not linger if the main process is interrupted.
+    """
+    # Make a snapshot under lock to avoid long-held lock during Docker calls
+    with _active_lock:
+        global _shutdown_in_progress
+        _shutdown_in_progress = True
+        active_ids = list(_active_containers)
+    if not active_ids:
+        return
+
+    with docker_client() as client:
+        for cid in active_ids:
+            try:
+                c = client.containers.get(cid)
+                _decommission_container(c)
+            except (docker_errors.NotFound, docker_errors.APIError):
+                pass
+
+
+def _decommission_container(container):
+    if not container:
+        return
+
+    try:
+        # try to stop gracefully first
+        container.stop(timeout=1)
+    except (docker_errors.APIError, docker_errors.NotFound) as e:
+        logger.debug(f"Failed to gracefully stop container: {e}")
+    try:
+        container.remove(force=True)
+    except (docker_errors.APIError, docker_errors.NotFound) as e:
+        logger.warning(f"Failed to remove container during cleanup: {e}")
+    # and remove from active containers
+    with _active_lock:
+        _active_containers.discard(container.id)

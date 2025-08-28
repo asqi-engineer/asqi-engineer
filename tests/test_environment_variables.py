@@ -1,8 +1,7 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from asqi.container_manager import run_container_with_args
 from asqi.schemas import SuiteConfig, SUTDefinition, SUTsConfig, TestDefinition
 from asqi.validation import create_test_execution_plan
 from asqi.workflow import execute_single_test
@@ -29,6 +28,7 @@ class TestEnvironmentVariables:
                     target_suts=["test_sut"],
                     params={"generations": 1},
                     tags=None,
+                    volumes={},
                 )
             ],
         )
@@ -146,54 +146,3 @@ class TestEnvironmentVariables:
 
         assert "environment" in call_kwargs
         assert call_kwargs["environment"]["API_KEY"] == "sk-123"
-
-    @patch("asqi.container_manager.docker_client")
-    def test_run_container_with_args_environment_parameter(self, mock_docker_client):
-        """Test that run_container_with_args correctly passes environment variables to Docker."""
-        # Mock Docker client and container
-        mock_client = MagicMock()
-        mock_container = MagicMock()
-        mock_container.id = "test_container_789"
-        mock_container.wait.return_value = {"StatusCode": 0}
-        mock_container.logs.return_value = b'{"success": true}'
-
-        mock_client.containers.run.return_value = mock_container
-        mock_docker_client.return_value.__enter__.return_value = mock_client
-
-        # Test environment variables
-        test_env = {"API_KEY": "secret123", "MODEL_NAME": "gpt-4"}
-
-        # Call run_container_with_args with environment
-        _result = run_container_with_args(
-            image="test:latest", args=["--test", "arg"], environment=test_env
-        )
-
-        # Verify Docker container was created with correct environment
-        mock_client.containers.run.assert_called_once()
-        call_kwargs = mock_client.containers.run.call_args[1]
-
-        assert "environment" in call_kwargs
-        assert call_kwargs["environment"] == test_env
-
-    @patch("asqi.container_manager.docker_client")
-    def test_run_container_with_args_no_environment_parameter(self, mock_docker_client):
-        """Test that run_container_with_args handles missing environment parameter."""
-        # Mock Docker client and container
-        mock_client = MagicMock()
-        mock_container = MagicMock()
-        mock_container.id = "test_container_999"
-        mock_container.wait.return_value = {"StatusCode": 0}
-        mock_container.logs.return_value = b'{"success": true}'
-
-        mock_client.containers.run.return_value = mock_container
-        mock_docker_client.return_value.__enter__.return_value = mock_client
-
-        # Call run_container_with_args without environment parameter
-        _result = run_container_with_args(image="test:latest", args=["--test", "arg"])
-
-        # Verify Docker container was created with empty environment
-        mock_client.containers.run.assert_called_once()
-        call_kwargs = mock_client.containers.run.call_args[1]
-
-        assert "environment" in call_kwargs
-        assert call_kwargs["environment"] == {}

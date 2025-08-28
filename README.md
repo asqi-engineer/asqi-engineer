@@ -22,9 +22,11 @@ The easiest way to get started is using a dev container with all dependencies pr
    ```bash
    git clone <repository-url>
    cd asqi
+   cp .env.example .env
    code .
    # VS Code will prompt to "Reopen in Container" - click Yes
    ```
+    Note that you may need to change the ports the devcontainer services (see next bullet) are running on to avoid conflicts with existing local services. Edit the host machine ports in .devcontainer/docker-compose.yml to avoid conflicts. 
 
 4. **Docker Compose DevContainer Services:**
    - PostgreSQL: `localhost:5432` (user: `postgres`, password: `asqi`, database: `asqi_starter`)
@@ -57,6 +59,7 @@ If you prefer local development:
 
 2. **Verify installation:**
    ```bash
+   # source ./.venv/bin/activate
    asqi --help
    ```
 
