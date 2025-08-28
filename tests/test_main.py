@@ -294,6 +294,7 @@ class TestMainCLI:
             output_path="out.json",
             score_card_configs=None,
             execution_mode="tests_only",
+            concurrent_tests=1,
             test_names=["t1"],
         )
         assert "✨ Test execution completed! Workflow ID: workflow-888" in result.stdout
@@ -328,6 +329,7 @@ class TestMainCLI:
             output_path="out.json",
             score_card_configs=None,
             execution_mode="tests_only",
+            concurrent_tests=1,
             test_names=["tes1"],
         )
 
