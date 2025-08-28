@@ -392,7 +392,6 @@ def test_run_end_to_end_workflow():
     suite_config = {"suite_name": "test"}
     suts_config = {"systems_under_test": {}}
     score_card_configs = [{"score_card_name": "test"}]
-    concurrent_tests = 3
 
     test_results = {"summary": {"status": "COMPLETED"}, "results": []}
     final_results = {
