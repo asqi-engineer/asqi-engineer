@@ -411,13 +411,9 @@ def test_run_end_to_end_workflow():
         inner_workflow = getattr(
             run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow
         )
-        result = inner_workflow(
-            suite_config, suts_config, score_card_configs, concurrent_tests
-        )
+        result = inner_workflow(suite_config, suts_config, score_card_configs)
 
-        mock_test_workflow.assert_called_once_with(
-            suite_config, suts_config, concurrent_tests
-        )
+        mock_test_workflow.assert_called_once_with(suite_config, suts_config)
         mock_score_workflow.assert_called_once_with(test_results, score_card_configs)
         assert result == final_results
 

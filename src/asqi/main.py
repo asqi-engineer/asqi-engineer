@@ -9,6 +9,7 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
+from asqi.config import executor_config
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
@@ -265,6 +266,22 @@ def execute_tests(
         max=20,
         help="Number of tests to run concurrently (must be between 1 and 20, default: 1)",
     ),
+    max_failures: int = typer.Option(
+        3,
+        "--max-failures",
+        "-m",
+        min=1,
+        max=10,
+        help="Maximum number of failures to display (default: 3, must be between 1 and 10).",
+    ),
+    progress_interval: int = typer.Option(
+        4,
+        "--progress-interval",
+        "-p",
+        min=1,
+        max=10,
+        help="Progress update interval (default: 4 -> every 25%, must be between 1 and 10).",
+    ),
     output_file: Optional[str] = typer.Option(
         None, help="Path to save execution results JSON file."
     ),
@@ -280,6 +297,13 @@ def execute_tests(
     try:
         from asqi.workflow import DBOS, start_test_execution
 
+        # Update ExecutorConfig from CLI args
+        executor_config.update_from_args(
+            concurrent_tests=concurrent_tests,
+            max_failures=max_failures,
+            progress_interval=progress_interval,
+        )
+
         # Launch DBOS if not already launched
         try:
             DBOS.launch()
@@ -292,7 +316,6 @@ def execute_tests(
             output_path=output_file,
             score_card_configs=None,
             execution_mode="tests_only",
-            concurrent_tests=concurrent_tests,
             test_names=test_names,
         )
 
