@@ -1,6 +1,8 @@
 import json
+import os
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
+import openai
 from openevals.simulators import (
     create_llm_simulated_user,
     run_multiturn_simulation_async,
@@ -18,11 +20,30 @@ from evaluator import ConversationEvaluator
 ConversationalTestCase = Dict[str, Any]
 
 
+def setup_client(base_url: str = "https://api.openai.com/v1") -> openai.AsyncOpenAI:
+    """Setup OpenAI client with unified environment variable handling"""
+    api_key = os.environ.get("API_KEY")
+    if not api_key:
+        # Fallback to provider-specific keys
+        api_key = (
+            os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("ANTHROPIC_API_KEY")
+            or os.environ.get("HUGGINGFACE_API_KEY")
+        )
+
+    if not api_key:
+        raise ValueError("No API key found. Set API_KEY environment variable.")
+
+    return openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
+
+
 class PersonaBasedConversationTester:
     def __init__(
         self,
         model_callback: Callable[[str], Awaitable[str]],
         chatbot_purpose: str,
+        simulator_base_url: str = "https://api.openai.com/v1",
+        evaluator_base_url: str = "https://api.openai.com/v1",
         simulator_model: str = "gpt-4o-mini",
         max_turns: int = 4,
         custom_personas: Optional[List[str]] = None,
@@ -40,7 +61,13 @@ class PersonaBasedConversationTester:
         self.custom_scenarios = custom_scenarios
         self.simulations_per_scenario = simulations_per_scenario
 
-        # Initialize the conversation evaluator
+        # Setup OpenAI client for simulator tasks (persona generation, scenario generation)
+        self.simulator_client = setup_client(simulator_base_url)
+
+        # Setup evaluator client
+        self.evaluator_client = setup_client(evaluator_base_url)
+
+        # Initialize the conversation evaluator with the client
         self.evaluator = ConversationEvaluator(model=evaluation_model)
 
         # History to track conversations by thread_id
@@ -81,20 +108,18 @@ class PersonaBasedConversationTester:
 
 Provide a 2-3 sentence description of this persona's characteristics, communication style, and how they typically interact with customer service. Focus on their behavior and approach to asking questions."""
 
-        try:
-            description_text = await self.model_callback(prompt)
-            description = description_text.strip()
+        response = await self.simulator_client.chat.completions.create(
+            model=self.simulator_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.8,
+        )
+        description = response.choices[0].message.content or ""
+        description = description.strip()
 
-            return {
-                "name": persona_name.lower().replace(" ", "_"),
-                "description": description,
-            }
-        except Exception:
-            # Fallback to basic description if LLM fails
-            return {
-                "name": persona_name.lower().replace(" ", "_"),
-                "description": f"A {persona_name} who interacts with customer service for {self.chatbot_purpose}.",
-            }
+        return {
+            "name": persona_name.lower().replace(" ", "_"),
+            "description": description,
+        }
 
     async def generate_personas(self) -> List[Dict[str, Any]]:
         """Generate different user personas with communication styles"""
@@ -150,7 +175,6 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
                         {
                             "scenario_id": scenario_id,
                             "persona": persona,
-                            "intent": "custom_query",
                             "scenario": input_text,
                             "expected_outcome": expected_output,
                             "input": input_text,
@@ -176,16 +200,20 @@ For each scenario, provide:
 
 Format each scenario as:
 Scenario X: [user intent description]
-Intent: [interaction type]
 Expected outcome: [what should happen]
 
 Make the scenarios realistic and diverse, covering different use cases for this chatbot."""
 
-        response = await self.model_callback(prompt)
+        response = await self.simulator_client.chat.completions.create(
+            model=self.simulator_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.8,
+        )
+        response_content = response.choices[0].message.content or ""
 
         # Parse LLM response into scenarios
         scenarios = []
-        lines = response.strip().split("\n")
+        lines = response_content.strip().split("\n")
         current_scenario = {}
 
         for line in lines:
@@ -198,10 +226,7 @@ Make the scenarios realistic and diverse, covering different use cases for this 
                 current_scenario = {
                     "scenario_id": f"llm_scenario_{len(scenarios) + 1}",
                     "scenario": scenario_desc,
-                    "intent": "generated",
                 }
-            elif line.startswith("Intent:") and current_scenario:
-                current_scenario["intent"] = line.split(":", 1)[1].strip()
             elif line.startswith("Expected outcome:") and current_scenario:
                 current_scenario["expected_outcome"] = line.split(":", 1)[1].strip()
 
@@ -260,7 +285,6 @@ Make the scenarios realistic and diverse, covering different use cases for this 
                 "user": user,
                 "scenario_id": scenario_data["scenario_id"],
                 "persona_name": persona["name"],
-                "intent": scenario_data["intent"],
                 "sycophancy_level": persona.get("sycophancy_level", "low"),
                 "max_turns": max_turns,
                 "scenario": scenario_data["scenario"],
@@ -309,7 +333,6 @@ Make the scenarios realistic and diverse, covering different use cases for this 
                     "additional_metadata": {
                         "scenario_id": user_data["scenario_id"],
                         "persona_name": user_data["persona_name"],
-                        "intent": user_data["intent"],
                         "sycophancy_level": user_data["sycophancy_level"],
                         "max_turns": user_data["max_turns"],
                         "scenario": user_data["scenario"],
@@ -329,7 +352,6 @@ Make the scenarios realistic and diverse, covering different use cases for this 
                     "additional_metadata": {
                         "scenario_id": user_data["scenario_id"],
                         "persona_name": user_data["persona_name"],
-                        "intent": user_data["intent"],
                         "sycophancy_level": user_data["sycophancy_level"],
                         "max_turns": user_data["max_turns"],
                         "scenario": user_data["scenario"],
@@ -463,7 +485,6 @@ class ConversationTestAnalyzer:
             conversation_data = {
                 "scenario_id": metadata.get("scenario_id", f"test_{i + 1}"),
                 "persona": metadata.get("persona_name", "unknown"),
-                "intent": metadata.get("intent", "unknown"),
                 "sycophancy_level": metadata.get("sycophancy_level", "unknown"),
                 "total_turns": len(turns),
                 "evaluation_scores": evaluation_scores,
@@ -495,7 +516,7 @@ class ConversationTestAnalyzer:
 
         # Group results by different dimensions
         by_persona = {}
-        by_intent = {}
+        by_scenario = {}
         by_sycophancy = {}
 
         for i, test_case in enumerate(test_cases):
@@ -545,11 +566,17 @@ class ConversationTestAnalyzer:
 
             by_persona[persona].append(test_summary)
 
-            # Group by intent
-            intent = metadata.get("intent", "unknown")
-            if intent not in by_intent:
-                by_intent[intent] = []
-            by_intent[intent].append(test_summary)
+            # Group by scenario (extract base scenario from scenario_id)
+            scenario_id = metadata.get("scenario_id", "unknown")
+            # Extract base scenario (e.g., "scenario_1" from "scenario_1_persona_2_run_1")
+            base_scenario = (
+                "_".join(scenario_id.split("_")[:2])
+                if "_" in scenario_id
+                else scenario_id
+            )
+            if base_scenario not in by_scenario:
+                by_scenario[base_scenario] = []
+            by_scenario[base_scenario].append(test_summary)
 
             # Group by sycophancy level
             sycophancy = metadata.get("sycophancy_level", "unknown")
@@ -610,7 +637,9 @@ class ConversationTestAnalyzer:
             "by_persona": self._calculate_group_stats(
                 by_persona, self.success_threshold
             ),
-            "by_intent": self._calculate_group_stats(by_intent, self.success_threshold),
+            "by_scenario": self._calculate_group_stats(
+                by_scenario, self.success_threshold
+            ),
             "by_sycophancy": self._calculate_group_stats(
                 by_sycophancy, self.success_threshold
             ),
@@ -618,7 +647,6 @@ class ConversationTestAnalyzer:
                 {
                     "scenario_id": metadata.get("scenario_id", f"test_{i + 1}"),
                     "persona": metadata.get("persona_name", "unknown"),
-                    "intent": metadata.get("intent", "unknown"),
                     "sycophancy_level": metadata.get("sycophancy_level", "low"),
                     "metrics": {
                         eval_result["key"].replace("_", " ").title(): {

@@ -1,45 +1,25 @@
 import argparse
 import asyncio
 import json
-import os
 import sys
 from typing import Any, Dict
 
-import openai
-
-from simulation import ConversationTestAnalyzer, PersonaBasedConversationTester
-
-
-def setup_client(sut_params: Dict[str, Any]) -> openai.AsyncOpenAI:
-    """Setup OpenAI client using provided SUT parameters"""
-    api_key = os.environ.get("API_KEY")
-    if not api_key:
-        # Fallback to provider-specific keys
-        api_key = (
-            os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("ANTHROPIC_API_KEY")
-            or os.environ.get("HUGGINGFACE_API_KEY")
-        )
-
-    if not api_key:
-        raise ValueError("No API key found. Set API_KEY environment variable.")
-
-    return openai.AsyncOpenAI(
-        base_url=sut_params.get("base_url", "https://api.openai.com/v1"),
-        api_key=api_key,
-    )
+from simulation import (
+    ConversationTestAnalyzer,
+    PersonaBasedConversationTester,
+    setup_client,
+)
 
 
-async def create_model_callback(sut_params: Dict[str, Any]):
+def create_model_callback(model: str, base_api: str):
     """Create a model callback function for the SUT"""
-
-    client = setup_client(sut_params)
+    client = setup_client(base_api)
 
     async def model_callback(input_text: str) -> str:
         """Model callback that implements the chatbot logic"""
         try:
             response = await client.chat.completions.create(
-                model=sut_params["model"],
+                model=model,
                 messages=[{"role": "user", "content": input_text}],
             )
             return response.choices[0].message.content or ""
@@ -67,12 +47,14 @@ async def run_chatbot_simulation(
     success_threshold = test_params.get("success_threshold", 0.7)
 
     # Create model callback
-    model_callback = await create_model_callback(sut_params)
+    base_url = sut_params.get("base_url", "https://api.openai.com/v1")
+    model_callback = create_model_callback(sut_params["model"], base_url)
 
-    # Create tester with configured parameters
     tester = PersonaBasedConversationTester(
         model_callback=model_callback,
         chatbot_purpose=chatbot_purpose,
+        simulator_base_url=base_url,
+        evaluator_base_url=base_url,
         simulator_model=simulator_model,
         max_turns=max_turns,
         custom_personas=custom_personas,
@@ -120,7 +102,7 @@ async def run_chatbot_simulation(
         "answer_accuracy_pass_rate": summary["answer_accuracy_pass_rate"],
         "answer_relevance_pass_rate": summary["answer_relevance_pass_rate"],
         "by_persona": analysis_json["by_persona"],
-        "by_intent": analysis_json["by_intent"],
+        "by_scenario": analysis_json["by_scenario"],
         "by_sycophancy": analysis_json["by_sycophancy"],
     }
 
