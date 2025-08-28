@@ -3,10 +3,10 @@ import asyncio
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Any, Dict
 
 import openai
-
 from simulation import ConversationTestAnalyzer, PersonaBasedConversationTester
 
 
@@ -65,6 +65,9 @@ async def run_chatbot_simulation(
     custom_scenarios = test_params.get("custom_scenarios")
     simulations_per_scenario = test_params.get("simulations_per_scenario", 1)
     success_threshold = test_params.get("success_threshold", 0.7)
+    conversation_log_filepath = Path(os.environ["OUTPUT_MOUNT_PATH"]) / test_params.get(
+        "conversation_log_filename", "conversation_logs.json"
+    )
 
     # Create model callback
     model_callback = await create_model_callback(sut_params)
@@ -105,8 +108,7 @@ async def run_chatbot_simulation(
     print(f"Generated {len(test_cases)} conversation test cases")
 
     analyzer = ConversationTestAnalyzer(success_threshold=success_threshold)
-    conversations_file = "conversation_logs.json"
-    analyzer.save_conversations(test_cases, conversations_file)
+    analyzer.save_conversations(test_cases, conversation_log_filepath)
 
     analysis_json = analyzer.analyze_results(test_cases)
     print("\n🎉 Conversation testing complete!")

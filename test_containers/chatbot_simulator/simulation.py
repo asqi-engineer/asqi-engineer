@@ -1,6 +1,8 @@
 import json
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
+from evaluator import ConversationEvaluator
 from openevals.simulators import (
     create_llm_simulated_user,
     run_multiturn_simulation_async,
@@ -12,8 +14,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-
-from evaluator import ConversationEvaluator
 
 ConversationalTestCase = Dict[str, Any]
 
@@ -417,7 +417,7 @@ class ConversationTestAnalyzer:
     def save_conversations(
         self,
         test_cases: List[ConversationalTestCase],
-        filename: str = "conversation_logs.json",
+        filepath: Path,
     ) -> None:
         """Save full conversation threads with evaluation scores to a JSON file"""
         conversations = []
@@ -480,12 +480,11 @@ class ConversationTestAnalyzer:
             }
             conversations.append(conversation_data)
 
-        with open(filename, "w", encoding="utf-8") as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(conversations, f, indent=2, ensure_ascii=False)
-
-        print(
-            f"💾 Saved {len(conversations)} conversation threads with evaluation scores to {filename}"
-        )
+            print(
+                f"💾 Saved {len(conversations)} conversation threads with evaluation scores to the mounted output volume with name {filepath.name}."
+            )
 
     def analyze_results(
         self,

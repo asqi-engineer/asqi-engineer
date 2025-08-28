@@ -47,6 +47,10 @@ input_schema:
     type: "float"
     required: false
     description: "Threshold for determining evaluation success (default: 0.7)"
+  - name: "conversation_log_filename"
+    type: "string"
+    required: false
+    description: "Filename for saving detailed conversation logs (default: conversation_logs.json)"
 
 output_metrics:
   - name: "success"
