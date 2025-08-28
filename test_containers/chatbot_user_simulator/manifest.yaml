@@ -1,4 +1,4 @@
-name: "chatbot_simulator"
+name: "chatbot_user_simulator"
 version: "1.0"
 description: "Multi-turn conversational testing using persona-based simulation and LLM-as-judge evaluation."
 
