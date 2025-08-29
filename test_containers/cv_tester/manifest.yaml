@@ -3,8 +3,8 @@ version: "1.0"
 description: "An object detection evaluator that compares model predictions against ground-truth annotations and returns standard performance metrics."
 
 supported_suts:
-  - type: "computer_vision"
-    required_config: [type, model] 
+  - type: "object_detection_api"
+    required_config: [endpoint] 
 
 input_schema:
   - name: "input_image_path"

@@ -10,27 +10,24 @@ WORKDIR /app
 COPY manifest.yaml .
 COPY entrypoint.py .
 COPY evaluator.py .
-COPY detectors.py .
+COPY adapters.py .
+COPY coco_labels.py .
 
-# System dependencies for OpenCV/TorchVision
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libglib2.0-0 \
-        libsm6 \
-        libxrender1 \
-        libxext6 \
-        libgl1 \
         libjpeg62-turbo \
         libpng16-16 \
+        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Python dependencies
+# Python dependencies actually used by the scripts
 RUN pip install --no-cache-dir \
-        ultralytics \
         opencv-python-headless \
         numpy \
-        python-dotenv \
-        torch \
-        torchvision
+        requests \
+        python-dotenv \ 
+        pillow \
+        defusedxml
 
 RUN chmod +x entrypoint.py
 

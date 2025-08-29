@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 import glob
 import os
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+from adapters import (
+    prepare_request_body,
+)
 
 
-# ---------- I/O helpers ----------
 def list_images(img_dir: str) -> List[str]:
-    """List images with common extensions."""
+    """
+    List image file paths in a directory.
+    Input: directory path (str).
+    Output: sorted list of image file paths with common extensions.
+    """
     exts = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tif", "*.tiff", "*.webp")
     paths: List[str] = []
     for e in exts:
@@ -19,8 +25,9 @@ def list_images(img_dir: str) -> List[str]:
 
 def load_yolo_labels(label_path: str) -> List[Tuple[int, float, float, float, float]]:
     """
-    Load YOLO-format labels (class xc yc w h), normalized to [0,1].
-    Returns list of tuples: (cls, xc, yc, w, h).
+    Load YOLO-format ground-truth labels.
+    Input: .txt file path with lines "<class> <xc> <yc> <w> <h>" (normalized).
+    Output: list of (class_id, xc, yc, w, h).
     """
     if not os.path.exists(label_path):
         return []
@@ -40,7 +47,11 @@ def yolo_to_xyxy_abs(
     img_w: int,
     img_h: int,
 ) -> List[Tuple[int, float, float, float, float]]:
-    """Convert YOLO normalized (xc,yc,w,h) to absolute xyxy with class."""
+    """
+    Convert YOLO normalized boxes to absolute [x1,y1,x2,y2].
+    Input: list of (cls, xc, yc, w, h), image width and height.
+    Output: list of (cls, x1, y1, x2, y2) in absolute pixel coords.
+    """
     converted = []
     for cls, xc, yc, w, h in boxes:
         x1 = (xc - w / 2.0) * img_w
@@ -51,18 +62,18 @@ def yolo_to_xyxy_abs(
     return converted
 
 
-# ---------- Geometry ----------
-
-
 def iou_xyxy(
     a: Tuple[float, float, float, float], b: Tuple[float, float, float, float]
 ) -> float:
-    """Compute IoU between two [x1,y1,x2,y2] boxes."""
+    """
+    Compute IoU between two [x1,y1,x2,y2] boxes.
+    Input: box a (x1,y1,x2,y2), box b (x1,y1,x2,y2).
+    Output: IoU value in [0,1].
+    """
     x1 = max(a[0], b[0])
     y1 = max(a[1], b[1])
     x2 = min(a[2], b[2])
     y2 = min(a[3], b[3])
-
     inter = max(0.0, x2 - x1) * max(0.0, y2 - y1)
     if inter <= 0:
         return 0.0
@@ -72,25 +83,58 @@ def iou_xyxy(
     return inter / union if union > 0 else 0.0
 
 
-# ---------- Evaluation ----------
+def inference(
+    endpoint: str,
+    mode: str,
+    image_path: str,
+    api_params: Optional[Dict[str, Any]] = None,
+) -> List[Tuple[int, float, float, float, float, float]]:
+    """
+    Run inference for one image via API.
+    Input: endpoint URL, mode ("local","huggingface",...), image_path, optional api_params dict.
+    Output: list of predictions (cls, xc, yc, w, h, conf), YOLO normalized format.
+    """
+    params_in = dict(api_params or {})
+
+    input_field: str = params_in.pop("input_field", "image")
+    nested_params = params_in.pop("params", {}) or {}
+    timeout: float = float(params_in.pop("timeout", nested_params.pop("timeout", 30.0)))
+
+    headers = params_in.pop("headers", {}) or {}
+    query_params: Dict[str, Any] = {**params_in, **nested_params}
+
+    req_kwargs: Dict[str, Any] = {"params": dict(query_params), "timeout": timeout}
+    if headers:
+        req_kwargs["headers"] = dict(headers)
+
+    return prepare_request_body(
+        headers=headers,
+        input_field=input_field,
+        image_path=image_path,
+        req_kwargs=req_kwargs,
+        endpoint=endpoint,
+        mode=mode,
+    )
 
 
 def evaluate_dataset(
-    detector,
     img_dir: str,
     gt_dir: str,
+    endpoint: str,
+    mode: str,
     iou_thr: float = 0.5,
-    conf_thr: float = 0.0,
-    use_classes: bool = False,
+    api_params: Optional[Dict[str, Any]] = None,
 ) -> Tuple[float, float, float, int]:
     """
-    Run inference with the provided detector and evaluate vs YOLO ground-truth labels.
-
-    Returns:
-      - map_score: mean IoU of matched predictions (kept to match your original behavior)
-      - precision: TP / (TP + FP)
-      - recall: TP / (TP + FN)
-      - num_images: number of images evaluated
+    Evaluate predictions from an API against YOLO ground truth labels.
+    Input:
+        img_dir   = directory with input images,
+        gt_dir    = directory with YOLO .txt ground-truth labels,
+        endpoint  = API endpoint URL,
+        mode      = API mode ("local","huggingface",...),
+        iou_thr   = IoU threshold for matching,
+        api_params = optional dict of extra API params.
+    Output: (map_score, precision, recall, num_images).
     """
     img_paths = list_images(img_dir)
     if not img_paths:
@@ -104,37 +148,35 @@ def evaluate_dataset(
     for img_path in img_paths:
         img = cv2.imread(img_path)
         if img is None:
-            # Skip unreadable images
             continue
         h, w = img.shape[:2]
 
-        # Ground truth: convert normalized YOLO txt -> absolute xyxy
+        # Ground truth
         label_path = os.path.join(
             gt_dir, os.path.splitext(os.path.basename(img_path))[0] + ".txt"
         )
         gt_norm = load_yolo_labels(label_path)
-        gt_abs = yolo_to_xyxy_abs(gt_norm, w, h)  # List[(cls, x1,y1,x2,y2)]
+        gt_abs = yolo_to_xyxy_abs(gt_norm, w, h)
 
-        # Predictions: generic interface (xyxy[N,4], conf[N], cls[N])
-        xyxy, conf, cls = detector.predict(img)
+        # Predictions from API
+        preds = inference(endpoint, mode, img_path, api_params=api_params)
 
-        # Build prediction items (apply confidence threshold)
+        # Convert preds to abs xyxy
         pred_items: List[Tuple[int, float, float, float, float, float]] = []
-        for (x1, y1, x2, y2), c, k in zip(xyxy, conf, cls):
-            if c >= conf_thr:
-                pred_items.append(
-                    (int(k), float(x1), float(y1), float(x2), float(y2), float(c))
-                )
+        for cls_pred, xc, yc, pw, ph, conf in preds:
+            x1 = (xc - pw / 2.0) * w
+            y1 = (yc - ph / 2.0) * h
+            x2 = (xc + pw / 2.0) * w
+            y2 = (yc + ph / 2.0) * h
+            pred_items.append((int(cls_pred), x1, y1, x2, y2, conf))
 
-        # Greedy one-to-one matching at IoU threshold (class-aware optional)
+        # Greedy 1-1 matching (class-agnostic)
         matched_gt = set()
-        for p_cls, px1, py1, px2, py2, _ in pred_items:
+        for _, px1, py1, px2, py2, _ in pred_items:
             best_iou = 0.0
             best_idx = -1
-            for i, (g_cls, gx1, gy1, gx2, gy2) in enumerate(gt_abs):
+            for i, (_, gx1, gy1, gx2, gy2) in enumerate(gt_abs):
                 if i in matched_gt:
-                    continue
-                if use_classes and (p_cls != g_cls):
                     continue
                 iou_val = iou_xyxy((px1, py1, px2, py2), (gx1, gy1, gx2, gy2))
                 if iou_val >= iou_thr and iou_val > best_iou:
