@@ -28,15 +28,6 @@ class TestMainCLI:
         assert "Missing option '--suts-file'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_validate_missing_manifests_dir(self):
-        """Test that validate command requires manifests dir."""
-        result = self.runner.invoke(
-            app, ["validate", "--suite-file", "suite.yaml", "--suts-file", "suts.yaml"]
-        )
-        assert result.exit_code == 2
-        assert "Missing option '--manifests-dir'" in result.output
-
-    @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
     def test_execute_missing_suite_file(self):
         """Test that execute command requires suite file."""
         result = self.runner.invoke(app, ["execute"])
@@ -199,14 +190,12 @@ class TestMainCLI:
                 "suite.yaml",
                 "--suts-file",
                 "suts.yaml",
-                "--manifests-dir",
-                "manifests/",
             ],
         )
 
         assert result.exit_code == 0
         mock_validate.assert_called_once_with(
-            suite_path="suite.yaml", suts_path="suts.yaml", manifests_path="manifests/"
+            suite_path="suite.yaml", suts_path="suts.yaml", show_manifests=False
         )
         assert "✨ Success! The test plan is valid." in result.stdout
         assert (
@@ -229,8 +218,6 @@ class TestMainCLI:
                 "suite.yaml",
                 "--suts-file",
                 "suts.yaml",
-                "--manifests-dir",
-                "manifests/",
             ],
         )
 
