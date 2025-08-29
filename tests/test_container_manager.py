@@ -7,7 +7,7 @@ import pytest
 import yaml
 from docker import errors as docker_errors
 
-from asqi.config import container_config
+from asqi.config import ContainerConfig
 from asqi.container_manager import (
     ManifestExtractionError,
     MissingImageException,
@@ -460,9 +460,14 @@ class TestRunContainerWithArgs:
     def test_run_container_success(self, mock_container_setup):
         """Test successful container execution."""
         mock_client, mock_container, _ = mock_container_setup
+        container_config = ContainerConfig().from_run_params(
+            mem_limit="1g", cpu_quota=100000, network_mode="bridge"
+        )
 
         # Basic success
-        result = run_container_with_args(image="test:latest", args=["--test"])
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is True
         assert result["exit_code"] == 0
         assert result["container_id"] == "test_container_123"
@@ -470,20 +475,21 @@ class TestRunContainerWithArgs:
 
         # Env
         test_env = {"API_KEY": "secret", "MODEL": "gpt-4"}
+
         run_container_with_args(
-            image="test:latest", args=["--test"], environment=test_env
+            image="test:latest",
+            args=["--test"],
+            environment=test_env,
+            container_config=container_config,
         )
         call_kwargs = mock_client.containers.run.call_args[1]
         assert call_kwargs["environment"] == test_env
-
-        container_config.set_run_param("mem_limit", "1g")
-        container_config.set_run_param("cpu_quota", 100000)
-        container_config.set_run_param("network_mode", "bridge")
 
         # Resource/network
         run_container_with_args(
             image="test:latest",
             args=["--test"],
+            container_config=container_config,
         )
         call_kwargs = mock_client.containers.run.call_args[1]
         assert call_kwargs["mem_limit"] == "1g"
@@ -495,8 +501,10 @@ class TestRunContainerWithArgs:
         mock_client, mock_container, mock_extract_mounts = mock_container_setup
         log_lines = [b"Line 1\n", b"Line 2\n"]
         mock_container.logs.return_value = iter(log_lines)
-        container_config.set_stream_logs(True)
-        result = run_container_with_args(image="test:latest", args=["--test"])
+        container_config = ContainerConfig().from_stream_logs(True)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         mock_container.logs.assert_called_with(stream=True, follow=True)
         assert "Line 1" in result["output"] and "Line 2" in result["output"]
 
@@ -509,10 +517,11 @@ class TestRunContainerWithArgs:
             Mount(target="/input", source="/host/input", type="bind", read_only=True)
         ]
         mock_extract_mounts.return_value = (["--test"], test_mounts)
-        container_config.set_stream_logs(False)
+        container_config: ContainerConfig = ContainerConfig()
         run_container_with_args(
             image="test:latest",
             args=["--test", "--test-params", '{"__volumes": {"input": "/host/input"}}'],
+            container_config=container_config,
         )
         mock_extract_mounts.assert_called_once()
         call_kwargs = mock_client.containers.run.call_args[1]
@@ -536,7 +545,10 @@ class TestRunContainerWithArgs:
         """Test container run exception handling."""
         mock_client, _, _ = mock_container_setup
         mock_client.containers.run.side_effect = exception
-        result = run_container_with_args(image="test:latest", args=["--test"])
+        container_config: ContainerConfig = ContainerConfig()
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is False
         assert expected_error_message in result["error"]
 
@@ -544,8 +556,11 @@ class TestRunContainerWithArgs:
         """Test that ConnectionError is propagated."""
         mock_client, _, _ = mock_container_setup
         mock_client.containers.run.side_effect = ConnectionError("Connection failed")
+        container_config: ContainerConfig = ContainerConfig()
         with pytest.raises(ConnectionError, match="Failed to connect to Docker daemon"):
-            run_container_with_args(image="test:latest", args=["--test"])
+            run_container_with_args(
+                image="test:latest", args=["--test"], container_config=container_config
+            )
 
     def test_run_container_execution_edge_cases(self, mock_container_setup):
         """Test edge cases in container execution."""
@@ -554,34 +569,49 @@ class TestRunContainerWithArgs:
         # Non-zero exit code
         mock_container.wait.return_value = {"StatusCode": 1}
         mock_container.logs.return_value = b"error output"
-        result = run_container_with_args(image="test:latest", args=["--test"])
+        container_config: ContainerConfig = ContainerConfig()
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is False
         assert result["exit_code"] == 1
 
         # Wait API error with successful kill
         mock_container.wait.side_effect = docker_errors.APIError("Wait error")
-        result = run_container_with_args(image="test:latest", args=["--test"])
+        container_config: ContainerConfig = ContainerConfig()
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         mock_container.kill.assert_called_once()
         assert result["success"] is False
         assert "Container execution failed with API error" in result["error"]
 
         # Wait API error with kill failure
         mock_container.kill.side_effect = docker_errors.APIError("Kill failed")
-        result = run_container_with_args(image="test:latest", args=["--test"])
+        container_config: ContainerConfig = ContainerConfig()
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is False
 
         # Log retrieval error
         mock_container.wait.side_effect = None
         mock_container.wait.return_value = {"StatusCode": 0}
         mock_container.logs.side_effect = docker_errors.APIError("Log error")
-        result = run_container_with_args(image="test:latest", args=["--test"])
+        container_config: ContainerConfig = ContainerConfig()
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["output"] == ""
 
         # Cleanup failure
         mock_container.logs.side_effect = None
         mock_container.logs.return_value = b"output"
         mock_container.remove.side_effect = docker_errors.APIError("Remove failed")
-        result = run_container_with_args(image="test:latest", args=["--test"])
+        container_config: ContainerConfig = ContainerConfig()
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is True  # Should succeed despite cleanup failure
 
     @patch("asqi.container_manager.logger")
@@ -590,9 +620,11 @@ class TestRunContainerWithArgs:
     def test_no_run_when_shutdown_in_progress(self, mock_docker_client, mock_logger):
         """Ensure no containers are executed when shutdown has started."""
         # Act
+        container_config: ContainerConfig = ContainerConfig()
         result = run_container_with_args(
             image="some/image:tag",
             args=["--foo", "bar"],
+            container_config=container_config,
         )
 
         # Assert: docker_client context manager must not be invoked at all

@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
+from asqi.config import ContainerConfig
 from asqi.schemas import Manifest, SUTSupport
 from asqi.workflow import (
     TestExecutionResult,
@@ -20,10 +21,10 @@ from asqi.workflow import (
 )
 
 
-def _call_inner_workflow(suite_config, suts_config):
+def _call_inner_workflow(suite_config, suts_config, container_config):
     """Call the inner (undecorated) workflow function if available."""
     workflow_fn = getattr(_workflow, "__wrapped__", _workflow)
-    return workflow_fn(suite_config, suts_config)
+    return workflow_fn(suite_config, suts_config, container_config)
 
 
 class DummyHandle:
@@ -65,6 +66,8 @@ def test_run_test_suite_workflow_success():
             "sutA": {"type": "llm_api", "params": {"endpoint": "http://x"}}
         }
     }
+
+    container_config: ContainerConfig = ContainerConfig()
 
     # Build a minimal manifest that supports the SUT type
     manifest = Manifest(
@@ -109,7 +112,7 @@ def test_run_test_suite_workflow_success():
             success_result
         )
 
-        out = _call_inner_workflow(suite_config, suts_config)
+        out = _call_inner_workflow(suite_config, suts_config, container_config)
 
     assert out["summary"]["status"] == "COMPLETED"
     assert out["summary"]["total_tests"] == 1
@@ -134,6 +137,8 @@ def test_run_test_suite_workflow_validation_failure():
 
     suts_config = {"systems_under_test": {"sutA": {"type": "llm_api", "params": {}}}}
 
+    container_config: ContainerConfig = ContainerConfig()
+
     with (
         patch("asqi.workflow.dbos_check_images_availabilty") as mock_avail,
         patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
@@ -145,7 +150,7 @@ def test_run_test_suite_workflow_validation_failure():
             "Test 'bad_test': No manifest available for image 'missing/image:latest'"
         ]
 
-        out = _call_inner_workflow(suite_config, suts_config)
+        out = _call_inner_workflow(suite_config, suts_config, container_config)
 
     assert out["summary"]["status"] == "VALIDATION_FAILED"
     assert out["summary"]["total_tests"] == 0
@@ -172,6 +177,7 @@ def test_execute_single_test_success():
             sut_name="sutA",
             sut_params={"type": "llm_api"},
             test_params={"p": "v"},
+            container_config=ContainerConfig(),
         )
 
     assert result.success is True
@@ -209,6 +215,7 @@ def test_execute_single_test_container_failure():
             sut_name="sutA",
             sut_params={"type": "llm_api"},
             test_params={},
+            container_config=ContainerConfig(),
         )
 
     assert result.success is False
@@ -234,6 +241,7 @@ def test_execute_single_test_invalid_json():
             sut_name="sutA",
             sut_params={"type": "llm_api"},
             test_params={},
+            container_config=ContainerConfig(),
         )
 
     assert result.success is False
@@ -391,6 +399,7 @@ def test_run_end_to_end_workflow():
     suite_config = {"suite_name": "test"}
     suts_config = {"systems_under_test": {}}
     score_card_configs = [{"score_card_name": "test"}]
+    container_config: ContainerConfig = ContainerConfig()
 
     test_results = {"summary": {"status": "COMPLETED"}, "results": []}
     final_results = {
@@ -409,9 +418,13 @@ def test_run_end_to_end_workflow():
         inner_workflow = getattr(
             run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow
         )
-        result = inner_workflow(suite_config, suts_config, score_card_configs)
+        result = inner_workflow(
+            suite_config, suts_config, score_card_configs, container_config
+        )
 
-        mock_test_workflow.assert_called_once_with(suite_config, suts_config)
+        mock_test_workflow.assert_called_once_with(
+            suite_config, suts_config, container_config
+        )
         mock_score_workflow.assert_called_once_with(test_results, score_card_configs)
         assert result == final_results
 
@@ -429,7 +442,12 @@ def test_start_test_execution_tests_only_mode():
         mock_start.return_value = mock_handle
 
         workflow_id = start_test_execution(
-            "suite.yaml", "suts.yaml", "output.json", None, "tests_only"
+            "suite.yaml",
+            "suts.yaml",
+            ContainerConfig(),
+            "output.json",
+            None,
+            "tests_only",
         )
 
         assert workflow_id == mock_handle.get_workflow_id()
@@ -453,7 +471,12 @@ def test_start_test_execution_end_to_end_mode():
         mock_start.return_value = mock_handle
 
         workflow_id = start_test_execution(
-            "suite.yaml", "suts.yaml", "output.json", score_card_configs, "end_to_end"
+            "suite.yaml",
+            "suts.yaml",
+            ContainerConfig(),
+            "output.json",
+            score_card_configs,
+            "end_to_end",
         )
 
         assert workflow_id == mock_handle.get_workflow_id()

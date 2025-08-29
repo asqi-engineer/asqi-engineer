@@ -11,8 +11,8 @@ from pydantic import ValidationError
 from rich.console import Console
 
 from asqi.config import (
+    ContainerConfig,
     ExecutorConfig,
-    container_config,
     load_config_file,
     merge_defaults_into_suite,
     save_results_to_file,
@@ -112,7 +112,7 @@ def dbos_check_images_availabilty(images: List[str]) -> Dict[str, bool]:
 @DBOS.step()
 def extract_manifest_from_image_step(image: str) -> Optional[Manifest]:
     """Extract and parse manifest.yaml from a Docker image."""
-    manifest = extract_manifest_from_image(image, container_config.MANIFEST_PATH)
+    manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
 
     if not manifest:
         DBOS.logger.warning(f"Failed to extract manifest from {image}")
@@ -149,6 +149,7 @@ def execute_single_test(
     sut_name: str,
     sut_params: Dict[str, Any],
     test_params: Dict[str, Any],
+    container_config: ContainerConfig,
 ) -> TestExecutionResult:
     """Execute a single test in a Docker container.
 
@@ -161,6 +162,7 @@ def execute_single_test(
         sut_name: Name of the system under test (pre-validated)
         sut_config: Configuration for the SUT (pre-validated)
         test_params: Parameters for the test (pre-validated)
+        container_config: Container execution configurations
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -251,6 +253,7 @@ def execute_single_test(
         image=image,
         args=command_args,
         environment=container_env,
+        container_config=container_config,
     )
 
     result.end_time = time.time()
@@ -347,6 +350,7 @@ def evaluate_score_card(
 def run_test_suite_workflow(
     suite_config: Dict[str, Any],
     suts_config: Dict[str, Any],
+    container_config: ContainerConfig,
 ) -> Dict[str, Any]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
@@ -360,6 +364,7 @@ def run_test_suite_workflow(
     Args:
         suite_config: Serialized SuiteConfig containing test definitions
         suts_config: Serialized SUTsConfig containing SUT configurations
+        container_config: Container execution configurations
 
     Returns:
         Execution summary with metadata and individual test results (no score cards)
@@ -496,6 +501,7 @@ def run_test_suite_workflow(
                     test_plan["sut_name"],
                     test_plan["sut_params"],
                     test_plan["test_params"],
+                    container_config,
                 )
                 test_handles.append(handle)
 
@@ -526,6 +532,7 @@ def run_test_suite_workflow(
                 test_plan["sut_name"],
                 test_plan["sut_params"],
                 test_plan["test_params"],
+                container_config,
             )
             test_handles.append(handle)
 
@@ -681,6 +688,7 @@ def run_end_to_end_workflow(
     suite_config: Dict[str, Any],
     suts_config: Dict[str, Any],
     score_card_configs: List[Dict[str, Any]],
+    container_config: ContainerConfig,
 ) -> Dict[str, Any]:
     """
     Execute a complete end-to-end workflow: test execution + score card evaluation.
@@ -689,11 +697,12 @@ def run_end_to_end_workflow(
         suite_config: Serialized SuiteConfig containing test definitions
         suts_config: Serialized SUTsConfig containing SUT configurations
         score_card_configs: List of score card configurations to evaluate
+        container_config: Container execution configurations
 
     Returns:
         Complete execution results with test results and score card evaluations
     """
-    test_results = run_test_suite_workflow(suite_config, suts_config)
+    test_results = run_test_suite_workflow(suite_config, suts_config, container_config)
     final_results = evaluate_score_cards_workflow(test_results, score_card_configs)
 
     return final_results
@@ -717,6 +726,7 @@ def save_results_to_file_step(results: Dict[str, Any], output_path: str) -> None
 def start_test_execution(
     suite_path: str,
     suts_path: str,
+    container_config: ContainerConfig,
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
     execution_mode: str = "end_to_end",
@@ -731,6 +741,7 @@ def start_test_execution(
     Args:
         suite_path: Path to test suite YAML file
         suts_path: Path to SUTs YAML file
+        container_config: Container execution configurations
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
         execution_mode: "tests_only" or "end_to_end"
@@ -794,13 +805,13 @@ def start_test_execution(
         # Start appropriate workflow based on execution mode
         if execution_mode == "tests_only":
             handle = DBOS.start_workflow(
-                run_test_suite_workflow, suite_config, suts_config
+                run_test_suite_workflow, suite_config, suts_config, container_config
             )
         elif execution_mode == "end_to_end":
             if not score_card_configs:
                 # Fall back to tests only if no score cards provided
                 handle = DBOS.start_workflow(
-                    run_test_suite_workflow, suite_config, suts_config
+                    run_test_suite_workflow, suite_config, suts_config, container_config
                 )
             else:
                 handle = DBOS.start_workflow(
@@ -808,6 +819,7 @@ def start_test_execution(
                     suite_config,
                     suts_config,
                     score_card_configs,
+                    container_config,
                 )
         else:
             raise ValueError(f"Invalid execution mode: {execution_mode}")

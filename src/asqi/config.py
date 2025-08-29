@@ -1,21 +1,17 @@
 import copy
 import os
-from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict
+import re
+from dataclasses import dataclass
+from typing import Any, ClassVar, Dict, Optional
 
 import yaml
+from pydantic import BaseModel, Field, field_validator
 
 
-@dataclass
-class ContainerConfig:
-    """Configuration constants for container execution."""
+class ContainerConfig(BaseModel):
+    """Configuration constants for container execution"""
 
-    # Scalars
-    TIMEOUT_SECONDS: int = 300
-    MANIFEST_PATH: str = "/app/manifest.yaml"
-    STREAM_LOGS: bool = False
-    CLEANUP_ON_FINISH: bool = True
-    CLEANUP_FORCE: bool = True
+    MANIFEST_PATH: ClassVar[str] = "/app/manifest.yaml"
 
     # Defaults for docker run() kwargs
     DEFAULT_RUN_PARAMS: ClassVar[Dict[str, Any]] = {
@@ -27,75 +23,150 @@ class ContainerConfig:
         "cpu_quota": 200000,
     }
 
-    # Effective params after loading (starts as defaults)
-    RUN_PARAMS: Dict[str, Any] = field(
-        default_factory=lambda: dict(ContainerConfig.DEFAULT_RUN_PARAMS)
+    # Scalars
+    timeout_seconds: int = Field(
+        default=300,
+        description="Maximum container execution time in seconds (non-negative integer).",
+        ge=0,
+    )
+    stream_logs: bool = Field(
+        default=False,
+        description="Whether to stream container logs during execution.",
+    )
+    cleanup_on_finish: bool = Field(
+        default=True,
+        description="Whether to cleanup containers on finish.",
+    )
+    cleanup_force: bool = Field(
+        default=True,
+        description="Force cleanup even if graceful stop fails.",
     )
 
-    # ---------- Load from YAML ----------
-    def load_from_yaml(self, path: str) -> None:
-        """Load timeout, manifest_path, stream/cleanup flags, and run_params; merge with defaults."""
+    run_params: Dict[str, Any] = Field(
+        default_factory=lambda: dict(ContainerConfig.DEFAULT_RUN_PARAMS),
+        description="Docker run() parameters (merged with defaults).",
+    )
+
+    # ---- run_params: validate values ----
+    @field_validator("run_params")
+    @classmethod
+    def _validate_run_params(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        # booleans
+        for k in ("detach", "remove"):
+            if k in v and not isinstance(v[k], bool):
+                raise TypeError(f"run_params.{k} must be a boolean")
+
+        # network_mode (allowed set or container:<name|id>)
+        if "network_mode" in v:
+            mode = v["network_mode"]
+            if not isinstance(mode, str):
+                raise TypeError("run_params.network_mode must be a string")
+            mode_l = mode.lower()
+            allowed = {"bridge", "host", "none", "default"}
+            if not (
+                mode_l in allowed or re.fullmatch(r"container:[A-Za-z0-9_.-]+", mode_l)
+            ):
+                raise ValueError(
+                    "run_params.network_mode must be one of "
+                    "'bridge', 'host', 'none', 'default', or 'container:<name|id>'"
+                )
+            v["network_mode"] = mode_l  # normalize
+
+        # strings
+        if "network_mode" in v and not isinstance(v["network_mode"], str):
+            raise TypeError("run_params.network_mode must be a string")
+        # mem_limit
+        if "mem_limit" in v:
+            s = str(v["mem_limit"])
+            if not re.fullmatch(r"\d+([kKmMgG]|[kK][bB]|[mM][bB]|[gG][bB])?", s):
+                raise ValueError(
+                    "run_params.mem_limit must look like '512m', '2g', or a raw number"
+                )
+        # cpu_period
+        if "cpu_period" in v:
+            try:
+                p = int(v["cpu_period"])
+            except Exception:
+                raise TypeError("run_params.cpu_period must be an integer")
+            if p <= 0:
+                raise ValueError("run_params.cpu_period must be > 0")
+            v["cpu_period"] = p
+        # cpu_quota
+        if "cpu_quota" in v:
+            try:
+                q = int(v["cpu_quota"])
+            except Exception:
+                raise TypeError("run_params.cpu_quota must be an integer")
+            if not (q == -1 or q >= 0):
+                raise ValueError("run_params.cpu_quota must be -1 (no limit) or >= 0")
+            v["cpu_quota"] = q
+        return v
+
+    # ---------- Loaders ----------
+    @classmethod
+    def load_from_yaml(cls, path: str) -> "ContainerConfig":
+        """Create a NEW instance from YAML (MANIFEST_PATH stays constant)."""
         if not os.path.exists(path):
             raise FileNotFoundError(f"Container config file not found: {path}")
 
         with open(path, "r") as f:
             data = yaml.safe_load(f) or {}
 
-        # Scalars
-        if "timeout" in data:
-            self.set_timeout(data["timeout"])
-        if "manifest_path" in data:
-            self.set_manifest_path(data["manifest_path"])
-        if "stream_logs" in data:
-            self.set_stream_logs(data["stream_logs"])
-        if "cleanup_on_finish" in data:
-            self.set_cleanup_on_finish(data["cleanup_on_finish"])
-        if "cleanup_force" in data:
-            self.set_cleanup_force(data["cleanup_force"])
+        # Merge YAML run_params over defaults; if absent, use defaults
+        merged_run_params = dict(cls.DEFAULT_RUN_PARAMS)
+        yaml_run_params = data.get("run_params")
+        if isinstance(yaml_run_params, dict):
+            merged_run_params.update(yaml_run_params)
 
-        # run_params: merge YAML over current (which started from defaults)
-        raw_params = data.get("run_params", {})
-        if not isinstance(raw_params, dict):
-            raise ValueError("'run_params' must be a mapping in YAML.")
-        self.set_run_params(**{k: v for k, v in raw_params.items() if v is not None})
+        return cls(
+            timeout_seconds=data.get("timeout", 300),
+            stream_logs=data.get("stream_logs", False),
+            cleanup_on_finish=data.get("cleanup_on_finish", True),
+            cleanup_force=data.get("cleanup_force", True),
+            run_params=merged_run_params,
+        )
 
-    # ---------- Scalar setters ----------
-    def set_timeout(self, timeout: int) -> None:
-        if not isinstance(timeout, int) or timeout < 0:
-            raise ValueError("'timeout' must be a non-negative integer.")
-        self.TIMEOUT_SECONDS = timeout
+    @classmethod
+    def from_stream_logs(cls, stream_logs: bool) -> "ContainerConfig":
+        """
+        Create a new config using all default values,
+        but override `stream_logs` with the given bool.
+        """
+        return cls(stream_logs=bool(stream_logs))
 
-    def set_manifest_path(self, path: str) -> None:
-        if not isinstance(path, str) or not path:
-            raise ValueError("'manifest_path' must be a non-empty string.")
-        self.MANIFEST_PATH = path
-
-    def set_stream_logs(self, enable: bool) -> None:
-        if not isinstance(enable, bool):
-            raise ValueError("'stream_logs' must be a boolean.")
-        self.STREAM_LOGS = enable
-
-    def set_cleanup_on_finish(self, enable: bool) -> None:
-        if not isinstance(enable, bool):
-            raise ValueError("'cleanup_on_finish' must be a boolean.")
-        self.CLEANUP_ON_FINISH = enable
-
-    def set_cleanup_force(self, enable: bool) -> None:
-        if not isinstance(enable, bool):
-            raise ValueError("'cleanup_force' must be a boolean.")
-        self.CLEANUP_FORCE = enable
-
-    # ---------- Run params setters ----------
-    def set_run_param(self, key: str, value: Any) -> None:
-        """Set or override a single docker run() parameter."""
-        self.RUN_PARAMS[key] = value
-
-    def set_run_params(self, **kwargs) -> None:
-        """Update multiple run params; merge into current dict."""
-        self.RUN_PARAMS.update(kwargs)
-
-
-container_config = ContainerConfig()
+    @classmethod
+    def from_run_params(
+        cls,
+        *,
+        detach: Optional[bool] = None,
+        remove: Optional[bool] = None,
+        network_mode: Optional[str] = None,
+        mem_limit: Optional[str] = None,
+        cpu_period: Optional[int] = None,
+        cpu_quota: Optional[int] = None,
+        **extra: Any,
+    ) -> "ContainerConfig":
+        """
+        Create a new config with default scalars and default run_params,
+        overriding only the provided run_params arguments.
+        Extra docker kwargs can be passed via **extra.
+        """
+        params: Dict[str, Any] = dict(cls.DEFAULT_RUN_PARAMS)
+        overrides = {
+            k: v
+            for k, v in {
+                "detach": detach,
+                "remove": remove,
+                "network_mode": network_mode,
+                "mem_limit": mem_limit,
+                "cpu_period": cpu_period,
+                "cpu_quota": cpu_quota,
+            }.items()
+            if v is not None
+        }
+        params.update(overrides)
+        params.update(extra)  # allow additional docker kwargs
+        return cls(run_params=params)
 
 
 @dataclass

@@ -12,7 +12,7 @@ import yaml
 from docker import errors as docker_errors
 from docker.types import Mount
 
-from asqi.config import container_config
+from asqi.config import ContainerConfig
 from asqi.logging_config import create_container_logger
 from asqi.schemas import Manifest
 
@@ -393,6 +393,7 @@ def _extract_mounts_from_args(
 def run_container_with_args(
     image: str,
     args: List[str],
+    container_config: ContainerConfig,
     environment: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
@@ -401,6 +402,7 @@ def run_container_with_args(
     Args:
         image: Docker image to run
         args: Command line arguments to pass to container
+        container_config: Container execution configurations
         environment: Optional dictionary of environment variables to pass to container
 
     Returns:
@@ -438,7 +440,7 @@ def run_container_with_args(
                 command=args,
                 environment=environment or {},
                 mounts=mounts,
-                **container_config.RUN_PARAMS,
+                **container_config.run_params,
             )
 
             with _active_lock:
@@ -446,7 +448,7 @@ def run_container_with_args(
 
             result["container_id"] = container.id or ""
             output_lines = []
-            if container_config.STREAM_LOGS:
+            if container_config.stream_logs:
                 try:
                     for log_line in container.logs(stream=True, follow=True):
                         line = log_line.decode("utf-8", errors="replace").rstrip()
@@ -458,7 +460,7 @@ def run_container_with_args(
 
             # Wait for completion
             try:
-                exit_status = container.wait(timeout=container_config.TIMEOUT_SECONDS)
+                exit_status = container.wait(timeout=container_config.timeout_seconds)
                 result["exit_code"] = exit_status["StatusCode"]
             except docker_errors.APIError as api_error:
                 try:
@@ -493,14 +495,14 @@ def run_container_with_args(
             result["error"] = f"Docker API error running image '{image}': {e}"
         except TimeoutError as e:
             result["error"] = (
-                f"Container execution timed out after {container_config.TIMEOUT_SECONDS}s for image '{image}': {e}"
+                f"Container execution timed out after {container_config.timeout_seconds}s for image '{image}': {e}"
             )
         except ConnectionError as e:
             raise ConnectionError(
                 f"Failed to connect to Docker daemon while running image '{image}': {e}"
             )
         finally:
-            _decommission_container(container)
+            _decommission_container(container, container_config)
     return result
 
 
@@ -527,25 +529,34 @@ def shutdown_containers() -> None:
                 pass
 
 
-def _decommission_container(container):
+def _decommission_container(
+    container,
+    container_config: Optional[ContainerConfig] = None,
+) -> None:
     if not container:
         return
 
-    # If daemon auto-removes (run_params.remove=True), manual remove is often a no-op
-    auto_remove = container_config.RUN_PARAMS.get("remove", False)
-
+    # Try graceful stop first
     try:
-        # try to stop gracefully first
         container.stop(timeout=1)
     except (docker_errors.APIError, docker_errors.NotFound) as e:
         logger.debug(f"Failed to gracefully stop container: {e}")
 
-    if container_config.CLEANUP_ON_FINISH and not auto_remove:
+    if container_config is not None:
+        # Respect config only when provided
+        auto_remove = bool(container_config.run_params.get("remove", False))
+        if container_config.cleanup_on_finish and not auto_remove:
+            try:
+                container.remove(force=bool(container_config.cleanup_force))
+            except (docker_errors.APIError, docker_errors.NotFound) as e:
+                logger.warning(f"Failed to remove container during cleanup: {e}")
+    else:
+        # Legacy fallback: always force-remove
         try:
-            container.remove(force=container_config.CLEANUP_FORCE)
+            container.remove(force=True)
         except (docker_errors.APIError, docker_errors.NotFound) as e:
             logger.warning(f"Failed to remove container during cleanup: {e}")
 
-    # and remove from active containers
+    # Remove from active set
     with _active_lock:
         _active_containers.discard(container.id)

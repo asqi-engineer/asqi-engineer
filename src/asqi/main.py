@@ -9,7 +9,7 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
-from asqi.config import container_config
+from asqi.config import ContainerConfig
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
@@ -221,7 +221,7 @@ def execute(
         from asqi.workflow import DBOS, start_test_execution
 
         # Load container configuration
-        container_config.load_from_yaml(container_config_file)
+        container_config = ContainerConfig.load_from_yaml(container_config_file)
 
         # Launch DBOS if not already launched
         try:
@@ -247,6 +247,7 @@ def execute(
             output_path=output_file,
             score_card_configs=score_card_configs,
             execution_mode="end_to_end",
+            container_config=container_config,
         )
 
         console.print(
@@ -287,7 +288,7 @@ def execute_tests(
         from asqi.workflow import DBOS, start_test_execution
 
         # Load container configuration
-        container_config.load_from_yaml(container_config_file)
+        container_config = ContainerConfig.load_from_yaml(container_config_file)
 
         # Launch DBOS if not already launched
         try:
@@ -302,6 +303,7 @@ def execute_tests(
             score_card_configs=None,
             execution_mode="tests_only",
             test_names=test_names,
+            container_config=container_config,
         )
 
         console.print(

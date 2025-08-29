@@ -2,8 +2,7 @@
 # this is configuration for docker containers
 
 timeout : 300 # Container execution timeout in seconds
-manifest_path : "/app/manifest.yaml" # Path to manifest file inside container
-stream_logs : true # Whether to stream container logs in real-time
+stream_logs : True # Whether to stream container logs in real-time
 
 cleanup_on_finish: true # Whether to force-remove containers on shutdown
 cleanup_force: true # Whether to force-remove containers during cleanup

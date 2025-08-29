@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
+from asqi.config import ContainerConfig
 from asqi.main import app
 
 
@@ -112,6 +113,7 @@ class TestMainCLI:
             score_card_configs=None,
             execution_mode="tests_only",
             test_names=None,
+            container_config=ContainerConfig().from_stream_logs(True),
         )
         assert "✨ Test execution completed! Workflow ID: workflow-123" in result.stdout
 
@@ -146,6 +148,7 @@ class TestMainCLI:
             output_path="output.json",
             score_card_configs=[{"score_card_name": "Test scorecard"}],
             execution_mode="end_to_end",
+            container_config=ContainerConfig().from_stream_logs(True),
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
         assert "✨ Execution completed! Workflow ID: workflow-456" in result.stdout
@@ -294,6 +297,7 @@ class TestMainCLI:
             score_card_configs=None,
             execution_mode="tests_only",
             test_names=["t1"],
+            container_config=ContainerConfig().from_stream_logs(True),
         )
         assert "✨ Test execution completed! Workflow ID: workflow-888" in result.stdout
 
@@ -328,6 +332,7 @@ class TestMainCLI:
             score_card_configs=None,
             execution_mode="tests_only",
             test_names=["tes1"],
+            container_config=ContainerConfig().from_stream_logs(True),
         )
 
         mock_dbos.start_workflow.assert_not_called()
