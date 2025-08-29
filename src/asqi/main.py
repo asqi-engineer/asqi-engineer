@@ -9,7 +9,7 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
-from asqi.config import executor_config
+from asqi.config import ExecutorConfig
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
@@ -202,6 +202,30 @@ def validate(
 def execute(
     suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
     suts_file: str = typer.Option(..., help="Path to the SUTs YAML file."),
+    concurrent_tests: int = typer.Option(
+        ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+        "--concurrent-tests",
+        "-c",
+        min=1,
+        max=20,
+        help="Number of tests to run concurrently (must be between 1 and 20, default: 1)",
+    ),
+    max_failures: int = typer.Option(
+        ExecutorConfig.MAX_FAILURES_DISPLAYED,
+        "--max-failures",
+        "-m",
+        min=1,
+        max=10,
+        help="Maximum number of failures to display (default: 3, must be between 1 and 10).",
+    ),
+    progress_interval: int = typer.Option(
+        ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+        "--progress-interval",
+        "-p",
+        min=1,
+        max=10,
+        help="Progress update interval (default: 4 -> every 25%, must be between 1 and 10).",
+    ),
     score_card_file: str = typer.Option(
         ..., help="Path to grading score card YAML file."
     ),
@@ -214,6 +238,13 @@ def execute(
 
     try:
         from asqi.workflow import DBOS, start_test_execution
+
+        # Update ExecutorConfig from CLI args
+        executor_config = {
+            "concurrent_tests": concurrent_tests,
+            "max_failures": max_failures,
+            "progress_interval": progress_interval,
+        }
 
         # Launch DBOS if not already launched
         try:
@@ -239,6 +270,7 @@ def execute(
             output_path=output_file,
             score_card_configs=score_card_configs,
             execution_mode="end_to_end",
+            executor_config=executor_config,
         )
 
         console.print(
@@ -259,7 +291,7 @@ def execute_tests(
     suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
     suts_file: str = typer.Option(..., help="Path to the SUTs YAML file."),
     concurrent_tests: int = typer.Option(
-        1,
+        ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
         "--concurrent-tests",
         "-c",
         min=1,
@@ -267,7 +299,7 @@ def execute_tests(
         help="Number of tests to run concurrently (must be between 1 and 20, default: 1)",
     ),
     max_failures: int = typer.Option(
-        3,
+        ExecutorConfig.MAX_FAILURES_DISPLAYED,
         "--max-failures",
         "-m",
         min=1,
@@ -275,7 +307,7 @@ def execute_tests(
         help="Maximum number of failures to display (default: 3, must be between 1 and 10).",
     ),
     progress_interval: int = typer.Option(
-        4,
+        ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
         "--progress-interval",
         "-p",
         min=1,
@@ -298,11 +330,11 @@ def execute_tests(
         from asqi.workflow import DBOS, start_test_execution
 
         # Update ExecutorConfig from CLI args
-        executor_config.update_from_args(
-            concurrent_tests=concurrent_tests,
-            max_failures=max_failures,
-            progress_interval=progress_interval,
-        )
+        executor_config = {
+            "concurrent_tests": concurrent_tests,
+            "max_failures": max_failures,
+            "progress_interval": progress_interval,
+        }
 
         # Launch DBOS if not already launched
         try:
@@ -317,6 +349,7 @@ def execute_tests(
             score_card_configs=None,
             execution_mode="tests_only",
             test_names=test_names,
+            executor_config=executor_config,
         )
 
         console.print(

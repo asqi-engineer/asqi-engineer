@@ -1,6 +1,6 @@
 import copy
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import yaml
 
@@ -23,23 +23,6 @@ class ExecutorConfig:
     DEFAULT_CONCURRENT_TESTS: int = 3
     MAX_FAILURES_DISPLAYED: int = 3
     PROGRESS_UPDATE_INTERVAL: int = 4
-
-    def update_from_args(
-        self,
-        concurrent_tests: Optional[int] = None,
-        max_failures: Optional[int] = None,
-        progress_interval: Optional[int] = None,
-    ):
-        """Update executor config values from CLI args."""
-        if concurrent_tests is not None:
-            self.DEFAULT_CONCURRENT_TESTS = concurrent_tests
-        if max_failures is not None:
-            self.MAX_FAILURES_DISPLAYED = max_failures
-        if progress_interval is not None:
-            self.PROGRESS_UPDATE_INTERVAL = progress_interval
-
-
-executor_config = ExecutorConfig()
 
 
 def load_config_file(file_path: str) -> Dict[str, Any]:
