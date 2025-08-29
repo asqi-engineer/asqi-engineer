@@ -109,8 +109,6 @@ def load_and_validate_plan(
                 )
                 continue
 
-            console.print(f"manifests : {manifest_data}")
-
             manifest = Manifest(**manifest_data)
 
             # Use directory name to derive image name for local validation
