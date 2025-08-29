@@ -99,6 +99,25 @@ def manifests():
     }
 
 
+@pytest.fixture(autouse=True)
+def mock_docker(monkeypatch):
+    """Mock Docker availability + manifest extraction for unit tests."""
+
+    def fake_availability(images):
+        # Pretend all requested images exist locally
+        return {img: True for img in images}
+
+    def fake_extract(image: str):
+        if image == "my-registry/mock_tester:latest":
+            return Manifest(**MOCK_TESTER_MANIFEST)
+        if image == "my-registry/garak:latest":
+            return Manifest(**MOCK_MULTIPLE_MANIFEST)
+        return None  # default
+
+    monkeypatch.setattr("asqi.main.dbos_check_images_availabilty", fake_availability)
+    monkeypatch.setattr("asqi.main.extract_manifest_from_image_step", fake_extract)
+
+
 class TestSchemaValidation:
     """Test that YAML files parse correctly into Pydantic schemas."""
 
@@ -250,16 +269,8 @@ class TestFileLoading:
             with open(suts_file, "w") as f:
                 f.write(DEMO_SUTS_YAML)
 
-            # Write manifest file
-            manifest_file = manifest_dir / "manifest.yaml"
-            with open(manifest_file, "w") as f:
-                yaml.dump(MOCK_TESTER_MANIFEST, f)
-
             # Test that we can load and validate
-
-            result = load_and_validate_plan(
-                str(suite_file), str(suts_file), str(manifest_dir)
-            )
+            result = load_and_validate_plan(str(suite_file), str(suts_file), False)
 
             # Should have some validation errors due to incompatible SUT
             # (my_backend_api is not supported by mock_tester in this setup)
