@@ -301,12 +301,10 @@ Make the scenarios realistic and diverse, covering different use cases for this 
                     user=user_data["user"],
                     max_turns=self.max_turns,
                 )
-                print(f"Result for {user_data['scenario_id']}: {result}")
                 # Evaluate the trajectory using the conversation evaluator
                 expected_answers = None
                 if user_data.get("expected_output"):
                     expected_answers = [user_data["expected_output"]]
-                print(f"Expected answers: {expected_answers}")
                 evaluator_results = await self.evaluator.evaluate_trajectory(
                     result.get("trajectory", []), expected_answers=expected_answers
                 )
@@ -481,8 +479,6 @@ class ConversationTestAnalyzer:
                 "intent": metadata.get("intent", "unknown"),
                 "sycophancy_level": metadata.get("sycophancy_level", "unknown"),
                 "total_turns": len(turns),
-                "expected_outcome": metadata.get("expected_outcome", ""),
-                "expected_output": metadata.get("expected_output", ""),
                 "evaluation_scores": evaluation_scores,
                 "turns": [
                     {

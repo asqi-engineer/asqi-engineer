@@ -143,26 +143,32 @@ class ConversationEvaluator:
 
         # Extract questions and responses from trajectory
         questions_and_responses = self._extract_qa_pairs(trajectory)
-        print(f"Evaluating trajectory with {len(questions_and_responses)} Q&A pairs.")
         if not questions_and_responses:
             return self._get_empty_trajectory_results()
 
-        # Evaluate each question-answer pair
+        # Prepare all evaluation tasks
+        evaluation_tasks = []
+        
         for i, (question, response) in enumerate(questions_and_responses):
             # Answer Accuracy evaluation
             if expected_answers and i < len(expected_answers):
-                accuracy_result = await self._evaluate_answer_accuracy(
+                accuracy_task = self._evaluate_answer_accuracy(
                     question, response, expected_answers[i]
                 )
-                print(f"Accuracy result for Q{i+1}: {accuracy_result}")
-                if accuracy_result is not None:
-                    evaluator_results.append(accuracy_result)
+                evaluation_tasks.append(accuracy_task)
 
             # Answer Relevance evaluation
-            relevance_result = await self._evaluate_answer_relevance(question, response)
-            print(f"Relevance result for Q{i+1}: {relevance_result}")
-            if relevance_result is not None:
-                evaluator_results.append(relevance_result)
+            relevance_task = self._evaluate_answer_relevance(question, response)
+            evaluation_tasks.append(relevance_task)
+
+        # Run all evaluations in parallel
+        if evaluation_tasks:
+            task_results = await asyncio.gather(*evaluation_tasks)
+            
+            # Process results
+            for result in task_results:
+                if result is not None:
+                    evaluator_results.append(result)
 
         # If no evaluations were performed, return empty results
         if not evaluator_results:
@@ -250,8 +256,12 @@ class ConversationEvaluator:
         try:
             # Run both evaluations concurrently
             score_ref_gen, score_gen_ref = await asyncio.gather(
-                self._evaluate_accuracy_template1(question, user_answer, reference_answer),
-                self._evaluate_accuracy_template2(question, user_answer, reference_answer)
+                self._evaluate_accuracy_template1(
+                    question, user_answer, reference_answer
+                ),
+                self._evaluate_accuracy_template2(
+                    question, user_answer, reference_answer
+                ),
             )
 
             # Average the scores
@@ -316,7 +326,7 @@ class ConversationEvaluator:
             # Run both evaluations concurrently
             score1, score2 = await asyncio.gather(
                 self._evaluate_relevance_template1(user_question, assistant_answer),
-                self._evaluate_relevance_template2(user_question, assistant_answer)
+                self._evaluate_relevance_template2(user_question, assistant_answer),
             )
 
             # Average the scores
