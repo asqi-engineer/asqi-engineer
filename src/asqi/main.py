@@ -13,6 +13,10 @@ from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
 from asqi.validation import validate_test_plan
+from asqi.workflow import (
+    dbos_check_images_availabilty,
+    extract_manifest_from_image_step,
+)
 
 configure_logging()
 console = Console()
@@ -105,6 +109,8 @@ def load_and_validate_plan(
                 )
                 continue
 
+            console.print(f"manifests : {manifest_data}")
+
             manifest = Manifest(**manifest_data)
 
             # Use directory name to derive image name for local validation
@@ -126,6 +132,52 @@ def load_and_validate_plan(
         return {"status": "failure", "errors": validation_errors}
 
     return {"status": "success", "errors": []}
+
+
+def load_and_print_manifest(suite_path: str):
+    suts_data = load_yaml_file(suite_path)
+    suite = SuiteConfig(**suts_data)
+
+    # Collect all unique images from test suite
+    unique_images = list(set(test.image for test in suite.test_suite))
+
+    # Check image availability
+    with console.status("[bold blue]Checking image availability...", spinner="dots"):
+        image_availability = dbos_check_images_availabilty(unique_images)
+
+    missing_images = [
+        img for img, available in image_availability.items() if not available
+    ]
+    if missing_images:
+        console.print(
+            f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally"
+        )
+
+    # Extract manifests from available images
+    manifests = {}
+    available_images = [
+        img for img, available in image_availability.items() if available
+    ]
+
+    if available_images:
+        console.print(
+            f"[green]Found {len(available_images)} available image(s) for manifest extraction[/green]"
+        )
+        with console.status("[bold blue]Extracting manifests...", spinner="dots"):
+            for image in available_images:
+                manifest = extract_manifest_from_image_step(image)
+                if manifest:
+                    manifests[image] = manifest
+                    console.print(
+                        f"[blue]-- Showing manifest from image: {image}[/blue] ---"
+                    )
+
+                    try:
+                        yaml_str = yaml.dump(manifest.model_dump(), sort_keys=False)
+                    except AttributeError:
+                        yaml_str = yaml.dump(manifest, sort_keys=False)
+
+                    console.print(yaml_str)
 
 
 app = typer.Typer(help="A test executor for AI systems.")
@@ -174,6 +226,9 @@ def validate(
     manifests_dir: str = typer.Option(
         ..., help="Path to dir with test container manifests."
     ),
+    show_manifests: bool = typer.Option(
+        False, "--show-manifests", help="Print extracted manifests from docker images."
+    ),
 ):
     """Validate test plan configuration without execution."""
     console.print("[blue]--- Running Verification ---[/blue]")
@@ -192,6 +247,10 @@ def validate(
         raise typer.Exit(1)
 
     console.print("\n[green]✨ Success! The test plan is valid.[/green]")
+
+    if show_manifests:
+        load_and_print_manifest(suite_file)
+
     console.print(
         "[blue]💡 Use 'execute' or 'execute-tests' commands to run tests.[/blue]"
     )
