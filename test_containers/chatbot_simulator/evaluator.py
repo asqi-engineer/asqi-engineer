@@ -1,13 +1,7 @@
-"""
-LLM-as-a-Judge Evaluator Module
-
-This module provides reusable evaluation functions using LLM-as-a-judge methodology
-for assessing answer accuracy and context relevance based on RAGAS metrics.
-"""
-
 import math
 from typing import Any, Dict, List, Optional
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from openevals.llm import create_llm_as_judge
 from openevals.types import ChatCompletionMessage
 
@@ -21,15 +15,19 @@ class ConversationEvaluator:
     adapted from: https://github.com/explodinggradients/ragas/blob/40eafca1cbc9a8a20a161666c28091df8b03df9c/src/ragas/metrics/_nv_metrics.py.
     """
 
-    def __init__(self, model: str = "gpt-4o-mini", retry_count: int = 2):
+    def __init__(
+        self,
+        evaluator_client: Optional[BaseChatModel] = None,
+        retry_count: int = 2,
+    ):
         """
         Initialize the conversation evaluator.
 
         Args:
-            model: The LLM model to use for evaluation (default: "gpt-4o-mini")
+            evaluator_client: Optional LangChain chat model to use for evaluation (default: None)
             retry_count: Number of retries if evaluation fails (default: 2)
         """
-        self.model = model
+        self.evaluator_client = evaluator_client
         self.retry_count = retry_count
 
         # Answer Accuracy templates based on RAGAS
@@ -95,29 +93,28 @@ class ConversationEvaluator:
             "Based on the provided Question and Answer, the Relevance score is ["
         )
 
-        # Create evaluator instances
         self.accuracy_evaluator1 = create_llm_as_judge(
             prompt=template_accuracy1,
             choices=[0, 2, 4],
-            model=self.model,
+            judge=self.evaluator_client,
         )
 
         self.accuracy_evaluator2 = create_llm_as_judge(
             prompt=template_accuracy2,
             choices=[0, 2, 4],
-            model=self.model,
+            judge=self.evaluator_client,
         )
 
         self.relevance_evaluator1 = create_llm_as_judge(
             prompt=template_relevance1,
             choices=[0, 1, 2],
-            model=self.model,
+            judge=self.evaluator_client,
         )
 
         self.relevance_evaluator2 = create_llm_as_judge(
             prompt=template_relevance2,
             choices=[0, 1, 2],
-            model=self.model,
+            judge=self.evaluator_client,
         )
 
     async def evaluate_trajectory(
@@ -146,21 +143,37 @@ class ConversationEvaluator:
         if not questions_and_responses:
             return self._get_empty_trajectory_results()
 
-        # Evaluate each question-answer pair
-        for i, (question, response) in enumerate(questions_and_responses):
-            # Answer Accuracy evaluation
-            if expected_answers and i < len(expected_answers):
-                accuracy_result = await self._evaluate_answer_accuracy(
-                    question, response, expected_answers[i]
-                )
-                if accuracy_result is not None:
-                    evaluator_results.append(accuracy_result)
-
-            # Answer Relevance evaluation
+        # Evaluate each question-answer pair for relevancy
+        for question, response in questions_and_responses:
             relevance_result = await self._evaluate_answer_relevance(question, response)
             if relevance_result is not None:
                 evaluator_results.append(relevance_result)
 
+        # Answer Accuracy evaluation - evaluate first question against all responses, take max score
+        if expected_answers and questions_and_responses:
+            first_question = questions_and_responses[0][0]  # Get the first question
+            expected_answer = expected_answers[0]  # Use the first expected answer
+
+            accuracy_scores = []
+
+            # Evaluate the first question against each response in the conversation
+            for _, response in questions_and_responses:
+                accuracy_result = await self._evaluate_answer_accuracy(
+                    first_question, response, expected_answer
+                )
+                if accuracy_result is not None and "score" in accuracy_result:
+                    accuracy_scores.append(accuracy_result["score"])
+
+            # Take the maximum accuracy score across all responses
+            if accuracy_scores:
+                max_accuracy_score = max(accuracy_scores)
+                evaluator_results.append(
+                    {
+                        "key": "answer_accuracy",
+                        "score": max_accuracy_score,
+                    }
+                )
+        print(evaluator_results)
         # If no evaluations were performed, return empty results
         if not evaluator_results:
             return self._get_empty_trajectory_results()
@@ -387,27 +400,3 @@ class ConversationEvaluator:
                 "score": 0.0,
             },
         ]
-
-
-# Convenience function for backward compatibility
-async def evaluate_trajectory_with_llm_judge(
-    trajectory: List[ChatCompletionMessage],
-    model: str = "gpt-4o-mini",
-    expected_answers: Optional[List[str]] = None,
-) -> List[Dict[str, Any]]:
-    """
-    Convenience function to evaluate a trajectory with Answer Accuracy and Answer Relevance metrics.
-
-    This function provides backward compatibility and a simple interface for
-    trajectory evaluation without needing to instantiate the evaluator class.
-
-    Args:
-        trajectory: List of conversation turns with role and content
-        model: LLM model to use for evaluation
-        expected_answers: Optional list of expected answers for accuracy evaluation
-
-    Returns:
-        List of evaluation results with keys, scores, and comments
-    """
-    evaluator = ConversationEvaluator(model=model)
-    return await evaluator.evaluate_trajectory(trajectory, expected_answers)
