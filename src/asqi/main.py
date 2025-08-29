@@ -1,6 +1,4 @@
 import atexit
-import glob
-import os
 import signal
 from typing import Any, Dict, List, Optional
 
@@ -11,7 +9,7 @@ from rich.console import Console
 
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
-from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
+from asqi.schemas import ScoreCard, SuiteConfig, SUTsConfig
 from asqi.validation import validate_test_plan
 from asqi.workflow import (
     dbos_check_images_availabilty,
@@ -77,7 +75,7 @@ def load_score_card_file(score_card_path: str) -> Dict[str, Any]:
 
 
 def load_and_validate_plan(
-    suite_path: str, suts_path: str, manifests_path: str
+    suite_path: str, suts_path: str, show_manifests: bool
 ) -> Dict[str, Any]:
     """
     Performs all validation and returns a structured result.
@@ -95,31 +93,31 @@ def load_and_validate_plan(
         suite_data = load_yaml_file(suite_path)
         suite_config = SuiteConfig(**suite_data)
 
-        # Load manifests - currently just loads locally. TODO: obtain from registry
-        manifests: Dict[str, Manifest] = {}
-        manifest_files = glob.glob(
-            os.path.join(manifests_path, "**/manifest.yaml"), recursive=True
-        )
+        # Collect all unique images from test suite
+        unique_images = list(set(test.image for test in suite_config.test_suite))
 
-        for manifest_path in manifest_files:
-            manifest_data = load_yaml_file(manifest_path)
-            if not manifest_data:
-                errors.append(
-                    f"Warning: Manifest file at '{manifest_path}' is empty or invalid. Skipping."
-                )
-                continue
+        # Check image availability
+        image_availability = dbos_check_images_availabilty(unique_images)
 
-            manifest = Manifest(**manifest_data)
+        missing_images = [
+            img for img, available in image_availability.items() if not available
+        ]
+        if missing_images:
+            console.print(
+                f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally"
+            )
 
-            # Use directory name to derive image name for local validation
-            # e.g., "test_containers/mock_tester/manifest.yaml" -> "mock_tester"
-            container_dir = os.path.basename(os.path.dirname(manifest_path))
+        # Extract manifests from available images
+        manifests = {}
+        available_images = [
+            img for img, available in image_availability.items() if available
+        ]
 
-            # Check for duplicate container directories
-            if container_dir in manifests:
-                # If two manifests have the same container directory, we currently just overwrite and keep the last one.
-                pass
-            manifests[container_dir] = manifest
+        if available_images:
+            for image in available_images:
+                manifest = extract_manifest_from_image_step(image)
+                if manifest:
+                    manifests[image] = manifest
 
     except (FileNotFoundError, ValueError, ValidationError, PermissionError) as e:
         errors.append(str(e))
@@ -129,53 +127,39 @@ def load_and_validate_plan(
     if validation_errors:
         return {"status": "failure", "errors": validation_errors}
 
-    return {"status": "success", "errors": []}
+    if show_manifests:
+        return {
+            "status": "success",
+            "errors": [],
+            "available_images": available_images,
+            "manifests": manifests,
+        }
+    else:
+        return {
+            "status": "success",
+            "errors": [],
+        }
 
 
-def load_and_print_manifest(suite_path: str):
-    suts_data = load_yaml_file(suite_path)
-    suite = SuiteConfig(**suts_data)
-
-    # Collect all unique images from test suite
-    unique_images = list(set(test.image for test in suite.test_suite))
-
-    # Check image availability
-    with console.status("[bold blue]Checking image availability...", spinner="dots"):
-        image_availability = dbos_check_images_availabilty(unique_images)
-
-    missing_images = [
-        img for img, available in image_availability.items() if not available
-    ]
-    if missing_images:
-        console.print(
-            f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally"
-        )
-
-    # Extract manifests from available images
-    manifests = {}
-    available_images = [
-        img for img, available in image_availability.items() if available
-    ]
-
+def load_and_print_manifest(available_images: List, manifests: Dict[str, Any]):
     if available_images:
-        console.print(
-            f"[green]Found {len(available_images)} available image(s) for manifest extraction[/green]"
-        )
-        with console.status("[bold blue]Extracting manifests...", spinner="dots"):
-            for image in available_images:
-                manifest = extract_manifest_from_image_step(image)
-                if manifest:
-                    manifests[image] = manifest
-                    console.print(
-                        f"[blue]-- Showing manifest from image: {image}[/blue] ---"
-                    )
+        for image in available_images:
+            manifest = manifests[image]
+            if manifest:
+                manifests[image] = manifest
+                console.print(
+                    f"[blue]-- Showing manifest from image: {image}[/blue] ---"
+                )
 
-                    try:
-                        yaml_str = yaml.dump(manifest.model_dump(), sort_keys=False)
-                    except AttributeError:
-                        yaml_str = yaml.dump(manifest, sort_keys=False)
+                try:
+                    yaml_str = yaml.dump(manifest.model_dump(), sort_keys=False)
+                except AttributeError:
+                    yaml_str = yaml.dump(manifest, sort_keys=False)
 
-                    console.print(yaml_str)
+                console.print(yaml_str)
+
+    else:
+        console.print("[red]✗ No available images found.[/red]")
 
 
 app = typer.Typer(help="A test executor for AI systems.")
@@ -221,9 +205,6 @@ def _handle_shutdown(signum=None, frame=None):
 def validate(
     suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
     suts_file: str = typer.Option(..., help="Path to the SUTs YAML file."),
-    manifests_dir: str = typer.Option(
-        ..., help="Path to dir with test container manifests."
-    ),
     show_manifests: bool = typer.Option(
         False, "--show-manifests", help="Print extracted manifests from docker images."
     ),
@@ -232,9 +213,7 @@ def validate(
     console.print("[blue]--- Running Verification ---[/blue]")
 
     result = load_and_validate_plan(
-        suite_path=suite_file,
-        suts_path=suts_file,
-        manifests_path=manifests_dir,
+        suite_path=suite_file, suts_path=suts_file, show_manifests=show_manifests
     )
 
     if result["status"] == "failure":
@@ -247,7 +226,7 @@ def validate(
     console.print("\n[green]✨ Success! The test plan is valid.[/green]")
 
     if show_manifests:
-        load_and_print_manifest(suite_file)
+        load_and_print_manifest(result["available_images"], result["manifests"])
 
     console.print(
         "[blue]💡 Use 'execute' or 'execute-tests' commands to run tests.[/blue]"

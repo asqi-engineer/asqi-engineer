@@ -109,12 +109,21 @@ systems_under_test:
 ASQI provides four main execution modes via typer subcommands:
 
 ### 1. Validation Mode
-Validates configurations without executing tests:
+
+Validates configurations without executing tests.
+Optionally, include `--show-manifests` to print extracted manifests from Docker images:
+
 ```bash
+# Basic validation
+asqi validate \
+  --suite-file config/suites/demo_suite.yaml \
+  --suts-file config/suts/demo_suts.yaml
+
+# Validation + print manifests
 asqi validate \
   --suite-file config/suites/demo_suite.yaml \
   --suts-file config/suts/demo_suts.yaml \
-  --manifests-dir test_containers/
+  --show-manifests
 ```
 
 ### 2. Test Execution Only
