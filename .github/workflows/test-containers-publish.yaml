@@ -1,0 +1,281 @@
+name: Publish test containers
+
+on:
+  workflow_call:
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: false
+      DOCKERHUB_TOKEN:
+        required: false
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: asqiengineer/test-container
+
+jobs:
+  determine-changed:
+    name: Determine changed containers
+    if: startsWith(github.ref, 'refs/heads/') || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c # v46
+        with:
+          files: |
+            test_containers/**
+
+      - name: Build matrix from changed test container folders
+        id: set-matrix
+        run: |
+          set -euo pipefail
+          # Split the changed files string into array
+          IFS=' ' read -ra files <<< "${{ steps.changed-files.outputs.all_changed_files }}"
+          declare -A dirs=()
+          for file in "${files[@]}"; do
+            # Expect paths like test_containers/<name>/...
+            if [[ "$file" == test_containers/*/* ]]; then
+              name=$(echo "$file" | awk -F/ '{print $2}')
+              dirs["$name"]=1
+            fi
+          done
+
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "No test container directories changed."
+            echo 'matrix={"include":[{"name":"noop","skip":true}]}' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          json='{"include":['
+          first=1
+          for d in "${!dirs[@]}"; do
+            entry='{"name":"'"$d"'"}'
+            if [ $first -eq 1 ]; then
+              json+="$entry"
+              first=0
+            else
+              json+=",$entry"
+            fi
+          done
+          json+=']}'
+
+          echo "Detected changed containers matrix: $json"
+          echo "matrix=$json" >> "$GITHUB_OUTPUT"
+
+  build-and-test-changed:
+    name: Build and test changed containers
+    needs: determine-changed
+    if: startsWith(github.ref, 'refs/heads/') || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: No changes to test containers (noop)
+        if: ${{ matrix.skip == true }}
+        run: echo "No changed test containers detected; skipping build/test/publish."
+
+      - name: Set up Docker Buildx
+        if: ${{ matrix.skip != true }}
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for ${{ matrix.name }}
+        if: ${{ matrix.skip != true }}
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test_containers/${{ matrix.name }}
+          load: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${{ github.sha }}
+          cache-from: type=gha,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-buildcache
+          cache-to: type=gha,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-buildcache,mode=max
+          outputs: type=docker,dest=/tmp/image-${{ matrix.name }}.tar
+
+      - name: Smoke test ${{ matrix.name }}
+        if: ${{ matrix.skip != true }}
+        run: |
+          docker load -i /tmp/image-${{ matrix.name }}.tar
+          echo "Running smoke test for ${{ matrix.name }} with --help command..."
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA} --help
+
+      - name: Upload Docker image as artifact (${{ matrix.name }})
+        if: ${{ matrix.skip != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ matrix.name }}
+          path: /tmp/image-${{ matrix.name }}.tar
+          retention-days: 1
+
+  publish-changed:
+    name: Publish changed containers
+    needs: [determine-changed, build-and-test-changed]
+    if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
+    runs-on: ubuntu-latest
+    environment:
+      name: publish-docker-registry
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
+    steps:
+      - name: No changes to publish (noop)
+        if: ${{ matrix.skip == true }}
+        run: echo "No changed test containers to publish."
+
+      - name: Download Docker image artifact (${{ matrix.name }})
+        if: ${{ matrix.skip != true }}
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ matrix.name }}
+          path: /tmp
+
+      - name: Log in to Docker Hub
+        if: ${{ matrix.skip != true }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push image for ${{ matrix.name }}
+        if: ${{ matrix.skip != true }}
+        run: |
+          set -euo pipefail
+          docker load -i /tmp/image-${{ matrix.name }}.tar
+          SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA}
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            LATEST=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-latest
+            docker tag "$SRC" "$LATEST"
+            docker push "$LATEST"
+          fi
+
+  build-and-test-tag:
+    name: Build and test tagged container
+    if: startsWith(github.ref, 'refs/tags/test_containers/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      FULL_REF: ${{ github.ref_name }}
+    outputs:
+      name: ${{ steps.parse.outputs.name }}
+      version: ${{ steps.parse.outputs.version }}
+    steps:
+      - name: Parse tag
+        id: parse
+        run: |
+          set -euo pipefail
+          # Tag format expected: test_containers/<name>/<version>
+          IFS='/' read -r root name version <<< "${FULL_REF}"
+          if [ "${root}" != "test_containers" ] || [ -z "${name}" ] || [ -z "${version}" ]; then
+            echo "Tag '${FULL_REF}' does not match required format: test_containers/<name>/<version>" >&2
+            exit 1
+          fi
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Dockerfile exists
+        run: |
+          if [ ! -f "test_containers/${{ steps.parse.outputs.name }}/Dockerfile" ]; then
+            echo "Dockerfile not found for container '${{ steps.parse.outputs.name }}'" >&2
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for ${{ steps.parse.outputs.name }}
+        id: build_tag
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test_containers/${{ steps.parse.outputs.name }}
+          load: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${{ github.sha }}
+          cache-from: type=gha,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-buildcache
+          cache-to: type=gha,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-buildcache,mode=max
+          outputs: type=docker,dest=/tmp/image-${{ steps.parse.outputs.name }}.tar
+
+      - name: Smoke test ${{ steps.parse.outputs.name }}
+        run: |
+          docker load -i /tmp/image-${{ steps.parse.outputs.name }}.tar
+          echo "Running smoke test for ${{ steps.parse.outputs.name }} with --help command..."
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${GITHUB_SHA} --help
+
+      - name: Upload Docker image as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ steps.parse.outputs.name }}
+          path: /tmp/image-${{ steps.parse.outputs.name }}.tar
+          retention-days: 1
+
+  publish-tag:
+    name: Publish tagged container
+    needs: build-and-test-tag
+    if: startsWith(github.ref, 'refs/tags/test_containers/')
+    runs-on: ubuntu-latest
+    environment:
+      name: publish-docker-registry
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ needs.build-and-test-tag.outputs.name }}
+          path: /tmp
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push image ${{ needs.build-and-test-tag.outputs.name }}:${{ needs.build-and-test-tag.outputs.version }}
+        id: push
+        run: |
+          set -euo pipefail
+          NAME='${{ needs.build-and-test-tag.outputs.name }}'
+          VERSION='${{ needs.build-and-test-tag.outputs.version }}'
+          docker load -i "/tmp/image-${NAME}.tar"
+          SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${NAME}-sha-${GITHUB_SHA}
+          DEST=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${NAME}-${VERSION}
+          docker tag "$SRC" "$DEST"
+          DIGEST=$(docker push "$DEST" | grep digest: | cut -d' ' -f3)
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+# activate when public GH repo
+#      - name: Attest
+#        uses: actions/attest-build-provenance@v3
+#        id: attest
+#        with:
+#          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+#          subject-digest: ${{ steps.push.outputs.digest }}
+#          push-to-registry: true

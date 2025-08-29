@@ -1,19 +1,19 @@
-
 #!/usr/bin/env bash
-set -euo pipefail
+set -eu -o pipefail
 
 # build_test_containers.sh
 # Builds all Docker images found under test_containers/* where a Dockerfile is present.
-# Image names follow the pattern: <registry>/<folder>:<tag>
-# Defaults: registry="my-registry", tag="latest"
+# Image names follow the pattern: <repository>:<folder>-<tag>
+# Defaults: repository="my-user/my-project", tag="latest"
 #
 # Usage:
-#   scripts/build_test_containers.sh [-r REGISTRY] [-t TAG]
+#   scripts/build_test_containers.sh [-r REPO] [-t TAG]
 # Examples:
-#   scripts/build_test_containers.sh                 # builds my-registry/<name>:latest
-#   scripts/build_test_containers.sh -r myrepo -t v1 # builds myrepo/<name>:v1
+#   scripts/build_test_containers.sh                      # builds my-user/my-project:<name>-latest
+#   scripts/build_test_containers.sh -t v0.1.0            # builds my-user/my-project:<name>-v0.1.0
+#   scripts/build_test_containers.sh -r myrepo/one -t v1  # builds myrepo/one:<name>-v1
 
-REGISTRY="my-registry"
+REPO="my-user/my-project"
 TAG="latest"
 
 print_help() {
@@ -21,19 +21,23 @@ print_help() {
 Build all Docker images under test_containers/
 
 Options:
-  -r, --registry  Docker registry/namespace to use (default: ${REGISTRY})
-  -t, --tag       Docker tag/label to use (default: ${TAG})
+  -r, --repository  Docker repository to use (default:
+                  ${REPO})
+  -t, --tag       Version/tag suffix to use (default: ${TAG})
   -h, --help      Show this help and exit
 
-The resulting image names will be: <registry>/<folder>:<tag>
+The resulting image names will be: <repository>:<folder>-<tag>
+For example, folder "garak/" becomes:
+  ${REPO}:garak-latest (default)
+  ${REPO}:garak-v0.1.0 (with -t v0.1.0)
 EOF
 }
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -r|--registry)
-      REGISTRY="$2"; shift 2 ;;
+    -r|--repository)
+      REPO="$2"; shift 2 ;;
     -t|--tag)
       TAG="$2"; shift 2 ;;
     -h|--help)
@@ -69,23 +73,22 @@ for dir in "${CONTAINERS_DIR}"/*/ ; do
   # Get folder name without trailing slash
   name="$(basename "${dir%/}")"
   dockerfile_path="${dir}Dockerfile"
-
   if [[ ! -f "${dockerfile_path}" ]]; then
     echo "[SKIP] ${name}: No Dockerfile found at ${dockerfile_path}"
-    ((SKIP_COUNT++))
+    (( SKIP_COUNT = SKIP_COUNT + 1 ))
     continue
   fi
 
-  image_tag="${REGISTRY}/${name}:${TAG}"
+  image_tag="${REPO}:${name}-${TAG}"
   echo "[BUILD] ${name} -> ${image_tag}"
   echo "        Context: ${dir}"
 
   if docker build -t "${image_tag}" "${dir}" ; then
     echo "[OK] Built ${image_tag}"
-    ((BUILD_COUNT++))
+    (( BUILD_COUNT = BUILD_COUNT + 1 ))
   else
     echo "[ERR] Failed to build ${image_tag}" >&2
-    ((ERROR_COUNT++))
+    (( ERROR_COUNT = ERROR_COUNT + 1 ))
   fi
   echo
 

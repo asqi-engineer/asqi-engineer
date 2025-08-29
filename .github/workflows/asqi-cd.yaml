@@ -1,0 +1,67 @@
+name: ASQI Project Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yaml
+  test:
+    uses: ./.github/workflows/test.yaml
+
+  security:
+    uses: ./.github/workflows/security.yaml
+
+  build-publish-container:
+    needs: [ lint, test,  security ]
+    permissions:
+      packages: write
+      id-token: write
+      contents: read
+      attestations: write
+    uses: ./.github/workflows/asqi-container-publish.yaml
+    secrets: inherit
+
+  build-publish-library:
+    if: startsWith(github.ref, 'refs/tags/v')
+    # inlined as pypa publisher does not support reusable workflows yet
+    needs: [ lint, test, security ]
+    permissions:
+      id-token: write
+      contents: read
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    strategy:
+      matrix:
+        python-version: [ '3.12' ]
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📦 Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: 🐍 Set up uv and Python
+        run: |
+          uv venv
+          source .venv/bin/activate
+
+      - name: 🛠️ Install build dependencies
+        run: |
+          uv sync --python ${{ matrix.python-version }} --group dev
+
+      - name: 🔨 Build package
+        run: uv build --wheel
+
+      - name: 🚀 Publish to PyPI
+        # This action uses OIDC to securely authenticate with PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

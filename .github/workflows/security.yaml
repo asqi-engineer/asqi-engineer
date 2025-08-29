@@ -2,10 +2,6 @@ name: Security
 
 on:
   workflow_call:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
   schedule:
     - cron: '0 0 * * 0'  # Run weekly on Sundays
 
