@@ -371,9 +371,10 @@ def run_test_suite_workflow(
     """
     workflow_start_time = time.time()
 
-    test_queue = Queue(
-        "test_execution", concurrency=executor_config["concurrent_tests"]
-    )
+    # unique per-workfloe execution
+    queue_name = f"test_execution_{DBOS.workflow_id}"
+
+    test_queue = Queue(queue_name, concurrency=executor_config["concurrent_tests"])
 
     # Parse configurations
     try:
@@ -540,13 +541,11 @@ def run_test_suite_workflow(
 
         # Collect results as they complete
         all_results = []
+        progress_interval = max(1, test_count // executor_config["progress_interval"])
         for i, handle in enumerate(test_handles, 1):
             result = handle.get_result()
             all_results.append(result)
-            if (
-                i % max(1, test_count // executor_config["progress_interval"]) == 0
-                or i == test_count
-            ):
+            if i % progress_interval == 0 or i == test_count:
                 console.print(f"[dim]Completed {i}/{test_count} tests[/dim]")
 
     workflow_end_time = time.time()
