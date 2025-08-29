@@ -189,7 +189,8 @@ class ScoreCardIndicator(BaseModel):
         description="Filter criteria for which test results this indicator applies to",
     )
     metric: str = Field(
-        ..., description="JSONPath into test_results object, e.g., 'success', 'score'"
+        ...,
+        description="Path to metric within test_results object. Supports dot notation for nested objects ('vulnerability_stats.Toxicity.overall_pass_rate'), and bracket notation for keys with dots ('probe_results[\"encoding.InjectHex\"][\"encoding.DecodeMatch\"].passed')",
     )
     assessment: List[AssessmentRule] = Field(
         ..., description="List of assessment rules to evaluate against the metric"
