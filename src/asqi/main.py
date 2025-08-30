@@ -208,7 +208,7 @@ def execute(
         "-c",
         min=1,
         max=20,
-        help="Number of tests to run concurrently (must be between 1 and 20, default: 1)",
+        help=f"Number of tests to run concurrently (must be between 1 and 20, default: {ExecutorConfig.DEFAULT_CONCURRENT_TESTS})",
     ),
     max_failures: int = typer.Option(
         ExecutorConfig.MAX_FAILURES_DISPLAYED,
@@ -216,7 +216,7 @@ def execute(
         "-m",
         min=1,
         max=10,
-        help="Maximum number of failures to display (default: 3, must be between 1 and 10).",
+        help=f"Maximum number of failures to display (must be between 1 and 10, default: {ExecutorConfig.MAX_FAILURES_DISPLAYED}).",
     ),
     progress_interval: int = typer.Option(
         ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
@@ -224,7 +224,7 @@ def execute(
         "-p",
         min=1,
         max=10,
-        help="Progress update interval (default: 4 -> every 25%, must be between 1 and 10).",
+        help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
     ),
     score_card_file: str = typer.Option(
         ..., help="Path to grading score card YAML file."
@@ -296,7 +296,7 @@ def execute_tests(
         "-c",
         min=1,
         max=20,
-        help="Number of tests to run concurrently (must be between 1 and 20, default: 1)",
+        help=f"Number of tests to run concurrently (must be between 1 and 20, default: {ExecutorConfig.DEFAULT_CONCURRENT_TESTS})",
     ),
     max_failures: int = typer.Option(
         ExecutorConfig.MAX_FAILURES_DISPLAYED,
@@ -304,7 +304,7 @@ def execute_tests(
         "-m",
         min=1,
         max=10,
-        help="Maximum number of failures to display (default: 3, must be between 1 and 10).",
+        help=f"Maximum number of failures to display (must be between 1 and 10, default: {ExecutorConfig.MAX_FAILURES_DISPLAYED}).",
     ),
     progress_interval: int = typer.Option(
         ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
@@ -312,7 +312,7 @@ def execute_tests(
         "-p",
         min=1,
         max=10,
-        help="Progress update interval (default: 4 -> every 25%, must be between 1 and 10).",
+        help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
     ),
     output_file: Optional[str] = typer.Option(
         None, help="Path to save execution results JSON file."

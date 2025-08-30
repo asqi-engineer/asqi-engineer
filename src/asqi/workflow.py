@@ -371,7 +371,7 @@ def run_test_suite_workflow(
     """
     workflow_start_time = time.time()
 
-    # unique per-workfloe execution
+    # unique per-workflow execution
     queue_name = f"test_execution_{DBOS.workflow_id}"
 
     test_queue = Queue(queue_name, concurrency=executor_config["concurrent_tests"])
