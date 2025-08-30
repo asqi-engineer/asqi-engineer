@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
+from asqi.config import ExecutorConfig
 from asqi.main import app
 
 
@@ -112,6 +113,11 @@ class TestMainCLI:
             score_card_configs=None,
             execution_mode="tests_only",
             test_names=None,
+            executor_config={
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
         )
         assert "✨ Test execution completed! Workflow ID: workflow-123" in result.stdout
 
@@ -146,6 +152,11 @@ class TestMainCLI:
             output_path="output.json",
             score_card_configs=[{"score_card_name": "Test scorecard"}],
             execution_mode="end_to_end",
+            executor_config={
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
         assert "✨ Execution completed! Workflow ID: workflow-456" in result.stdout
@@ -294,6 +305,11 @@ class TestMainCLI:
             score_card_configs=None,
             execution_mode="tests_only",
             test_names=["t1"],
+            executor_config={
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
         )
         assert "✨ Test execution completed! Workflow ID: workflow-888" in result.stdout
 
@@ -328,6 +344,11 @@ class TestMainCLI:
             score_card_configs=None,
             execution_mode="tests_only",
             test_names=["tes1"],
+            executor_config={
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
         )
 
         mock_dbos.start_workflow.assert_not_called()

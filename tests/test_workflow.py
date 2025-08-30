@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
+from asqi.config import ExecutorConfig
 from asqi.schemas import Manifest, SUTSupport
 from asqi.workflow import (
     TestExecutionResult,
@@ -20,10 +21,10 @@ from asqi.workflow import (
 )
 
 
-def _call_inner_workflow(suite_config, suts_config):
+def _call_inner_workflow(suite_config, suts_config, executor_config):
     """Call the inner (undecorated) workflow function if available."""
     workflow_fn = getattr(_workflow, "__wrapped__", _workflow)
-    return workflow_fn(suite_config, suts_config)
+    return workflow_fn(suite_config, suts_config, executor_config)
 
 
 class DummyHandle:
@@ -89,7 +90,7 @@ def test_run_test_suite_workflow_success():
         patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
         patch("asqi.workflow.create_test_execution_plan") as mock_plan,
-        patch("asqi.workflow.test_queue") as mock_queue,
+        patch("asqi.workflow.Queue") as mock_queue_class,
     ):
         mock_avail.return_value = {"test/image:latest": True}
         mock_extract.return_value = manifest
@@ -105,11 +106,20 @@ def test_run_test_suite_workflow_success():
         ]
 
         # Enqueue returns a handle with get_result -> success_result
+        mock_queue = mock_queue_class.return_value
         mock_queue.enqueue.side_effect = lambda *args, **kwargs: DummyHandle(
             success_result
         )
 
-        out = _call_inner_workflow(suite_config, suts_config)
+        out = _call_inner_workflow(
+            suite_config,
+            suts_config,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+        )
 
     assert out["summary"]["status"] == "COMPLETED"
     assert out["summary"]["total_tests"] == 1
@@ -145,7 +155,15 @@ def test_run_test_suite_workflow_validation_failure():
             "Test 'bad_test': No manifest available for image 'missing/image:latest'"
         ]
 
-        out = _call_inner_workflow(suite_config, suts_config)
+        out = _call_inner_workflow(
+            suite_config,
+            suts_config,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+        )
 
     assert out["summary"]["status"] == "VALIDATION_FAILED"
     assert out["summary"]["total_tests"] == 0
@@ -391,6 +409,13 @@ def test_run_end_to_end_workflow():
     suite_config = {"suite_name": "test"}
     suts_config = {"systems_under_test": {}}
     score_card_configs = [{"score_card_name": "test"}]
+    executor_config = (
+        {
+            "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+            "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+            "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+        },
+    )
 
     test_results = {"summary": {"status": "COMPLETED"}, "results": []}
     final_results = {
@@ -409,9 +434,13 @@ def test_run_end_to_end_workflow():
         inner_workflow = getattr(
             run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow
         )
-        result = inner_workflow(suite_config, suts_config, score_card_configs)
+        result = inner_workflow(
+            suite_config, suts_config, score_card_configs, executor_config
+        )
 
-        mock_test_workflow.assert_called_once_with(suite_config, suts_config)
+        mock_test_workflow.assert_called_once_with(
+            suite_config, suts_config, executor_config
+        )
         mock_score_workflow.assert_called_once_with(test_results, score_card_configs)
         assert result == final_results
 
@@ -428,8 +457,21 @@ def test_start_test_execution_tests_only_mode():
         mock_load.return_value = {"test": "config"}
         mock_start.return_value = mock_handle
 
+        executor_config = (
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+        )
+
         workflow_id = start_test_execution(
-            "suite.yaml", "suts.yaml", "output.json", None, "tests_only"
+            "suite.yaml",
+            "suts.yaml",
+            executor_config,
+            "output.json",
+            None,
+            "tests_only",
         )
 
         assert workflow_id == mock_handle.get_workflow_id()
@@ -452,8 +494,21 @@ def test_start_test_execution_end_to_end_mode():
         mock_load.return_value = {"test": "config"}
         mock_start.return_value = mock_handle
 
+        executor_config = (
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+        )
+
         workflow_id = start_test_execution(
-            "suite.yaml", "suts.yaml", "output.json", score_card_configs, "end_to_end"
+            "suite.yaml",
+            "suts.yaml",
+            executor_config,
+            "output.json",
+            score_card_configs,
+            "end_to_end",
         )
 
         assert workflow_id == mock_handle.get_workflow_id()
