@@ -28,7 +28,7 @@ from asqi.output import (
     format_failure_summary,
     parse_container_json_output,
 )
-from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
+from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
 from asqi.validation import (
     create_test_execution_plan,
     validate_execution_inputs,
@@ -120,7 +120,7 @@ def extract_manifest_from_image_step(image: str) -> Optional[Manifest]:
 
 @DBOS.step()
 def validate_test_plan(
-    suite: SuiteConfig, suts: SUTsConfig, manifests: Dict[str, Manifest]
+    suite: SuiteConfig, suts: SystemsConfig, manifests: Dict[str, Manifest]
 ) -> List[str]:
     """
     DBOS step wrapper for comprehensive test plan validation.
@@ -363,7 +363,7 @@ def run_test_suite_workflow(
 
     Args:
         suite_config: Serialized SuiteConfig containing test definitions
-        suts_config: Serialized SUTsConfig containing SUT configurations
+        suts_config: Serialized SystemsConfig containing system configurations
         executor_config: Execution parameters controlling concurrency and reporting
 
     Returns:
@@ -379,7 +379,7 @@ def run_test_suite_workflow(
     # Parse configurations
     try:
         suite = SuiteConfig(**suite_config)
-        suts = SUTsConfig(**suts_config)
+        suts = SystemsConfig(**suts_config)
     except ValidationError as e:
         error_msg = f"Configuration validation failed: {e}"
         DBOS.logger.error(error_msg)
@@ -694,7 +694,7 @@ def run_end_to_end_workflow(
 
     Args:
         suite_config: Serialized SuiteConfig containing test definitions
-        suts_config: Serialized SUTsConfig containing SUT configurations
+        suts_config: Serialized SystemsConfig containing system configurations
         score_card_configs: List of score card configurations to evaluate
         executor_config: Execution parameters controlling concurrency and reporting
 
