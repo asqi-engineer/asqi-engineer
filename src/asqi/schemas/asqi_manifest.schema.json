@@ -115,10 +115,10 @@
       "type": "object"
     },
     "SUTSupport": {
-      "description": "Defines a type of SUT the container can test.",
+      "description": "Defines a type of system the container can test.",
       "properties": {
         "type": {
-          "description": "The SUT type, e.g., 'llm_api' or 'rest_api'.",
+          "description": "The system type, e.g., 'llm_api' or 'rest_api'.",
           "title": "Type",
           "type": "string"
         },
@@ -135,7 +135,7 @@
             }
           ],
           "default": null,
-          "description": "List of config keys required by the entrypoint for this SUT type.",
+          "description": "List of config keys required by the entrypoint for this system type.",
           "title": "Required Config"
         }
       },
@@ -170,7 +170,7 @@
       "title": "Description"
     },
     "supported_suts": {
-      "description": "Declares which SUT types this framework can handle.",
+      "description": "Declares which system types this framework can handle.",
       "items": {
         "$ref": "#/$defs/SUTSupport"
       },

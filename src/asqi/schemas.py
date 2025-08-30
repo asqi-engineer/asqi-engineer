@@ -8,12 +8,14 @@ from pydantic import BaseModel, Field
 
 
 class SUTSupport(BaseModel):
-    """Defines a type of SUT the container can test."""
+    """Defines a type of system the container can test."""
 
-    type: str = Field(..., description="The SUT type, e.g., 'llm_api' or 'rest_api'.")
+    type: str = Field(
+        ..., description="The system type, e.g., 'llm_api' or 'rest_api'."
+    )
     required_config: Optional[List[str]] = Field(
         None,
-        description="List of config keys required by the entrypoint for this SUT type.",
+        description="List of config keys required by the entrypoint for this system type.",
     )
 
 
@@ -49,7 +51,7 @@ class Manifest(BaseModel):
     version: str
     description: Optional[str] = None
     supported_suts: List[SUTSupport] = Field(
-        ..., description="Declares which SUT types this framework can handle."
+        ..., description="Declares which system types this framework can handle."
     )
     input_schema: List[InputParameter] = Field(
         [], description="Defines the schema for the user-provided 'params' object."
@@ -67,7 +69,7 @@ class Manifest(BaseModel):
 
 
 class LLMAPIConfig(BaseModel):
-    """Configuration for LLM API SUTs."""
+    """Configuration for LLM API systems."""
 
     base_url: str = Field(
         ...,
@@ -87,8 +89,8 @@ class LLMAPIConfig(BaseModel):
     )
 
 
-class SUTDefinition(BaseModel):
-    """A single System Under Test definition."""
+class SystemDefinition(BaseModel):
+    """A single system definition."""
 
     type: str = Field(
         ...,
@@ -96,14 +98,16 @@ class SUTDefinition(BaseModel):
     )
     params: Dict[str, Any] = Field(
         ...,
-        description="Parameters specific to the SUT type (e.g., base_url, model name, API key).",
+        description="Parameters specific to the system type (e.g., base_url, model name, API key).",
     )
 
 
-class SUTsConfig(BaseModel):
-    """Schema for the top-level SUTs configuration file."""
+class SystemsConfig(BaseModel):
+    """Schema for the top-level systems configuration file."""
 
-    systems_under_test: Dict[str, SUTDefinition]
+    systems: Dict[str, SystemDefinition] = Field(
+        ..., description="Dictionary of system definitions."
+    )
 
 
 # ----------------------------------------------------------------------------
@@ -121,9 +125,9 @@ class TestDefinition(BaseModel):
         ...,
         description="The Docker image to run for this test, e.g., 'my-registry/garak:latest'.",
     )
-    target_suts: List[str] = Field(
+    systems_under_test: List[str] = Field(
         ...,
-        description="A list of SUT names (from suts.yaml) to run this test against.",
+        description="A list of system names (from systems.yaml) to run this test against.",
     )
     tags: Optional[List[str]] = Field(
         None, description="Optional tags for filtering and reporting."
@@ -153,7 +157,7 @@ class ScoreCardFilter(BaseModel):
 
     test_name: str = Field(
         ...,
-        description="Test name to filter by, e.g., 'run_mock_on_compatible_sut_my_llm_service'",
+        description="Test name to filter by, e.g., 'run_mock_on_compatible_system_my_llm_service'",
     )
 
 

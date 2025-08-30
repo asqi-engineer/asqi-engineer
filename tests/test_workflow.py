@@ -55,16 +55,14 @@ def test_run_test_suite_workflow_success():
             {
                 "name": "t1",
                 "image": "test/image:latest",
-                "target_suts": ["sutA"],
+                "systems_under_test": ["sutA"],
                 "params": {"p": "v"},
             }
         ],
     }
 
     suts_config = {
-        "systems_under_test": {
-            "sutA": {"type": "llm_api", "params": {"endpoint": "http://x"}}
-        }
+        "systems": {"sutA": {"type": "llm_api", "params": {"endpoint": "http://x"}}}
     }
 
     # Build a minimal manifest that supports the SUT type
@@ -136,13 +134,13 @@ def test_run_test_suite_workflow_validation_failure():
             {
                 "name": "bad_test",
                 "image": "missing/image:latest",
-                "target_suts": ["sutA"],
+                "systems_under_test": ["sutA"],
                 "params": {},
             }
         ],
     }
 
-    suts_config = {"systems_under_test": {"sutA": {"type": "llm_api", "params": {}}}}
+    suts_config = {"systems": {"sutA": {"type": "llm_api", "params": {}}}}
 
     with (
         patch("asqi.workflow.dbos_check_images_availabilty") as mock_avail,

@@ -12,7 +12,7 @@ from rich.console import Console
 from asqi.config import ExecutorConfig
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
-from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
+from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
 from asqi.validation import validate_test_plan
 
 configure_logging()
@@ -87,7 +87,7 @@ def load_and_validate_plan(
     errors: List[str] = []
     try:
         suts_data = load_yaml_file(suts_path)
-        suts_config = SUTsConfig(**suts_data)
+        suts_config = SystemsConfig(**suts_data)
 
         suite_data = load_yaml_file(suite_path)
         suite_config = SuiteConfig(**suite_data)

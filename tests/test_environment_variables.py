@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from asqi.schemas import SuiteConfig, SUTDefinition, SUTsConfig, TestDefinition
+from asqi.schemas import SuiteConfig, SystemDefinition, SystemsConfig, TestDefinition
 from asqi.validation import create_test_execution_plan
 from asqi.workflow import execute_single_test
 
@@ -25,7 +25,7 @@ class TestEnvironmentVariables:
                 TestDefinition(
                     name="test_with_api_key",
                     image="my-registry/test:latest",
-                    target_suts=["test_sut"],
+                    systems_under_test=["test_sut"],
                     params={"generations": 1},
                     tags=None,
                     volumes={},
@@ -37,9 +37,9 @@ class TestEnvironmentVariables:
     def sample_suts_config(self):
         """Sample SUTs configuration with API key."""
 
-        return SUTsConfig(
-            systems_under_test={
-                "test_sut": SUTDefinition(
+        return SystemsConfig(
+            systems={
+                "test_sut": SystemDefinition(
                     type="llm_api",
                     params={
                         "model": "gpt-4o-mini",

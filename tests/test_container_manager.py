@@ -11,13 +11,13 @@ from asqi.container_manager import (
     ManifestExtractionError,
     MissingImageException,
     MountExtractionError,
+    _decommission_container,
     _resolve_abs,
     check_images_availabilty,
     docker_client,
     extract_manifest_from_image,
     run_container_with_args,
 )
-from asqi.container_manager import _decommission_container
 from asqi.schemas import Manifest
 
 

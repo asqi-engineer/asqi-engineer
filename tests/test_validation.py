@@ -5,11 +5,11 @@ import pytest
 import yaml
 
 from asqi.main import load_and_validate_plan
-from asqi.schemas import Manifest, SuiteConfig, SUTsConfig
+from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
 from asqi.validation import (
     create_test_execution_plan,
     validate_manifests_against_tests,
-    validate_sut_compatibility,
+    validate_system_compatibility,
     validate_test_parameters,
     validate_test_plan,
 )
@@ -20,14 +20,14 @@ suite_name: "Mock Tester Sanity Check"
 test_suite:
   - name: "run_mock_on_compatible_sut"
     image: "my-registry/mock_tester:latest"
-    target_suts:
+    systems_under_test:
       - "my_backend_api"  # This should fail since mock_tester doesn't support this in your demo
     params:
       delay_seconds: 1
 """
 
 DEMO_SUTS_YAML = """
-systems_under_test:
+systems:
   # This SUT is compatible with our mock_tester
   my_llm_service:
     type: "llm_api"
@@ -87,7 +87,7 @@ def demo_suite():
 def demo_suts():
     """Fixture providing parsed demo SUTs."""
     data = yaml.safe_load(DEMO_SUTS_YAML)
-    return SUTsConfig(**data)
+    return SystemsConfig(**data)
 
 
 @pytest.fixture
@@ -111,12 +111,12 @@ class TestSchemaValidation:
         test1 = demo_suite.test_suite[0]
         assert test1.name == "run_mock_on_compatible_sut"
         assert test1.image == "my-registry/mock_tester:latest"
-        assert test1.target_suts == ["my_backend_api"]
+        assert test1.systems_under_test == ["my_backend_api"]
         assert test1.params["delay_seconds"] == 1
 
     def test_suts_schema_validation(self, demo_suts):
         """Test that demo SUTs YAML parses correctly."""
-        suts = demo_suts.systems_under_test
+        suts = demo_suts.systems
         assert len(suts) == 2
 
         # Check LLM service
@@ -149,7 +149,7 @@ class TestCrossFileValidation:
                 {
                     "name": "test_llm_service",
                     "image": "my-registry/mock_tester:latest",
-                    "target_suts": ["my_llm_service"],
+                    "systems_under_test": ["my_llm_service"],
                     "params": {"delay_seconds": 1},
                 }
             ],
@@ -176,7 +176,7 @@ class TestCrossFileValidation:
                 {
                     "name": "test_missing_sut",
                     "image": "my-registry/mock_tester:latest",
-                    "target_suts": ["nonexistent_sut"],
+                    "systems_under_test": ["nonexistent_sut"],
                     "params": {},
                 }
             ],
@@ -185,7 +185,7 @@ class TestCrossFileValidation:
 
         errors = validate_test_plan(suite, demo_suts, manifests)
         assert len(errors) > 0
-        assert any("is not defined in the SUTs file" in error for error in errors)
+        assert any("is not defined in the systems file" in error for error in errors)
 
     def test_missing_required_parameter(self, demo_suts, manifests):
         """Test validation fails when required parameters are missing."""
@@ -196,7 +196,7 @@ class TestCrossFileValidation:
                 {
                     "name": "garak_without_probes",
                     "image": "my-registry/garak:latest",
-                    "target_suts": ["my_llm_service"],
+                    "systems_under_test": ["my_llm_service"],
                     "params": {},  # Missing required 'probes' parameter
                 }
             ],
@@ -217,7 +217,7 @@ class TestCrossFileValidation:
                 {
                     "name": "test_unknown_param",
                     "image": "my-registry/mock_tester:latest",
-                    "target_suts": ["my_llm_service"],
+                    "systems_under_test": ["my_llm_service"],
                     "params": {"delay_seconds": 1, "unknown_param": "should_fail"},
                 }
             ],
@@ -278,7 +278,7 @@ class TestEdgeCases:
         errors = validate_test_plan(suite, demo_suts, manifests)
         assert errors == []  # Empty suite should be valid
 
-    def test_multiple_target_suts(self, demo_suts, manifests):
+    def test_multiple_systems_under_test(self, demo_suts, manifests):
         """Test validation with multiple target SUTs."""
         multi_sut_data = {
             "suite_name": "Multi SUT Test",
@@ -286,7 +286,7 @@ class TestEdgeCases:
                 {
                     "name": "test_multiple_suts",
                     "image": "my-registry/garak:latest",
-                    "target_suts": ["my_llm_service", "my_backend_api"],
+                    "systems_under_test": ["my_llm_service", "my_backend_api"],
                     "params": {
                         "probes": ["probe1", "probe2"]
                     },  # Provide required param for garak
@@ -307,7 +307,7 @@ class TestEdgeCases:
                 {
                     "name": "test_no_params",
                     "image": "my-registry/mock_tester:latest",
-                    "target_suts": ["my_llm_service"],
+                    "systems_under_test": ["my_llm_service"],
                     "params": {},
                 }
             ],
@@ -347,29 +347,25 @@ class TestValidationFunctions:
         errors = validate_test_parameters(test2, garak_manifest)
         assert errors == []
 
-    def test_validate_sut_compatibility(self, demo_suts, manifests):
+    def test_validate_system_compatibility(self, demo_suts, manifests):
         manifest = manifests["my-registry/mock_tester:latest"]
 
         class DummyTest:
             name = "t1"
             image = "my-registry/mock_tester:latest"
-            target_suts = ["my_llm_service", "my_backend_api"]
+            systems_under_test = ["my_llm_service", "my_backend_api"]
 
         test = DummyTest()
-        errors = validate_sut_compatibility(
-            test, demo_suts.systems_under_test, manifest
-        )
+        errors = validate_system_compatibility(test, demo_suts.systems, manifest)
         # my_llm_service is supported, my_backend_api is not
-        assert any("does not support SUT type 'rest_api'" in e for e in errors)
-        # Check that there's no error for the supported llm_api SUT type
-        assert not any("does not support SUT type 'llm_api'" in e for e in errors)
+        assert any("does not support system type 'rest_api'" in e for e in errors)
+        # Check that there's no error for the supported llm_api system type
+        assert not any("does not support system type 'llm_api'" in e for e in errors)
 
         # Unknown SUT
-        test.target_suts = ["not_a_sut"]
-        errors = validate_sut_compatibility(
-            test, demo_suts.systems_under_test, manifest
-        )
-        assert any("Unknown SUT 'not_a_sut'" in e for e in errors)
+        test.systems_under_test = ["not_a_sut"]
+        errors = validate_system_compatibility(test, demo_suts.systems, manifest)
+        assert any("Unknown system 'not_a_sut'" in e for e in errors)
 
     def test_validate_manifests_against_tests(self, demo_suts, manifests):
         # Valid test
@@ -379,7 +375,7 @@ class TestValidationFunctions:
                 {
                     "name": "t1",
                     "image": "my-registry/mock_tester:latest",
-                    "target_suts": ["my_llm_service"],
+                    "systems_under_test": ["my_llm_service"],
                     "params": {},
                 }
             ],
@@ -401,13 +397,13 @@ class TestValidationFunctions:
                 {
                     "name": "t1",
                     "image": "my-registry/mock_tester:latest",
-                    "target_suts": ["my_llm_service"],
+                    "systems_under_test": ["my_llm_service"],
                     "params": {"delay_seconds": 1},
                 },
                 {
                     "name": "t2",
                     "image": "my-registry/mock_tester:latest",
-                    "target_suts": ["my_llm_service", "my_backend_api"],
+                    "systems_under_test": ["my_llm_service", "my_backend_api"],
                     "params": {},
                 },
             ],
