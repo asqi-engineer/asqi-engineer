@@ -20,6 +20,7 @@ from asqi.container_manager import (
     check_images_availability,
     extract_manifest_from_image,
     run_container_with_args,
+    pull_images,
 )
 from asqi.output import (
     create_test_execution_progress,
@@ -105,6 +106,12 @@ class TestExecutionResult:
 def dbos_check_images_availability(images: List[str]) -> Dict[str, bool]:
     """Check if all required Docker images are available locally."""
     return check_images_availability(images)
+
+
+@DBOS.step()
+def dbos_pull_images(images: List[str]) -> Dict[str, bool]:
+    """Pull missing Docker images from registries."""
+    return pull_images(images)
 
 
 @DBOS.step()
@@ -423,13 +430,15 @@ def run_test_suite_workflow(
     with console.status("[bold blue]Checking image availability...", spinner="dots"):
         image_availability = dbos_check_images_availability(unique_images)
 
-    missing_images = [
-        img for img, available in image_availability.items() if not available
-    ]
+    # Try to pull missing images from Docker Hub/registries
+    missing_images = [img for img, available in image_availability.items() if not available]
     if missing_images:
         console.print(
             f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally"
         )
+        with console.status("[bold blue]Pulling missing images from registry...", spinner="dots"):
+            pull_results = dbos_pull_images()
+            missing_images = [img for img, success in pull_results.items() if not success]
 
     # Extract manifests from available images
     manifests = {}
@@ -724,13 +733,13 @@ def save_results_to_file_step(results: Dict[str, Any], output_path: str) -> None
 
 
 def start_test_execution(
-    suite_path: str,
-    suts_path: str,
-    executor_config: Dict[str, Any],
-    output_path: Optional[str] = None,
-    score_card_configs: Optional[List[Dict[str, Any]]] = None,
-    execution_mode: str = "end_to_end",
-    test_names: Optional[List[str]] = None,
+        suite_path: str,
+        suts_path: str,
+        executor_config: Dict[str, Any],
+        output_path: Optional[str] = None,
+        score_card_configs: Optional[List[Dict[str, Any]]] = None,
+        execution_mode: str = "end_to_end",
+        test_names: Optional[List[str]] = None,
 ) -> str:
     """
     Orchestrate test suite execution workflow.

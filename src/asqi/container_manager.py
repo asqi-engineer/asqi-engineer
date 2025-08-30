@@ -63,9 +63,10 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
     - If any images are missing, lists available tags for the repo
     and raises MissingImageException with recommendations.
     """
-    availability = {}
-    missing = []
+    availability: Dict[str, bool] = {}
+    missing: List[str] = []
 
+    # First pass: check availability
     with docker_client() as client:
         for image in images:
             try:
@@ -80,13 +81,15 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
             except ConnectionError as e:
                 raise ConnectionError(f"Failed to connect to Docker daemon: {e}")
 
+    # If any are missing, compose a helpful message using a fresh client context
     if missing:
+        local_tags: List[str] = []
         try:
-            local_images = client.images.list()
-            local_tags = [tag for img in local_images for tag in img.tags]
+            with docker_client() as client:
+                local_images = client.images.list()
+                local_tags = [tag for img in local_images for tag in img.tags]
         except docker_errors.APIError as e:
             logger.warning(f"Failed to list local Docker images: {e}")
-            local_tags = []
 
         msgs = []
         for image in missing:
@@ -106,6 +109,61 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
         raise MissingImageException("\n\n".join(msgs))
 
     return availability
+
+
+def pull_images(images: List[str]) -> Dict[str, bool]:
+    """
+    Pull the specified Docker images from Docker Hub (or configured registries).
+
+    Args:
+        images: List of image references (e.g., 'ubuntu:22.04', 'library/alpine:latest', 'user/repo:tag')
+
+    Returns:
+        Dict mapping image -> True/False indicating availability after pull attempt.
+
+    Notes:
+        - If an image already exists locally, it's treated as available.
+        - Uses docker SDK to pull; handles common API errors and continues.
+    """
+    result: Dict[str, bool] = {img: False for img in images}
+
+    # Quick local check to avoid unnecessary pulls
+    with docker_client() as client:
+        for image in images:
+            try:
+                client.images.get(image)
+                result[image] = True
+            except docker_errors.ImageNotFound:
+                pass
+            except docker_errors.APIError as e:
+                logger.warning(f"Docker API error checking local image {image}: {e}")
+
+    # Attempt to pull only those not present
+    images_to_pull = [img for img, ok in result.items() if not ok]
+    if not images_to_pull:
+        return result
+
+    with docker_client() as client:
+        for image in images_to_pull:
+            try:
+                logger.info(f"Pulling image '{image}' from registry...")
+                client.images.pull(image)
+                # Verify
+                try:
+                    client.images.get(image)
+                    result[image] = True
+                    logger.info(f"Successfully pulled '{image}'")
+                except docker_errors.ImageNotFound:
+                    logger.error(f"Image '{image}' not found after pull")
+                    result[image] = False
+            except docker_errors.APIError as e:
+                logger.error(f"Failed to pull image '{image}': {e}")
+                result[image] = False
+            except Exception as e:
+                logger.error(f"Unexpected error pulling '{image}': {e}")
+                result[image] = False
+
+    return result
 
 
 def extract_manifest_from_image(
