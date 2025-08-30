@@ -2,9 +2,11 @@ name: "garak"
 version: "1.0"
 description: "Garak LLM security testing framework container for vulnerability assessment."
 
-supported_suts:
-  - type: "llm_api"
-    required_config: ["model"]
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested"
 
 input_schema:
   - name: "probes"

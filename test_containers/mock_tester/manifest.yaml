@@ -2,9 +2,11 @@ name: "mock_tester"
 version: "1.0"
 description: "A lightweight mock container for testing the executor logic."
 
-supported_suts:
-  - type: "llm_api"
-    required_config: ["model"]
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested"
 
 input_schema:
   - name: "delay_seconds"

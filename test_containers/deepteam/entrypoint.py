@@ -182,13 +182,14 @@ class DeepTeamRedTeamTester:
         "bad_likert_judge": BadLikertJudge,
     }
 
-    def __init__(self, sut_params: Dict[str, Any], test_params: Dict[str, Any]):
-        """Initialize with SUT parameters"""
-        self.sut_params = sut_params
+    def __init__(self, systems_params: Dict[str, Any], test_params: Dict[str, Any]):
+        """Initialize with systems and test parameters"""
+        self.systems_params = systems_params
         self.test_params = test_params
+        self.sut_params = systems_params.get("system_under_test", {})
         self.client = self._setup_client()
-        self.simulator_model = self._setup_custom_model("simulator")
-        self.evaluation_model = self._setup_custom_model("evaluation")
+        self.simulator_model = self._setup_system_model("simulator_system")
+        self.evaluation_model = self._setup_system_model("evaluator_system")
 
     def _setup_client(self) -> openai.OpenAI:
         """Setup OpenAI client using provided SUT parameters"""
@@ -206,21 +207,21 @@ class DeepTeamRedTeamTester:
 
         return openai.OpenAI(base_url=self.sut_params["base_url"], api_key=api_key)
 
-    def _setup_custom_model(self, model_type: str) -> Optional[CustomOpenAIModel]:
-        """Setup custom model for simulator or evaluation"""
-        model_config = self.test_params.get(f"{model_type}_model")
+    def _setup_system_model(self, system_role: str) -> Optional[CustomOpenAIModel]:
+        """Setup model from systems configuration"""
+        system_config = self.systems_params.get(system_role)
 
-        if not model_config or not isinstance(model_config, dict):
+        if not system_config or not isinstance(system_config, dict):
             return None
 
-        api_key = os.environ.get("API_KEY", "sk-1234")
+        # Use the API key from the system config, or fallback to environment
+        api_key = system_config.get("api_key") or os.environ.get("API_KEY", "sk-1234")
 
         return CustomOpenAIModel(
-            model=model_config.get("model", "gpt-4o-mini"),
-            api_key=model_config.get("api_key", api_key),
-            base_url=model_config.get("base_url", self.sut_params["base_url"]),
-            temperature=model_config.get("temperature", 0),
-            **model_config.get("kwargs", {}),
+            model=system_config.get("model", "gpt-4o-mini"),
+            api_key=api_key,
+            base_url=system_config.get("base_url", self.sut_params["base_url"]),
+            temperature=system_config.get("temperature", 0),
         )
 
     async def _model_callback(self, input_text: str) -> str:
@@ -463,28 +464,31 @@ class DeepTeamRedTeamTester:
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="DeepTeam Red Team Test Container")
-    parser.add_argument("--sut-params", required=True, help="SUT parameters as JSON")
+    parser.add_argument(
+        "--systems-params", required=True, help="Systems parameters as JSON"
+    )
     parser.add_argument("--test-params", required=True, help="Test parameters as JSON")
     args = parser.parse_args()
 
     try:
-        sut_params = json.loads(args.sut_params)
+        systems_params = json.loads(args.systems_params)
         test_params = json.loads(args.test_params)
-        return sut_params, test_params
+        return systems_params, test_params
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in arguments: {e}")
 
 
-def validate_inputs(sut_params: Dict[str, Any], test_params: Dict[str, Any]):
+def validate_inputs(systems_params: Dict[str, Any], test_params: Dict[str, Any]):
     """Validate input parameters"""
-    # Validate SUT params
+    # Validate system_under_test params
+    sut_params = systems_params.get("system_under_test", {})
     required_sut_fields = ["type", "base_url", "model"]
     for field in required_sut_fields:
         if field not in sut_params:
-            raise ValueError(f"Missing required SUT parameter: {field}")
+            raise ValueError(f"Missing required system_under_test parameter: {field}")
 
     if sut_params["type"] != "llm_api":
-        raise ValueError(f"Unsupported SUT type: {sut_params['type']}")
+        raise ValueError(f"Unsupported system_under_test type: {sut_params['type']}")
 
     # Validate vulnerabilities
     valid_vulnerabilities = set(DeepTeamRedTeamTester.VULNERABILITY_MAP.keys())
@@ -539,11 +543,11 @@ async def main_async():
     """Async main execution function"""
     try:
         # Parse and validate inputs
-        sut_params, test_params = parse_arguments()
-        validate_inputs(sut_params, test_params)
+        systems_params, test_params = parse_arguments()
+        validate_inputs(systems_params, test_params)
 
         # Initialize tester
-        tester = DeepTeamRedTeamTester(sut_params, test_params)
+        tester = DeepTeamRedTeamTester(systems_params, test_params)
 
         # Run red team test
         result = await tester.run_red_team_test(test_params)

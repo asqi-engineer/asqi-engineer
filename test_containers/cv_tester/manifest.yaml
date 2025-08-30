@@ -2,9 +2,11 @@ name: "cv_tester_evaluator"
 version: "1.0"
 description: "An object detection evaluator that compares model predictions against ground-truth annotations and returns standard performance metrics."
 
-supported_suts:
-  - type: "computer_vision"
-    required_config: [type, model] 
+input_systems:
+  - name: "system_under_test"
+    type: "computer_vision"
+    required: true
+    description: "The computer vision system being tested"
 
 input_schema:
   - name: "input_image_path"
