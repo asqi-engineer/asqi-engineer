@@ -54,7 +54,7 @@
       "description": "Defines which test results an indicator applies to.",
       "properties": {
         "test_name": {
-          "description": "Test name to filter by, e.g., 'run_mock_on_compatible_sut_my_llm_service'",
+          "description": "Test name to filter by, e.g., 'run_mock_on_compatible_system_my_llm_service'",
           "title": "Test Name",
           "type": "string"
         }
