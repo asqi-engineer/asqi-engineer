@@ -114,35 +114,44 @@
       "title": "OutputMetric",
       "type": "object"
     },
-    "SUTSupport": {
-      "description": "Defines a type of system the container can test.",
+    "SystemInput": {
+      "description": "Defines a system input that the container requires.",
       "properties": {
+        "name": {
+          "description": "The system input name, e.g., 'system_under_test', 'simulator_system', 'evaluator_system'.",
+          "title": "Name",
+          "type": "string"
+        },
         "type": {
           "description": "The system type, e.g., 'llm_api' or 'rest_api'.",
           "title": "Type",
           "type": "string"
         },
-        "required_config": {
+        "required": {
+          "default": true,
+          "description": "Whether this system input is required.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
           "anyOf": [
             {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
+              "type": "string"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "List of config keys required by the entrypoint for this system type.",
-          "title": "Required Config"
+          "description": "Description of the system's role in the test.",
+          "title": "Description"
         }
       },
       "required": [
+        "name",
         "type"
       ],
-      "title": "SUTSupport",
+      "title": "SystemInput",
       "type": "object"
     }
   },
@@ -169,12 +178,12 @@
       "default": null,
       "title": "Description"
     },
-    "supported_suts": {
-      "description": "Declares which system types this framework can handle.",
+    "input_systems": {
+      "description": "Systems required as input. Should minimally include a system_under_test",
       "items": {
-        "$ref": "#/$defs/SUTSupport"
+        "$ref": "#/$defs/SystemInput"
       },
-      "title": "Supported Suts",
+      "title": "Input Systems",
       "type": "array"
     },
     "input_schema": {
@@ -224,7 +233,7 @@
   "required": [
     "name",
     "version",
-    "supported_suts"
+    "input_systems"
   ],
   "title": "ASQI Manifest",
   "type": "object",
