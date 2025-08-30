@@ -3,9 +3,11 @@ import asyncio
 import json
 import os
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import openai
+from deepeval.models import DeepEvalBaseLLM
+from deepeval.models.llms.openai_model import log_retry_error, retryable_exceptions
 from deepteam.attacks.multi_turn import (
     BadLikertJudge,
     CrescendoJailbreaking,
@@ -48,6 +50,80 @@ from deepteam.vulnerabilities import (
     SQLInjection,
     Toxicity,
 )
+from openai import AsyncOpenAI, OpenAI
+from pydantic import BaseModel
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    wait_exponential_jitter,
+)
+
+
+class CustomOpenAIModel(DeepEvalBaseLLM):
+    def __init__(
+        self,
+        model: str,
+        api_key: str,
+        base_url: str,
+        temperature: float = 0,
+        **kwargs,
+    ):
+        self.model_name = model
+        self.api_key = api_key
+        self.base_url = base_url
+        self.temperature = temperature
+        self.client_kwargs = kwargs
+        super().__init__(model)
+
+    @retry(
+        wait=wait_exponential_jitter(initial=1, exp_base=2, jitter=2, max=10),
+        retry=retry_if_exception_type(retryable_exceptions),
+        after=log_retry_error,
+    )
+    def generate(self, prompt: str, schema: Optional[BaseModel] = None) -> str:
+        client = OpenAI(
+            api_key=self.api_key, base_url=self.base_url, **self.client_kwargs
+        )
+
+        completion_params = {
+            "model": self.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": self.temperature,
+        }
+
+        if schema:
+            completion_params["response_format"] = schema
+
+        response = client.chat.completions.create(**completion_params)
+        return response.choices[0].message.content or ""
+
+    @retry(
+        wait=wait_exponential_jitter(initial=1, exp_base=2, jitter=2, max=10),
+        retry=retry_if_exception_type(retryable_exceptions),
+        after=log_retry_error,
+    )
+    async def a_generate(self, prompt: str, schema: Optional[BaseModel] = None) -> str:
+        client = AsyncOpenAI(
+            api_key=self.api_key, base_url=self.base_url, **self.client_kwargs
+        )
+
+        completion_params = {
+            "model": self.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": self.temperature,
+        }
+
+        if schema:
+            completion_params["response_format"] = schema
+
+        response = await client.chat.completions.create(**completion_params)
+        return response.choices[0].message.content or ""
+
+    def get_model_name(self) -> str:
+        return self.model_name
+
+    def load_model(self):
+        return None
 
 
 class DeepTeamRedTeamTester:
@@ -106,10 +182,13 @@ class DeepTeamRedTeamTester:
         "bad_likert_judge": BadLikertJudge,
     }
 
-    def __init__(self, sut_params: Dict[str, Any]):
+    def __init__(self, sut_params: Dict[str, Any], test_params: Dict[str, Any]):
         """Initialize with SUT parameters"""
         self.sut_params = sut_params
+        self.test_params = test_params
         self.client = self._setup_client()
+        self.simulator_model = self._setup_custom_model("simulator")
+        self.evaluation_model = self._setup_custom_model("evaluation")
 
     def _setup_client(self) -> openai.OpenAI:
         """Setup OpenAI client using provided SUT parameters"""
@@ -126,6 +205,23 @@ class DeepTeamRedTeamTester:
             raise ValueError("No API key found. Set API_KEY environment variable.")
 
         return openai.OpenAI(base_url=self.sut_params["base_url"], api_key=api_key)
+
+    def _setup_custom_model(self, model_type: str) -> Optional[CustomOpenAIModel]:
+        """Setup custom model for simulator or evaluation"""
+        model_config = self.test_params.get(f"{model_type}_model")
+
+        if not model_config or not isinstance(model_config, dict):
+            return None
+
+        api_key = os.environ.get("API_KEY", "sk-1234")
+
+        return CustomOpenAIModel(
+            model=model_config.get("model", "gpt-4o-mini"),
+            api_key=model_config.get("api_key", api_key),
+            base_url=model_config.get("base_url", self.sut_params["base_url"]),
+            temperature=model_config.get("temperature", 0),
+            **model_config.get("kwargs", {}),
+        )
 
     async def _model_callback(self, input_text: str) -> str:
         """Model callback function for DeepTeam red teaming"""
@@ -218,15 +314,19 @@ class DeepTeamRedTeamTester:
                 "AI assistant being tested for security vulnerabilities",
             )
 
-            # Initialize RedTeamer with proper models
-            # For simplicity, we'll use the same model for both simulation and evaluation
-            # In production, you might want to use different models
-            print("Initializing RedTeamer...")
-            red_teamer = RedTeamer(
-                target_purpose=target_purpose,
-                async_mode=True,
-                max_concurrent=max_concurrent,
-            )
+            red_teamer_kwargs = {
+                "target_purpose": target_purpose,
+                "async_mode": True,
+                "max_concurrent": max_concurrent,
+            }
+
+            # Add custom models if configured
+            if self.simulator_model:
+                red_teamer_kwargs["simulator_model"] = self.simulator_model
+            if self.evaluation_model:
+                red_teamer_kwargs["evaluation_model"] = self.evaluation_model
+
+            red_teamer = RedTeamer(**red_teamer_kwargs)
 
             # Run red team assessment
             print("Starting red team assessment...")
@@ -443,7 +543,7 @@ async def main_async():
         validate_inputs(sut_params, test_params)
 
         # Initialize tester
-        tester = DeepTeamRedTeamTester(sut_params)
+        tester = DeepTeamRedTeamTester(sut_params, test_params)
 
         # Run red team test
         result = await tester.run_red_team_test(test_params)

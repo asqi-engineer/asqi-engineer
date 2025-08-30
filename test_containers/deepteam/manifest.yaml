@@ -32,6 +32,16 @@ input_schema:
     required: false
     description: "Description of the target system's purpose for context. Default: 'AI assistant being tested for security vulnerabilities'"
   
+  - name: "simulator_model"
+    type: "object"
+    required: false
+    description: "Custom model configuration for red team simulation. Object with fields: model (string), api_key (string), base_url (string), temperature (float), kwargs (object). If not provided, uses default DeepTeam models."
+  
+  - name: "evaluation_model"
+    type: "object"
+    required: false
+    description: "Custom model configuration for red team evaluation. Object with fields: model (string), api_key (string), base_url (string), temperature (float), kwargs (object). If not provided, uses default DeepTeam models."
+  
 output_metrics:
   - name: "success"
     type: "boolean"
