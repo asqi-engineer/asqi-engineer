@@ -7,15 +7,19 @@ from pydantic import BaseModel, Field
 # ----------------------------------------------------------------------------
 
 
-class SUTSupport(BaseModel):
-    """Defines a type of system the container can test."""
+class SystemInput(BaseModel):
+    """Defines a system input that the container requires."""
 
+    name: str = Field(
+        ...,
+        description="The system input name, e.g., 'system_under_test', 'simulator_system', 'evaluator_system'.",
+    )
     type: str = Field(
         ..., description="The system type, e.g., 'llm_api' or 'rest_api'."
     )
-    required_config: Optional[List[str]] = Field(
-        None,
-        description="List of config keys required by the entrypoint for this system type.",
+    required: bool = Field(True, description="Whether this system input is required.")
+    description: Optional[str] = Field(
+        None, description="Description of the system's role in the test."
     )
 
 
@@ -50,8 +54,9 @@ class Manifest(BaseModel):
     name: str = Field(..., description="The canonical name for the test framework.")
     version: str
     description: Optional[str] = None
-    supported_suts: List[SUTSupport] = Field(
-        ..., description="Declares which system types this framework can handle."
+    input_systems: List[SystemInput] = Field(
+        ...,
+        description="Systems required as input. Should minimally include a system_under_test",
     )
     input_schema: List[InputParameter] = Field(
         [], description="Defines the schema for the user-provided 'params' object."
@@ -128,6 +133,10 @@ class TestDefinition(BaseModel):
     systems_under_test: List[str] = Field(
         ...,
         description="A list of system names (from systems.yaml) to run this test against.",
+    )
+    systems: Optional[Dict[str, str]] = Field(
+        None,
+        description="Optional additional systems for the test (e.g., simulator_system, evaluator_system).",
     )
     tags: Optional[List[str]] = Field(
         None, description="Optional tags for filtering and reporting."

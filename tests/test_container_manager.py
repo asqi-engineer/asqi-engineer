@@ -227,7 +227,9 @@ class TestExtractManifestFromImage:
             "name": "test_container",
             "version": "1.0",
             "description": "Test container",
-            "supported_suts": [{"type": "llm_api", "required_config": ["model"]}],
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
             "input_schema": [
                 {"name": "test_param", "type": "string", "required": False}
             ],

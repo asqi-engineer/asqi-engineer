@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from asqi.config import ExecutorConfig
-from asqi.schemas import Manifest, SUTSupport
+from asqi.schemas import Manifest, SystemInput
 from asqi.workflow import (
     TestExecutionResult,
     add_score_cards_to_results,
@@ -70,7 +70,9 @@ def test_run_test_suite_workflow_success():
         name="mock",
         version="1",
         description="",
-        supported_suts=[SUTSupport(type="llm_api", required_config=None)],
+        input_systems=[
+            SystemInput(name="system_under_test", type="llm_api", required=True)
+        ],
         input_schema=[],
         output_metrics=[],
         output_artifacts=None,
@@ -98,7 +100,9 @@ def test_run_test_suite_workflow_success():
                 "test_name": "t1_sutA",
                 "image": "test/image:latest",
                 "sut_name": "sutA",
-                "sut_params": {"type": "llm_api", "endpoint": "http://x"},
+                "systems_params": {
+                    "system_under_test": {"type": "llm_api", "endpoint": "http://x"}
+                },
                 "test_params": {"p": "v"},
             }
         ]
@@ -186,7 +190,7 @@ def test_execute_single_test_success():
             test_name="t1_sutA",
             image="test/image:latest",
             sut_name="sutA",
-            sut_params={"type": "llm_api"},
+            systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={"p": "v"},
         )
 
@@ -223,7 +227,7 @@ def test_execute_single_test_container_failure():
             test_name="failing_test",
             image="test/image:latest",
             sut_name="sutA",
-            sut_params={"type": "llm_api"},
+            systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
         )
 
@@ -248,7 +252,7 @@ def test_execute_single_test_invalid_json():
             test_name="json_test",
             image="test/image:latest",
             sut_name="sutA",
-            sut_params={"type": "llm_api"},
+            systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
         )
 

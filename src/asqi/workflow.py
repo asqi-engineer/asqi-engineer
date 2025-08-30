@@ -145,7 +145,7 @@ def execute_single_test(
     test_name: str,
     image: str,
     sut_name: str,
-    sut_params: Dict[str, Any],
+    systems_params: Dict[str, Any],
     test_params: Dict[str, Any],
 ) -> TestExecutionResult:
     """Execute a single test in a Docker container.
@@ -157,7 +157,7 @@ def execute_single_test(
         test_name: Name of the test to execute (pre-validated)
         image: Docker image to run (pre-validated)
         sut_name: Name of the system under test (pre-validated)
-        sut_config: Configuration for the SUT (pre-validated)
+        systems_params: Dictionary containing system_under_test and other systems (pre-validated)
         test_params: Parameters for the test (pre-validated)
 
     Returns:
@@ -168,6 +168,9 @@ def execute_single_test(
         RuntimeError: If container execution fails
     """
     result = TestExecutionResult(test_name, sut_name, image)
+
+    # Extract system_under_test for validation and environment handling
+    sut_params = systems_params.get("system_under_test", {})
 
     try:
         validate_test_execution_inputs(
@@ -207,13 +210,17 @@ def execute_single_test(
             sut_params_with_fallbacks["api_key"] = api_key_env
             DBOS.logger.info("Using API_KEY from .env file")
 
+    # Build unified systems_params with updated system_under_test
+    systems_params_with_fallbacks = systems_params.copy()
+    systems_params_with_fallbacks["system_under_test"] = sut_params_with_fallbacks
+
     # Prepare command line arguments
     try:
-        sut_params_json = json.dumps(sut_params_with_fallbacks)
+        systems_params_json = json.dumps(systems_params_with_fallbacks)
         test_params_json = json.dumps(test_params)
         command_args = [
-            "--sut-params",
-            sut_params_json,
+            "--systems-params",
+            systems_params_json,
             "--test-params",
             test_params_json,
         ]
@@ -222,7 +229,7 @@ def execute_single_test(
         result.success = False
         return result
 
-    # Prepare environment variables from SUT params (reuse loaded env_vars)
+    # Prepare environment variables from system_under_test params (reuse loaded env_vars)
     container_env = {}
 
     # Use already loaded environment variables (avoid loading twice)
@@ -504,7 +511,7 @@ def run_test_suite_workflow(
                     test_plan["test_name"],
                     test_plan["image"],
                     test_plan["sut_name"],
-                    test_plan["sut_params"],
+                    test_plan["systems_params"],
                     test_plan["test_params"],
                 )
                 test_handles.append(handle)
@@ -534,7 +541,7 @@ def run_test_suite_workflow(
                 test_plan["test_name"],
                 test_plan["image"],
                 test_plan["sut_name"],
-                test_plan["sut_params"],
+                test_plan["systems_params"],
                 test_plan["test_params"],
             )
             test_handles.append(handle)

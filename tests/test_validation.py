@@ -47,7 +47,9 @@ MOCK_TESTER_MANIFEST = {
     "name": "mock_tester",
     "version": "1.0.0",
     "description": "A minimal mock container for testing the executor interface.",
-    "supported_suts": [{"type": "llm_api"}],
+    "input_systems": [
+        {"name": "system_under_test", "type": "llm_api", "required": True}
+    ],
     "input_schema": [
         {
             "name": "delay_seconds",
@@ -63,7 +65,10 @@ MOCK_MULTIPLE_MANIFEST = {
     "name": "garak",
     "version": "0.2.0",
     "description": "A security and safety probing tool for Large Language Models.",
-    "supported_suts": [{"type": "llm_api"}, {"type": "rest_api"}],
+    "input_systems": [
+        {"name": "system_under_test", "type": "llm_api", "required": True},
+        {"name": "system_under_test", "type": "rest_api", "required": True},
+    ],
     "input_schema": [
         {
             "name": "probes",
@@ -133,8 +138,8 @@ class TestSchemaValidation:
         """Test that manifests parse correctly."""
         mock_manifest = manifests["my-registry/mock_tester:latest"]
         assert mock_manifest.name == "mock_tester"
-        assert len(mock_manifest.supported_suts) == 1
-        assert mock_manifest.supported_suts[0].type == "llm_api"
+        assert len(mock_manifest.input_systems) == 1
+        assert mock_manifest.input_systems[0].type == "llm_api"
 
 
 class TestCrossFileValidation:
