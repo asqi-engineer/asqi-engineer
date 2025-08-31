@@ -19,14 +19,16 @@ class TestMainCLI:
         """Test that validate command requires suite file."""
         result = self.runner.invoke(app, ["validate"])
         assert result.exit_code == 2
-        assert "Missing option '--suite-file'" in result.output
+        assert "Missing option '--test-suite-config'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
     def test_validate_missing_systems_file(self):
         """Test that validate command requires systems file."""
-        result = self.runner.invoke(app, ["validate", "--suite-file", "suite.yaml"])
+        result = self.runner.invoke(
+            app, ["validate", "--test-suite-config", "suite.yaml"]
+        )
         assert result.exit_code == 2
-        assert "Missing option '--systems-file'" in result.output
+        assert "Missing option '--systems-config'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
     def test_validate_missing_manifests_dir(self):
@@ -35,9 +37,9 @@ class TestMainCLI:
             app,
             [
                 "validate",
-                "--suite-file",
+                "--test-suite-config",
                 "suite.yaml",
-                "--systems-file",
+                "--systems-config",
                 "systems.yaml",
             ],
         )
@@ -49,33 +51,39 @@ class TestMainCLI:
         """Test that execute command requires suite file."""
         result = self.runner.invoke(app, ["execute"])
         assert result.exit_code == 2
-        assert "Missing option '--suite-file'" in result.output
+        assert "Missing option '--test-suite-config'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
     def test_execute_missing_score_card_file(self):
         """Test that execute command requires score card file."""
         result = self.runner.invoke(
             app,
-            ["execute", "--suite-file", "suite.yaml", "--systems-file", "systems.yaml"],
+            [
+                "execute",
+                "--test-suite-config",
+                "suite.yaml",
+                "--systems-config",
+                "systems.yaml",
+            ],
         )
         assert result.exit_code == 2
-        assert "Missing option '--score-card-file'" in result.output
+        assert "Missing option '--score-card-config'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
     def test_execute_tests_missing_suite_file(self):
         """Test that execute-tests command requires suite file."""
         result = self.runner.invoke(app, ["execute-tests"])
         assert result.exit_code == 2
-        assert "Missing option '--suite-file'" in result.output
+        assert "Missing option '--test-suite-config'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
     def test_execute_tests_missing_systems_file(self):
         """Test that execute-tests command requires systems file."""
         result = self.runner.invoke(
-            app, ["execute-tests", "--suite-file", "suite.yaml"]
+            app, ["execute-tests", "--test-suite-config", "suite.yaml"]
         )
         assert result.exit_code == 2
-        assert "Missing option '--systems-file'" in result.output
+        assert "Missing option '--systems-config'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
     def test_evaluate_score_cards_missing_input_file(self):
@@ -91,7 +99,7 @@ class TestMainCLI:
             app, ["evaluate-score-cards", "--input-file", "input.json"]
         )
         assert result.exit_code == 2
-        assert "Missing option '--score-card-file'" in result.output
+        assert "Missing option '--score-card-config'" in result.output
 
     @patch("asqi.workflow.start_test_execution")
     @patch("asqi.workflow.DBOS")
@@ -103,9 +111,9 @@ class TestMainCLI:
             app,
             [
                 "execute-tests",
-                "--suite-file",
+                "--test-suite-config",
                 "suite.yaml",
-                "--systems-file",
+                "--systems-config",
                 "systems.yaml",
                 "--output-file",
                 "output.json",
@@ -141,11 +149,11 @@ class TestMainCLI:
             app,
             [
                 "execute",
-                "--suite-file",
+                "--test-suite-config",
                 "suite.yaml",
-                "--systems-file",
+                "--systems-config",
                 "systems.yaml",
-                "--score-card-file",
+                "--score-card-config",
                 "score_card.yaml",
                 "--output-file",
                 "output.json",
@@ -185,7 +193,7 @@ class TestMainCLI:
                 "evaluate-score-cards",
                 "--input-file",
                 "input.json",
-                "--score-card-file",
+                "--score-card-config",
                 "score_card.yaml",
                 "--output-file",
                 "output.json",
@@ -214,9 +222,9 @@ class TestMainCLI:
             app,
             [
                 "validate",
-                "--suite-file",
+                "--test-suite-config",
                 "suite.yaml",
-                "--systems-file",
+                "--systems-config",
                 "systems.yaml",
                 "--manifests-dir",
                 "manifests/",
@@ -246,9 +254,9 @@ class TestMainCLI:
             app,
             [
                 "validate",
-                "--suite-file",
+                "--test-suite-config",
                 "suite.yaml",
-                "--systems-file",
+                "--systems-config",
                 "systems.yaml",
                 "--manifests-dir",
                 "manifests/",
@@ -270,11 +278,11 @@ class TestMainCLI:
             app,
             [
                 "execute",
-                "--suite-file",
+                "--test-suite-config",
                 "suite.yaml",
-                "--systems-file",
+                "--systems-config",
                 "systems.yaml",
-                "--score-card-file",
+                "--score-card-config",
                 "bad_score_card.yaml",
             ],
         )
@@ -295,9 +303,9 @@ class TestMainCLI:
             app,
             [
                 "execute-tests",
-                "--suite-file",
+                "--test-suite-config",
                 "suite.yaml",
-                "--systems-file",
+                "--systems-config",
                 "systems.yaml",
                 "--test-names",
                 "t1",
@@ -335,9 +343,9 @@ class TestMainCLI:
             app,
             [
                 "execute-tests",
-                "--suite-file",
+                "--test-suite-config",
                 "suite.yaml",
-                "--systems-file",
+                "--systems-config",
                 "systems.yaml",
                 "--test-names",
                 "tes1",
