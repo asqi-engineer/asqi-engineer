@@ -8,10 +8,15 @@ from asqi.main import load_and_validate_plan
 from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
 from asqi.validation import (
     create_test_execution_plan,
+    find_manifest_for_image,
+    validate_execution_inputs,
     validate_manifests_against_tests,
+    validate_score_card_inputs,
     validate_system_compatibility,
+    validate_test_execution_inputs,
     validate_test_parameters,
     validate_test_plan,
+    validate_workflow_configurations,
 )
 
 # Test data
@@ -372,8 +377,53 @@ class TestValidationFunctions:
         errors = validate_system_compatibility(test, demo_systems.systems, manifest)
         assert any("Unknown system 'not_a_system'" in e for e in errors)
 
+    def test_validate_system_compatibility_with_additional_systems(
+        self, demo_systems, manifests
+    ):
+        """Test validation of additional systems from test.systems field."""
+        # Create a manifest with optional systems
+        manifest_data = {
+            "name": "multi_system_tester",
+            "version": "1.0.0",
+            "description": "A test container with multiple system support",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True},
+                {"name": "simulator_system", "type": "llm_api", "required": False},
+                {"name": "evaluator_system", "type": "llm_api", "required": False},
+            ],
+            "input_schema": [],
+            "output_metrics": ["success"],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "multi_test"
+            image = "multi-system:latest"
+            systems_under_test = ["my_llm_service"]
+            systems = {
+                "simulator_system": "my_llm_service",
+                "evaluator_system": "my_llm_service",
+            }
+
+        test = DummyTest()
+        errors = validate_system_compatibility(test, demo_systems.systems, manifest)
+        assert errors == []  # Should pass since all systems are llm_api
+
+        test.systems = {"unknown_role": "my_llm_service"}
+        errors = validate_system_compatibility(test, demo_systems.systems, manifest)
+        assert any("Unknown system role 'unknown_role'" in e for e in errors)
+
+        test.systems = {"simulator_system": "unknown_system"}
+        errors = validate_system_compatibility(test, demo_systems.systems, manifest)
+        assert any("Unknown simulator_system 'unknown_system'" in e for e in errors)
+
+        test.systems = {
+            "simulator_system": "my_backend_api"
+        }  # rest_api instead of llm_api
+        errors = validate_system_compatibility(test, demo_systems.systems, manifest)
+        assert any("Expected type 'llm_api', got 'rest_api'" in e for e in errors)
+
     def test_validate_manifests_against_tests(self, demo_systems, manifests):
-        # Valid test
         suite_data = {
             "suite_name": "Valid",
             "test_suite": [
@@ -431,3 +481,317 @@ class TestValidationFunctions:
         image_availability = {"my-registry/mock_tester:latest": False}
         plan = create_test_execution_plan(suite, demo_systems, image_availability)
         assert plan == []
+
+
+class TestFindManifestForImage:
+    """Test the find_manifest_for_image function with various image name patterns."""
+
+    def test_exact_match(self):
+        """Test exact image name match."""
+        manifests = {"my-registry/mock_tester:latest": Manifest(**MOCK_TESTER_MANIFEST)}
+        result = find_manifest_for_image("my-registry/mock_tester:latest", manifests)
+        assert result is not None
+        assert result.name == "mock_tester"
+
+    def test_container_name_match(self):
+        """Test matching by container name when full image not found."""
+        manifests = {"mock_tester": Manifest(**MOCK_TESTER_MANIFEST)}
+        result = find_manifest_for_image("my-registry/mock_tester:latest", manifests)
+        assert result is not None
+        assert result.name == "mock_tester"
+
+    def test_base_name_match(self):
+        """Test matching by base name without registry/tag."""
+        manifests = {"mock_tester": Manifest(**MOCK_TESTER_MANIFEST)}
+        result = find_manifest_for_image("mock_tester:v1.0", manifests)
+        assert result is not None
+        assert result.name == "mock_tester"
+
+    def test_no_match(self):
+        """Test when no manifest is found."""
+        manifests = {"other_image": Manifest(**MOCK_TESTER_MANIFEST)}
+        result = find_manifest_for_image("unknown_image:latest", manifests)
+        assert result is None
+
+    def test_image_without_slash(self):
+        """Test image name without registry."""
+        manifests = {"mock_tester": Manifest(**MOCK_TESTER_MANIFEST)}
+        result = find_manifest_for_image("mock_tester:latest", manifests)
+        assert result is not None
+        assert result.name == "mock_tester"
+
+
+class TestValidationInputFunctions:
+    """Test the input validation functions."""
+
+    def test_validate_execution_inputs_valid(self):
+        """Test valid execution inputs."""
+        validate_execution_inputs(
+            suite_path="suite.yaml",
+            systems_path="systems.yaml",
+            execution_mode="tests_only",
+            output_path="output.json",
+        )
+        validate_execution_inputs(
+            suite_path="suite.yaml",
+            systems_path="systems.yaml",
+            execution_mode="end_to_end",
+            output_path=None,
+        )
+
+    def test_validate_execution_inputs_invalid(self):
+        """Test invalid execution inputs."""
+        # Invalid suite_path - empty string
+        with pytest.raises(ValueError, match="Invalid suite_path"):
+            validate_execution_inputs("", "systems.yaml", "tests_only")
+
+        # Invalid systems_path - empty string
+        with pytest.raises(ValueError, match="Invalid systems_path"):
+            validate_execution_inputs("suite.yaml", "", "tests_only")
+
+        # Invalid execution_mode
+        with pytest.raises(ValueError, match="Invalid execution_mode"):
+            validate_execution_inputs("suite.yaml", "systems.yaml", "invalid_mode")
+
+    def test_validate_score_card_inputs_valid(self):
+        """Test valid score card inputs."""
+        score_card_configs = [{"indicator": "test"}]
+        validate_score_card_inputs(
+            input_path="input.json",
+            score_card_configs=score_card_configs,
+            output_path="output.json",
+        )
+        validate_score_card_inputs(
+            input_path="input.json",
+            score_card_configs=score_card_configs,
+            output_path=None,
+        )
+
+    def test_validate_score_card_inputs_invalid(self):
+        """Test invalid score card inputs."""
+        score_card_configs = [{"indicator": "test"}]
+        # Invalid input_path - empty string
+        with pytest.raises(ValueError, match="Invalid input_path"):
+            validate_score_card_inputs("", score_card_configs)
+        # Invalid score_card_configs - empty list
+        with pytest.raises(ValueError, match="Invalid score_card_configs"):
+            validate_score_card_inputs("input.json", [])
+
+    def test_validate_test_execution_inputs_valid(self):
+        """Test valid test execution inputs."""
+        validate_test_execution_inputs(
+            test_name="test1",
+            image="image:latest",
+            system_name="system1",
+            system_params={"key": "value"},
+            test_params={"param": "value"},
+        )
+
+    def test_validate_test_execution_inputs_invalid(self):
+        """Test invalid test execution inputs."""
+        # Invalid test_name - empty string
+        with pytest.raises(ValueError, match="Invalid test name"):
+            validate_test_execution_inputs(
+                "", "image:latest", "system1", {"key": "value"}, {"param": "value"}
+            )
+        # Invalid image - empty string
+        with pytest.raises(ValueError, match="Invalid image"):
+            validate_test_execution_inputs(
+                "test1", "", "system1", {"key": "value"}, {"param": "value"}
+            )
+        # Invalid system_name - empty string
+        with pytest.raises(ValueError, match="Invalid system name"):
+            validate_test_execution_inputs(
+                "test1", "image:latest", "", {"key": "value"}, {"param": "value"}
+            )
+
+
+class TestWorkflowValidation:
+    """Test the validate_workflow_configurations function."""
+
+    def test_validate_workflow_configurations_valid(
+        self, demo_suite, demo_systems, manifests
+    ):
+        """Test valid workflow configurations."""
+        errors = validate_workflow_configurations(demo_suite, demo_systems, manifests)
+        # Should have some errors due to incompatible systems in demo data
+        assert isinstance(errors, list)
+
+    def test_validate_workflow_configurations_empty_content(self):
+        """Test validation with empty configurations."""
+        suite_data = {"suite_name": "Empty", "test_suite": []}
+        suite = SuiteConfig(**suite_data)
+
+        # Empty systems
+        systems_data = {"systems": {}}
+        systems = SystemsConfig(**systems_data)
+
+        errors = validate_workflow_configurations(suite, systems)
+        assert any("Test suite is empty" in e for e in errors)
+        assert any("Systems configuration is empty" in e for e in errors)
+
+    def test_validate_workflow_configurations_with_manifests(
+        self, demo_systems, manifests
+    ):
+        """Test validation with manifests provided."""
+        suite_data = {
+            "suite_name": "Compatible Test",
+            "test_suite": [
+                {
+                    "name": "test_llm",
+                    "image": "my-registry/mock_tester:latest",
+                    "systems_under_test": ["my_llm_service"],
+                    "params": {},
+                }
+            ],
+        }
+        suite = SuiteConfig(**suite_data)
+
+        errors = validate_workflow_configurations(suite, demo_systems, manifests)
+        assert errors == []
+
+
+class TestCreateExecutionPlanEdgeCases:
+    """Test edge cases in create_test_execution_plan function."""
+
+    def test_empty_suite(self):
+        """Test with empty suite."""
+        suite_data = {"suite_name": "Empty", "test_suite": []}
+        suite = SuiteConfig(**suite_data)
+        systems_data = {"systems": {"sys1": {"type": "llm_api", "params": {}}}}
+        systems = SystemsConfig(**systems_data)  # type: ignore
+
+        plan = create_test_execution_plan(suite, systems, {})
+        assert plan == []
+
+    def test_empty_systems(self):
+        """Test with empty systems."""
+        suite_data = {
+            "suite_name": "Test",
+            "test_suite": [
+                {
+                    "name": "test1",
+                    "image": "image:latest",
+                    "systems_under_test": ["sys1"],
+                    "params": {},
+                }
+            ],
+        }
+        suite = SuiteConfig(**suite_data)
+        systems_data = {"systems": {}}
+        systems = SystemsConfig(**systems_data)
+
+        plan = create_test_execution_plan(suite, systems, {"image:latest": True})
+        assert plan == []
+
+    def test_test_with_volumes(self, demo_systems):
+        """Test execution plan with volumes."""
+        suite_data = {
+            "suite_name": "Volume Test",
+            "test_suite": [
+                {
+                    "name": "test_with_volumes",
+                    "image": "image:latest",
+                    "systems_under_test": ["my_llm_service"],
+                    "params": {"param1": "value1"},
+                    "volumes": {"/host": "/container"},
+                }
+            ],
+        }
+        suite = SuiteConfig(**suite_data)
+
+        plan = create_test_execution_plan(suite, demo_systems, {"image:latest": True})
+        assert len(plan) == 1
+        assert "__volumes" in plan[0]["test_params"]
+        assert plan[0]["test_params"]["__volumes"] == {"/host": "/container"}
+        assert plan[0]["test_params"]["param1"] == "value1"
+
+    def test_test_without_systems_under_test(self, demo_systems):
+        """Test with empty systems_under_test."""
+        suite_data = {
+            "suite_name": "No SUT Test",
+            "test_suite": [
+                {
+                    "name": "test_no_sut",
+                    "image": "image:latest",
+                    "systems_under_test": [],
+                    "params": {},
+                }
+            ],
+        }
+        suite = SuiteConfig(**suite_data)
+
+        plan = create_test_execution_plan(suite, demo_systems, {"image:latest": True})
+        assert plan == []
+
+    def test_test_with_additional_systems(self, demo_systems):
+        """Test execution plan includes additional systems."""
+        suite_data = {
+            "suite_name": "Multi System Test",
+            "test_suite": [
+                {
+                    "name": "test_multi_system",
+                    "image": "image:latest",
+                    "systems_under_test": ["my_llm_service"],
+                    "systems": {"simulator_system": "my_backend_api"},
+                    "params": {"param1": "value1"},
+                }
+            ],
+        }
+        suite = SuiteConfig(**suite_data)
+
+        plan = create_test_execution_plan(suite, demo_systems, {"image:latest": True})
+        assert len(plan) == 1
+
+        # Check systems_params structure
+        systems_params = plan[0]["systems_params"]
+        assert "system_under_test" in systems_params
+        assert "simulator_system" in systems_params
+        assert systems_params["system_under_test"]["type"] == "llm_api"
+        assert systems_params["simulator_system"]["type"] == "rest_api"
+
+    def test_system_with_missing_image(self, demo_systems):
+        """Test case where test image is not in image_availability."""
+        suite_data = {
+            "suite_name": "Missing Image Test",
+            "test_suite": [
+                {
+                    "name": "test_missing_image",
+                    "image": "missing:latest",
+                    "systems_under_test": ["my_llm_service"],
+                    "params": {},
+                }
+            ],
+        }
+        suite = SuiteConfig(**suite_data)
+
+        # Image not in availability dict
+        plan = create_test_execution_plan(suite, demo_systems, {"other:latest": True})
+        assert plan == []  # Should skip tests with unavailable images
+
+
+class TestParameterValidationEdgeCases:
+    """Test edge cases in parameter validation."""
+
+    def test_validate_test_parameters_with_empty_schema(self):
+        """Test parameter validation with empty input schema."""
+        manifest_data = {
+            "name": "no_params_test",
+            "version": "1.0.0",
+            "description": "Container with no parameters",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [],
+            "output_metrics": ["success"],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {"unexpected_param": "value"}
+
+        test = DummyTest()
+        errors = validate_test_parameters(test, manifest)
+        assert any("Unknown parameter 'unexpected_param'" in e for e in errors)
+        assert "Valid parameters: none" in errors[0]
