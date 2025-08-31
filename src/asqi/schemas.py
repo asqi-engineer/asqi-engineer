@@ -69,7 +69,7 @@ class Manifest(BaseModel):
 
 
 # ----------------------------------------------------------------------------
-# Schema for suts.yaml (User-provided)
+# Schema for systems.yaml (User-provided)
 # ----------------------------------------------------------------------------
 
 

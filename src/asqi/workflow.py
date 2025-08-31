@@ -120,7 +120,7 @@ def extract_manifest_from_image_step(image: str) -> Optional[Manifest]:
 
 @DBOS.step()
 def validate_test_plan(
-    suite: SuiteConfig, suts: SystemsConfig, manifests: Dict[str, Manifest]
+    suite: SuiteConfig, systems: SystemsConfig, manifests: Dict[str, Manifest]
 ) -> List[str]:
     """
     DBOS step wrapper for comprehensive test plan validation.
@@ -130,14 +130,14 @@ def validate_test_plan(
 
     Args:
         suite: Test suite configuration (pre-validated)
-        suts: SUTs configuration (pre-validated)
+        systems: systems configuration (pre-validated)
         manifests: Available manifests (pre-validated)
 
     Returns:
         List of validation error messages
     """
     # Delegate to the comprehensive validation function
-    return validate_workflow_configurations(suite, suts, manifests)
+    return validate_workflow_configurations(suite, systems, manifests)
 
 
 @DBOS.step()
@@ -356,7 +356,7 @@ def evaluate_score_card(
 @DBOS.workflow()
 def run_test_suite_workflow(
     suite_config: Dict[str, Any],
-    suts_config: Dict[str, Any],
+    systems_config: Dict[str, Any],
     executor_config: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
@@ -364,13 +364,13 @@ def run_test_suite_workflow(
 
     This workflow:
     1. Validates image availability and extracts manifests
-    2. Performs cross-validation of tests, SUTs, and manifests
+    2. Performs cross-validation of tests, systems, and manifests
     3. Executes tests concurrently with progress tracking
     4. Aggregates results with detailed error reporting
 
     Args:
         suite_config: Serialized SuiteConfig containing test definitions
-        suts_config: Serialized SystemsConfig containing system configurations
+        systems_config: Serialized SystemsConfig containing system configurations
         executor_config: Execution parameters controlling concurrency and reporting
 
     Returns:
@@ -386,7 +386,7 @@ def run_test_suite_workflow(
     # Parse configurations
     try:
         suite = SuiteConfig(**suite_config)
-        suts = SystemsConfig(**suts_config)
+        systems = SystemsConfig(**systems_config)
     except ValidationError as e:
         error_msg = f"Configuration validation failed: {e}"
         DBOS.logger.error(error_msg)
@@ -453,7 +453,7 @@ def run_test_suite_workflow(
 
     # Validate test plan
     with console.status("[bold blue]Validating test plan...", spinner="dots"):
-        validation_errors = validate_test_plan(suite, suts, manifests)
+        validation_errors = validate_test_plan(suite, systems, manifests)
 
     if validation_errors:
         console.print("[red]Validation failed:[/red]")
@@ -479,7 +479,7 @@ def run_test_suite_workflow(
         }
 
     # Prepare test execution plan
-    test_execution_plan = create_test_execution_plan(suite, suts, image_availability)
+    test_execution_plan = create_test_execution_plan(suite, systems, image_availability)
     test_count = len(test_execution_plan)
 
     if test_count == 0:
@@ -692,7 +692,7 @@ def evaluate_score_cards_workflow(
 @DBOS.workflow()
 def run_end_to_end_workflow(
     suite_config: Dict[str, Any],
-    suts_config: Dict[str, Any],
+    systems_config: Dict[str, Any],
     score_card_configs: List[Dict[str, Any]],
     executor_config: Dict[str, Any],
 ) -> Dict[str, Any]:
@@ -701,7 +701,7 @@ def run_end_to_end_workflow(
 
     Args:
         suite_config: Serialized SuiteConfig containing test definitions
-        suts_config: Serialized SystemsConfig containing system configurations
+        systems_config: Serialized SystemsConfig containing system configurations
         score_card_configs: List of score card configurations to evaluate
         executor_config: Execution parameters controlling concurrency and reporting
 
@@ -709,7 +709,9 @@ def run_end_to_end_workflow(
         Complete execution results with test results and score card evaluations
     """
 
-    test_results = run_test_suite_workflow(suite_config, suts_config, executor_config)
+    test_results = run_test_suite_workflow(
+        suite_config, systems_config, executor_config
+    )
     final_results = evaluate_score_cards_workflow(test_results, score_card_configs)
 
     return final_results
@@ -732,7 +734,7 @@ def save_results_to_file_step(results: Dict[str, Any], output_path: str) -> None
 
 def start_test_execution(
     suite_path: str,
-    suts_path: str,
+    systems_path: str,
     executor_config: Dict[str, Any],
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
@@ -747,7 +749,7 @@ def start_test_execution(
 
     Args:
         suite_path: Path to test suite YAML file
-        suts_path: Path to SUTs YAML file
+        systems_path: Path to systems YAML file
         executor_config: Executor configuration dictionary. Expected keys:
             - "concurrent_tests": int, number of concurrent tests
             - "max_failures": int, max number of failures to display
@@ -765,12 +767,12 @@ def start_test_execution(
         FileNotFoundError: If configuration files don't exist
         PermissionError: If configuration files cannot be read
     """
-    validate_execution_inputs(suite_path, suts_path, execution_mode, output_path)
+    validate_execution_inputs(suite_path, systems_path, execution_mode, output_path)
 
     try:
         # Load configurations
         suite_config = merge_defaults_into_suite(load_config_file(suite_path))
-        suts_config = load_config_file(suts_path)
+        systems_config = load_config_file(systems_path)
 
         # if test_names provided, filter suite_config
         if test_names:
@@ -815,19 +817,22 @@ def start_test_execution(
         # Start appropriate workflow based on execution mode
         if execution_mode == "tests_only":
             handle = DBOS.start_workflow(
-                run_test_suite_workflow, suite_config, suts_config, executor_config
+                run_test_suite_workflow, suite_config, systems_config, executor_config
             )
         elif execution_mode == "end_to_end":
             if not score_card_configs:
                 # Fall back to tests only if no score cards provided
                 handle = DBOS.start_workflow(
-                    run_test_suite_workflow, suite_config, suts_config, executor_config
+                    run_test_suite_workflow,
+                    suite_config,
+                    systems_config,
+                    executor_config,
                 )
             else:
                 handle = DBOS.start_workflow(
                     run_end_to_end_workflow,
                     suite_config,
-                    suts_config,
+                    systems_config,
                     score_card_configs,
                     executor_config,
                 )

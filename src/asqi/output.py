@@ -147,7 +147,9 @@ def format_failure_summary(
             result.error_message
             or f"Test '{result.test_name}' returned failure status (exit code: {result.exit_code})"
         )
-        console.print(f"  • {result.test_name} (SUT: {result.sut_name}): {error_msg}")
+        console.print(
+            f"  • {result.test_name} (system under test: {result.sut_name}): {error_msg}"
+        )
 
     if len(failed_results) > max_displayed:
         remaining = len(failed_results) - max_displayed
