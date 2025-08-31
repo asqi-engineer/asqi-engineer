@@ -55,17 +55,17 @@ def test_run_test_suite_workflow_success():
             {
                 "name": "t1",
                 "image": "test/image:latest",
-                "systems_under_test": ["sutA"],
+                "systems_under_test": ["systemA"],
                 "params": {"p": "v"},
             }
         ],
     }
 
     systems_config = {
-        "systems": {"sutA": {"type": "llm_api", "params": {"endpoint": "http://x"}}}
+        "systems": {"systemA": {"type": "llm_api", "params": {"endpoint": "http://x"}}}
     }
 
-    # Build a minimal manifest that supports the SUT type
+    # Build a minimal manifest that supports the system type
     manifest = Manifest(
         name="mock",
         version="1",
@@ -78,7 +78,7 @@ def test_run_test_suite_workflow_success():
         output_artifacts=None,
     )
 
-    success_result = TestExecutionResult("t1_sutA", "sutA", "test/image:latest")
+    success_result = TestExecutionResult("t1_systemA", "systemA", "test/image:latest")
     success_result.start_time = 1.0
     success_result.end_time = 2.0
     success_result.exit_code = 0
@@ -97,7 +97,7 @@ def test_run_test_suite_workflow_success():
         mock_validate.return_value = []
         mock_plan.return_value = [
             {
-                "test_name": "t1_sutA",
+                "test_name": "t1_systemA",
                 "image": "test/image:latest",
                 "sut_name": "sutA",
                 "systems_params": {
@@ -138,13 +138,13 @@ def test_run_test_suite_workflow_validation_failure():
             {
                 "name": "bad_test",
                 "image": "missing/image:latest",
-                "systems_under_test": ["sutA"],
+                "systems_under_test": ["systemA"],
                 "params": {},
             }
         ],
     }
 
-    systems_config = {"systems": {"sutA": {"type": "llm_api", "params": {}}}}
+    systems_config = {"systems": {"systemA": {"type": "llm_api", "params": {}}}}
 
     with (
         patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -187,9 +187,9 @@ def test_execute_single_test_success():
 
         inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
         result = inner_step(
-            test_name="t1_sutA",
+            test_name="t1_systemA",
             image="test/image:latest",
-            sut_name="sutA",
+            sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={"p": "v"},
         )
@@ -226,7 +226,7 @@ def test_execute_single_test_container_failure():
         result = inner_step(
             test_name="failing_test",
             image="test/image:latest",
-            sut_name="sutA",
+            sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
         )
@@ -251,7 +251,7 @@ def test_execute_single_test_invalid_json():
         result = inner_step(
             test_name="json_test",
             image="test/image:latest",
-            sut_name="sutA",
+            sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
         )
@@ -268,7 +268,7 @@ def test_convert_test_results_to_objects():
             {
                 "metadata": {
                     "test_name": "test1",
-                    "sut_name": "sut1",
+                    "sut_name": "system1",
                     "image": "test/image:latest",
                     "start_time": 1.0,
                     "end_time": 2.0,
@@ -291,7 +291,7 @@ def test_convert_test_results_to_objects():
     assert len(results) == 1
     result = results[0]
     assert result.test_name == "test1"
-    assert result.sut_name == "sut1"
+    assert result.sut_name == "system1"
     assert result.image == "test/image:latest"
     assert result.start_time == 1.0
     assert result.end_time == 2.0
@@ -310,7 +310,7 @@ def test_add_score_cards_to_results():
         {
             "indicator_name": "Test success",
             "test_name": "test1",
-            "sut_name": "sut1",
+            "sut_name": "system1",
             "outcome": "PASS",
             "score_card_name": "Test scorecard",
         }
@@ -367,7 +367,7 @@ def test_evaluate_score_cards_workflow():
             {
                 "metadata": {
                     "test_name": "test1",
-                    "sut_name": "sut1",
+                    "sut_name": "system1",
                     "image": "test/image:latest",
                     "start_time": 1.0,
                     "end_time": 2.0,

@@ -66,7 +66,7 @@ def validate_system_compatibility(
 
     # Validate systems_under_test (maps to system_under_test in manifest)
     # Get all supported types for system_under_test from manifest
-    supported_types_for_sut = [
+    supported_types_for_system = [
         s.type for s in manifest.input_systems if s.name == "system_under_test"
     ]
 
@@ -83,10 +83,10 @@ def validate_system_compatibility(
             continue
 
         system_def = system_definitions[system_name]
-        if system_def.type not in supported_types_for_sut:
+        if system_def.type not in supported_types_for_system:
             supported_types = (
-                ", ".join(supported_types_for_sut)
-                if supported_types_for_sut
+                ", ".join(supported_types_for_system)
+                if supported_types_for_system
                 else "none"
             )
             errors.append(

@@ -18,7 +18,7 @@ from asqi.validation import (
 DEMO_SUITE_YAML = """
 suite_name: "Mock Tester Sanity Check"
 test_suite:
-  - name: "run_mock_on_compatible_sut"
+  - name: "run_mock_on_compatible_system"
     image: "my-registry/mock_tester:latest"
     systems_under_test:
       - "my_backend_api"  # This should fail since mock_tester doesn't support this in your demo
@@ -28,7 +28,7 @@ test_suite:
 
 DEMO_systems_YAML = """
 systems:
-  # This SUT is compatible with our mock_tester
+  # This system is compatible with our mock_tester
   my_llm_service:
     type: "llm_api"
     params:
@@ -36,7 +36,7 @@ systems:
       model: "model-x"
       api_key_env: "MY_LLM_API_KEY"
 
-  # This SUT is *not* compatible, for demonstrating validation failure
+  # This system is *not* compatible, for demonstrating validation failure
   my_backend_api:
     type: "rest_api"
     params:
@@ -114,7 +114,7 @@ class TestSchemaValidation:
 
         # Check first test
         test1 = demo_suite.test_suite[0]
-        assert test1.name == "run_mock_on_compatible_sut"
+        assert test1.name == "run_mock_on_compatible_system"
         assert test1.image == "my-registry/mock_tester:latest"
         assert test1.systems_under_test == ["my_backend_api"]
         assert test1.params["delay_seconds"] == 1
@@ -125,14 +125,14 @@ class TestSchemaValidation:
         assert len(systems) == 2
 
         # Check LLM service
-        llm_sut = systems["my_llm_service"]
-        assert llm_sut.type == "llm_api"
-        assert llm_sut.params["provider"] == "some_provider"
+        llm_system = systems["my_llm_service"]
+        assert llm_system.type == "llm_api"
+        assert llm_system.params["provider"] == "some_provider"
 
         # Check backend API
-        api_sut = systems["my_backend_api"]
-        assert api_sut.type == "rest_api"
-        assert api_sut.params["uri"] == "https://api.example.com/v1/data"
+        api_system = systems["my_backend_api"]
+        assert api_system.type == "rest_api"
+        assert api_system.params["uri"] == "https://api.example.com/v1/data"
 
     def test_manifest_schema_validation(self, manifests):
         """Test that manifests parse correctly."""
@@ -173,15 +173,15 @@ class TestCrossFileValidation:
         assert len(errors) > 0
         assert any("does not have a loaded manifest" in error for error in errors)
 
-    def test_missing_sut_definition(self, demo_systems, manifests):
-        """Test validation fails when SUT is not defined."""
+    def test_missing_system_definition(self, demo_systems, manifests):
+        """Test validation fails when system is not defined."""
         suite_data = {
-            "suite_name": "Test with Missing SUT",
+            "suite_name": "Test with Missing system",
             "test_suite": [
                 {
-                    "name": "test_missing_sut",
+                    "name": "test_missing_system",
                     "image": "my-registry/mock_tester:latest",
-                    "systems_under_test": ["nonexistent_sut"],
+                    "systems_under_test": ["nonexistent_system"],
                     "params": {},
                 }
             ],
@@ -266,7 +266,7 @@ class TestFileLoading:
                 str(suite_file), str(systems_file), str(manifest_dir)
             )
 
-            # Should have some validation errors due to incompatible SUT
+            # Should have some validation errors due to incompatible system
             # (my_backend_api is not supported by mock_tester in this setup)
             assert result["status"] == "failure"
             assert len(result["errors"]) > 0
@@ -285,8 +285,8 @@ class TestEdgeCases:
 
     def test_multiple_systems_under_test(self, demo_systems, manifests):
         """Test validation with multiple target systems."""
-        multi_sut_data = {
-            "suite_name": "Multi SUT Test",
+        multi_system_data = {
+            "suite_name": "Multi system Test",
             "test_suite": [
                 {
                     "name": "test_multiple_systems",
@@ -298,7 +298,7 @@ class TestEdgeCases:
                 }
             ],
         }
-        suite = SuiteConfig(**multi_sut_data)
+        suite = SuiteConfig(**multi_system_data)
 
         errors = validate_test_plan(suite, demo_systems, manifests)
         # Should pass since garak supports both llm_api and rest_api
@@ -367,10 +367,10 @@ class TestValidationFunctions:
         # Check that there's no error for the supported llm_api system type
         assert not any("does not support system type 'llm_api'" in e for e in errors)
 
-        # Unknown SUT
-        test.systems_under_test = ["not_a_sut"]
+        # Unknown system
+        test.systems_under_test = ["not_a_system"]
         errors = validate_system_compatibility(test, demo_systems.systems, manifest)
-        assert any("Unknown system 'not_a_sut'" in e for e in errors)
+        assert any("Unknown system 'not_a_system'" in e for e in errors)
 
     def test_validate_manifests_against_tests(self, demo_systems, manifests):
         # Valid test
@@ -423,9 +423,9 @@ class TestValidationFunctions:
         assert names.count("t2") == 2
 
         # Check that different systems are included
-        sut_names = [p["sut_name"] for p in plan]
-        assert "my_llm_service" in sut_names
-        assert "my_backend_api" in sut_names
+        system_names = [p["sut_name"] for p in plan]
+        assert "my_llm_service" in system_names
+        assert "my_backend_api" in system_names
 
         # If image not available, plan is empty
         image_availability = {"my-registry/mock_tester:latest": False}
