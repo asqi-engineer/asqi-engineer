@@ -45,6 +45,7 @@ async def run_chatbot_simulation(
     custom_scenarios = test_params.get("custom_scenarios")
     simulations_per_scenario = test_params.get("simulations_per_scenario", 1)
     success_threshold = test_params.get("success_threshold", 0.7)
+    max_concurrent = test_params.get("max_concurrent", 3)
 
     # Get simulator and evaluator system if provided
     simulator_system = systems_params.get("simulator_system", {})
@@ -63,6 +64,7 @@ async def run_chatbot_simulation(
         sycophancy_levels=sycophancy_levels,
         custom_scenarios=custom_scenarios,
         simulations_per_scenario=simulations_per_scenario,
+        max_concurrent=max_concurrent,
     )
 
     print("Starting Conversational Testing Pipeline...")
@@ -82,7 +84,6 @@ async def run_chatbot_simulation(
         f"Generated {len(scenarios)} total test cases from {len(set(s.get('scenario', '') for s in scenarios))} unique scenarios"
     )
     tester.display_test_plan(personas, scenarios)
-    print("\nRunning conversational simulations...")
     test_cases = await tester.simulate_conversations(scenarios)
 
     print(f"Generated {len(test_cases)} conversation test cases")

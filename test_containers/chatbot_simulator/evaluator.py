@@ -2,7 +2,7 @@ import math
 from typing import Any, Dict, List, Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from openevals.llm import create_llm_as_judge
+from openevals.llm import create_async_llm_as_judge
 from openevals.types import ChatCompletionMessage
 
 
@@ -93,25 +93,25 @@ class ConversationEvaluator:
             "Based on the provided Question and Answer, the Relevance score is ["
         )
 
-        self.accuracy_evaluator1 = create_llm_as_judge(
+        self.accuracy_evaluator1 = create_async_llm_as_judge(
             prompt=template_accuracy1,
             choices=[0, 2, 4],
             judge=self.evaluator_client,
         )
 
-        self.accuracy_evaluator2 = create_llm_as_judge(
+        self.accuracy_evaluator2 = create_async_llm_as_judge(
             prompt=template_accuracy2,
             choices=[0, 2, 4],
             judge=self.evaluator_client,
         )
 
-        self.relevance_evaluator1 = create_llm_as_judge(
+        self.relevance_evaluator1 = create_async_llm_as_judge(
             prompt=template_relevance1,
             choices=[0, 1, 2],
             judge=self.evaluator_client,
         )
 
-        self.relevance_evaluator2 = create_llm_as_judge(
+        self.relevance_evaluator2 = create_async_llm_as_judge(
             prompt=template_relevance2,
             choices=[0, 1, 2],
             judge=self.evaluator_client,
@@ -173,7 +173,6 @@ class ConversationEvaluator:
                         "score": max_accuracy_score,
                     }
                 )
-        print(evaluator_results)
         # If no evaluations were performed, return empty results
         if not evaluator_results:
             return self._get_empty_trajectory_results()
@@ -226,7 +225,7 @@ class ConversationEvaluator:
 
             # First template evaluation
             for _ in range(self.retry_count):
-                result1 = self.accuracy_evaluator1(
+                result1 = await self.accuracy_evaluator1(
                     query=question,
                     answer0="User Answer",
                     answer1="Reference Answer",
@@ -241,7 +240,7 @@ class ConversationEvaluator:
 
             # Second template evaluation (swap roles)
             for _ in range(self.retry_count):
-                result2 = self.accuracy_evaluator2(
+                result2 = await self.accuracy_evaluator2(
                     query=question,
                     answer0="Reference Answer",
                     answer1="User Answer",
@@ -287,7 +286,7 @@ class ConversationEvaluator:
 
             # First template evaluation
             for _ in range(self.retry_count):
-                result1 = self.relevance_evaluator1(
+                result1 = await self.relevance_evaluator1(
                     user_question=user_question,
                     assistant_answer=assistant_answer,
                     outputs={},
@@ -299,7 +298,7 @@ class ConversationEvaluator:
 
             # Second template evaluation
             for _ in range(self.retry_count):
-                result2 = self.relevance_evaluator2(
+                result2 = await self.relevance_evaluator2(
                     user_question=user_question,
                     assistant_answer=assistant_answer,
                     outputs={},

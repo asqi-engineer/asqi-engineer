@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -5,7 +6,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 import openai
 from langchain_openai import ChatOpenAI
 from openevals.simulators import (
-    create_llm_simulated_user,
+    create_async_llm_simulated_user,
     run_multiturn_simulation_async,
 )
 from openevals.types import ChatCompletionMessage
@@ -81,6 +82,7 @@ class PersonaBasedConversationTester:
         sycophancy_levels: Optional[List[str]] = None,
         custom_scenarios: Optional[List[Dict[str, str]]] = None,
         simulations_per_scenario: int = 1,
+        max_concurrent: int = 3,
     ):
         self.model_callback = model_callback
         self.chatbot_purpose = chatbot_purpose
@@ -91,6 +93,7 @@ class PersonaBasedConversationTester:
         self.sycophancy_levels = sycophancy_levels or ["low", "high"]
         self.custom_scenarios = custom_scenarios
         self.simulations_per_scenario = simulations_per_scenario
+        self.max_concurrent = max_concurrent
 
         self.simulator_client = setup_client(**simulator_client_params)
         self.simulator_langchain_client = setup_langchain_client(
@@ -147,10 +150,15 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
     async def generate_personas(self) -> List[Dict[str, Any]]:
         """Generate different user personas with communication styles"""
         if self.custom_personas is not None:
-            # Generate descriptions for custom personas using LLM
+            # Generate descriptions for custom personas in parallel
+            persona_tasks = [
+                self._generate_persona_description(persona_name)
+                for persona_name in self.custom_personas
+            ]
+            persona_results = await asyncio.gather(*persona_tasks)
+
             personas = []
-            for i, persona_name in enumerate(self.custom_personas):
-                persona_dict = await self._generate_persona_description(persona_name)
+            for i, persona_dict in enumerate(persona_results):
                 # Add sycophancy level cycling through the provided levels
                 sycophancy_level = self.sycophancy_levels[
                     i % len(self.sycophancy_levels)
@@ -295,7 +303,7 @@ Make the scenarios realistic and diverse, covering different use cases for this 
 
             base_prompt += "Stay in character throughout the conversation."
 
-            user = create_llm_simulated_user(
+            user = create_async_llm_simulated_user(
                 system=base_prompt,
                 client=self.simulator_langchain_client,
             )
@@ -318,72 +326,92 @@ Make the scenarios realistic and diverse, covering different use cases for this 
 
         return users
 
+    async def _simulate_single_conversation(
+        self, app, user_data: Dict[str, Any], index: int, total: int
+    ) -> ConversationalTestCase:
+        """Simulate a single conversation"""
+        print(
+            f"Simulating conversation {index + 1}/{total} - {user_data['scenario_id']}",
+            flush=True,
+        )
+
+        try:
+            result = await run_multiturn_simulation_async(
+                app=app,
+                user=user_data["user"],
+                max_turns=self.max_turns,
+            )
+
+            # Evaluate the trajectory using the conversation evaluator
+            expected_answers = None
+            if user_data.get("expected_output"):
+                expected_answers = [user_data["expected_output"]]
+
+            evaluator_results = await self.evaluator.evaluate_trajectory(
+                result.get("trajectory", []), expected_answers=expected_answers
+            )
+            print(
+                f"Completed evaluating conversation {index + 1}/{total} - {user_data['scenario_id']}",
+                flush=True,
+            )
+
+            return {
+                "turns": result["trajectory"],
+                "evaluator_results": evaluator_results,
+                "additional_metadata": {
+                    "scenario_id": user_data["scenario_id"],
+                    "persona_name": user_data["persona_name"],
+                    "sycophancy_level": user_data["sycophancy_level"],
+                    "max_turns": user_data["max_turns"],
+                    "scenario": user_data["scenario"],
+                    "expected_outcome": user_data["expected_outcome"],
+                    "expected_output": user_data["expected_output"],
+                    "simulation_run": user_data.get("simulation_run", 1),
+                },
+            }
+
+        except Exception as e:
+            print(f"❌ Failed to simulate {user_data['scenario_id']}: {e}", flush=True)
+            return {
+                "turns": [],
+                "evaluator_results": [],
+                "additional_metadata": {
+                    "scenario_id": user_data["scenario_id"],
+                    "persona_name": user_data["persona_name"],
+                    "sycophancy_level": user_data["sycophancy_level"],
+                    "max_turns": user_data["max_turns"],
+                    "scenario": user_data["scenario"],
+                    "expected_outcome": user_data["expected_outcome"],
+                    "expected_output": user_data["expected_output"],
+                    "simulation_run": user_data.get("simulation_run", 1),
+                    "error": str(e),
+                },
+            }
+
     async def simulate_conversations(
         self, scenarios: List[Dict[str, Any]]
     ) -> List[ConversationalTestCase]:
         """Run multiturn simulations using OpenEvals"""
-        print(" Running multiturn simulations...")
+        print("Running multiturn simulations...", flush=True)
         app = self.create_app()
         simulated_users = self.create_simulated_users(scenarios)
 
-        test_cases = []
+        # Use semaphore to limit concurrent simulations
+        semaphore = asyncio.Semaphore(self.max_concurrent)
 
-        for i, user_data in enumerate(simulated_users):
-            print(
-                f" Simulating conversation {i + 1}/{len(simulated_users)} - {user_data['scenario_id']}"
-            )
-
-            try:
-                result = await run_multiturn_simulation_async(
-                    app=app,
-                    user=user_data["user"],
-                    max_turns=self.max_turns,
+        async def run_with_semaphore(user_data, index):
+            async with semaphore:
+                return await self._simulate_single_conversation(
+                    app, user_data, index, len(simulated_users)
                 )
 
-                # Evaluate the trajectory using the conversation evaluator
-                expected_answers = None
-                if user_data.get("expected_output"):
-                    expected_answers = [user_data["expected_output"]]
+        # Create tasks for all simulations
+        tasks = [
+            run_with_semaphore(user_data, i)
+            for i, user_data in enumerate(simulated_users)
+        ]
 
-                evaluator_results = await self.evaluator.evaluate_trajectory(
-                    result.get("trajectory", []), expected_answers=expected_answers
-                )
-
-                test_case = {
-                    "turns": result["trajectory"],
-                    "evaluator_results": evaluator_results,
-                    "additional_metadata": {
-                        "scenario_id": user_data["scenario_id"],
-                        "persona_name": user_data["persona_name"],
-                        "sycophancy_level": user_data["sycophancy_level"],
-                        "max_turns": user_data["max_turns"],
-                        "scenario": user_data["scenario"],
-                        "expected_outcome": user_data["expected_outcome"],
-                        "expected_output": user_data["expected_output"],
-                        "simulation_run": user_data.get("simulation_run", 1),
-                    },
-                }
-                test_cases.append(test_case)
-
-            except Exception as e:
-                print(f"❌ Failed to simulate {user_data['scenario_id']}: {e}")
-                # Create a minimal test case for failed simulations
-                test_case = {
-                    "turns": [],
-                    "evaluator_results": [],
-                    "additional_metadata": {
-                        "scenario_id": user_data["scenario_id"],
-                        "persona_name": user_data["persona_name"],
-                        "sycophancy_level": user_data["sycophancy_level"],
-                        "max_turns": user_data["max_turns"],
-                        "scenario": user_data["scenario"],
-                        "expected_outcome": user_data["expected_outcome"],
-                        "expected_output": user_data["expected_output"],
-                        "simulation_run": user_data.get("simulation_run", 1),
-                        "error": str(e),
-                    },
-                }
-                test_cases.append(test_case)
+        test_cases = await asyncio.gather(*tasks)
 
         return test_cases
 
