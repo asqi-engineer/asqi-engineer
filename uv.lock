@@ -135,7 +135,7 @@ wheels = [
 ]
 
 [[package]]
-name = "asqi"
+name = "asqi-engineer"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
