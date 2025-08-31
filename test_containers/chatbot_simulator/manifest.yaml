@@ -45,14 +45,6 @@ input_schema:
     type: "integer"
     required: false
     description: "Number of simulation runs per scenario-persona combination (default: 1)"
-  - name: "simulator_model"
-    type: "string"
-    required: false
-    description: "Model to use for persona simulation (default: gpt-4o-mini)"
-  - name: "evaluation_model"
-    type: "string"
-    required: false
-    description: "Model to use for LLM-as-judge evaluation (default: gpt-4o-mini)"
   - name: "success_threshold"
     type: "float"
     required: false
