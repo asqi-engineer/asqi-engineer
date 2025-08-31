@@ -49,6 +49,10 @@ input_schema:
     type: "float"
     required: false
     description: "Threshold for determining evaluation success (default: 0.7)"
+  - name: "max_concurrent"
+    type: "integer"
+    required: false
+    description: "Maximum number of concurrent conversation simulations (default: 3)"
 
 output_metrics:
   - name: "success"
