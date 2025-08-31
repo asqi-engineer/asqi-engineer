@@ -19,11 +19,19 @@ asqi = "asqi.main:app"
 [dependency-groups]
 dev = [
     "bandit>=1.8.6",
+    "myst-parser>=4.0.1",
     "pip-audit>=2.9.0",
     "pre-commit>=4.3.0",
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
     "ruff>=0.12.8",
+    "shibuya>=2025.8.16",
+    "sphinx-autoapi>=3.6.0",
+    "sphinx-click>=6.0.0",
+    "sphinx-contributors>=0.2.7",
+    "sphinx-copybutton>=0.5.2",
+    "sphinx-design>=0.6.1",
+    "sphinxcontrib-typer>=0.5.1",
 ]
 containers = ["deepteam==0.2.4", "litellm>=1.76.0", "openevals>=0.1.0"]
 
