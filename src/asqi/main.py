@@ -393,7 +393,10 @@ def evaluate_score_cards(
         ..., "--score-card-config", "-r", help="Path to grading score card YAML file."
     ),
     output_file: Optional[str] = typer.Option(
-        None, "--output-file", "-o", help="Path to save evaluation results JSON file."
+        "output_scorecard.json",
+        "--output-file",
+        "-o",
+        help="Path to save evaluation results JSON file.",
     ),
 ):
     """Evaluate score cards against existing test results from JSON file."""
