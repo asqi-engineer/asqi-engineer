@@ -170,8 +170,12 @@ def _handle_shutdown(signum=None, frame=None):
 
 @app.command("validate", help="Validate test plan configuration without execution.")
 def validate(
-    suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
-    systems_file: str = typer.Option(..., help="Path to the systems YAML file."),
+    test_suite_config: str = typer.Option(
+        ..., "--test-suite-config", "-t", help="Path to the test suite YAML file."
+    ),
+    systems_config: str = typer.Option(
+        ..., "--systems-config", "-s", help="Path to the systems YAML file."
+    ),
     manifests_dir: str = typer.Option(
         ..., help="Path to dir with test container manifests."
     ),
@@ -180,8 +184,8 @@ def validate(
     console.print("[blue]--- Running Verification ---[/blue]")
 
     result = load_and_validate_plan(
-        suite_path=suite_file,
-        systems_path=systems_file,
+        suite_path=test_suite_config,
+        systems_path=systems_config,
         manifests_path=manifests_dir,
     )
 
@@ -200,8 +204,21 @@ def validate(
 
 @app.command()
 def execute(
-    suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
-    systems_file: str = typer.Option(..., help="Path to the systems YAML file."),
+    test_suite_config: str = typer.Option(
+        ..., "--test-suite-config", "-t", help="Path to the test suite YAML file."
+    ),
+    systems_config: str = typer.Option(
+        ..., "--systems-config", "-s", help="Path to the systems YAML file."
+    ),
+    score_card_config: str = typer.Option(
+        ..., "--score-card-config", "-r", help="Path to grading score card YAML file."
+    ),
+    output_file: Optional[str] = typer.Option(
+        "output.json",
+        "--output-file",
+        "-o",
+        help="Path to save execution results JSON file.",
+    ),
     concurrent_tests: int = typer.Option(
         ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
         "--concurrent-tests",
@@ -225,12 +242,6 @@ def execute(
         min=1,
         max=10,
         help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
-    ),
-    score_card_file: str = typer.Option(
-        ..., help="Path to grading score card YAML file."
-    ),
-    output_file: Optional[str] = typer.Option(
-        None, help="Path to save execution results JSON file."
     ),
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
@@ -255,18 +266,18 @@ def execute(
         # Load score card configuration
         score_card_configs = None
         try:
-            score_card_config = load_score_card_file(score_card_file)
-            score_card_configs = [score_card_config]
+            score_card_data = load_score_card_file(score_card_config)
+            score_card_configs = [score_card_data]
             console.print(
-                f"[green]✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}[/green]"
+                f"[green]✅ Loaded grading score card: {score_card_data.get('score_card_name', 'unnamed')}[/green]"
             )
         except (FileNotFoundError, ValueError, PermissionError) as e:
             console.print(f"[red]❌ score card configuration error: {e}[/red]")
             raise typer.Exit(1)
 
         workflow_id = start_test_execution(
-            suite_path=suite_file,
-            systems_path=systems_file,
+            suite_path=test_suite_config,
+            systems_path=systems_config,
             output_path=output_file,
             score_card_configs=score_card_configs,
             execution_mode="end_to_end",
@@ -288,8 +299,24 @@ def execute(
 
 @app.command(name="execute-tests")
 def execute_tests(
-    suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
-    systems_file: str = typer.Option(..., help="Path to the systems YAML file."),
+    test_suite_config: str = typer.Option(
+        ..., "--test-suite-config", "-t", help="Path to the test suite YAML file."
+    ),
+    systems_config: str = typer.Option(
+        ..., "--systems-config", "-s", help="Path to the systems YAML file."
+    ),
+    output_file: Optional[str] = typer.Option(
+        "output_scorecard.json",
+        "--output-file",
+        "-o",
+        help="Path to save execution results JSON file.",
+    ),
+    test_names: Optional[List[str]] = typer.Option(
+        None,
+        "--test-names",
+        "-tn",
+        help="Comma-separated list of test names to run (matches suite test names).",
+    ),
     concurrent_tests: int = typer.Option(
         ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
         "--concurrent-tests",
@@ -314,14 +341,6 @@ def execute_tests(
         max=10,
         help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
     ),
-    output_file: Optional[str] = typer.Option(
-        None, help="Path to save execution results JSON file."
-    ),
-    test_names: Optional[List[str]] = typer.Option(
-        None,
-        "--test-names",
-        help="Comma-separated list of test names to run (matches suite test names).",
-    ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
@@ -343,8 +362,8 @@ def execute_tests(
             console.print(f"[yellow]Warning: Error launching DBOS: {e}[/yellow]")
 
         workflow_id = start_test_execution(
-            suite_path=suite_file,
-            systems_path=systems_file,
+            suite_path=test_suite_config,
+            systems_path=systems_config,
             output_path=output_file,
             score_card_configs=None,
             execution_mode="tests_only",
@@ -370,11 +389,14 @@ def evaluate_score_cards(
     input_file: str = typer.Option(
         ..., help="Path to JSON file with existing test results."
     ),
-    score_card_file: str = typer.Option(
-        ..., help="Path to grading score card YAML file."
+    score_card_config: str = typer.Option(
+        ..., "--score-card-config", "-r", help="Path to grading score card YAML file."
     ),
     output_file: Optional[str] = typer.Option(
-        None, help="Path to save evaluation results JSON file."
+        "output_scorecard.json",
+        "--output-file",
+        "-o",
+        help="Path to save evaluation results JSON file.",
     ),
 ):
     """Evaluate score cards against existing test results from JSON file."""
@@ -391,10 +413,10 @@ def evaluate_score_cards(
 
         # Load score card configuration
         try:
-            score_card_config = load_score_card_file(score_card_file)
-            score_card_configs = [score_card_config]
+            score_card_data = load_score_card_file(score_card_config)
+            score_card_configs = [score_card_data]
             console.print(
-                f"[green]✅ Loaded grading score card: {score_card_config.get('score_card_name', 'unnamed')}[/green]"
+                f"[green]✅ Loaded grading score card: {score_card_data.get('score_card_name', 'unnamed')}[/green]"
             )
         except (FileNotFoundError, ValueError, PermissionError) as e:
             console.print(f"[red]❌ score card configuration error: {e}[/red]")

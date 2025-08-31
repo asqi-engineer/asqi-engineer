@@ -1,11 +1,13 @@
 import os
+import tempfile
 from unittest.mock import patch
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from asqi.config import ExecutorConfig
-from asqi.main import app
+from asqi.main import app, load_score_card_file, load_yaml_file
 
 
 class TestMainCLI:
@@ -14,84 +16,57 @@ class TestMainCLI:
     def setup_method(self):
         self.runner = CliRunner()
 
+    @pytest.mark.parametrize(
+        "command,expected_missing",
+        [
+            # validate command tests
+            (["validate"], "Missing option '--test-suite-config'"),
+            (
+                ["validate", "--test-suite-config", "suite.yaml"],
+                "Missing option '--systems-config'",
+            ),
+            (
+                [
+                    "validate",
+                    "--test-suite-config",
+                    "suite.yaml",
+                    "--systems-config",
+                    "systems.yaml",
+                ],
+                "Missing option '--manifests-dir'",
+            ),
+            # execute command tests
+            (["execute"], "Missing option '--test-suite-config'"),
+            (
+                [
+                    "execute",
+                    "--test-suite-config",
+                    "suite.yaml",
+                    "--systems-config",
+                    "systems.yaml",
+                ],
+                "Missing option '--score-card-config'",
+            ),
+            # execute-tests command tests
+            (["execute-tests"], "Missing option '--test-suite-config'"),
+            (
+                ["execute-tests", "--test-suite-config", "suite.yaml"],
+                "Missing option '--systems-config'",
+            ),
+            # evaluate-score-cards command tests
+            (["evaluate-score-cards"], "Missing option '--input-file'"),
+            (
+                ["evaluate-score-cards", "--input-file", "input.json"],
+                "Missing option '--score-card-config'",
+            ),
+        ],
+    )
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_validate_missing_suite_file(self):
-        """Test that validate command requires suite file."""
-        result = self.runner.invoke(app, ["validate"])
+    def test_missing_required_arguments(self, command, expected_missing):
+        """Test that all commands require their respective arguments."""
+        result = self.runner.invoke(app, command)
         assert result.exit_code == 2
-        assert "Missing option '--suite-file'" in result.output
-
-    @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_validate_missing_systems_file(self):
-        """Test that validate command requires systems file."""
-        result = self.runner.invoke(app, ["validate", "--suite-file", "suite.yaml"])
-        assert result.exit_code == 2
-        assert "Missing option '--systems-file'" in result.output
-
-    @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_validate_missing_manifests_dir(self):
-        """Test that validate command requires manifests dir."""
-        result = self.runner.invoke(
-            app,
-            [
-                "validate",
-                "--suite-file",
-                "suite.yaml",
-                "--systems-file",
-                "systems.yaml",
-            ],
-        )
-        assert result.exit_code == 2
-        assert "Missing option '--manifests-dir'" in result.output
-
-    @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_execute_missing_suite_file(self):
-        """Test that execute command requires suite file."""
-        result = self.runner.invoke(app, ["execute"])
-        assert result.exit_code == 2
-        assert "Missing option '--suite-file'" in result.output
-
-    @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_execute_missing_score_card_file(self):
-        """Test that execute command requires score card file."""
-        result = self.runner.invoke(
-            app,
-            ["execute", "--suite-file", "suite.yaml", "--systems-file", "systems.yaml"],
-        )
-        assert result.exit_code == 2
-        assert "Missing option '--score-card-file'" in result.output
-
-    @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_execute_tests_missing_suite_file(self):
-        """Test that execute-tests command requires suite file."""
-        result = self.runner.invoke(app, ["execute-tests"])
-        assert result.exit_code == 2
-        assert "Missing option '--suite-file'" in result.output
-
-    @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_execute_tests_missing_systems_file(self):
-        """Test that execute-tests command requires systems file."""
-        result = self.runner.invoke(
-            app, ["execute-tests", "--suite-file", "suite.yaml"]
-        )
-        assert result.exit_code == 2
-        assert "Missing option '--systems-file'" in result.output
-
-    @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_evaluate_score_cards_missing_input_file(self):
-        """Test that evaluate-score-cards command requires input file."""
-        result = self.runner.invoke(app, ["evaluate-score-cards"])
-        assert result.exit_code == 2
-        assert "Missing option '--input-file'" in result.output
-
-    @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_evaluate_score_cards_missing_score_card_file(self):
-        """Test that evaluate-score-cards command requires score card file."""
-        result = self.runner.invoke(
-            app, ["evaluate-score-cards", "--input-file", "input.json"]
-        )
-        assert result.exit_code == 2
-        assert "Missing option '--score-card-file'" in result.output
+        assert expected_missing in result.output
 
     @patch("asqi.workflow.start_test_execution")
     @patch("asqi.workflow.DBOS")
@@ -103,11 +78,11 @@ class TestMainCLI:
             app,
             [
                 "execute-tests",
-                "--suite-file",
+                "-t",
                 "suite.yaml",
-                "--systems-file",
+                "-s",
                 "systems.yaml",
-                "--output-file",
+                "-o",
                 "output.json",
             ],
         )
@@ -141,13 +116,13 @@ class TestMainCLI:
             app,
             [
                 "execute",
-                "--suite-file",
+                "-t",
                 "suite.yaml",
-                "--systems-file",
+                "-s",
                 "systems.yaml",
-                "--score-card-file",
+                "-r",
                 "score_card.yaml",
-                "--output-file",
+                "-o",
                 "output.json",
             ],
         )
@@ -185,9 +160,9 @@ class TestMainCLI:
                 "evaluate-score-cards",
                 "--input-file",
                 "input.json",
-                "--score-card-file",
+                "-r",
                 "score_card.yaml",
-                "--output-file",
+                "-o",
                 "output.json",
             ],
         )
@@ -214,9 +189,9 @@ class TestMainCLI:
             app,
             [
                 "validate",
-                "--suite-file",
+                "-t",
                 "suite.yaml",
-                "--systems-file",
+                "-s",
                 "systems.yaml",
                 "--manifests-dir",
                 "manifests/",
@@ -246,9 +221,9 @@ class TestMainCLI:
             app,
             [
                 "validate",
-                "--suite-file",
+                "-t",
                 "suite.yaml",
-                "--systems-file",
+                "-s",
                 "systems.yaml",
                 "--manifests-dir",
                 "manifests/",
@@ -270,11 +245,11 @@ class TestMainCLI:
             app,
             [
                 "execute",
-                "--suite-file",
+                "-t",
                 "suite.yaml",
-                "--systems-file",
+                "-s",
                 "systems.yaml",
-                "--score-card-file",
+                "-r",
                 "bad_score_card.yaml",
             ],
         )
@@ -295,13 +270,13 @@ class TestMainCLI:
             app,
             [
                 "execute-tests",
-                "--suite-file",
+                "-t",
                 "suite.yaml",
-                "--systems-file",
+                "-s",
                 "systems.yaml",
-                "--test-names",
+                "-tn",
                 "t1",
-                "--output-file",
+                "-o",
                 "out.json",
             ],
         )
@@ -335,13 +310,13 @@ class TestMainCLI:
             app,
             [
                 "execute-tests",
-                "--suite-file",
+                "-t",
                 "suite.yaml",
-                "--systems-file",
+                "-s",
                 "systems.yaml",
-                "--test-names",
+                "-tn",
                 "tes1",
-                "--output-file",
+                "-o",
                 "out.json",
             ],
         )
@@ -364,3 +339,317 @@ class TestMainCLI:
         mock_dbos.start_workflow.assert_not_called()
         assert "❌ Test execution failed: ❌ Test not found: tes1" in result.stdout
         assert "Did you mean: test1" in result.stdout
+
+
+class TestUtilityFunctions:
+    """Test utility functions in main.py."""
+
+    def test_load_yaml_file_success(self):
+        """Test successful YAML file loading."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump({"test": "data", "number": 42}, f)
+            temp_path = f.name
+
+        try:
+            result = load_yaml_file(temp_path)
+            assert result == {"test": "data", "number": 42}
+        finally:
+            os.unlink(temp_path)
+
+    def test_load_yaml_file_not_found(self):
+        """Test YAML file loading with missing file."""
+        with pytest.raises(FileNotFoundError, match="Configuration file not found"):
+            load_yaml_file("/nonexistent/file.yaml")
+
+    def test_load_yaml_file_invalid_syntax(self):
+        """Test YAML file loading with invalid syntax."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write("invalid: yaml: syntax: [")
+            temp_path = f.name
+
+        try:
+            with pytest.raises(ValueError, match="Invalid YAML syntax"):
+                load_yaml_file(temp_path)
+        finally:
+            os.unlink(temp_path)
+
+    def test_load_score_card_file_success(self):
+        """Test successful score card file loading."""
+        score_card_data = {
+            "score_card_name": "Test Score Card",
+            "indicators": [
+                {
+                    "name": "test_indicator",
+                    "apply_to": {"test_name": "test1"},
+                    "metric": "success",
+                    "assessment": [
+                        {"outcome": "PASS", "condition": "equal_to", "threshold": True}
+                    ],
+                }
+            ],
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(score_card_data, f)
+            temp_path = f.name
+
+        try:
+            result = load_score_card_file(temp_path)
+            assert result["score_card_name"] == "Test Score Card"
+            assert len(result["indicators"]) == 1
+        finally:
+            os.unlink(temp_path)
+
+    def test_load_score_card_file_invalid_schema(self):
+        """Test score card file loading with invalid schema."""
+        invalid_data = {"invalid": "schema"}
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(invalid_data, f)
+            temp_path = f.name
+
+        try:
+            with pytest.raises(ValueError, match="Invalid score card configuration"):
+                load_score_card_file(temp_path)
+        finally:
+            os.unlink(temp_path)
+
+    def test_load_score_card_file_not_found(self):
+        """Test score card file loading with missing file."""
+        with pytest.raises(FileNotFoundError, match="Configuration file not found"):
+            load_score_card_file("/nonexistent/score_card.yaml")
+
+
+class TestPermissionErrors:
+    """Test permission error handling."""
+
+    @patch("builtins.open", side_effect=PermissionError("Permission denied"))
+    def test_load_yaml_file_permission_error(self, mock_open):
+        """Test YAML file loading with permission error."""
+        with pytest.raises(
+            PermissionError, match="Permission denied accessing configuration file"
+        ):
+            load_yaml_file("restricted_file.yaml")
+
+    @patch("builtins.open", side_effect=PermissionError("Permission denied"))
+    def test_load_score_card_file_permission_error(self, mock_open):
+        """Test score card file loading with permission error."""
+        with pytest.raises(
+            PermissionError, match="Permission denied accessing configuration file"
+        ):
+            load_score_card_file("restricted_score_card.yaml")
+
+
+class TestShutdownHandlers:
+    """Test signal handling and cleanup functionality."""
+
+    @patch("asqi.main.shutdown_containers")
+    def test_handle_shutdown_with_signal(self, mock_shutdown):
+        """Test shutdown handler with signal."""
+        from asqi.main import _handle_shutdown
+        import signal
+
+        _handle_shutdown(signal.SIGINT, None)
+        mock_shutdown.assert_called_once()
+
+    @patch("asqi.main.shutdown_containers")
+    def test_handle_shutdown_without_signal(self, mock_shutdown):
+        """Test shutdown handler without signal."""
+        from asqi.main import _handle_shutdown
+
+        _handle_shutdown(None, None)
+        mock_shutdown.assert_not_called()
+
+
+class TestErrorScenarios:
+    """Test additional error scenarios."""
+
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    @patch("asqi.workflow.DBOS")
+    def test_execute_tests_import_error(self, mock_dbos):
+        """Test execute-tests with ImportError for DBOS."""
+        # Simulate ImportError by removing the import
+        with patch.dict("sys.modules", {"asqi.workflow": None}):
+            result = self.runner.invoke(
+                app,
+                [
+                    "execute-tests",
+                    "-t",
+                    "suite.yaml",
+                    "-s",
+                    "systems.yaml",
+                ],
+            )
+            assert result.exit_code == 1
+            assert "DBOS workflow dependencies not available" in result.stdout
+
+    @patch("asqi.workflow.DBOS")
+    def test_execute_import_error(self, mock_dbos):
+        """Test execute with ImportError for DBOS."""
+        with patch.dict("sys.modules", {"asqi.workflow": None}):
+            result = self.runner.invoke(
+                app,
+                [
+                    "execute",
+                    "-t",
+                    "suite.yaml",
+                    "-s",
+                    "systems.yaml",
+                    "-r",
+                    "score_card.yaml",
+                ],
+            )
+            assert result.exit_code == 1
+            assert "DBOS workflow dependencies not available" in result.stdout
+
+    @patch("asqi.workflow.DBOS")
+    def test_evaluate_score_cards_import_error(self, mock_dbos):
+        """Test evaluate-score-cards with ImportError for DBOS."""
+        with patch.dict("sys.modules", {"asqi.workflow": None}):
+            result = self.runner.invoke(
+                app,
+                [
+                    "evaluate-score-cards",
+                    "--input-file",
+                    "input.json",
+                    "-r",
+                    "score_card.yaml",
+                ],
+            )
+            assert result.exit_code == 1
+            assert "DBOS workflow dependencies not available" in result.stdout
+
+    @patch(
+        "asqi.workflow.start_test_execution", side_effect=Exception("Workflow error")
+    )
+    @patch("asqi.workflow.DBOS")
+    def test_execute_tests_workflow_error(self, mock_dbos, mock_start):
+        """Test execute-tests with workflow execution error."""
+        result = self.runner.invoke(
+            app,
+            [
+                "execute-tests",
+                "-t",
+                "suite.yaml",
+                "-s",
+                "systems.yaml",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "Test execution failed: Workflow error" in result.stdout
+
+    @patch("asqi.main.load_score_card_file")
+    @patch(
+        "asqi.workflow.start_test_execution", side_effect=Exception("Workflow error")
+    )
+    @patch("asqi.workflow.DBOS")
+    def test_execute_workflow_error(self, mock_dbos, mock_start, mock_load_score):
+        """Test execute with workflow execution error."""
+        mock_load_score.return_value = {"score_card_name": "Test"}
+
+        result = self.runner.invoke(
+            app,
+            [
+                "execute",
+                "-t",
+                "suite.yaml",
+                "-s",
+                "systems.yaml",
+                "-r",
+                "score_card.yaml",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "Execution failed: Workflow error" in result.stdout
+
+    @patch("asqi.main.load_score_card_file")
+    @patch(
+        "asqi.workflow.start_score_card_evaluation",
+        side_effect=Exception("Evaluation error"),
+    )
+    @patch("asqi.workflow.DBOS")
+    def test_evaluate_score_cards_workflow_error(
+        self, mock_dbos, mock_start_eval, mock_load_score
+    ):
+        """Test evaluate-score-cards with workflow execution error."""
+        mock_load_score.return_value = {"score_card_name": "Test"}
+
+        result = self.runner.invoke(
+            app,
+            [
+                "evaluate-score-cards",
+                "--input-file",
+                "input.json",
+                "-r",
+                "score_card.yaml",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "Score card evaluation failed: Evaluation error" in result.stdout
+
+
+class TestLoadAndValidatePlan:
+    """Test load_and_validate_plan function."""
+
+    def test_load_and_validate_plan_file_errors(self):
+        """Test load_and_validate_plan with file errors."""
+        from asqi.main import load_and_validate_plan
+
+        # Test with missing suite file
+        result = load_and_validate_plan(
+            "/nonexistent/suite.yaml",
+            "/nonexistent/systems.yaml",
+            "/nonexistent/manifests/",
+        )
+        assert result["status"] == "failure"
+        assert any(
+            "Configuration file not found" in error for error in result["errors"]
+        )
+
+    def test_load_and_validate_plan_success_empty_manifests(self):
+        """Test load_and_validate_plan with no manifest files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            suite_file = os.path.join(temp_dir, "suite.yaml")
+            systems_file = os.path.join(temp_dir, "systems.yaml")
+            manifests_dir = os.path.join(temp_dir, "manifests")
+            os.makedirs(manifests_dir)
+
+            # Create minimal valid files
+            with open(suite_file, "w") as f:
+                yaml.dump({"suite_name": "Empty", "test_suite": []}, f)
+
+            with open(systems_file, "w") as f:
+                yaml.dump({"systems": {}}, f)
+
+            from asqi.main import load_and_validate_plan
+
+            result = load_and_validate_plan(suite_file, systems_file, manifests_dir)
+            assert result["status"] == "success"
+
+    def test_load_and_validate_plan_with_empty_manifest(self):
+        """Test load_and_validate_plan with empty manifest file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            suite_file = os.path.join(temp_dir, "suite.yaml")
+            systems_file = os.path.join(temp_dir, "systems.yaml")
+            manifests_dir = os.path.join(temp_dir, "manifests", "test_container")
+            os.makedirs(manifests_dir)
+
+            with open(suite_file, "w") as f:
+                yaml.dump({"suite_name": "Test", "test_suite": []}, f)
+
+            with open(systems_file, "w") as f:
+                yaml.dump({"systems": {}}, f)
+
+            # Create empty manifest file
+            manifest_file = os.path.join(manifests_dir, "manifest.yaml")
+            with open(manifest_file, "w") as f:
+                f.write("")  # Empty file
+
+            from asqi.main import load_and_validate_plan
+
+            result = load_and_validate_plan(suite_file, systems_file, temp_dir)
+            # With empty suite and systems, it should succeed without errors
+            # (empty manifest is skipped but doesn't cause validation failure)
+            assert result["status"] == "success"

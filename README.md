@@ -65,7 +65,7 @@ If you prefer local development:
 
 ## Environment Configuration
 
-ASQI supports multiple LLM providers via the `llm_api` Systems Under Test (SUT) `type` through environment variables. Configure these in a `.env` file in the project root.
+ASQI supports multiple LLM providers via the `llm_api` Systems `type` through environment variables. Configure these in a `.env` file in the project root.
 
 ### Required Environment Variables
 
@@ -87,14 +87,14 @@ API_KEY=sk-1234
 
 ### How Environment Variables Work
 
-1. **SUT Configuration**: SUTs can specify `base_url` and optionally reference an `env_file` for API keys
+1. **Systems Configuration**: Systems can specify `base_url` and optionally reference an `env_file` for API keys
 2. **Environment Fallbacks**: If not specified, ASQI uses `BASE_URL` and `API_KEY` from `.env`
 3. **Provider Keys**: Specific provider keys (e.g., `OPENAI_API_KEY`) are passed to test containers
 
-### Example SUT Configuration
+### Example Systems Configuration
 
 ```yaml
-systems_under_test:
+systems:
   # Recommended: Uses env_file for API key security
   direct_openai:
     type: "llm_api"
@@ -112,8 +112,8 @@ ASQI provides four main execution modes via typer subcommands:
 Validates configurations without executing tests:
 ```bash
 asqi validate \
-  --suite-file config/suites/demo_suite.yaml \
-  --suts-file config/suts/demo_suts.yaml \
+  --test-suite-config config/suites/demo_suite.yaml \
+  --systems-config config/systems/demo_systems.yaml \
   --manifests-dir test_containers/
 ```
 
@@ -128,9 +128,12 @@ cd ../..
 Then run tests without score card evaluation:
 ```bash
 asqi execute-tests \
-  --suite-file config/suites/demo_suite.yaml \
-  --suts-file config/suts/demo_suts.yaml \
+  --test-suite-config config/suites/demo_suite.yaml \
+  --systems-config config/systems/demo_systems.yaml \
   --output-file results.json
+
+# Or with short flags:
+asqi execute-tests -t config/suites/demo_suite.yaml -s config/systems/demo_systems.yaml -o results.json
 ```
 
 ### 3. Score Card Evaluation Only
@@ -138,18 +141,24 @@ Evaluates existing test results against score card criteria:
 ```bash
 asqi evaluate-score-cards \
   --input-file results.json \
-  --score-card-file config/score_cards/example_score_card.yaml \
+  --score-card-config config/score_cards/example_score_card.yaml \
   --output-file results_with_score_card.json
+
+# Or with short flags:
+asqi evaluate-score-cards --input-file results.json -r config/score_cards/example_score_card.yaml -o results_with_score_card.json
 ```
 
 ### 4. End-to-End Execution
 Combines test execution and score card evaluation:
 ```bash
 asqi execute \
-  --suite-file config/suites/demo_suite.yaml \
-  --suts-file config/suts/demo_suts.yaml \
-  --score-card-file config/score_cards/example_score_card.yaml \
+  --test-suite-config config/suites/demo_suite.yaml \
+  --systems-config config/systems/demo_systems.yaml \
+  --score-card-config config/score_cards/example_score_card.yaml \
   --output-file results_with_score_card.json
+
+# Or with short flags:
+asqi execute -t config/suites/demo_suite.yaml -s config/systems/demo_systems.yaml -r config/score_cards/example_score_card.yaml -o results_with_score_card.json
 ```
 
 ## Architecture
@@ -164,7 +173,7 @@ asqi execute \
 
 ### Key Concepts
 
-- **SUTs (Systems Under Test)**: AI systems being tested (APIs, models, etc.) defined in `config/suts/`
+- **Systems**: AI systems being tested (APIs, models, etc.) defined in `config/systems/`
 - **Test Suites**: Collections of tests defined in `config/suites/`
 - **Test Containers**: Docker images in `test_containers/` with embedded `manifest.yaml` 
 - **Score Cards**: Assessment criteria defined in `config/score_cards/` for automated grading
@@ -189,9 +198,12 @@ docker build -t my-registry/garak:latest .
 
 # Run security tests
 asqi execute-tests \
-  --suite-file config/suites/security_test.yaml \
-  --suts-file config/suts/demo_suts.yaml \
+  --test-suite-config config/suites/security_test.yaml \
+  --systems-config config/systems/demo_systems.yaml \
   --output-file garak_results.json
+
+# Or with short flags:
+asqi execute-tests -t config/suites/security_test.yaml -s config/systems/demo_systems.yaml -o garak_results.json
 ```
 
 ## Score Cards
@@ -222,17 +234,17 @@ uv run pytest --cov=src         # Run with coverage
 
 1. Create directory under `test_containers/`
 2. Add `Dockerfile`, `entrypoint.py`, and `manifest.yaml`
-3. Ensure entrypoint accepts `--sut-config` and `--test-params` JSON arguments
+3. Ensure entrypoint accepts `--systems-params` and `--test-params` JSON arguments
 4. Output test results as JSON to stdout
 
 Example manifest.yaml:
 ```yaml
 name: "my_test_framework"
 version: "1.0.0"
-image_name: "my-registry/my_test:latest"
-supported_suts:
-  - type: "llm_api"
-    required_config: ["provider", "model"]
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
 output_metrics: ["success", "score"]
 ```
 
@@ -254,7 +266,7 @@ This creates files in `dist/`:
 #### CLI Entry Point
 The `asqi` command maps to `src/asqi/main.py` and provides all functionality:
 ```bash
-asqi execute --suite-file config/suites/demo_suite.yaml --suts-file config/suts/demo_suts.yaml
+asqi execute --test-suite-config config/suites/demo_suite.yaml --systems-config config/systems/demo_systems.yaml
 ```
 
 ## Contributing
