@@ -87,7 +87,7 @@ def load_and_validate_plan(
     errors: List[str] = []
     try:
         suts_data = load_yaml_file(systems_path)
-        suts_config = SystemsConfig(**suts_data)
+        systems_config = SystemsConfig(**suts_data)
 
         suite_data = load_yaml_file(suite_path)
         suite_config = SuiteConfig(**suite_data)
@@ -122,7 +122,7 @@ def load_and_validate_plan(
         errors.append(str(e))
         return {"status": "failure", "errors": errors}
 
-    validation_errors = validate_test_plan(suite_config, suts_config, manifests)
+    validation_errors = validate_test_plan(suite_config, systems_config, manifests)
     if validation_errors:
         return {"status": "failure", "errors": validation_errors}
 

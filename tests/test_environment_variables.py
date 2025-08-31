@@ -34,7 +34,7 @@ class TestEnvironmentVariables:
         )
 
     @pytest.fixture
-    def sample_suts_config(self):
+    def sample_systems_config(self):
         """Sample SUTs configuration with API key."""
 
         return SystemsConfig(
@@ -50,13 +50,13 @@ class TestEnvironmentVariables:
         )
 
     def test_create_test_execution_plan_flattens_sut_params(
-        self, sample_suite_config, sample_suts_config
+        self, sample_suite_config, sample_systems_config
     ):
         """Test that create_test_execution_plan correctly flattens SUT parameters."""
         image_availability = {"my-registry/test:latest": True}
 
         execution_plan = create_test_execution_plan(
-            sample_suite_config, sample_suts_config, image_availability
+            sample_suite_config, sample_systems_config, image_availability
         )
 
         assert len(execution_plan) == 1
