@@ -215,7 +215,7 @@ class DeepTeamRedTeamTester:
             return None
 
         # Use the API key from the system config, or fallback to environment
-        api_key = system_config.get("api_key") or os.environ.get("API_KEY", "sk-1234")
+        api_key = system_config.get("api_key") or os.environ.get("API_KEY", "")
 
         return CustomOpenAIModel(
             model=system_config.get("model", "gpt-4o-mini"),

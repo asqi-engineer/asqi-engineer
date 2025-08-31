@@ -11,9 +11,10 @@ from simulation import (
 )
 
 
-def create_model_callback(model: str, base_api: str):
+def create_model_callback(sut_params: Dict[str, Any]):
     """Create a model callback function for the SUT"""
-    client = setup_client(base_api)
+    client = setup_client(**sut_params)
+    model = sut_params.get("model", "gpt-4o-mini")
 
     async def model_callback(input_text: str) -> str:
         """Model callback that implements the chatbot logic"""
@@ -30,37 +31,37 @@ def create_model_callback(model: str, base_api: str):
 
 
 async def run_chatbot_simulation(
-    sut_params: Dict[str, Any], test_params: Dict[str, Any]
+    systems_params: Dict[str, Any], test_params: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Run the chatbot simulation test"""
+    sut_params = systems_params.get("system_under_test", {})
 
     # Extract test parameters with defaults
     chatbot_purpose = test_params.get("chatbot_purpose", "general customer service")
     num_scenarios = test_params.get("num_scenarios", 3)
     max_turns = test_params.get("max_turns", 4)
-    simulator_model = test_params.get("simulator_model", "gpt-4o-mini")
-    evaluation_model = test_params.get("evaluation_model", "gpt-4o-mini")
     custom_personas = test_params.get("custom_personas")
     sycophancy_levels = test_params.get("sycophancy_levels", ["low", "high"])
     custom_scenarios = test_params.get("custom_scenarios")
     simulations_per_scenario = test_params.get("simulations_per_scenario", 1)
     success_threshold = test_params.get("success_threshold", 0.7)
 
-    # Create model callback
-    base_url = sut_params.get("base_url", "https://api.openai.com/v1")
-    model_callback = create_model_callback(sut_params["model"], base_url)
+    # Get simulator and evaluator system if provided
+    simulator_system = systems_params.get("simulator_system", {})
+    evaluator_system = systems_params.get("evaluator_system", {})
+
+    # Create model callback for SUT
+    model_callback = create_model_callback(sut_params)
 
     tester = PersonaBasedConversationTester(
         model_callback=model_callback,
         chatbot_purpose=chatbot_purpose,
-        simulator_base_url=base_url,
-        evaluator_base_url=base_url,
-        simulator_model=simulator_model,
+        simulator_client_params=simulator_system,
+        evaluator_client_params=evaluator_system,
         max_turns=max_turns,
         custom_personas=custom_personas,
         sycophancy_levels=sycophancy_levels,
         custom_scenarios=custom_scenarios,
-        evaluation_model=evaluation_model,
         simulations_per_scenario=simulations_per_scenario,
     )
 
@@ -149,7 +150,7 @@ def main():
             raise ValueError("Missing required test parameter: chatbot_purpose")
 
         # Run the simulation
-        result = asyncio.run(run_chatbot_simulation(sut_params, test_params))
+        result = asyncio.run(run_chatbot_simulation(systems_params, test_params))
 
         # Output results as JSON
         print(json.dumps(result, indent=2))

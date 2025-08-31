@@ -22,40 +22,51 @@ from evaluator import ConversationEvaluator
 ConversationalTestCase = Dict[str, Any]
 
 
-def setup_client(base_url: str = "https://api.openai.com/v1") -> openai.AsyncOpenAI:
+def setup_client(**system_params) -> openai.AsyncOpenAI:
     """Setup OpenAI client with unified environment variable handling"""
-    api_key = os.environ.get("API_KEY")
+    base_url = system_params.get("base_url")
+    api_key = system_params.get("api_key")
+    if base_url and not api_key:
+        api_key = os.environ.get("API_KEY")
+    if not base_url and not api_key:
+        base_url = "https://api.openai.com/v1"
+        api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        # Fallback to provider-specific keys
-        api_key = (
-            os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("ANTHROPIC_API_KEY")
-            or os.environ.get("HUGGINGFACE_API_KEY")
+        raise ValueError(
+            "No API key found. Please specify a compatible base_url and api_key"
         )
 
-    if not api_key:
-        raise ValueError("No API key found. Set API_KEY environment variable.")
+    openai_params = {
+        k: v
+        for k, v in system_params.items()
+        if k not in ["base_url", "model", "api_key", "type"]
+    }
+    return openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **openai_params)
 
-    return openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
 
-
-def setup_langchain_client(
-    base_url: str = "https://api.openai.com/v1", model: str = "gpt-4o-mini"
-) -> ChatOpenAI:
+def setup_langchain_client(**system_params) -> ChatOpenAI:
     """Setup LangChain OpenAI client with unified environment variable handling"""
-    api_key = os.environ.get("API_KEY")
+    base_url = system_params.get("base_url")
+    api_key = system_params.get("api_key")
+    model = system_params.get("model", "gpt-4o-mini")
+    if base_url and not api_key:
+        api_key = os.environ.get("API_KEY")
+    if not base_url and not api_key:
+        base_url = "https://api.openai.com/v1"
+        api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        # Fallback to provider-specific keys
-        api_key = (
-            os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("ANTHROPIC_API_KEY")
-            or os.environ.get("HUGGINGFACE_API_KEY")
+        raise ValueError(
+            "No API key found. Please specify a compatible base_url and api_key"
         )
 
-    if not api_key:
-        raise ValueError("No API key found. Set API_KEY environment variable.")
-
-    return ChatOpenAI(model=model, api_key=SecretStr(api_key), base_url=base_url)
+    langchain_params = {
+        k: v
+        for k, v in system_params.items()
+        if k not in ["base_url", "model", "api_key", "type"]
+    }
+    return ChatOpenAI(
+        model=model, api_key=SecretStr(api_key), base_url=base_url, **langchain_params
+    )
 
 
 class PersonaBasedConversationTester:
@@ -63,31 +74,30 @@ class PersonaBasedConversationTester:
         self,
         model_callback: Callable[[str], Awaitable[str]],
         chatbot_purpose: str,
-        simulator_base_url: str = "https://api.openai.com/v1",
-        evaluator_base_url: str = "https://api.openai.com/v1",
-        simulator_model: str = "gpt-4o-mini",
+        simulator_client_params: Dict[str, Any],
+        evaluator_client_params: Dict[str, Any],
         max_turns: int = 4,
         custom_personas: Optional[List[str]] = None,
         sycophancy_levels: Optional[List[str]] = None,
         custom_scenarios: Optional[List[Dict[str, str]]] = None,
-        evaluation_model: str = "gpt-4o-mini",
         simulations_per_scenario: int = 1,
     ):
         self.model_callback = model_callback
         self.chatbot_purpose = chatbot_purpose
-        self.simulator_model = simulator_model
+        self.simulator_client_params = simulator_client_params
+        self.evaluator_client_params = evaluator_client_params
         self.max_turns = max_turns
         self.custom_personas = custom_personas
         self.sycophancy_levels = sycophancy_levels or ["low", "high"]
         self.custom_scenarios = custom_scenarios
         self.simulations_per_scenario = simulations_per_scenario
 
-        self.simulator_client = setup_client(simulator_base_url)
+        self.simulator_client = setup_client(**simulator_client_params)
         self.simulator_langchain_client = setup_langchain_client(
-            simulator_base_url, simulator_model
+            **simulator_client_params
         )
         self.evaluator_langchain_client = setup_langchain_client(
-            evaluator_base_url, evaluation_model
+            **evaluator_client_params
         )
         self.evaluator = ConversationEvaluator(
             evaluator_client=self.evaluator_langchain_client
@@ -122,9 +132,9 @@ class PersonaBasedConversationTester:
 Provide a 2-3 sentence description of this persona's characteristics, communication style, and how they typically interact with customer service. Focus on their behavior and approach to asking questions."""
 
         response = await self.simulator_client.chat.completions.create(
-            model=self.simulator_model,
+            model=self.simulator_client_params.get("model", "gpt-4o-mini"),
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.8,
+            temperature=self.simulator_client_params.get("temperature", 0.8),
         )
         description = response.choices[0].message.content or ""
         description = description.strip()
@@ -218,9 +228,9 @@ Expected outcome: [what should happen]
 Make the scenarios realistic and diverse, covering different use cases for this chatbot."""
 
         response = await self.simulator_client.chat.completions.create(
-            model=self.simulator_model,
+            model=self.simulator_client_params.get("model", "gpt-4o-mini"),
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.8,
+            temperature=self.simulator_client_params.get("temperature", 0.8),
         )
         response_content = response.choices[0].message.content or ""
 
@@ -436,7 +446,8 @@ Make the scenarios realistic and diverse, covering different use cases for this 
             f"• Max Turns per Conversation: {self.max_turns}\n", style="white"
         )
         test_plan_text.append(
-            f"• Simulator Model: {self.simulator_model}", style="white"
+            f"• Simulator Model: {self.simulator_client_params.get('model', 'gpt-4o-mini')}",
+            style="white",
         )
 
         console.print(
