@@ -33,7 +33,13 @@ class TestMainCLI:
         """Test that validate command requires manifests dir."""
         result = self.runner.invoke(
             app,
-            ["validate", "--suite-file", "suite.yaml", "--systems-file", "suts.yaml"],
+            [
+                "validate",
+                "--suite-file",
+                "suite.yaml",
+                "--systems-file",
+                "systems.yaml",
+            ],
         )
         assert result.exit_code == 2
         assert "Missing option '--manifests-dir'" in result.output
@@ -50,7 +56,7 @@ class TestMainCLI:
         """Test that execute command requires score card file."""
         result = self.runner.invoke(
             app,
-            ["execute", "--suite-file", "suite.yaml", "--systems-file", "suts.yaml"],
+            ["execute", "--suite-file", "suite.yaml", "--systems-file", "systems.yaml"],
         )
         assert result.exit_code == 2
         assert "Missing option '--score-card-file'" in result.output
@@ -100,7 +106,7 @@ class TestMainCLI:
                 "--suite-file",
                 "suite.yaml",
                 "--systems-file",
-                "suts.yaml",
+                "systems.yaml",
                 "--output-file",
                 "output.json",
             ],
@@ -110,7 +116,7 @@ class TestMainCLI:
         mock_dbos.launch.assert_called_once()
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
-            systems_path="suts.yaml",
+            systems_path="systems.yaml",
             output_path="output.json",
             score_card_configs=None,
             execution_mode="tests_only",
@@ -138,7 +144,7 @@ class TestMainCLI:
                 "--suite-file",
                 "suite.yaml",
                 "--systems-file",
-                "suts.yaml",
+                "systems.yaml",
                 "--score-card-file",
                 "score_card.yaml",
                 "--output-file",
@@ -150,7 +156,7 @@ class TestMainCLI:
         mock_load_score.assert_called_once_with("score_card.yaml")
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
-            systems_path="suts.yaml",
+            systems_path="systems.yaml",
             output_path="output.json",
             score_card_configs=[{"score_card_name": "Test scorecard"}],
             execution_mode="end_to_end",
@@ -211,7 +217,7 @@ class TestMainCLI:
                 "--suite-file",
                 "suite.yaml",
                 "--systems-file",
-                "suts.yaml",
+                "systems.yaml",
                 "--manifests-dir",
                 "manifests/",
             ],
@@ -220,7 +226,7 @@ class TestMainCLI:
         assert result.exit_code == 0
         mock_validate.assert_called_once_with(
             suite_path="suite.yaml",
-            systems_path="suts.yaml",
+            systems_path="systems.yaml",
             manifests_path="manifests/",
         )
         assert "✨ Success! The test plan is valid." in result.stdout
@@ -243,7 +249,7 @@ class TestMainCLI:
                 "--suite-file",
                 "suite.yaml",
                 "--systems-file",
-                "suts.yaml",
+                "systems.yaml",
                 "--manifests-dir",
                 "manifests/",
             ],
@@ -267,7 +273,7 @@ class TestMainCLI:
                 "--suite-file",
                 "suite.yaml",
                 "--systems-file",
-                "suts.yaml",
+                "systems.yaml",
                 "--score-card-file",
                 "bad_score_card.yaml",
             ],
@@ -292,7 +298,7 @@ class TestMainCLI:
                 "--suite-file",
                 "suite.yaml",
                 "--systems-file",
-                "suts.yaml",
+                "systems.yaml",
                 "--test-names",
                 "t1",
                 "--output-file",
@@ -304,7 +310,7 @@ class TestMainCLI:
         mock_dbos.launch.assert_called_once()
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
-            systems_path="suts.yaml",
+            systems_path="systems.yaml",
             output_path="out.json",
             score_card_configs=None,
             execution_mode="tests_only",
@@ -332,7 +338,7 @@ class TestMainCLI:
                 "--suite-file",
                 "suite.yaml",
                 "--systems-file",
-                "suts.yaml",
+                "systems.yaml",
                 "--test-names",
                 "tes1",
                 "--output-file",
@@ -343,7 +349,7 @@ class TestMainCLI:
         assert result.exit_code != 0
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
-            systems_path="suts.yaml",
+            systems_path="systems.yaml",
             output_path="out.json",
             score_card_configs=None,
             execution_mode="tests_only",

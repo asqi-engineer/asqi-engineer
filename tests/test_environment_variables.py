@@ -35,7 +35,7 @@ class TestEnvironmentVariables:
 
     @pytest.fixture
     def sample_systems_config(self):
-        """Sample SUTs configuration with API key."""
+        """Sample systems configuration with API key."""
 
         return SystemsConfig(
             systems={

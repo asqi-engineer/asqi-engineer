@@ -120,7 +120,7 @@ def extract_manifest_from_image_step(image: str) -> Optional[Manifest]:
 
 @DBOS.step()
 def validate_test_plan(
-    suite: SuiteConfig, suts: SystemsConfig, manifests: Dict[str, Manifest]
+    suite: SuiteConfig, systems: SystemsConfig, manifests: Dict[str, Manifest]
 ) -> List[str]:
     """
     DBOS step wrapper for comprehensive test plan validation.
@@ -130,14 +130,14 @@ def validate_test_plan(
 
     Args:
         suite: Test suite configuration (pre-validated)
-        suts: SUTs configuration (pre-validated)
+        systems: systems configuration (pre-validated)
         manifests: Available manifests (pre-validated)
 
     Returns:
         List of validation error messages
     """
     # Delegate to the comprehensive validation function
-    return validate_workflow_configurations(suite, suts, manifests)
+    return validate_workflow_configurations(suite, systems, manifests)
 
 
 @DBOS.step()
@@ -364,7 +364,7 @@ def run_test_suite_workflow(
 
     This workflow:
     1. Validates image availability and extracts manifests
-    2. Performs cross-validation of tests, SUTs, and manifests
+    2. Performs cross-validation of tests, systems, and manifests
     3. Executes tests concurrently with progress tracking
     4. Aggregates results with detailed error reporting
 
@@ -386,7 +386,7 @@ def run_test_suite_workflow(
     # Parse configurations
     try:
         suite = SuiteConfig(**suite_config)
-        suts = SystemsConfig(**systems_config)
+        systems = SystemsConfig(**systems_config)
     except ValidationError as e:
         error_msg = f"Configuration validation failed: {e}"
         DBOS.logger.error(error_msg)
@@ -453,7 +453,7 @@ def run_test_suite_workflow(
 
     # Validate test plan
     with console.status("[bold blue]Validating test plan...", spinner="dots"):
-        validation_errors = validate_test_plan(suite, suts, manifests)
+        validation_errors = validate_test_plan(suite, systems, manifests)
 
     if validation_errors:
         console.print("[red]Validation failed:[/red]")
@@ -479,7 +479,7 @@ def run_test_suite_workflow(
         }
 
     # Prepare test execution plan
-    test_execution_plan = create_test_execution_plan(suite, suts, image_availability)
+    test_execution_plan = create_test_execution_plan(suite, systems, image_availability)
     test_count = len(test_execution_plan)
 
     if test_count == 0:

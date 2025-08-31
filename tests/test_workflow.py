@@ -48,7 +48,7 @@ def isolate_env(monkeypatch):
 
 
 def test_run_test_suite_workflow_success():
-    # Arrange minimal suite and SUTs configs
+    # Arrange minimal suite and systems configs
     suite_config = {
         "suite_name": "demo",
         "test_suite": [
@@ -469,7 +469,7 @@ def test_start_test_execution_tests_only_mode():
 
         workflow_id = start_test_execution(
             "suite.yaml",
-            "suts.yaml",
+            "systems.yaml",
             executor_config,
             "output.json",
             None,
@@ -506,7 +506,7 @@ def test_start_test_execution_end_to_end_mode():
 
         workflow_id = start_test_execution(
             "suite.yaml",
-            "suts.yaml",
+            "systems.yaml",
             executor_config,
             "output.json",
             score_card_configs,

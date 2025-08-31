@@ -86,8 +86,8 @@ def load_and_validate_plan(
     """
     errors: List[str] = []
     try:
-        suts_data = load_yaml_file(systems_path)
-        systems_config = SystemsConfig(**suts_data)
+        systems_data = load_yaml_file(systems_path)
+        systems_config = SystemsConfig(**systems_data)
 
         suite_data = load_yaml_file(suite_path)
         suite_config = SuiteConfig(**suite_data)
