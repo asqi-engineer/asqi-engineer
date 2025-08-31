@@ -21,6 +21,22 @@
           "title": "Systems Under Test",
           "type": "array"
         },
+        "systems": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional additional systems for the test (e.g., simulator_system, evaluator_system).",
+          "title": "Systems"
+        },
         "tags": {
           "anyOf": [
             {

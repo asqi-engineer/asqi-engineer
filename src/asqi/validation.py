@@ -53,9 +53,23 @@ def validate_system_compatibility(
         List of validation error messages
     """
     errors = []
-    supported_system_types = [s.type for s in manifest.supported_suts]
 
-    # Get the target systems
+    # Create a map of required vs optional systems from manifest
+    required_systems = {}
+    optional_systems = {}
+
+    for system_input in manifest.input_systems:
+        if system_input.required:
+            required_systems[system_input.name] = system_input.type
+        else:
+            optional_systems[system_input.name] = system_input.type
+
+    # Validate systems_under_test (maps to system_under_test in manifest)
+    # Get all supported types for system_under_test from manifest
+    supported_types_for_sut = [
+        s.type for s in manifest.input_systems if s.name == "system_under_test"
+    ]
+
     target_systems = test.systems_under_test
 
     for system_name in target_systems:
@@ -69,30 +83,49 @@ def validate_system_compatibility(
             continue
 
         system_def = system_definitions[system_name]
-        if system_def.type not in supported_system_types:
+        if system_def.type not in supported_types_for_sut:
             supported_types = (
-                ", ".join(supported_system_types) if supported_system_types else "none"
+                ", ".join(supported_types_for_sut)
+                if supported_types_for_sut
+                else "none"
             )
             errors.append(
                 f"Test '{test.name}' on system '{system_name}': "
                 f"Image '{test.image}' does not support system type '{system_def.type}'. Supported types: {supported_types}"
             )
 
-    # Validate optional simulator_system and evaluator_system fields
-    for optional_system_field in ["simulator_system", "evaluator_system"]:
-        optional_system_name = getattr(test, optional_system_field, None)
-        if optional_system_name:
-            if optional_system_name not in system_definitions:
-                errors.append(
-                    f"Test '{test.name}': Unknown {optional_system_field} '{optional_system_name}'. Available systems: {', '.join(system_definitions.keys()) if system_definitions else 'none'}"
+    # Validate additional systems from test.systems field
+    if hasattr(test, "systems") and test.systems:
+        for system_role, system_name in test.systems.items():
+            # Check if this system role is declared in manifest
+            expected_type = optional_systems.get(system_role)
+            if not expected_type:
+                valid_roles = (
+                    ", ".join(optional_systems.keys()) if optional_systems else "none"
                 )
-            else:
-                optional_system_def = system_definitions[optional_system_name]
-                if optional_system_def.type not in supported_system_types:
-                    errors.append(
-                        f"Test '{test.name}' {optional_system_field} '{optional_system_name}': "
-                        f"Image '{test.image}' does not support system type '{optional_system_def.type}'. Supported types: {', '.join(supported_system_types) if supported_system_types else 'none'}"
-                    )
+                errors.append(
+                    f"Test '{test.name}': Unknown system role '{system_role}'. Valid roles: {valid_roles}"
+                )
+                continue
+
+            # Check if referenced system exists
+            if system_name not in system_definitions:
+                available_systems = (
+                    ", ".join(system_definitions.keys())
+                    if system_definitions
+                    else "none"
+                )
+                errors.append(
+                    f"Test '{test.name}': Unknown {system_role} '{system_name}'. Available systems: {available_systems}"
+                )
+                continue
+
+            # Check if system type matches expected type
+            system_def = system_definitions[system_name]
+            if system_def.type != expected_type:
+                errors.append(
+                    f"Test '{test.name}' {system_role} '{system_name}': Expected type '{expected_type}', got '{system_def.type}'"
+                )
 
     return errors
 
@@ -229,12 +262,29 @@ def create_test_execution_plan(
             else:
                 test_params = base_params or {}
 
+            # Build unified systems_params with system_under_test and additional systems
+            systems_params = {
+                "system_under_test": {"type": system_def.type, **system_def.params}
+            }
+
+            # Add additional systems if specified
+            if hasattr(test, "systems") and test.systems:
+                for system_role, referenced_system_name in test.systems.items():
+                    referenced_system_def = system_definitions.get(
+                        referenced_system_name
+                    )
+                    if referenced_system_def:
+                        systems_params[system_role] = {
+                            "type": referenced_system_def.type,
+                            **referenced_system_def.params,
+                        }
+
             plan.append(
                 {
                     "test_name": test.name,
                     "image": image,
                     "sut_name": system_name,
-                    "sut_params": {"type": system_def.type, **system_def.params},
+                    "systems_params": systems_params,
                     "test_params": test_params,
                 }
             )
@@ -268,7 +318,9 @@ def validate_test_plan(
                 f"Test '{test.name}': Image '{test.image}' does not have a loaded manifest."
             )
             continue  # Cannot perform further validation for this test
-        supported_system_types = [s.type for s in manifest.supported_suts]
+        supported_system_types = [
+            s.type for s in manifest.input_systems if s.name == "system_under_test"
+        ]
 
         # 2. Check parameters against the manifest's input_schema
         schema_params = {p.name: p for p in manifest.input_schema}

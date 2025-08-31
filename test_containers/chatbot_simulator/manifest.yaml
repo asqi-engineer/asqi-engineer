@@ -2,9 +2,19 @@ name: "chatbot_simulator"
 version: "1.0"
 description: "Multi-turn conversational testing using persona-based simulation and LLM-as-judge evaluation."
 
-supported_suts:
-  - type: "llm_api"
-    required_config: ["model"]
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested"
+  - name: "simulator_system"
+    type: "llm_api"
+    required: false
+    description: "LLM system for generating personas and conversation scenarios"
+  - name: "evaluator_system"
+    type: "llm_api"
+    required: false
+    description: "LLM system for evaluating conversation quality"
 
 input_schema:
   - name: "chatbot_purpose"
@@ -20,7 +30,7 @@ input_schema:
     required: false
     description: "List of custom persona names (e.g. ['busy executive', 'enthusiastic buyer'])"
   - name: "num_scenarios"
-    type: "integer" 
+    type: "integer"
     required: false
     description: "Number of conversation scenarios to generate if custom scenarios are not provided"
   - name: "max_turns"

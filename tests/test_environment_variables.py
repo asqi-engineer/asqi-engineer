@@ -60,7 +60,8 @@ class TestEnvironmentVariables:
         )
 
         assert len(execution_plan) == 1
-        sut_params = execution_plan[0]["sut_params"]
+        systems_params = execution_plan[0]["systems_params"]
+        sut_params = systems_params["system_under_test"]
 
         # Verify the SUT params are flattened correctly
         assert sut_params["type"] == "llm_api"
@@ -94,7 +95,7 @@ class TestEnvironmentVariables:
             test_name="test_env_vars",
             image="my-registry/test:latest",
             sut_name="test_sut",
-            sut_params=sample_sut_params,
+            systems_params={"system_under_test": sample_sut_params},
             test_params={"generations": 1},
         )
 
@@ -136,7 +137,7 @@ class TestEnvironmentVariables:
             test_name="test_specific_env_var",
             image="my-registry/test:latest",
             sut_name="openai_sut",
-            sut_params=sut_params,
+            systems_params={"system_under_test": sut_params},
             test_params={"generations": 2},
         )
 

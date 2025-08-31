@@ -111,7 +111,7 @@ def main():
     """Main entrypoint that follows ASQI container interface."""
     parser = argparse.ArgumentParser(description="Chatbot Simulator Test Container")
     parser.add_argument(
-        "--sut-params", required=True, help="SUT parameters as JSON string"
+        "--systems-params", required=True, help="Systems parameters as JSON string"
     )
     parser.add_argument(
         "--test-params", required=True, help="Test parameters as JSON string"
@@ -121,21 +121,28 @@ def main():
 
     try:
         # Parse inputs
-        sut_params = json.loads(args.sut_params)
+        systems_params = json.loads(args.systems_params)
         test_params = json.loads(args.test_params)
+
+        # Extract system_under_test
+        sut_params = systems_params.get("system_under_test", {})
+        if not sut_params:
+            raise ValueError("Missing system_under_test in systems_params")
 
         # Validate SUT type
         sut_type = sut_params.get("type")
         if sut_type not in ["llm_api"]:
             raise ValueError(
-                f"Unsupported SUT type: {sut_type}. This container only supports llm_api."
+                f"Unsupported system_under_test type: {sut_type}. This container only supports llm_api."
             )
 
         # Validate required SUT parameters
         required_sut_params = ["model"]
         for param in required_sut_params:
             if param not in sut_params:
-                raise ValueError(f"Missing required SUT parameter: {param}")
+                raise ValueError(
+                    f"Missing required system_under_test parameter: {param}"
+                )
 
         # Validate required test parameters
         if "chatbot_purpose" not in test_params:
