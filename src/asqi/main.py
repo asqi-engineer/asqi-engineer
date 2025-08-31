@@ -441,5 +441,8 @@ def evaluate_score_cards(
         raise typer.Exit(1)
 
 
+# Expose the Click object for sphinx_click documentation
+typer_click_object = typer.main.get_command(app)
+
 if __name__ == "__main__":
     app()
