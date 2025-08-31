@@ -22,17 +22,18 @@ class TestMainCLI:
         assert "Missing option '--suite-file'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_validate_missing_suts_file(self):
-        """Test that validate command requires suts file."""
+    def test_validate_missing_systems_file(self):
+        """Test that validate command requires systems file."""
         result = self.runner.invoke(app, ["validate", "--suite-file", "suite.yaml"])
         assert result.exit_code == 2
-        assert "Missing option '--suts-file'" in result.output
+        assert "Missing option '--systems-file'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
     def test_validate_missing_manifests_dir(self):
         """Test that validate command requires manifests dir."""
         result = self.runner.invoke(
-            app, ["validate", "--suite-file", "suite.yaml", "--suts-file", "suts.yaml"]
+            app,
+            ["validate", "--suite-file", "suite.yaml", "--systems-file", "suts.yaml"],
         )
         assert result.exit_code == 2
         assert "Missing option '--manifests-dir'" in result.output
@@ -48,7 +49,8 @@ class TestMainCLI:
     def test_execute_missing_score_card_file(self):
         """Test that execute command requires score card file."""
         result = self.runner.invoke(
-            app, ["execute", "--suite-file", "suite.yaml", "--suts-file", "suts.yaml"]
+            app,
+            ["execute", "--suite-file", "suite.yaml", "--systems-file", "suts.yaml"],
         )
         assert result.exit_code == 2
         assert "Missing option '--score-card-file'" in result.output
@@ -61,13 +63,13 @@ class TestMainCLI:
         assert "Missing option '--suite-file'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
-    def test_execute_tests_missing_suts_file(self):
-        """Test that execute-tests command requires suts file."""
+    def test_execute_tests_missing_systems_file(self):
+        """Test that execute-tests command requires systems file."""
         result = self.runner.invoke(
             app, ["execute-tests", "--suite-file", "suite.yaml"]
         )
         assert result.exit_code == 2
-        assert "Missing option '--suts-file'" in result.output
+        assert "Missing option '--systems-file'" in result.output
 
     @pytest.mark.skipif(os.getenv("CI") is not None, reason="ci display issue")
     def test_evaluate_score_cards_missing_input_file(self):
@@ -97,7 +99,7 @@ class TestMainCLI:
                 "execute-tests",
                 "--suite-file",
                 "suite.yaml",
-                "--suts-file",
+                "--systems-file",
                 "suts.yaml",
                 "--output-file",
                 "output.json",
@@ -108,7 +110,7 @@ class TestMainCLI:
         mock_dbos.launch.assert_called_once()
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
-            suts_path="suts.yaml",
+            systems_path="suts.yaml",
             output_path="output.json",
             score_card_configs=None,
             execution_mode="tests_only",
@@ -135,7 +137,7 @@ class TestMainCLI:
                 "execute",
                 "--suite-file",
                 "suite.yaml",
-                "--suts-file",
+                "--systems-file",
                 "suts.yaml",
                 "--score-card-file",
                 "score_card.yaml",
@@ -148,7 +150,7 @@ class TestMainCLI:
         mock_load_score.assert_called_once_with("score_card.yaml")
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
-            suts_path="suts.yaml",
+            systems_path="suts.yaml",
             output_path="output.json",
             score_card_configs=[{"score_card_name": "Test scorecard"}],
             execution_mode="end_to_end",
@@ -208,7 +210,7 @@ class TestMainCLI:
                 "validate",
                 "--suite-file",
                 "suite.yaml",
-                "--suts-file",
+                "--systems-file",
                 "suts.yaml",
                 "--manifests-dir",
                 "manifests/",
@@ -217,7 +219,9 @@ class TestMainCLI:
 
         assert result.exit_code == 0
         mock_validate.assert_called_once_with(
-            suite_path="suite.yaml", suts_path="suts.yaml", manifests_path="manifests/"
+            suite_path="suite.yaml",
+            systems_path="suts.yaml",
+            manifests_path="manifests/",
         )
         assert "✨ Success! The test plan is valid." in result.stdout
         assert (
@@ -238,7 +242,7 @@ class TestMainCLI:
                 "validate",
                 "--suite-file",
                 "suite.yaml",
-                "--suts-file",
+                "--systems-file",
                 "suts.yaml",
                 "--manifests-dir",
                 "manifests/",
@@ -262,7 +266,7 @@ class TestMainCLI:
                 "execute",
                 "--suite-file",
                 "suite.yaml",
-                "--suts-file",
+                "--systems-file",
                 "suts.yaml",
                 "--score-card-file",
                 "bad_score_card.yaml",
@@ -287,7 +291,7 @@ class TestMainCLI:
                 "execute-tests",
                 "--suite-file",
                 "suite.yaml",
-                "--suts-file",
+                "--systems-file",
                 "suts.yaml",
                 "--test-names",
                 "t1",
@@ -300,7 +304,7 @@ class TestMainCLI:
         mock_dbos.launch.assert_called_once()
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
-            suts_path="suts.yaml",
+            systems_path="suts.yaml",
             output_path="out.json",
             score_card_configs=None,
             execution_mode="tests_only",
@@ -327,7 +331,7 @@ class TestMainCLI:
                 "execute-tests",
                 "--suite-file",
                 "suite.yaml",
-                "--suts-file",
+                "--systems-file",
                 "suts.yaml",
                 "--test-names",
                 "tes1",
@@ -339,7 +343,7 @@ class TestMainCLI:
         assert result.exit_code != 0
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
-            suts_path="suts.yaml",
+            systems_path="suts.yaml",
             output_path="out.json",
             score_card_configs=None,
             execution_mode="tests_only",

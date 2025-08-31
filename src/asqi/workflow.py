@@ -732,7 +732,7 @@ def save_results_to_file_step(results: Dict[str, Any], output_path: str) -> None
 
 def start_test_execution(
     suite_path: str,
-    suts_path: str,
+    systems_path: str,
     executor_config: Dict[str, Any],
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
@@ -747,7 +747,7 @@ def start_test_execution(
 
     Args:
         suite_path: Path to test suite YAML file
-        suts_path: Path to SUTs YAML file
+        systems_path: Path to systems YAML file
         executor_config: Executor configuration dictionary. Expected keys:
             - "concurrent_tests": int, number of concurrent tests
             - "max_failures": int, max number of failures to display
@@ -765,12 +765,12 @@ def start_test_execution(
         FileNotFoundError: If configuration files don't exist
         PermissionError: If configuration files cannot be read
     """
-    validate_execution_inputs(suite_path, suts_path, execution_mode, output_path)
+    validate_execution_inputs(suite_path, systems_path, execution_mode, output_path)
 
     try:
         # Load configurations
         suite_config = merge_defaults_into_suite(load_config_file(suite_path))
-        suts_config = load_config_file(suts_path)
+        suts_config = load_config_file(systems_path)
 
         # if test_names provided, filter suite_config
         if test_names:

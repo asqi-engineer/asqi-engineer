@@ -74,7 +74,7 @@ def load_score_card_file(score_card_path: str) -> Dict[str, Any]:
 
 
 def load_and_validate_plan(
-    suite_path: str, suts_path: str, manifests_path: str
+    suite_path: str, systems_path: str, manifests_path: str
 ) -> Dict[str, Any]:
     """
     Performs all validation and returns a structured result.
@@ -86,7 +86,7 @@ def load_and_validate_plan(
     """
     errors: List[str] = []
     try:
-        suts_data = load_yaml_file(suts_path)
+        suts_data = load_yaml_file(systems_path)
         suts_config = SystemsConfig(**suts_data)
 
         suite_data = load_yaml_file(suite_path)
@@ -171,7 +171,7 @@ def _handle_shutdown(signum=None, frame=None):
 @app.command("validate", help="Validate test plan configuration without execution.")
 def validate(
     suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
-    suts_file: str = typer.Option(..., help="Path to the SUTs YAML file."),
+    systems_file: str = typer.Option(..., help="Path to the systems YAML file."),
     manifests_dir: str = typer.Option(
         ..., help="Path to dir with test container manifests."
     ),
@@ -181,7 +181,7 @@ def validate(
 
     result = load_and_validate_plan(
         suite_path=suite_file,
-        suts_path=suts_file,
+        systems_path=systems_file,
         manifests_path=manifests_dir,
     )
 
@@ -201,7 +201,7 @@ def validate(
 @app.command()
 def execute(
     suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
-    suts_file: str = typer.Option(..., help="Path to the SUTs YAML file."),
+    systems_file: str = typer.Option(..., help="Path to the systems YAML file."),
     concurrent_tests: int = typer.Option(
         ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
         "--concurrent-tests",
@@ -266,7 +266,7 @@ def execute(
 
         workflow_id = start_test_execution(
             suite_path=suite_file,
-            suts_path=suts_file,
+            systems_path=systems_file,
             output_path=output_file,
             score_card_configs=score_card_configs,
             execution_mode="end_to_end",
@@ -289,7 +289,7 @@ def execute(
 @app.command(name="execute-tests")
 def execute_tests(
     suite_file: str = typer.Option(..., help="Path to the test suite YAML file."),
-    suts_file: str = typer.Option(..., help="Path to the SUTs YAML file."),
+    systems_file: str = typer.Option(..., help="Path to the systems YAML file."),
     concurrent_tests: int = typer.Option(
         ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
         "--concurrent-tests",
@@ -344,7 +344,7 @@ def execute_tests(
 
         workflow_id = start_test_execution(
             suite_path=suite_file,
-            suts_path=suts_file,
+            systems_path=systems_file,
             output_path=output_file,
             score_card_configs=None,
             execution_mode="tests_only",
