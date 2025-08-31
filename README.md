@@ -313,7 +313,7 @@ asqi execute --test-suite-config config/suites/demo_suite.yaml --systems-config 
 
 ## License
 
-TODO
+[Apache 2.0](./license) © [Resaro]
 
 [Resaro]: https://resaro.ai/
 [DBOS]: https://github.com/dbos-inc/dbos-transact-py
