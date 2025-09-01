@@ -246,7 +246,7 @@ def execute(
     container_config_file: Optional[str] = typer.Option(
         None,
         "--container-config",
-        help="Optional path to container configuration YAML (default config file: config/docker_container.yaml).",
+        help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
     ),
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
@@ -328,11 +328,6 @@ def execute_tests(
         "-tn",
         help="Comma-separated list of test names to run (matches suite test names).",
     ),
-    container_config_file: Optional[str] = typer.Option(
-        None,
-        "--container-config",
-        help="Optional path to container configuration YAML (default config file: config/docker_container.yaml).",
-    ),
     concurrent_tests: int = typer.Option(
         ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
         "--concurrent-tests",
@@ -356,6 +351,11 @@ def execute_tests(
         min=1,
         max=10,
         help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
+    ),
+    container_config_file: Optional[str] = typer.Option(
+        None,
+        "--container-config",
+        help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
     ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
