@@ -1,17 +1,17 @@
 import copy
 import os
-import re
 from dataclasses import dataclass
 from typing import Any, ClassVar, Dict, Optional
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class ContainerConfig(BaseModel):
     """Configuration constants for container execution"""
 
     MANIFEST_PATH: ClassVar[str] = "/app/manifest.yaml"
+    TIMEOUT_SECONDS: ClassVar[int] = 300  # Maximum container execution time in seconds.
 
     # Defaults for docker run() kwargs
     DEFAULT_RUN_PARAMS: ClassVar[Dict[str, Any]] = {
@@ -23,12 +23,6 @@ class ContainerConfig(BaseModel):
         "cpu_quota": 200000,
     }
 
-    # Scalars
-    timeout_seconds: int = Field(
-        default=300,
-        description="Maximum container execution time in seconds (non-negative integer).",
-        ge=0,
-    )
     stream_logs: bool = Field(
         default=False,
         description="Whether to stream container logs during execution.",
@@ -47,61 +41,6 @@ class ContainerConfig(BaseModel):
         description="Docker run() parameters (merged with defaults).",
     )
 
-    # ---- run_params: validate values ----
-    @field_validator("run_params")
-    @classmethod
-    def _validate_run_params(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        # booleans
-        for k in ("detach", "remove"):
-            if k in v and not isinstance(v[k], bool):
-                raise TypeError(f"run_params.{k} must be a boolean")
-
-        # network_mode (allowed set or container:<name|id>)
-        if "network_mode" in v:
-            mode = v["network_mode"]
-            if not isinstance(mode, str):
-                raise TypeError("run_params.network_mode must be a string")
-            mode_l = mode.lower()
-            allowed = {"bridge", "host", "none", "default"}
-            if not (
-                mode_l in allowed or re.fullmatch(r"container:[A-Za-z0-9_.-]+", mode_l)
-            ):
-                raise ValueError(
-                    "run_params.network_mode must be one of "
-                    "'bridge', 'host', 'none', 'default', or 'container:<name|id>'"
-                )
-            v["network_mode"] = mode_l  # normalize
-
-        # strings
-        if "network_mode" in v and not isinstance(v["network_mode"], str):
-            raise TypeError("run_params.network_mode must be a string")
-        # mem_limit
-        if "mem_limit" in v:
-            s = str(v["mem_limit"])
-            if not re.fullmatch(r"\d+([kKmMgG]|[kK][bB]|[mM][bB]|[gG][bB])?", s):
-                raise ValueError(
-                    "run_params.mem_limit must look like '512m', '2g', or a raw number"
-                )
-        # cpu_period
-        if "cpu_period" in v:
-            try:
-                p = int(v["cpu_period"])
-            except Exception:
-                raise TypeError("run_params.cpu_period must be an integer")
-            if p <= 0:
-                raise ValueError("run_params.cpu_period must be > 0")
-            v["cpu_period"] = p
-        # cpu_quota
-        if "cpu_quota" in v:
-            try:
-                q = int(v["cpu_quota"])
-            except Exception:
-                raise TypeError("run_params.cpu_quota must be an integer")
-            if not (q == -1 or q >= 0):
-                raise ValueError("run_params.cpu_quota must be -1 (no limit) or >= 0")
-            v["cpu_quota"] = q
-        return v
-
     # ---------- Loaders ----------
     @classmethod
     def load_from_yaml(cls, path: str) -> "ContainerConfig":
@@ -119,7 +58,6 @@ class ContainerConfig(BaseModel):
             merged_run_params.update(yaml_run_params)
 
         return cls(
-            timeout_seconds=data.get("timeout", 300),
             stream_logs=data.get("stream_logs", False),
             cleanup_on_finish=data.get("cleanup_on_finish", True),
             cleanup_force=data.get("cleanup_force", True),

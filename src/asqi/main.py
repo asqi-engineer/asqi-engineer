@@ -208,10 +208,10 @@ def execute(
     output_file: Optional[str] = typer.Option(
         None, help="Path to save execution results JSON file."
     ),
-    container_config_file: str = typer.Option(
-        "config/docker/container.yaml",
+    container_config_file: Optional[str] = typer.Option(
+        None,
         "--container-config",
-        help="Optional path to container configuration YAML (default: config/docker/container.yaml).",
+        help="Optional path to container configuration YAML (default config file: config/docker_container.yaml).",
     ),
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
@@ -221,7 +221,10 @@ def execute(
         from asqi.workflow import DBOS, start_test_execution
 
         # Load container configuration
-        container_config = ContainerConfig.load_from_yaml(container_config_file)
+        if container_config_file is not None:
+            container_config = ContainerConfig.load_from_yaml(container_config_file)
+        else:
+            container_config = ContainerConfig()
 
         # Launch DBOS if not already launched
         try:
@@ -275,10 +278,10 @@ def execute_tests(
         "--test-names",
         help="Comma-separated list of test names to run (matches suite test names).",
     ),
-    container_config_file: str = typer.Option(
-        "config/docker/container.yaml",
+    container_config_file: Optional[str] = typer.Option(
+        None,
         "--container-config",
-        help="Optional path to container configuration YAML (default: config/docker/container.yaml).",
+        help="Optional path to container configuration YAML (default config file: config/docker_container.yaml).",
     ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
@@ -288,7 +291,10 @@ def execute_tests(
         from asqi.workflow import DBOS, start_test_execution
 
         # Load container configuration
-        container_config = ContainerConfig.load_from_yaml(container_config_file)
+        if container_config_file is not None:
+            container_config = ContainerConfig.load_from_yaml(container_config_file)
+        else:
+            container_config = ContainerConfig()
 
         # Launch DBOS if not already launched
         try:
