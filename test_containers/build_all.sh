@@ -13,7 +13,7 @@ set -eu -o pipefail
 #   scripts/build_test_containers.sh -t v0.1.0            # builds my-user/my-project:<name>-v0.1.0
 #   scripts/build_test_containers.sh -r myrepo/one -t v1  # builds myrepo/one:<name>-v1
 
-REPO="my-user/my-project"
+REPO="asqiengineer/test-container"
 TAG="latest"
 
 print_help() {
