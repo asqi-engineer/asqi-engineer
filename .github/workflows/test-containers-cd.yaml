@@ -1,0 +1,20 @@
+name: Test Container Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'test_containers/*/*'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+   build-publish-test-containers:
+      needs: []
+      uses: ./.github/workflows/test-containers-publish.yaml
+      permissions:
+        packages: write
+        id-token: write
+        contents: read
+        attestations: write
+      secrets: inherit
