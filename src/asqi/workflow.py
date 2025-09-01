@@ -20,7 +20,7 @@ from asqi.container_manager import (
     check_images_availability,
     extract_manifest_from_image,
     run_container_with_args,
-    pull_images,
+    pull_images, MissingImageException,
 )
 from asqi.output import (
     create_test_execution_progress,
@@ -441,16 +441,23 @@ def run_test_suite_workflow(
         with console.status(
             "[bold blue]Pulling missing images from registry...", spinner="dots"
         ):
-            pull_results = dbos_pull_images()
-            missing_images = [
-                img for img, success in pull_results.items() if not success
-            ]
+            pull_results = dbos_pull_images(missing_images)
+            # Merge pull results into availability map
+            for img, pulled in pull_results.items():
+                image_availability[img] = bool(pulled)
+            missing_images = [img for img, success in pull_results.items() if not success]
+            # If any are missing, compose a helpful message using a fresh client context
+            if missing_images:
+                msgs = []
+                for image in missing_images:
+                    msg = f"❌ Container not found: {image}\nNo similar images found."
+                    msgs.append(msg)
 
-    # Extract manifests from available images
+                raise MissingImageException("\n\n".join(msgs))
+
+    # Extract manifests from available images (post-pull)
     manifests = {}
-    available_images = [
-        img for img, available in image_availability.items() if available
-    ]
+    available_images = [img for img, available in image_availability.items() if available]
 
     if available_images:
         with console.status("[bold blue]Extracting manifests...", spinner="dots"):

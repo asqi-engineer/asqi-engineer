@@ -64,7 +64,6 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
     and raises MissingImageException with recommendations.
     """
     availability: Dict[str, bool] = {}
-    missing: List[str] = []
 
     # First pass: check availability
     with docker_client() as client:
@@ -74,39 +73,11 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
                 availability[image] = True
             except docker_errors.ImageNotFound:
                 availability[image] = False
-                missing.append(image)
             except docker_errors.APIError as e:
                 logger.warning(f"Docker API error checking {image}: {e}")
                 availability[image] = False
             except ConnectionError as e:
                 raise ConnectionError(f"Failed to connect to Docker daemon: {e}")
-
-    # If any are missing, compose a helpful message using a fresh client context
-    if missing:
-        local_tags: List[str] = []
-        try:
-            with docker_client() as client:
-                local_images = client.images.list()
-                local_tags = [tag for img in local_images for tag in img.tags]
-        except docker_errors.APIError as e:
-            logger.warning(f"Failed to list local Docker images: {e}")
-
-        msgs = []
-        for image in missing:
-            repo = image.rsplit(":", 1)[0] if ":" in image else image
-            repo_tags = [tag for tag in local_tags if tag.startswith(repo + ":")]
-
-            suggestion = get_close_matches(image, local_tags, n=1)
-
-            if repo_tags:  # different tags
-                msg = f"❌ Container not found: {image}\nDid you mean: {repo_tags[0]}"
-            elif suggestion:  # similar names
-                msg = f"❌ Container not found: {image}\nDid you mean: {suggestion[0]}"
-            else:
-                msg = f"❌ Container not found: {image}\nNo similar images found."
-            msgs.append(msg)
-
-        raise MissingImageException("\n\n".join(msgs))
 
     return availability
 
