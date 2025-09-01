@@ -1,6 +1,6 @@
 [project]
 name = "asqi-engineer"
-version = "0.1.0"
+dynamic = ["version"]
 description = "ASQI quality checks for AI systems"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -49,6 +49,9 @@ packages = ["src/asqi"]
 
 [tool.hatch.build.hooks.custom]
 path = "scripts/build_hooks.py"
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.uv]
 package = true
