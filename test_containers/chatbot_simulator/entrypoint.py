@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 from typing import Any, Dict
 
+from openevals.types import ChatCompletionMessage
 from simulation import (
     ConversationTestAnalyzer,
     PersonaBasedConversationTester,
@@ -18,12 +19,12 @@ def create_model_callback(sut_params: Dict[str, Any]):
     client = setup_client(**sut_params)
     model = sut_params.get("model", "gpt-4o-mini")
 
-    async def model_callback(input_text: str) -> str:
+    async def model_callback(messages: list[ChatCompletionMessage]) -> str:
         """Model callback that implements the chatbot logic"""
         try:
             response = await client.chat.completions.create(
                 model=model,
-                messages=[{"role": "user", "content": input_text}],
+                messages=messages,
             )
             return response.choices[0].message.content or ""
         except Exception as e:

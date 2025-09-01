@@ -113,18 +113,19 @@ class PersonaBasedConversationTester:
     def create_app(self):
         """Create OpenEvals-compatible app function"""
 
-        async def app(inputs: ChatCompletionMessage, thread_id: str = None, **kwargs):
-            content = inputs["content"]
-            if not isinstance(content, str):
-                raise TypeError("Message content must be a string")
-            response_content = await self.model_callback(content)
+        async def app(input: ChatCompletionMessage, thread_id: str = None, **kwargs):
+            if thread_id not in self.history:
+                self.history[thread_id] = []
+            self.history[thread_id].append(input)
+
+            response_content = await self.model_callback(self.history[thread_id])
 
             # Create response message
             response_message: ChatCompletionMessage = {
                 "role": "assistant",
                 "content": response_content,
             }
-
+            self.history[thread_id].append(response_message)
             return response_message
 
         return app
