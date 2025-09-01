@@ -1,7 +1,6 @@
 
 # this is configuration for docker containers
 
-timeout : 300 # Container execution timeout in seconds
 stream_logs : true # Whether to stream container logs in real-time
 
 cleanup_on_finish: true # Whether to force-remove containers on shutdown
