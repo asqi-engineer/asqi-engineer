@@ -1,0 +1,17 @@
+
+# this is configuration for docker containers
+
+timeout_seconds : 300 # Container execution timeout in seconds
+stream_logs : true # Whether to stream container logs in real-time
+
+cleanup_on_finish: true # Whether to force-remove containers on shutdown
+cleanup_force: true # Whether to force-remove containers during cleanup
+
+run_params: # Container run configuration (see: https://docker-py.readthedocs.io/en/stable/containers.html)
+  detach: true
+  remove: false
+  network_mode: "host" # Docker network mode (default: "host")
+  mem_limit: "2g" # Memory limit for container
+  cpu_period: 100000 # CPU period for container
+  cpu_quota: 200000 # CPU quota for container
+  # If you want, you can add more options here based on reference

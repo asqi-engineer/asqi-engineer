@@ -147,6 +147,7 @@ def execute_single_test(
     sut_name: str,
     systems_params: Dict[str, Any],
     test_params: Dict[str, Any],
+    container_config: ContainerConfig,
 ) -> TestExecutionResult:
     """Execute a single test in a Docker container.
 
@@ -159,6 +160,7 @@ def execute_single_test(
         sut_name: Name of the system under test (pre-validated)
         systems_params: Dictionary containing system_under_test and other systems (pre-validated)
         test_params: Parameters for the test (pre-validated)
+        container_config: Container execution configurations
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -255,12 +257,8 @@ def execute_single_test(
     container_result = run_container_with_args(
         image=image,
         args=command_args,
-        timeout_seconds=ContainerConfig.TIMEOUT_SECONDS,
-        memory_limit=ContainerConfig.MEMORY_LIMIT,
-        cpu_quota=ContainerConfig.CPU_QUOTA,
-        cpu_period=ContainerConfig.CPU_PERIOD,
         environment=container_env,
-        stream_logs=True,
+        container_config=container_config,
     )
 
     result.end_time = time.time()
@@ -358,6 +356,7 @@ def run_test_suite_workflow(
     suite_config: Dict[str, Any],
     systems_config: Dict[str, Any],
     executor_config: Dict[str, Any],
+    container_config: ContainerConfig,
 ) -> Dict[str, Any]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
@@ -372,6 +371,7 @@ def run_test_suite_workflow(
         suite_config: Serialized SuiteConfig containing test definitions
         systems_config: Serialized SystemsConfig containing system configurations
         executor_config: Execution parameters controlling concurrency and reporting
+        container_config: Container execution configurations
 
     Returns:
         Execution summary with metadata and individual test results (no score cards)
@@ -513,6 +513,7 @@ def run_test_suite_workflow(
                     test_plan["sut_name"],
                     test_plan["systems_params"],
                     test_plan["test_params"],
+                    container_config,
                 )
                 test_handles.append(handle)
 
@@ -543,6 +544,7 @@ def run_test_suite_workflow(
                 test_plan["sut_name"],
                 test_plan["systems_params"],
                 test_plan["test_params"],
+                container_config,
             )
             test_handles.append(handle)
 
@@ -695,6 +697,7 @@ def run_end_to_end_workflow(
     systems_config: Dict[str, Any],
     score_card_configs: List[Dict[str, Any]],
     executor_config: Dict[str, Any],
+    container_config: ContainerConfig,
 ) -> Dict[str, Any]:
     """
     Execute a complete end-to-end workflow: test execution + score card evaluation.
@@ -704,13 +707,13 @@ def run_end_to_end_workflow(
         systems_config: Serialized SystemsConfig containing system configurations
         score_card_configs: List of score card configurations to evaluate
         executor_config: Execution parameters controlling concurrency and reporting
+        container_config: Container execution configurations
 
     Returns:
         Complete execution results with test results and score card evaluations
     """
-
     test_results = run_test_suite_workflow(
-        suite_config, systems_config, executor_config
+        suite_config, systems_config, executor_config, container_config
     )
     final_results = evaluate_score_cards_workflow(test_results, score_card_configs)
 
@@ -736,6 +739,7 @@ def start_test_execution(
     suite_path: str,
     systems_path: str,
     executor_config: Dict[str, Any],
+    container_config: ContainerConfig,
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
     execution_mode: str = "end_to_end",
@@ -754,6 +758,7 @@ def start_test_execution(
             - "concurrent_tests": int, number of concurrent tests
             - "max_failures": int, max number of failures to display
             - "progress_interval": int, interval for progress updates
+        container_config: Container execution configurations
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
         execution_mode: "tests_only" or "end_to_end"
@@ -817,7 +822,11 @@ def start_test_execution(
         # Start appropriate workflow based on execution mode
         if execution_mode == "tests_only":
             handle = DBOS.start_workflow(
-                run_test_suite_workflow, suite_config, systems_config, executor_config
+                run_test_suite_workflow,
+                suite_config,
+                systems_config,
+                executor_config,
+                container_config,
             )
         elif execution_mode == "end_to_end":
             if not score_card_configs:
@@ -827,6 +836,7 @@ def start_test_execution(
                     suite_config,
                     systems_config,
                     executor_config,
+                    container_config,
                 )
             else:
                 handle = DBOS.start_workflow(
@@ -835,6 +845,7 @@ def start_test_execution(
                     systems_config,
                     score_card_configs,
                     executor_config,
+                    container_config,
                 )
         else:
             raise ValueError(f"Invalid execution mode: {execution_mode}")

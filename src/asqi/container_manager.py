@@ -12,6 +12,7 @@ import yaml
 from docker import errors as docker_errors
 from docker.types import Mount
 
+from asqi.config import ContainerConfig
 from asqi.logging_config import create_container_logger
 from asqi.schemas import Manifest
 
@@ -392,13 +393,8 @@ def _extract_mounts_from_args(
 def run_container_with_args(
     image: str,
     args: List[str],
-    timeout_seconds: int = 300,
-    memory_limit: str = "512m",
-    cpu_quota: int = 50000,
-    cpu_period: int = 100000,
+    container_config: ContainerConfig,
     environment: Optional[Dict[str, str]] = None,
-    stream_logs: bool = False,
-    network: str = "host",
 ) -> Dict[str, Any]:
     """
     Run a Docker container with specified arguments and return results.
@@ -406,13 +402,8 @@ def run_container_with_args(
     Args:
         image: Docker image to run
         args: Command line arguments to pass to container
-        timeout_seconds: Container execution timeout
-        memory_limit: Memory limit for container
-        cpu_quota: CPU quota for container
-        cpu_period: CPU period for container
+        container_config: Container execution configurations
         environment: Optional dictionary of environment variables to pass to container
-        stream_logs: If True, stream logs in real-time
-        network: Docker network mode (default: "host")
 
     Returns:
         Dictionary with execution results including exit_code, output, success, etc.
@@ -447,14 +438,9 @@ def run_container_with_args(
             container = client.containers.run(
                 image,
                 command=args,
-                detach=True,
-                remove=False,
-                network_mode=network,
-                mem_limit=memory_limit,
-                cpu_period=cpu_period,
-                cpu_quota=cpu_quota,
                 environment=environment or {},
                 mounts=mounts,
+                **container_config.run_params,
             )
 
             with _active_lock:
@@ -462,7 +448,7 @@ def run_container_with_args(
 
             result["container_id"] = container.id or ""
             output_lines = []
-            if stream_logs:
+            if container_config.stream_logs:
                 try:
                     for log_line in container.logs(stream=True, follow=True):
                         line = log_line.decode("utf-8", errors="replace").rstrip()
@@ -474,7 +460,7 @@ def run_container_with_args(
 
             # Wait for completion
             try:
-                exit_status = container.wait(timeout=timeout_seconds)
+                exit_status = container.wait(timeout=container_config.timeout_seconds)
                 result["exit_code"] = exit_status["StatusCode"]
             except docker_errors.APIError as api_error:
                 try:
@@ -491,6 +477,7 @@ def run_container_with_args(
                 if output_lines:
                     result["output"] = "\n".join(output_lines)
                 else:
+                    logger.error(f"container.logs() : {container.logs()}")
                     result["output"] = container.logs().decode(
                         "utf-8", errors="replace"
                     )
@@ -508,14 +495,14 @@ def run_container_with_args(
             result["error"] = f"Docker API error running image '{image}': {e}"
         except TimeoutError as e:
             result["error"] = (
-                f"Container execution timed out after {timeout_seconds}s for image '{image}': {e}"
+                f"Container execution timed out after {container_config.timeout_seconds}s for image '{image}': {e}"
             )
         except ConnectionError as e:
             raise ConnectionError(
                 f"Failed to connect to Docker daemon while running image '{image}': {e}"
             )
         finally:
-            _decommission_container(container)
+            _decommission_container(container, container_config)
     return result
 
 
@@ -542,19 +529,34 @@ def shutdown_containers() -> None:
                 pass
 
 
-def _decommission_container(container):
+def _decommission_container(
+    container,
+    container_config: Optional[ContainerConfig] = None,
+) -> None:
     if not container:
         return
 
+    # Try graceful stop first
     try:
-        # try to stop gracefully first
         container.stop(timeout=1)
     except (docker_errors.APIError, docker_errors.NotFound) as e:
         logger.debug(f"Failed to gracefully stop container: {e}")
-    try:
-        container.remove(force=True)
-    except (docker_errors.APIError, docker_errors.NotFound) as e:
-        logger.warning(f"Failed to remove container during cleanup: {e}")
-    # and remove from active containers
+
+    if container_config is not None:
+        # Respect config only when provided
+        auto_remove = bool(container_config.run_params.get("remove", False))
+        if container_config.cleanup_on_finish and not auto_remove:
+            try:
+                container.remove(force=bool(container_config.cleanup_force))
+            except (docker_errors.APIError, docker_errors.NotFound) as e:
+                logger.warning(f"Failed to remove container during cleanup: {e}")
+    else:
+        # Legacy fallback: always force-remove
+        try:
+            container.remove(force=True)
+        except (docker_errors.APIError, docker_errors.NotFound) as e:
+            logger.warning(f"Failed to remove container during cleanup: {e}")
+
+    # Remove from active set
     with _active_lock:
         _active_containers.discard(container.id)

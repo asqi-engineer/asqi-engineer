@@ -1,19 +1,114 @@
 import copy
+import os
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, ClassVar, Dict, Optional
 
 import yaml
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class ContainerConfig:
-    """Configuration constants for container execution."""
+class ContainerConfig(BaseModel):
+    """Configuration constants for container execution"""
 
-    TIMEOUT_SECONDS: int = 300
-    MEMORY_LIMIT: str = "2g"
-    CPU_QUOTA: int = 200000
-    CPU_PERIOD: int = 100000
-    MANIFEST_PATH: str = "/app/manifest.yaml"
+    MANIFEST_PATH: ClassVar[str] = "/app/manifest.yaml"
+
+    # Defaults for docker run() kwargs
+    DEFAULT_RUN_PARAMS: ClassVar[Dict[str, Any]] = {
+        "detach": True,
+        "remove": False,
+        "network_mode": "host",
+        "mem_limit": "2g",
+        "cpu_period": 100000,
+        "cpu_quota": 200000,
+    }
+
+    timeout_seconds: int = Field(
+        default=300, description="Maximum container execution time in seconds."
+    )
+
+    stream_logs: bool = Field(
+        default=False,
+        description="Whether to stream container logs during execution.",
+    )
+    cleanup_on_finish: bool = Field(
+        default=True,
+        description="Whether to cleanup containers on finish.",
+    )
+    cleanup_force: bool = Field(
+        default=True,
+        description="Force cleanup even if graceful stop fails.",
+    )
+
+    run_params: Dict[str, Any] = Field(
+        default_factory=lambda: dict(ContainerConfig.DEFAULT_RUN_PARAMS),
+        description="Docker run() parameters (merged with defaults).",
+    )
+
+    # ---------- Loaders ----------
+    @classmethod
+    def load_from_yaml(cls, path: str) -> "ContainerConfig":
+        """Create a NEW instance from YAML (MANIFEST_PATH stays constant)."""
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Container config file not found: {path}")
+
+        with open(path, "r") as f:
+            data = yaml.safe_load(f) or {}
+
+        # Merge YAML run_params over defaults; if absent, use defaults
+        merged_run_params = dict(cls.DEFAULT_RUN_PARAMS)
+        yaml_run_params = data.get("run_params")
+        if isinstance(yaml_run_params, dict):
+            merged_run_params.update(yaml_run_params)
+
+        return cls(
+            timeout_seconds=data.get("timeout_seconds", 300),
+            stream_logs=data.get("stream_logs", False),
+            cleanup_on_finish=data.get("cleanup_on_finish", True),
+            cleanup_force=data.get("cleanup_force", True),
+            run_params=merged_run_params,
+        )
+
+    @classmethod
+    def with_streaming(cls, enabled: bool) -> "ContainerConfig":
+        """
+        Create a new config using all default values,
+        but override `stream_logs` with the given bool.
+        """
+        return cls(stream_logs=bool(enabled))
+
+    @classmethod
+    def from_run_params(
+        cls,
+        *,
+        detach: Optional[bool] = None,
+        remove: Optional[bool] = None,
+        network_mode: Optional[str] = None,
+        mem_limit: Optional[str] = None,
+        cpu_period: Optional[int] = None,
+        cpu_quota: Optional[int] = None,
+        **extra: Any,
+    ) -> "ContainerConfig":
+        """
+        Create a new config with default scalars and default run_params,
+        overriding only the provided run_params arguments.
+        Extra docker kwargs can be passed via **extra.
+        """
+        params: Dict[str, Any] = dict(cls.DEFAULT_RUN_PARAMS)
+        overrides = {
+            k: v
+            for k, v in {
+                "detach": detach,
+                "remove": remove,
+                "network_mode": network_mode,
+                "mem_limit": mem_limit,
+                "cpu_period": cpu_period,
+                "cpu_quota": cpu_quota,
+            }.items()
+            if v is not None
+        }
+        params.update(overrides)
+        params.update(extra)  # allow additional docker kwargs
+        return cls(run_params=params)
 
 
 @dataclass

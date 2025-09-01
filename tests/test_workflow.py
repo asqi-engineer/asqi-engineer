@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from asqi.config import ExecutorConfig
+from asqi.config import ContainerConfig, ExecutorConfig
 from asqi.schemas import Manifest, SystemInput
 from asqi.workflow import (
     TestExecutionResult,
@@ -21,10 +21,12 @@ from asqi.workflow import (
 )
 
 
-def _call_inner_workflow(suite_config, systems_config, executor_config):
+def _call_inner_workflow(
+    suite_config, systems_config, executor_config, container_config
+):
     """Call the inner (undecorated) workflow function if available."""
     workflow_fn = getattr(_workflow, "__wrapped__", _workflow)
-    return workflow_fn(suite_config, systems_config, executor_config)
+    return workflow_fn(suite_config, systems_config, executor_config, container_config)
 
 
 class DummyHandle:
@@ -64,6 +66,8 @@ def test_run_test_suite_workflow_success():
     systems_config = {
         "systems": {"systemA": {"type": "llm_api", "params": {"endpoint": "http://x"}}}
     }
+
+    container_config: ContainerConfig = ContainerConfig()
 
     # Build a minimal manifest that supports the system type
     manifest = Manifest(
@@ -121,6 +125,7 @@ def test_run_test_suite_workflow_success():
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
+            container_config,
         )
 
     assert out["summary"]["status"] == "COMPLETED"
@@ -146,6 +151,8 @@ def test_run_test_suite_workflow_validation_failure():
 
     systems_config = {"systems": {"systemA": {"type": "llm_api", "params": {}}}}
 
+    container_config: ContainerConfig = ContainerConfig()
+
     with (
         patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
         patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
@@ -165,6 +172,7 @@ def test_run_test_suite_workflow_validation_failure():
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
+            container_config,
         )
 
     assert out["summary"]["status"] == "VALIDATION_FAILED"
@@ -192,6 +200,7 @@ def test_execute_single_test_success():
             sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={"p": "v"},
+            container_config=ContainerConfig(),
         )
 
     assert result.success is True
@@ -229,6 +238,7 @@ def test_execute_single_test_container_failure():
             sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
+            container_config=ContainerConfig(),
         )
 
     assert result.success is False
@@ -254,6 +264,7 @@ def test_execute_single_test_invalid_json():
             sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
+            container_config=ContainerConfig(),
         )
 
     assert result.success is False
@@ -411,13 +422,7 @@ def test_run_end_to_end_workflow():
     suite_config = {"suite_name": "test"}
     systems_config = {"systems_under_test": {}}
     score_card_configs = [{"score_card_name": "test"}]
-    executor_config = (
-        {
-            "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
-            "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
-            "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
-        },
-    )
+    container_config: ContainerConfig = ContainerConfig()
 
     test_results = {"summary": {"status": "COMPLETED"}, "results": []}
     final_results = {
@@ -437,11 +442,26 @@ def test_run_end_to_end_workflow():
             run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow
         )
         result = inner_workflow(
-            suite_config, systems_config, score_card_configs, executor_config
+            suite_config,
+            systems_config,
+            score_card_configs,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            container_config,
         )
 
         mock_test_workflow.assert_called_once_with(
-            suite_config, systems_config, executor_config
+            suite_config,
+            systems_config,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            container_config,
         )
         mock_score_workflow.assert_called_once_with(test_results, score_card_configs)
         assert result == final_results
@@ -459,18 +479,15 @@ def test_start_test_execution_tests_only_mode():
         mock_load.return_value = {"test": "config"}
         mock_start.return_value = mock_handle
 
-        executor_config = (
+        workflow_id = start_test_execution(
+            "suite.yaml",
+            "systems.yaml",
             {
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
-        )
-
-        workflow_id = start_test_execution(
-            "suite.yaml",
-            "systems.yaml",
-            executor_config,
+            ContainerConfig(),
             "output.json",
             None,
             "tests_only",
@@ -496,18 +513,15 @@ def test_start_test_execution_end_to_end_mode():
         mock_load.return_value = {"test": "config"}
         mock_start.return_value = mock_handle
 
-        executor_config = (
+        workflow_id = start_test_execution(
+            "suite.yaml",
+            "systems.yaml",
             {
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
-        )
-
-        workflow_id = start_test_execution(
-            "suite.yaml",
-            "systems.yaml",
-            executor_config,
+            ContainerConfig(),
             "output.json",
             score_card_configs,
             "end_to_end",

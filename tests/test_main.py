@@ -6,7 +6,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from asqi.config import ExecutorConfig
+from asqi.config import ContainerConfig, ExecutorConfig
 from asqi.main import app, load_score_card_file, load_yaml_file
 
 
@@ -101,6 +101,7 @@ class TestMainCLI:
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
+            container_config=ContainerConfig.with_streaming(False),
         )
         assert "✨ Test execution completed! Workflow ID: workflow-123" in result.stdout
 
@@ -140,6 +141,7 @@ class TestMainCLI:
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
+            container_config=ContainerConfig.with_streaming(False),
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
         assert "✨ Execution completed! Workflow ID: workflow-456" in result.stdout
@@ -295,6 +297,7 @@ class TestMainCLI:
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
+            container_config=ContainerConfig.with_streaming(False),
         )
         assert "✨ Test execution completed! Workflow ID: workflow-888" in result.stdout
 
@@ -334,6 +337,7 @@ class TestMainCLI:
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
+            container_config=ContainerConfig.with_streaming(False),
         )
 
         mock_dbos.start_workflow.assert_not_called()
@@ -446,8 +450,9 @@ class TestShutdownHandlers:
     @patch("asqi.main.shutdown_containers")
     def test_handle_shutdown_with_signal(self, mock_shutdown):
         """Test shutdown handler with signal."""
-        from asqi.main import _handle_shutdown
         import signal
+
+        from asqi.main import _handle_shutdown
 
         _handle_shutdown(signal.SIGINT, None)
         mock_shutdown.assert_called_once()

@@ -9,7 +9,7 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
-from asqi.config import ExecutorConfig
+from asqi.config import ContainerConfig, ExecutorConfig
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
@@ -243,6 +243,11 @@ def execute(
         max=10,
         help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
     ),
+    container_config_file: Optional[str] = typer.Option(
+        None,
+        "--container-config",
+        help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
+    ),
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
     console.print("[blue]--- 🚀 Executing End-to-End Workflow ---[/blue]")
@@ -250,6 +255,11 @@ def execute(
     try:
         from asqi.workflow import DBOS, start_test_execution
 
+        # Load container configuration
+        if container_config_file is not None:
+            container_config = ContainerConfig.load_from_yaml(container_config_file)
+        else:
+            container_config = ContainerConfig()
         # Update ExecutorConfig from CLI args
         executor_config = {
             "concurrent_tests": concurrent_tests,
@@ -282,6 +292,7 @@ def execute(
             score_card_configs=score_card_configs,
             execution_mode="end_to_end",
             executor_config=executor_config,
+            container_config=container_config,
         )
 
         console.print(
@@ -341,12 +352,23 @@ def execute_tests(
         max=10,
         help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
     ),
+    container_config_file: Optional[str] = typer.Option(
+        None,
+        "--container-config",
+        help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
+    ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
 
     try:
         from asqi.workflow import DBOS, start_test_execution
+
+        # Load container configuration
+        if container_config_file is not None:
+            container_config = ContainerConfig.load_from_yaml(container_config_file)
+        else:
+            container_config = ContainerConfig()
 
         # Update ExecutorConfig from CLI args
         executor_config = {
@@ -369,6 +391,7 @@ def execute_tests(
             execution_mode="tests_only",
             test_names=test_names,
             executor_config=executor_config,
+            container_config=container_config,
         )
 
         console.print(

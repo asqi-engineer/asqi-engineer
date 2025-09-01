@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
+from asqi.config import ContainerConfig
 from asqi.schemas import SuiteConfig, SystemDefinition, SystemsConfig, TestDefinition
 from asqi.validation import create_test_execution_plan
 from asqi.workflow import execute_single_test
@@ -90,6 +91,8 @@ class TestEnvironmentVariables:
             "container_id": "test_container_123",
         }
 
+        container_config: ContainerConfig = ContainerConfig()
+
         # Execute the test
         _result = execute_single_test(
             test_name="test_env_vars",
@@ -97,6 +100,7 @@ class TestEnvironmentVariables:
             sut_name="test_system",
             systems_params={"system_under_test": sample_system_params},
             test_params={"generations": 1},
+            container_config=container_config,
         )
 
         # Verify run_container_with_args was called with environment variables from .env
@@ -132,6 +136,8 @@ class TestEnvironmentVariables:
             "container_id": "test_container_456",
         }
 
+        container_config: ContainerConfig = ContainerConfig()
+
         # Execute the test
         _result = execute_single_test(
             test_name="test_specific_env_var",
@@ -139,6 +145,7 @@ class TestEnvironmentVariables:
             sut_name="openai_system",
             systems_params={"system_under_test": system_params},
             test_params={"generations": 2},
+            container_config=container_config,
         )
 
         # Verify only the specified environment variable is passed
