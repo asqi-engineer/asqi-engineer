@@ -74,7 +74,7 @@ def setup_langchain_client(**system_params) -> ChatOpenAI:
 class PersonaBasedConversationTester:
     def __init__(
         self,
-        model_callback: Callable[[str], Awaitable[str]],
+        model_callback: Callable[[list[ChatCompletionMessage]], Awaitable[str]],
         chatbot_purpose: str,
         simulator_client_params: Dict[str, Any],
         evaluator_client_params: Dict[str, Any],
