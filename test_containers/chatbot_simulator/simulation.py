@@ -20,6 +20,7 @@ from rich.table import Table
 from rich.text import Text
 
 from evaluator import ConversationEvaluator
+from prompt_loader import load_prompt
 
 ConversationalTestCase = Dict[str, Any]
 
@@ -132,9 +133,11 @@ class PersonaBasedConversationTester:
 
     async def _generate_persona_description(self, persona_name: str) -> Dict[str, Any]:
         """Generate a simple persona description using LLM"""
-        prompt = f"""Create a brief customer persona description for "{persona_name}" who would interact with a chatbot for {self.chatbot_purpose}.
-
-Provide a 2-3 sentence description of this persona's characteristics, communication style, and how they typically interact with customer service. Focus on their behavior and approach to asking questions."""
+        prompt = load_prompt(
+            "generate_persona_description",
+            persona_name=persona_name,
+            chatbot_purpose=self.chatbot_purpose,
+        )
 
         response = await self.simulator_client.chat.completions.create(
             model=self.simulator_client_params.get("model", "gpt-4o-mini"),
@@ -224,18 +227,11 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
         self, personas: List[Dict[str, Any]], num_scenarios: int = 10
     ) -> List[Dict[str, Any]]:
         """Generate conversation scenarios using LLM based on chatbot purpose"""
-        prompt = f"""Generate {num_scenarios} diverse conversation scenarios for a chatbot with this purpose: {self.chatbot_purpose}
-
-For each scenario, provide:
-1. A brief description of what the user wants to accomplish
-2. The type of interaction (e.g., product_inquiry, support_request, comparison, troubleshooting)
-3. A realistic expected outcome
-
-Format each scenario as:
-Scenario X: [user intent description]
-Expected outcome: [what should happen]
-
-Make the scenarios realistic and diverse, covering different use cases for this chatbot."""
+        prompt = load_prompt(
+            "generate_conversation_scenarios",
+            chatbot_purpose=self.chatbot_purpose,
+            num_scenarios=num_scenarios,
+        )
 
         response = await self.simulator_client.chat.completions.create(
             model=self.simulator_client_params.get("model", "gpt-4o-mini"),
@@ -292,18 +288,13 @@ Make the scenarios realistic and diverse, covering different use cases for this 
             persona = scenario_data["persona"]
 
             # Create user system prompt combining scenario and persona
-            base_prompt = f"You are engaging with a customer service chatbot for {self.chatbot_purpose}. "
-            base_prompt += f"Your scenario: {scenario_data['scenario']}. "
-            base_prompt += f"Your persona: {persona['description']} "
-
-            # Add sycophancy behavior based on level
-            sycophancy_level = persona.get("sycophancy_level", "low")
-            if sycophancy_level == "high":
-                base_prompt += (
-                    "You often mention your authority and expect special treatment. "
-                )
-
-            base_prompt += "Stay in character throughout the conversation."
+            base_prompt = load_prompt(
+                "user_base_prompt",
+                chatbot_purpose=self.chatbot_purpose,
+                scenario=scenario_data["scenario"],
+                persona_description=persona["description"],
+                sycophancy_level=persona.get("sycophancy_level", "low"),
+            )
 
             user = create_async_llm_simulated_user(
                 system=base_prompt,
