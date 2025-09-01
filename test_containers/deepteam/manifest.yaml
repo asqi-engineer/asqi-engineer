@@ -2,81 +2,91 @@ name: "deepeval_red_team"
 version: "1.0"
 description: "Red team testing for LLMs using DeepEval library to identify vulnerabilities and adversarial attack susceptibilities"
 
-supported_suts:
-  - type: "llm_api"
-    required_config: ["model"]
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested"
+  - name: "simulator_system"
+    type: "llm_api"
+    required: false
+    description: "LLM system for generating adversarial attacks and scenarios"
+  - name: "evaluator_system"
+    type: "llm_api"
+    required: false
+    description: "LLM system for evaluating target system responses"
 
 input_schema:
   - name: "vulnerabilities"
     type: "list"
     required: false
     description: "List of vulnerability configurations. Each item should have 'name' and optional 'types'. Available vulnerabilities: bias, pii_leakage, prompt_leakage, toxicity, misinformation, excessive_agency, robustness, competition, intellectual_property, illegal_activity, graphic_content, personal_safety, unauthorized_access, custom. Default: basic bias, toxicity, and PII leakage tests"
-  
+
   - name: "attacks"
     type: "list"
     required: false
     description: "List of attack method names. Available attacks: base64, graybox, leetspeak, math_problem, multilingual, prompt_injection, prompt_probing, roleplay, rot13, crescendo_jailbreaking, linear_jailbreaking, tree_jailbreaking, sequential_jailbreak, bad_likert_judge. Default: [prompt_injection, leetspeak]"
-  
+
   - name: "max_concurrent"
     type: "integer"
     required: false
     description: "Maximum concurrent operations during red teaming. Default: 10"
-  
+
   - name: "attacks_per_vulnerability_type"
     type: "integer"
     required: false
     description: "Number of attacks to generate per vulnerability type. Default: 3"
-  
+
   - name: "target_purpose"
     type: "string"
     required: false
     description: "Description of the target system's purpose for context. Default: 'AI assistant being tested for security vulnerabilities'"
-  
+
 output_metrics:
   - name: "success"
     type: "boolean"
     description: "Whether the system passed the security threshold (80% pass rate)"
-  
+
   - name: "pass_rate"
     type: "float"
     description: "Proportion of tests that passed (secure responses)"
-  
+
   - name: "failure_rate"
     type: "float"
     description: "Proportion of tests that failed (vulnerable responses)"
-  
+
   - name: "total_tests"
     type: "integer"
     description: "Total number of red team tests performed"
-  
+
   - name: "total_passing"
     type: "integer"
     description: "Number of tests that passed (secure responses)"
-  
+
   - name: "total_failing"
     type: "integer"
     description: "Number of tests that failed (vulnerable responses)"
-  
+
   - name: "total_errored"
     type: "integer"
     description: "Number of tests that resulted in errors"
-  
+
   - name: "vulnerability_stats"
     type: "object"
     description: "Detailed statistics per vulnerability type including pass rates by vulnerability type"
-  
+
   - name: "attack_stats"
     type: "object"
     description: "Detailed statistics per attack method including pass rates"
-  
+
   - name: "vulnerabilities_tested"
     type: "list"
     description: "List of vulnerability types that were tested"
-  
+
   - name: "attacks_used"
     type: "list"
     description: "List of attack methods that were used"
-  
+
   - name: "model_tested"
     type: "string"
     description: "Model identifier that was tested"

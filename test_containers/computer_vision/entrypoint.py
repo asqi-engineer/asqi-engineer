@@ -45,9 +45,9 @@ def main():
     """
     parser = argparse.ArgumentParser(description="COCO Object Detection Evaluator")
     parser.add_argument(
-        "--sut-params",
+        "--systems-params",
         required=True,
-        help="SUT parameters as JSON string (kept for API parity)",
+        help="Systems parameters as JSON string",
     )
     parser.add_argument(
         "--test-params", required=True, help="Test parameters as JSON string"
@@ -55,13 +55,18 @@ def main():
     args = parser.parse_args()
 
     try:
-        sut_params = json.loads(args.sut_params)  # not used but validated as JSON
+        systems_params = json.loads(args.systems_params)
         test_params = json.loads(args.test_params)
+
+        # Extract system_under_test
+        sut_params = systems_params.get("system_under_test", {})
+        if not sut_params:
+            raise ValueError("Missing system_under_test in systems_params")
 
         # Validate SUT type
         sut_type = sut_params.get("type")
         if sut_type not in ["computer_vision"]:
-            raise ValueError(f"Unsupported SUT type: {sut_type}")
+            raise ValueError(f"Unsupported system_under_test type: {sut_type}")
 
         # Required test params
         gt_path = test_params.get("groundtruth_path")

@@ -1,10 +1,194 @@
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from asqi.schemas import ScoreCard, ScoreCardIndicator
 from asqi.workflow import TestExecutionResult
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_bracket_syntax(path: str) -> None:
+    """Validate that all bracket notation in the path is properly formatted.
+
+    Args:
+        path: Metric path to validate
+
+    Raises:
+        ValueError: If bracket syntax is invalid
+    """
+    # Find all bracket sequences
+    bracket_sequences = re.findall(r"\[([^[\]]*)\]", path)
+
+    for seq in bracket_sequences:
+        # Check if it's properly quoted
+        if not (seq.startswith('"') and seq.endswith('"')) and not (
+            seq.startswith("'") and seq.endswith("'")
+        ):
+            raise ValueError(
+                f"Invalid bracket syntax: '[{seq}]' must be quoted. "
+                f"Use ['key'] or [\"key\"] format. Examples: "
+                f"probe_results[\"encoding.InjectHex\"] or data['key.with.dots']"
+            )
+
+        # Check for empty content
+        content = seq[1:-1]  # Remove quotes
+        if not content:
+            raise ValueError(
+                f"Empty bracket content not allowed: '[{seq}]'. "
+                f"Bracket notation must contain a non-empty key."
+            )
+
+    # Check for unmatched opening brackets
+    open_brackets = path.count("[")
+    close_brackets = path.count("]")
+    if open_brackets != close_brackets:
+        raise ValueError(
+            f"Unmatched brackets in metric path: '{path}'. "
+            f"Found {open_brackets} '[' and {close_brackets} ']'. "
+            f"Each '[' must have a matching ']'."
+        )
+
+
+def _tokenize_metric_path(path: str) -> List[str]:
+    """Tokenize a metric path into individual keys.
+
+    Args:
+        path: Pre-validated metric path
+
+    Returns:
+        List of keys to traverse
+    """
+    keys = []
+    current_pos = 0
+
+    while current_pos < len(path):
+        # Look for the next bracket or end of string
+        bracket_start = path.find("[", current_pos)
+
+        if bracket_start == -1:
+            # No more brackets, handle remaining as dot-separated
+            remaining = path[current_pos:]
+            if remaining:
+                # Split by dots and filter out empty strings
+                dot_parts = [p for p in remaining.split(".") if p]
+                keys.extend(dot_parts)
+            break
+
+        # Handle the portion before the bracket
+        before_bracket = path[current_pos:bracket_start]
+        if before_bracket:
+            # Remove trailing dot if present
+            if before_bracket.endswith("."):
+                before_bracket = before_bracket[:-1]
+            # Split by dots and filter out empty strings
+            if before_bracket:
+                dot_parts = [p for p in before_bracket.split(".") if p]
+                keys.extend(dot_parts)
+
+        # Find the matching closing bracket
+        bracket_end = path.find("]", bracket_start)
+        if bracket_end == -1:
+            # This shouldn't happen as validation should catch it
+            raise ValueError(f"Unmatched '[' at position {bracket_start}")
+
+        # Extract the key from within brackets (including quotes)
+        bracket_content = path[bracket_start + 1 : bracket_end]
+
+        # Remove quotes from bracket content
+        if (bracket_content.startswith('"') and bracket_content.endswith('"')) or (
+            bracket_content.startswith("'") and bracket_content.endswith("'")
+        ):
+            key = bracket_content[1:-1]
+            keys.append(key)
+        else:
+            # This shouldn't happen as validation should catch it
+            raise ValueError(f"Invalid bracket content: {bracket_content}")
+
+        # Move past the bracket and any following dot
+        current_pos = bracket_end + 1
+        if current_pos < len(path) and path[current_pos] == ".":
+            current_pos += 1
+
+    return keys
+
+
+def parse_metric_path(path: str) -> List[str]:
+    """Parse a metric path supporting both dot notation and bracket notation.
+
+    Examples:
+        'success' -> ['success']
+        'vulnerability_stats.Toxicity.overall_pass_rate' -> ['vulnerability_stats', 'Toxicity', 'overall_pass_rate']
+        'probe_results["encoding.InjectHex"]["encoding.DecodeMatch"].passed' -> ['probe_results', 'encoding.InjectHex', 'encoding.DecodeMatch', 'passed']
+        'probe_results["encoding.InjectHex"].total_attempts' -> ['probe_results', 'encoding.InjectHex', 'total_attempts']
+
+    Args:
+        path: Metric path string to parse
+
+    Returns:
+        List of keys to traverse
+
+    Raises:
+        ValueError: If path contains invalid syntax
+    """
+    if not path:
+        raise ValueError("Metric path cannot be empty")
+    if not path.strip():
+        raise ValueError("Metric path cannot be only whitespace")
+
+    if "[" in path or "]" in path:
+        _validate_bracket_syntax(path)
+
+    keys = _tokenize_metric_path(path)
+
+    if not keys:
+        raise ValueError(f"Invalid metric path resulted in no keys: '{path}'")
+
+    return keys
+
+
+def get_nested_value(data: Dict[str, Any], path: str) -> Tuple[Any, Optional[str]]:
+    """Extract a nested value from a dictionary using dot/bracket notation.
+
+    Args:
+        data: Dictionary to extract value from
+        path: Path to the nested value (e.g., 'a.b.c' or 'a["key.with.dots"].c')
+
+    Returns:
+        Tuple of (value, error_message). If successful, error_message is None.
+        If failed, value is None and error_message describes the issue.
+    """
+    try:
+        keys = parse_metric_path(path)
+    except ValueError as e:
+        return None, str(e)
+
+    current = data
+    traversed_path = []
+
+    for key in keys:
+        traversed_path.append(key)
+
+        if not isinstance(current, dict):
+            path_so_far = ".".join(traversed_path[:-1])
+            return (
+                None,
+                f"Cannot access key '{key}' at path '{path_so_far}' - value is not a dictionary: {type(current).__name__}",
+            )
+
+        if key not in current:
+            available_keys = list(current.keys()) if current else []
+            path_so_far = (
+                ".".join(traversed_path[:-1]) if len(traversed_path) > 1 else "root"
+            )
+            return (
+                None,
+                f"Key '{key}' not found at path '{path_so_far}'. Available keys: {available_keys}",
+            )
+
+        current = current[key]
+
+    return current, None
 
 
 class ScoreCardEvaluationResult:
@@ -64,9 +248,14 @@ class ScoreCardEngine:
     ) -> List[Any]:
         """Extract metric values from test results using the specified path.
 
+        Supports both flat and nested metric access:
+        - Flat: 'success', 'score'
+        - Nested: 'vulnerability_stats.Toxicity.overall_pass_rate'
+        - Bracket notation: 'probe_results["encoding.InjectHex"]["encoding.DecodeMatch"].passed'
+
         Args:
             test_results: List of test execution results
-            metric_path: Path to metric within test results
+            metric_path: Path to metric within test results (supports dot and bracket notation)
 
         Returns:
             List of extracted metric values
@@ -75,22 +264,25 @@ class ScoreCardEngine:
 
         for result in test_results:
             try:
-                # For now, support simple key access into test_results dict
-                # Future enhancement could support JSONPath for nested access
-                if metric_path in result.test_results:
-                    values.append(result.test_results[metric_path])
-                else:
-                    available_metrics = (
-                        ", ".join(result.test_results.keys())
-                        if result.test_results
-                        else "none"
-                    )
+                if not result.test_results:
                     logger.warning(
-                        f"Metric '{metric_path}' not found in test result for {result.test_name}. Available metrics: {available_metrics}"
+                        f"No test_results data available for {result.test_name}"
                     )
-            except (AttributeError, KeyError) as e:
+                    continue
+
+                # Use nested value extraction
+                value, error = get_nested_value(result.test_results, metric_path)
+
+                if error is None:
+                    values.append(value)
+                else:
+                    logger.warning(
+                        f"Failed to extract metric '{metric_path}' from test result for {result.test_name}: {error}"
+                    )
+
+            except Exception as e:
                 logger.warning(
-                    f"Failed to extract metric '{metric_path}' from test result for {result.test_name}: {e}"
+                    f"Unexpected error extracting metric '{metric_path}' from test result for {result.test_name}: {e}"
                 )
 
         return values
@@ -220,9 +412,12 @@ class ScoreCardEngine:
                 )
 
                 try:
-                    # Extract metric value from this specific test
-                    if indicator.metric in test_result.test_results:
-                        metric_value = test_result.test_results[indicator.metric]
+                    # Extract metric value from this specific test using nested path support
+                    metric_value, error = get_nested_value(
+                        test_result.test_results, indicator.metric
+                    )
+
+                    if error is None:
                         eval_result.metric_value = metric_value
 
                         # Evaluate each assessment rule to find the first match
@@ -242,7 +437,7 @@ class ScoreCardEngine:
                                 if condition_met:
                                     eval_result.outcome = assessment_rule.outcome
                                     logger.debug(
-                                        f"score_card indicator '{indicator.name}' for test '{test_result.test_name}' (SUT: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
+                                        f"score_card indicator '{indicator.name}' for test '{test_result.test_name}' (system under test: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
                                     )
                                     break
 
@@ -260,12 +455,7 @@ class ScoreCardEngine:
                             )
 
                     else:
-                        available_metrics = (
-                            ", ".join(test_result.test_results.keys())
-                            if test_result.test_results
-                            else "none"
-                        )
-                        eval_result.error = f"Metric '{indicator.metric}' not found in test result for '{test_result.test_name}'. Available metrics: {available_metrics}"
+                        eval_result.error = f"Failed to extract metric '{indicator.metric}' from test result for '{test_result.test_name}': {error}"
 
                 except Exception as e:
                     logger.error(

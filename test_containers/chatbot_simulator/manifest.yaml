@@ -1,0 +1,84 @@
+name: "chatbot_simulator"
+version: "1.0"
+description: "Multi-turn conversational testing using persona-based simulation and LLM-as-judge evaluation."
+
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested"
+  - name: "simulator_system"
+    type: "llm_api"
+    required: false
+    description: "LLM system for generating personas and conversation scenarios"
+  - name: "evaluator_system"
+    type: "llm_api"
+    required: false
+    description: "LLM system for evaluating conversation quality"
+
+input_schema:
+  - name: "chatbot_purpose"
+    type: "string"
+    required: true
+    description: "Description of the chatbot's purpose and domain"
+  - name: "custom_scenarios"
+    type: "list"
+    required: false
+    description: "List of scenario objects with 'input' and 'expected_output' keys"
+  - name: "custom_personas"
+    type: "list"
+    required: false
+    description: "List of custom persona names (e.g. ['busy executive', 'enthusiastic buyer'])"
+  - name: "num_scenarios"
+    type: "integer"
+    required: false
+    description: "Number of conversation scenarios to generate if custom scenarios are not provided"
+  - name: "max_turns"
+    type: "integer"
+    required: false
+    description: "Maximum turns per conversation (default: 4)"
+  - name: "sycophancy_levels"
+    type: "list"
+    required: false
+    description: "List of sycophancy levels to cycle through (default: ['low', 'high'])"
+  - name: "simulations_per_scenario"
+    type: "integer"
+    required: false
+    description: "Number of simulation runs per scenario-persona combination (default: 1)"
+  - name: "success_threshold"
+    type: "float"
+    required: false
+    description: "Threshold for determining evaluation success (default: 0.7)"
+  - name: "max_concurrent"
+    type: "integer"
+    required: false
+    description: "Maximum number of concurrent conversation simulations (default: 3)"
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the test execution completed successfully"
+  - name: "total_test_cases"
+    type: "integer"
+    description: "Total number of conversation test cases generated"
+  - name: "average_answer_accuracy"
+    type: "float"
+    description: "Average answer accuracy score across all conversations (0.0 to 1.0)"
+  - name: "average_answer_relevance"
+    type: "float"
+    description: "Average answer relevance score across all conversations (0.0 to 1.0)"
+  - name: "answer_accuracy_pass_rate"
+    type: "float"
+    description: "Percentage of conversations that passed accuracy threshold"
+  - name: "answer_relevance_pass_rate"
+    type: "float"
+    description: "Percentage of conversations that passed relevance threshold"
+  - name: "by_persona"
+    type: "object"
+    description: "Performance metrics broken down by persona type"
+  - name: "by_scenario"
+    type: "object"
+    description: "Performance metrics broken down by test scenario"
+  - name: "by_sycophancy"
+    type: "object"
+    description: "Performance metrics broken down by sycophancy level"

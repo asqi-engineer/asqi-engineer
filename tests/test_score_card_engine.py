@@ -1,5 +1,5 @@
 from asqi.schemas import AssessmentRule, ScoreCard, ScoreCardFilter, ScoreCardIndicator
-from asqi.score_card_engine import ScoreCardEngine
+from asqi.score_card_engine import ScoreCardEngine, get_nested_value, parse_metric_path
 from asqi.workflow import TestExecutionResult
 
 
@@ -270,3 +270,269 @@ class TestscorecardEngine:
         assert isinstance(result, list)
         assert len(result) == 1
         assert "No test results found for test_name" in result[0]["error"]
+
+
+class TestNestedMetricAccess:
+    """Test nested metric access functionality."""
+
+    def test_parse_metric_path_flat(self):
+        """Test parsing simple flat metric paths."""
+        assert parse_metric_path("success") == ["success"]
+        assert parse_metric_path("score") == ["score"]
+
+    def test_parse_metric_path_nested_dots(self):
+        """Test parsing nested paths with dot notation."""
+        assert parse_metric_path("vulnerability_stats.Toxicity.overall_pass_rate") == [
+            "vulnerability_stats",
+            "Toxicity",
+            "overall_pass_rate",
+        ]
+        assert parse_metric_path("a.b.c.d") == ["a", "b", "c", "d"]
+
+    def test_parse_metric_path_bracket_notation(self):
+        """Test parsing paths with bracket notation for keys containing dots."""
+        assert parse_metric_path('probe_results["encoding.InjectHex"]') == [
+            "probe_results",
+            "encoding.InjectHex",
+        ]
+        assert parse_metric_path(
+            "probe_results['encoding.InjectHex']['encoding.DecodeMatch'].passed"
+        ) == ["probe_results", "encoding.InjectHex", "encoding.DecodeMatch", "passed"]
+
+    def test_parse_metric_path_mixed_notation(self):
+        """Test parsing paths with mixed dot and bracket notation."""
+        assert parse_metric_path(
+            'probe_results["encoding.InjectHex"].total_attempts'
+        ) == ["probe_results", "encoding.InjectHex", "total_attempts"]
+        assert parse_metric_path('stats.probes["test.probe"].results.count') == [
+            "stats",
+            "probes",
+            "test.probe",
+            "results",
+            "count",
+        ]
+
+    def test_parse_metric_path_invalid(self):
+        """Test error handling for invalid paths."""
+        try:
+            parse_metric_path("")
+            assert False, "Should have raised ValueError for empty path"
+        except ValueError as e:
+            assert "cannot be empty" in str(e)
+
+        try:
+            parse_metric_path("   ")
+            assert False, "Should have raised ValueError for whitespace path"
+        except ValueError as e:
+            assert "whitespace" in str(e)
+
+        try:
+            parse_metric_path('probe_results["unclosed')
+            assert False, "Should have raised ValueError for unclosed bracket"
+        except ValueError as e:
+            assert "Unmatched brackets" in str(e)
+
+        try:
+            parse_metric_path("probe_results[unquoted]")
+            assert False, "Should have raised ValueError for unquoted bracket"
+        except ValueError as e:
+            assert "must be quoted" in str(e)
+
+        try:
+            parse_metric_path('probe_results[""]')
+            assert False, "Should have raised ValueError for empty bracket content"
+        except ValueError as e:
+            assert "Empty bracket content not allowed" in str(e)
+
+        try:
+            parse_metric_path("probe_results[\"mixed']")
+            assert False, "Should have raised ValueError for mixed quotes"
+        except ValueError as e:
+            assert "must be quoted" in str(e)
+
+    def test_parse_metric_path_edge_cases(self):
+        """Test parsing edge cases that should work."""
+        # Consecutive dots should be handled gracefully
+        assert parse_metric_path("a..b") == ["a", "b"]
+        assert parse_metric_path("a...b.c") == ["a", "b", "c"]
+
+        # Leading/trailing dots should be handled
+        assert parse_metric_path(".success") == ["success"]
+        assert parse_metric_path("success.") == ["success"]
+
+        # Keys with special characters in brackets
+        assert parse_metric_path('data["key-with-dashes"]') == [
+            "data",
+            "key-with-dashes",
+        ]
+        assert parse_metric_path('data["key_with_underscores"]') == [
+            "data",
+            "key_with_underscores",
+        ]
+
+    def test_get_nested_value_flat(self):
+        """Test extracting flat values."""
+        data = {"success": True, "score": 0.9}
+
+        value, error = get_nested_value(data, "success")
+        assert error is None
+        assert value is True
+
+        value, error = get_nested_value(data, "score")
+        assert error is None
+        assert value == 0.9
+
+    def test_get_nested_value_nested(self):
+        """Test extracting nested values using dot notation."""
+        data = {
+            "vulnerability_stats": {
+                "Toxicity": {
+                    "types": {"profanity": {"pass_rate": 1.0, "passing": 3}},
+                    "overall_pass_rate": 0.95,
+                }
+            }
+        }
+
+        value, error = get_nested_value(
+            data, "vulnerability_stats.Toxicity.overall_pass_rate"
+        )
+        assert error is None
+        assert value == 0.95
+
+        value, error = get_nested_value(
+            data, "vulnerability_stats.Toxicity.types.profanity.pass_rate"
+        )
+        assert error is None
+        assert value == 1.0
+
+    def test_get_nested_value_with_dots_in_keys(self):
+        """Test extracting values from keys containing dots using bracket notation."""
+        data = {
+            "probe_results": {
+                "encoding.InjectHex": {
+                    "encoding.DecodeMatch": {
+                        "passed": 85,
+                        "total": 256,
+                        "score": 0.33203125,
+                    }
+                }
+            }
+        }
+
+        value, error = get_nested_value(
+            data, 'probe_results["encoding.InjectHex"]["encoding.DecodeMatch"].passed'
+        )
+        assert error is None
+        assert value == 85
+
+        value, error = get_nested_value(
+            data, 'probe_results["encoding.InjectHex"]["encoding.DecodeMatch"].score'
+        )
+        assert error is None
+        assert value == 0.33203125
+
+    def test_get_nested_value_missing_keys(self):
+        """Test error handling for missing keys."""
+        data = {"a": {"b": {"c": 1}}}
+
+        # Missing intermediate key
+        value, error = get_nested_value(data, "a.missing.c")
+        assert value is None
+        assert error is not None
+        assert "Key 'missing' not found at path 'a'" in error
+        assert "Available keys: ['b']" in error
+
+        # Missing final key
+        value, error = get_nested_value(data, "a.b.missing")
+        assert value is None
+        assert error is not None
+        assert "Key 'missing' not found at path 'a.b'" in error
+
+    def test_get_nested_value_non_dict_traversal(self):
+        """Test error handling when trying to traverse non-dictionary values."""
+        data = {"a": {"b": 42}}  # b is an integer, not a dict
+
+        value, error = get_nested_value(data, "a.b.c")
+        assert value is None
+        assert error is not None
+        assert "Cannot access key 'c' at path 'a.b'" in error
+        assert "value is not a dictionary: int" in error
+
+    def test_scorecard_engine_with_nested_metrics(self):
+        """Test the complete scorecard engine with nested metric paths."""
+        engine = ScoreCardEngine()
+
+        # Create test result with nested structure similar to garak output
+        nested_test_results = {
+            "success": True,
+            "score": 0.259765625,
+            "probe_results": {
+                "encoding.InjectHex": {
+                    "encoding.DecodeMatch": {
+                        "passed": 85,
+                        "total": 256,
+                        "score": 0.33203125,
+                    },
+                    "encoding.DecodeApprox": {
+                        "passed": 48,
+                        "total": 256,
+                        "score": 0.1875,
+                    },
+                }
+            },
+        }
+
+        test_result = TestExecutionResult("garak_test", "test_sut", "garak:latest")
+        test_result.test_results = nested_test_results
+        test_result.success = True
+
+        # Create scorecard with nested metric access
+        score_card = ScoreCard(
+            score_card_name="Nested Metrics Test",
+            indicators=[
+                ScoreCardIndicator(
+                    name="Garak DecodeMatch Score",
+                    apply_to=ScoreCardFilter(test_name="garak_test"),
+                    metric='probe_results["encoding.InjectHex"]["encoding.DecodeMatch"].score',
+                    assessment=[
+                        AssessmentRule(
+                            outcome="GOOD", condition="greater_than", threshold=0.3
+                        ),
+                        AssessmentRule(
+                            outcome="POOR", condition="less_equal", threshold=0.3
+                        ),
+                    ],
+                ),
+                ScoreCardIndicator(
+                    name="Overall Success Check",
+                    apply_to=ScoreCardFilter(test_name="garak_test"),
+                    metric="success",
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="equal_to", threshold=True
+                        ),
+                        AssessmentRule(
+                            outcome="FAIL", condition="equal_to", threshold=False
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        results = engine.evaluate_scorecard([test_result], score_card)
+
+        assert len(results) == 2
+
+        nested_result = next(
+            r for r in results if r["indicator_name"] == "Garak DecodeMatch Score"
+        )
+        assert nested_result["outcome"] == "GOOD"
+        assert nested_result["metric_value"] == 0.33203125
+        assert nested_result["error"] is None
+
+        flat_result = next(
+            r for r in results if r["indicator_name"] == "Overall Success Check"
+        )
+        assert flat_result["outcome"] == "PASS"
+        assert flat_result["metric_value"] is True
+        assert flat_result["error"] is None

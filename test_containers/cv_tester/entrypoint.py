@@ -12,7 +12,7 @@ from evaluator import evaluate_dataset
 def main():
     parser = argparse.ArgumentParser(description="Computer Vision SUT entrypoint")
     parser.add_argument(
-        "--sut-params", required=True, help="JSON string with SUT params"
+        "--systems-params", required=True, help="JSON string with systems params"
     )
     parser.add_argument(
         "--test-params", required=True, help="JSON string with test params"
@@ -21,8 +21,13 @@ def main():
 
     try:
         # Parse params
-        sut_params = json.loads(args.sut_params)
+        systems_params = json.loads(args.systems_params)
         test_params = json.loads(args.test_params)
+
+        # Extract system_under_test
+        sut_params = systems_params.get("system_under_test", {})
+        if not sut_params:
+            raise ValueError("Missing system_under_test in systems_params")
 
         # Load .env (explicit path wins; fallback to default .env if present)
         env_file = sut_params.get("env_file") or os.getenv("ENV_FILE")

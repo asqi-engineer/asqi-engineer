@@ -54,7 +54,7 @@
       "description": "Defines which test results an indicator applies to.",
       "properties": {
         "test_name": {
-          "description": "Test name to filter by, e.g., 'run_mock_on_compatible_sut_my_llm_service'",
+          "description": "Test name to filter by, e.g., 'run_mock_on_compatible_system_my_llm_service'",
           "title": "Test Name",
           "type": "string"
         }
@@ -78,7 +78,7 @@
           "description": "Filter criteria for which test results this indicator applies to"
         },
         "metric": {
-          "description": "JSONPath into test_results object, e.g., 'success', 'score'",
+          "description": "Path to metric within test_results object. Supports dot notation for nested objects ('vulnerability_stats.Toxicity.overall_pass_rate'), and bracket notation for keys with dots ('probe_results[\"encoding.InjectHex\"][\"encoding.DecodeMatch\"].passed')",
           "title": "Metric",
           "type": "string"
         },

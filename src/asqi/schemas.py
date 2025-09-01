@@ -7,13 +7,19 @@ from pydantic import BaseModel, Field
 # ----------------------------------------------------------------------------
 
 
-class SUTSupport(BaseModel):
-    """Defines a type of SUT the container can test."""
+class SystemInput(BaseModel):
+    """Defines a system input that the container requires."""
 
-    type: str = Field(..., description="The SUT type, e.g., 'llm_api' or 'rest_api'.")
-    required_config: Optional[List[str]] = Field(
-        None,
-        description="List of config keys required by the entrypoint for this SUT type.",
+    name: str = Field(
+        ...,
+        description="The system input name, e.g., 'system_under_test', 'simulator_system', 'evaluator_system'.",
+    )
+    type: str = Field(
+        ..., description="The system type, e.g., 'llm_api' or 'rest_api'."
+    )
+    required: bool = Field(True, description="Whether this system input is required.")
+    description: Optional[str] = Field(
+        None, description="Description of the system's role in the test."
     )
 
 
@@ -48,8 +54,9 @@ class Manifest(BaseModel):
     name: str = Field(..., description="The canonical name for the test framework.")
     version: str
     description: Optional[str] = None
-    supported_suts: List[SUTSupport] = Field(
-        ..., description="Declares which SUT types this framework can handle."
+    input_systems: List[SystemInput] = Field(
+        ...,
+        description="Systems required as input. Should minimally include a system_under_test",
     )
     input_schema: List[InputParameter] = Field(
         [], description="Defines the schema for the user-provided 'params' object."
@@ -62,12 +69,12 @@ class Manifest(BaseModel):
 
 
 # ----------------------------------------------------------------------------
-# Schema for suts.yaml (User-provided)
+# Schema for systems.yaml (User-provided)
 # ----------------------------------------------------------------------------
 
 
 class LLMAPIConfig(BaseModel):
-    """Configuration for LLM API SUTs."""
+    """Configuration for LLM API systems."""
 
     base_url: str = Field(
         ...,
@@ -87,8 +94,8 @@ class LLMAPIConfig(BaseModel):
     )
 
 
-class SUTDefinition(BaseModel):
-    """A single System Under Test definition."""
+class SystemDefinition(BaseModel):
+    """A single system definition."""
 
     type: str = Field(
         ...,
@@ -96,14 +103,16 @@ class SUTDefinition(BaseModel):
     )
     params: Dict[str, Any] = Field(
         ...,
-        description="Parameters specific to the SUT type (e.g., base_url, model name, API key).",
+        description="Parameters specific to the system type (e.g., base_url, model name, API key).",
     )
 
 
-class SUTsConfig(BaseModel):
-    """Schema for the top-level SUTs configuration file."""
+class SystemsConfig(BaseModel):
+    """Schema for the top-level systems configuration file."""
 
-    systems_under_test: Dict[str, SUTDefinition]
+    systems: Dict[str, SystemDefinition] = Field(
+        ..., description="Dictionary of system definitions."
+    )
 
 
 # ----------------------------------------------------------------------------
@@ -121,9 +130,13 @@ class TestDefinition(BaseModel):
         ...,
         description="The Docker image to run for this test, e.g., 'my-registry/garak:latest'.",
     )
-    target_suts: List[str] = Field(
+    systems_under_test: List[str] = Field(
         ...,
-        description="A list of SUT names (from suts.yaml) to run this test against.",
+        description="A list of system names (from systems.yaml) to run this test against.",
+    )
+    systems: Optional[Dict[str, str]] = Field(
+        None,
+        description="Optional additional systems for the test (e.g., simulator_system, evaluator_system).",
     )
     tags: Optional[List[str]] = Field(
         None, description="Optional tags for filtering and reporting."
@@ -153,7 +166,7 @@ class ScoreCardFilter(BaseModel):
 
     test_name: str = Field(
         ...,
-        description="Test name to filter by, e.g., 'run_mock_on_compatible_sut_my_llm_service'",
+        description="Test name to filter by, e.g., 'run_mock_on_compatible_system_my_llm_service'",
     )
 
 
@@ -189,7 +202,8 @@ class ScoreCardIndicator(BaseModel):
         description="Filter criteria for which test results this indicator applies to",
     )
     metric: str = Field(
-        ..., description="JSONPath into test_results object, e.g., 'success', 'score'"
+        ...,
+        description="Path to metric within test_results object. Supports dot notation for nested objects ('vulnerability_stats.Toxicity.overall_pass_rate'), and bracket notation for keys with dots ('probe_results[\"encoding.InjectHex\"][\"encoding.DecodeMatch\"].passed')",
     )
     assessment: List[AssessmentRule] = Field(
         ..., description="List of assessment rules to evaluate against the metric"

@@ -3,7 +3,8 @@ from unittest.mock import patch
 
 import pytest
 
-from asqi.schemas import Manifest, SUTSupport
+from asqi.config import ExecutorConfig
+from asqi.schemas import Manifest, SystemInput
 from asqi.workflow import (
     TestExecutionResult,
     add_score_cards_to_results,
@@ -20,10 +21,10 @@ from asqi.workflow import (
 )
 
 
-def _call_inner_workflow(suite_config, suts_config):
+def _call_inner_workflow(suite_config, systems_config, executor_config):
     """Call the inner (undecorated) workflow function if available."""
     workflow_fn = getattr(_workflow, "__wrapped__", _workflow)
-    return workflow_fn(suite_config, suts_config)
+    return workflow_fn(suite_config, systems_config, executor_config)
 
 
 class DummyHandle:
@@ -47,37 +48,37 @@ def isolate_env(monkeypatch):
 
 
 def test_run_test_suite_workflow_success():
-    # Arrange minimal suite and SUTs configs
+    # Arrange minimal suite and systems configs
     suite_config = {
         "suite_name": "demo",
         "test_suite": [
             {
                 "name": "t1",
                 "image": "test/image:latest",
-                "target_suts": ["sutA"],
+                "systems_under_test": ["systemA"],
                 "params": {"p": "v"},
             }
         ],
     }
 
-    suts_config = {
-        "systems_under_test": {
-            "sutA": {"type": "llm_api", "params": {"endpoint": "http://x"}}
-        }
+    systems_config = {
+        "systems": {"systemA": {"type": "llm_api", "params": {"endpoint": "http://x"}}}
     }
 
-    # Build a minimal manifest that supports the SUT type
+    # Build a minimal manifest that supports the system type
     manifest = Manifest(
         name="mock",
         version="1",
         description="",
-        supported_suts=[SUTSupport(type="llm_api", required_config=None)],
+        input_systems=[
+            SystemInput(name="system_under_test", type="llm_api", required=True)
+        ],
         input_schema=[],
         output_metrics=[],
         output_artifacts=None,
     )
 
-    success_result = TestExecutionResult("t1_sutA", "sutA", "test/image:latest")
+    success_result = TestExecutionResult("t1_systemA", "systemA", "test/image:latest")
     success_result.start_time = 1.0
     success_result.end_time = 2.0
     success_result.exit_code = 0
@@ -85,31 +86,42 @@ def test_run_test_suite_workflow_success():
     success_result.test_results = {"success": True}
 
     with (
-        patch("asqi.workflow.check_image_availability") as mock_avail,
+        patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
         patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
         patch("asqi.workflow.create_test_execution_plan") as mock_plan,
-        patch("asqi.workflow.test_queue") as mock_queue,
+        patch("asqi.workflow.Queue") as mock_queue_class,
     ):
         mock_avail.return_value = {"test/image:latest": True}
         mock_extract.return_value = manifest
         mock_validate.return_value = []
         mock_plan.return_value = [
             {
-                "test_name": "t1_sutA",
+                "test_name": "t1_systemA",
                 "image": "test/image:latest",
                 "sut_name": "sutA",
-                "sut_params": {"type": "llm_api", "endpoint": "http://x"},
+                "systems_params": {
+                    "system_under_test": {"type": "llm_api", "endpoint": "http://x"}
+                },
                 "test_params": {"p": "v"},
             }
         ]
 
         # Enqueue returns a handle with get_result -> success_result
+        mock_queue = mock_queue_class.return_value
         mock_queue.enqueue.side_effect = lambda *args, **kwargs: DummyHandle(
             success_result
         )
 
-        out = _call_inner_workflow(suite_config, suts_config)
+        out = _call_inner_workflow(
+            suite_config,
+            systems_config,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+        )
 
     assert out["summary"]["status"] == "COMPLETED"
     assert out["summary"]["total_tests"] == 1
@@ -126,16 +138,16 @@ def test_run_test_suite_workflow_validation_failure():
             {
                 "name": "bad_test",
                 "image": "missing/image:latest",
-                "target_suts": ["sutA"],
+                "systems_under_test": ["systemA"],
                 "params": {},
             }
         ],
     }
 
-    suts_config = {"systems_under_test": {"sutA": {"type": "llm_api", "params": {}}}}
+    systems_config = {"systems": {"systemA": {"type": "llm_api", "params": {}}}}
 
     with (
-        patch("asqi.workflow.check_image_availability") as mock_avail,
+        patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
         patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
     ):
@@ -145,7 +157,15 @@ def test_run_test_suite_workflow_validation_failure():
             "Test 'bad_test': No manifest available for image 'missing/image:latest'"
         ]
 
-        out = _call_inner_workflow(suite_config, suts_config)
+        out = _call_inner_workflow(
+            suite_config,
+            systems_config,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+        )
 
     assert out["summary"]["status"] == "VALIDATION_FAILED"
     assert out["summary"]["total_tests"] == 0
@@ -167,10 +187,10 @@ def test_execute_single_test_success():
 
         inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
         result = inner_step(
-            test_name="t1_sutA",
+            test_name="t1_systemA",
             image="test/image:latest",
-            sut_name="sutA",
-            sut_params={"type": "llm_api"},
+            sut_name="systemA",
+            systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={"p": "v"},
         )
 
@@ -206,8 +226,8 @@ def test_execute_single_test_container_failure():
         result = inner_step(
             test_name="failing_test",
             image="test/image:latest",
-            sut_name="sutA",
-            sut_params={"type": "llm_api"},
+            sut_name="systemA",
+            systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
         )
 
@@ -231,8 +251,8 @@ def test_execute_single_test_invalid_json():
         result = inner_step(
             test_name="json_test",
             image="test/image:latest",
-            sut_name="sutA",
-            sut_params={"type": "llm_api"},
+            sut_name="systemA",
+            systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
         )
 
@@ -248,7 +268,7 @@ def test_convert_test_results_to_objects():
             {
                 "metadata": {
                     "test_name": "test1",
-                    "sut_name": "sut1",
+                    "sut_name": "system1",
                     "image": "test/image:latest",
                     "start_time": 1.0,
                     "end_time": 2.0,
@@ -271,7 +291,7 @@ def test_convert_test_results_to_objects():
     assert len(results) == 1
     result = results[0]
     assert result.test_name == "test1"
-    assert result.sut_name == "sut1"
+    assert result.sut_name == "system1"
     assert result.image == "test/image:latest"
     assert result.start_time == 1.0
     assert result.end_time == 2.0
@@ -290,7 +310,7 @@ def test_add_score_cards_to_results():
         {
             "indicator_name": "Test success",
             "test_name": "test1",
-            "sut_name": "sut1",
+            "sut_name": "system1",
             "outcome": "PASS",
             "score_card_name": "Test scorecard",
         }
@@ -347,7 +367,7 @@ def test_evaluate_score_cards_workflow():
             {
                 "metadata": {
                     "test_name": "test1",
-                    "sut_name": "sut1",
+                    "sut_name": "system1",
                     "image": "test/image:latest",
                     "start_time": 1.0,
                     "end_time": 2.0,
@@ -389,8 +409,15 @@ def test_run_end_to_end_workflow():
     """Test the run_end_to_end_workflow function."""
 
     suite_config = {"suite_name": "test"}
-    suts_config = {"systems_under_test": {}}
+    systems_config = {"systems_under_test": {}}
     score_card_configs = [{"score_card_name": "test"}]
+    executor_config = (
+        {
+            "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+            "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+            "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+        },
+    )
 
     test_results = {"summary": {"status": "COMPLETED"}, "results": []}
     final_results = {
@@ -409,9 +436,13 @@ def test_run_end_to_end_workflow():
         inner_workflow = getattr(
             run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow
         )
-        result = inner_workflow(suite_config, suts_config, score_card_configs)
+        result = inner_workflow(
+            suite_config, systems_config, score_card_configs, executor_config
+        )
 
-        mock_test_workflow.assert_called_once_with(suite_config, suts_config)
+        mock_test_workflow.assert_called_once_with(
+            suite_config, systems_config, executor_config
+        )
         mock_score_workflow.assert_called_once_with(test_results, score_card_configs)
         assert result == final_results
 
@@ -428,8 +459,21 @@ def test_start_test_execution_tests_only_mode():
         mock_load.return_value = {"test": "config"}
         mock_start.return_value = mock_handle
 
+        executor_config = (
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+        )
+
         workflow_id = start_test_execution(
-            "suite.yaml", "suts.yaml", "output.json", None, "tests_only"
+            "suite.yaml",
+            "systems.yaml",
+            executor_config,
+            "output.json",
+            None,
+            "tests_only",
         )
 
         assert workflow_id == mock_handle.get_workflow_id()
@@ -452,8 +496,21 @@ def test_start_test_execution_end_to_end_mode():
         mock_load.return_value = {"test": "config"}
         mock_start.return_value = mock_handle
 
+        executor_config = (
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+        )
+
         workflow_id = start_test_execution(
-            "suite.yaml", "suts.yaml", "output.json", score_card_configs, "end_to_end"
+            "suite.yaml",
+            "systems.yaml",
+            executor_config,
+            "output.json",
+            score_card_configs,
+            "end_to_end",
         )
 
         assert workflow_id == mock_handle.get_workflow_id()

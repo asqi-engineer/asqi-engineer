@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from pydantic import BaseModel
 
-from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SUTsConfig
+from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
 
 
 def generate_schemas():
@@ -17,7 +17,7 @@ def generate_schemas():
     schemas_dir = Path(__file__).parent.parent / "src" / "asqi" / "schemas"
     schemas_dir.mkdir(parents=True, exist_ok=True)
     schema_mappings: Dict[Type[BaseModel], str] = {
-        SUTsConfig: "asqi_suts_config.schema.json",
+        SystemsConfig: "asqi_systems_config.schema.json",
         SuiteConfig: "asqi_suite_config.schema.json",
         ScoreCard: "asqi_score_card.schema.json",
         Manifest: "asqi_manifest.schema.json",

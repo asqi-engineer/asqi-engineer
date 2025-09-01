@@ -16,3 +16,7 @@ jobs:
   security:
     uses: ./.github/workflows/security.yaml
   
+  build-publish:
+    needs: [ lint, test,  security ]
+    uses: ./.github/workflows/docker-publish.yml
+    secrets: inherit

@@ -9,14 +9,15 @@ from docker import errors as docker_errors
 
 from asqi.container_manager import (
     ManifestExtractionError,
+    MissingImageException,
     MountExtractionError,
+    _decommission_container,
     _resolve_abs,
     check_images_availability,
     docker_client,
     extract_manifest_from_image,
     run_container_with_args,
 )
-from asqi.container_manager import _decommission_container
 from asqi.schemas import Manifest
 
 
@@ -149,11 +150,38 @@ class TestCheckImagesAvailability:
 
         mock_client.images.get.side_effect = mock_get_image
 
-        images = ["available:latest", "missing:latest"]
-        result = check_images_availability(images)
+        # Local images: one correct + used for suggestion
+        mock_client.images.list.return_value = [
+            MagicMock(tags=["availabel:latest"]),  # typo image in local list
+            MagicMock(tags=["available:latest"]),  # correct local image
+        ]
 
-        expected = {"available:latest": True, "missing:latest": False}
-        assert result == expected
+        images = [
+            "available:latest",
+            "availabel:latest",
+            "available:second",
+            "missing:latest",
+        ]
+
+        with pytest.raises(MissingImageException) as excinfo:
+            check_images_availability(images)
+
+        message = str(excinfo.value)
+
+        # ✅ Correct image should not appear in error message
+        assert "❌ Container not found: available:latest" not in message
+
+        # ❌ Typo case: should suggest "available:latest"
+        assert "❌ Container not found: availabel:latest" in message
+        assert "Did you mean: available:latest" in message
+
+        # ❌ Wrong tag case: should suggest "available:latest"
+        assert "❌ Container not found: available:second" in message
+        assert "Did you mean: available:latest" in message
+
+        # ❌ Completely missing should say no similar images
+        assert "❌ Container not found: missing:latest" in message
+        assert "No similar images found." in message
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_api_error(self, mock_docker_client):
@@ -199,7 +227,9 @@ class TestExtractManifestFromImage:
             "name": "test_container",
             "version": "1.0",
             "description": "Test container",
-            "supported_suts": [{"type": "llm_api", "required_config": ["model"]}],
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
             "input_schema": [
                 {"name": "test_param", "type": "string", "required": False}
             ],
