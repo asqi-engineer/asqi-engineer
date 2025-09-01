@@ -11,7 +11,6 @@ class ContainerConfig(BaseModel):
     """Configuration constants for container execution"""
 
     MANIFEST_PATH: ClassVar[str] = "/app/manifest.yaml"
-    TIMEOUT_SECONDS: ClassVar[int] = 300  # Maximum container execution time in seconds.
 
     # Defaults for docker run() kwargs
     DEFAULT_RUN_PARAMS: ClassVar[Dict[str, Any]] = {
@@ -22,6 +21,10 @@ class ContainerConfig(BaseModel):
         "cpu_period": 100000,
         "cpu_quota": 200000,
     }
+
+    timeout_seconds: int = Field(
+        default=300, description="Maximum container execution time in seconds."
+    )
 
     stream_logs: bool = Field(
         default=False,
@@ -58,6 +61,7 @@ class ContainerConfig(BaseModel):
             merged_run_params.update(yaml_run_params)
 
         return cls(
+            timeout_seconds=data.get("timeout_seconds", 300),
             stream_logs=data.get("stream_logs", False),
             cleanup_on_finish=data.get("cleanup_on_finish", True),
             cleanup_force=data.get("cleanup_force", True),

@@ -460,7 +460,7 @@ def run_container_with_args(
 
             # Wait for completion
             try:
-                exit_status = container.wait(timeout=container_config.TIMEOUT_SECONDS)
+                exit_status = container.wait(timeout=container_config.timeout_seconds)
                 result["exit_code"] = exit_status["StatusCode"]
             except docker_errors.APIError as api_error:
                 try:
@@ -495,7 +495,7 @@ def run_container_with_args(
             result["error"] = f"Docker API error running image '{image}': {e}"
         except TimeoutError as e:
             result["error"] = (
-                f"Container execution timed out after {container_config.TIMEOUT_SECONDS}s for image '{image}': {e}"
+                f"Container execution timed out after {container_config.timeout_seconds}s for image '{image}': {e}"
             )
         except ConnectionError as e:
             raise ConnectionError(
