@@ -25,7 +25,7 @@ jobs:
           
       - name: Install dependencies
         run: |
-          uv sync --python ${{ matrix.python-version }} --group dev
+          uv sync --locked --python ${{ matrix.python-version }} --group dev
           
       - name: Run tests
         run: |

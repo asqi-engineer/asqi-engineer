@@ -21,7 +21,7 @@ jobs:
           
       - name: Install dependencies
         run: |
-          uv sync --group dev
+          uv sync --locked --group dev
           
       - name: Run ruff (lint)
         run: uv run ruff check .
