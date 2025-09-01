@@ -1,6 +1,8 @@
 import argparse
 import asyncio
 import json
+import os
+from pathlib import Path
 import sys
 from typing import Any, Dict
 
@@ -46,6 +48,9 @@ async def run_chatbot_simulation(
     simulations_per_scenario = test_params.get("simulations_per_scenario", 1)
     success_threshold = test_params.get("success_threshold", 0.7)
     max_concurrent = test_params.get("max_concurrent", 3)
+    conversation_log_filepath = Path(os.environ["OUTPUT_MOUNT_PATH"]) / test_params.get(
+        "conversation_log_filename", "conversation_logs.json"
+    )
 
     # Get simulator and evaluator system if provided
     simulator_system = systems_params.get("simulator_system", {})
@@ -89,8 +94,7 @@ async def run_chatbot_simulation(
     print(f"Generated {len(test_cases)} conversation test cases")
 
     analyzer = ConversationTestAnalyzer(success_threshold=success_threshold)
-    conversations_file = "conversation_logs.json"
-    analyzer.save_conversations(test_cases, conversations_file)
+    analyzer.save_conversations(test_cases, conversation_log_filepath)
 
     analysis_json = analyzer.analyze_results(test_cases)
     print("\n🎉 Conversation testing complete!")
