@@ -32,6 +32,7 @@ dev = [
     "sphinx-copybutton>=0.5.2",
     "sphinx-design>=0.6.1",
     "sphinxcontrib-typer>=0.5.1",
+    "sphinx-new-tab-link>=0.8.0"
 ]
 containers = ["deepteam==0.2.4", "litellm>=1.76.0", "openevals>=0.1.0"]
 

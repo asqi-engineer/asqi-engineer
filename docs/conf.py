@@ -27,6 +27,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_contributors",
     "autoapi.extension",
+    "sphinx_new_tab_link",
 ]
 
 templates_path = ["_templates"]
