@@ -21,7 +21,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -83,7 +83,7 @@ jobs:
       matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: No changes to test containers (noop)
         if: ${{ matrix.skip == true }}
@@ -142,7 +142,7 @@ jobs:
 
       - name: Download Docker image artifact (${{ matrix.name }})
         if: ${{ matrix.skip != true }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: docker-image-${{ matrix.name }}
           path: /tmp
@@ -195,7 +195,7 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify Dockerfile exists
         run: |
@@ -246,7 +246,7 @@ jobs:
       attestations: write
     steps:
       - name: Download Docker image artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: docker-image-${{ needs.build-and-test-tag.outputs.name }}
           path: /tmp
