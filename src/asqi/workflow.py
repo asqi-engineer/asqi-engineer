@@ -20,7 +20,8 @@ from asqi.container_manager import (
     check_images_availability,
     extract_manifest_from_image,
     run_container_with_args,
-    pull_images, MissingImageException,
+    pull_images,
+    MissingImageException,
 )
 from asqi.output import (
     create_test_execution_progress,
@@ -445,7 +446,9 @@ def run_test_suite_workflow(
             # Merge pull results into availability map
             for img, pulled in pull_results.items():
                 image_availability[img] = bool(pulled)
-            missing_images = [img for img, success in pull_results.items() if not success]
+            missing_images = [
+                img for img, success in pull_results.items() if not success
+            ]
             # If any are missing, compose a helpful message using a fresh client context
             if missing_images:
                 msgs = []
@@ -457,7 +460,9 @@ def run_test_suite_workflow(
 
     # Extract manifests from available images (post-pull)
     manifests = {}
-    available_images = [img for img, available in image_availability.items() if available]
+    available_images = [
+        img for img, available in image_availability.items() if available
+    ]
 
     if available_images:
         with console.status("[bold blue]Extracting manifests...", spinner="dots"):
