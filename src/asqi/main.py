@@ -368,7 +368,7 @@ def execute_tests(
         if container_config_file is not None:
             container_config = ContainerConfig.load_from_yaml(container_config_file)
         else:
-            container_config = ContainerConfig().from_stream_logs(False)
+            container_config = ContainerConfig()
 
         # Update ExecutorConfig from CLI args
         executor_config = {

@@ -101,7 +101,7 @@ class TestMainCLI:
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
-            container_config=ContainerConfig().from_stream_logs(False),
+            container_config=ContainerConfig.with_streaming(False),
         )
         assert "✨ Test execution completed! Workflow ID: workflow-123" in result.stdout
 
@@ -141,7 +141,7 @@ class TestMainCLI:
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
-            container_config=ContainerConfig().from_stream_logs(False),
+            container_config=ContainerConfig.with_streaming(False),
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
         assert "✨ Execution completed! Workflow ID: workflow-456" in result.stdout
@@ -297,7 +297,7 @@ class TestMainCLI:
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
-            container_config=ContainerConfig().from_stream_logs(False),
+            container_config=ContainerConfig.with_streaming(False),
         )
         assert "✨ Test execution completed! Workflow ID: workflow-888" in result.stdout
 
@@ -337,7 +337,7 @@ class TestMainCLI:
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
-            container_config=ContainerConfig().from_stream_logs(False),
+            container_config=ContainerConfig.with_streaming(False),
         )
 
         mock_dbos.start_workflow.assert_not_called()

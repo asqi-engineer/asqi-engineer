@@ -65,12 +65,12 @@ class ContainerConfig(BaseModel):
         )
 
     @classmethod
-    def from_stream_logs(cls, stream_logs: bool) -> "ContainerConfig":
+    def with_streaming(cls, enabled: bool) -> "ContainerConfig":
         """
         Create a new config using all default values,
         but override `stream_logs` with the given bool.
         """
-        return cls(stream_logs=bool(stream_logs))
+        return cls(stream_logs=bool(enabled))
 
     @classmethod
     def from_run_params(

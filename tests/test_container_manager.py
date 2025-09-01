@@ -462,7 +462,7 @@ class TestRunContainerWithArgs:
     def test_run_container_success(self, mock_container_setup):
         """Test successful container execution."""
         mock_client, mock_container, _ = mock_container_setup
-        container_config = ContainerConfig().from_run_params(
+        container_config = ContainerConfig.from_run_params(
             mem_limit="1g", cpu_quota=100000, network_mode="bridge"
         )
 
@@ -503,7 +503,7 @@ class TestRunContainerWithArgs:
         mock_client, mock_container, mock_extract_mounts = mock_container_setup
         log_lines = [b"Line 1\n", b"Line 2\n"]
         mock_container.logs.return_value = iter(log_lines)
-        container_config = ContainerConfig().from_stream_logs(True)
+        container_config = ContainerConfig.with_streaming(True)
         result = run_container_with_args(
             image="test:latest", args=["--test"], container_config=container_config
         )
