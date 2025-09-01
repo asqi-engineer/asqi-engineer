@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from asqi.config import ContainerConfig
-from asqi.schemas import SuiteConfig, SUTDefinition, SUTsConfig, TestDefinition
+from asqi.schemas import SuiteConfig, SystemDefinition, SystemsConfig, TestDefinition
 from asqi.validation import create_test_execution_plan
 from asqi.workflow import execute_single_test
 
@@ -12,8 +12,8 @@ class TestEnvironmentVariables:
     """Test suite for environment variable handling."""
 
     @pytest.fixture
-    def sample_sut_params(self):
-        """Sample SUT parameters (flattened configuration)."""
+    def sample_system_params(self):
+        """Sample system parameters (flattened configuration)."""
         return {"type": "llm_api", "model": "gpt-4o-mini"}
 
     @pytest.fixture
@@ -26,7 +26,7 @@ class TestEnvironmentVariables:
                 TestDefinition(
                     name="test_with_api_key",
                     image="my-registry/test:latest",
-                    target_suts=["test_sut"],
+                    systems_under_test=["test_system"],
                     params={"generations": 1},
                     tags=None,
                     volumes={},
@@ -35,12 +35,12 @@ class TestEnvironmentVariables:
         )
 
     @pytest.fixture
-    def sample_suts_config(self):
-        """Sample SUTs configuration with API key."""
+    def sample_systems_config(self):
+        """Sample systems configuration with API key."""
 
-        return SUTsConfig(
-            systems_under_test={
-                "test_sut": SUTDefinition(
+        return SystemsConfig(
+            systems={
+                "test_system": SystemDefinition(
                     type="llm_api",
                     params={
                         "model": "gpt-4o-mini",
@@ -50,30 +50,31 @@ class TestEnvironmentVariables:
             }
         )
 
-    def test_create_test_execution_plan_flattens_sut_params(
-        self, sample_suite_config, sample_suts_config
+    def test_create_test_execution_plan_flattens_system_params(
+        self, sample_suite_config, sample_systems_config
     ):
-        """Test that create_test_execution_plan correctly flattens SUT parameters."""
+        """Test that create_test_execution_plan correctly flattens system parameters."""
         image_availability = {"my-registry/test:latest": True}
 
         execution_plan = create_test_execution_plan(
-            sample_suite_config, sample_suts_config, image_availability
+            sample_suite_config, sample_systems_config, image_availability
         )
 
         assert len(execution_plan) == 1
-        sut_params = execution_plan[0]["sut_params"]
+        systems_params = execution_plan[0]["systems_params"]
+        system_params = systems_params["system_under_test"]
 
-        # Verify the SUT params are flattened correctly
-        assert sut_params["type"] == "llm_api"
-        assert sut_params["model"] == "gpt-4o-mini"
-        assert sut_params["api_key"] == "sk-123"
+        # Verify the system params are flattened correctly
+        assert system_params["type"] == "llm_api"
+        assert system_params["model"] == "gpt-4o-mini"
+        assert system_params["api_key"] == "sk-123"
 
         # Ensure config is not nested
-        assert "config" not in sut_params
+        assert "config" not in system_params
 
     @patch("asqi.workflow.run_container_with_args")
     def test_execute_single_test_passes_environment_variable_from_dotenv(
-        self, mock_run_container, sample_sut_params, tmp_path, monkeypatch
+        self, mock_run_container, sample_system_params, tmp_path, monkeypatch
     ):
         """Test that execute_single_test loads TEST_API_KEY from .env file."""
         dotenv_content = "TEST_API_KEY=test_secret_key_12345\n"
@@ -96,8 +97,8 @@ class TestEnvironmentVariables:
         _result = execute_single_test(
             test_name="test_env_vars",
             image="my-registry/test:latest",
-            sut_name="test_sut",
-            sut_params=sample_sut_params,
+            sut_name="test_system",
+            systems_params={"system_under_test": sample_system_params},
             test_params={"generations": 1},
             container_config=container_config,
         )
@@ -120,7 +121,7 @@ class TestEnvironmentVariables:
         dotenv_path.write_text(dotenv_content)
         monkeypatch.chdir(tmp_path)
 
-        sut_params = {
+        system_params = {
             "type": "llm_api",
             "model": "gpt-4",
             "api_key": "sk-123",
@@ -141,8 +142,8 @@ class TestEnvironmentVariables:
         _result = execute_single_test(
             test_name="test_specific_env_var",
             image="my-registry/test:latest",
-            sut_name="openai_sut",
-            sut_params=sut_params,
+            sut_name="openai_system",
+            systems_params={"system_under_test": system_params},
             test_params={"generations": 2},
             container_config=container_config,
         )

@@ -1,4 +1,4 @@
-systems_under_test:
+systems:
   object_detection:
     type: "computer_vision"
     params:

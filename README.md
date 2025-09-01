@@ -1,6 +1,41 @@
-# ASQI - AI Systems Quality Index
+# ASQI Engineer
 
-ASQI (AI Systems Quality Index) executor is a test executor for AI systems using containerized test frameworks. It provides a comprehensive platform for running quality assessments, security tests, and performance evaluations against AI systems with configurable score cards and automated reporting.
+**ASQI (AI Systems Quality Index) Engineer** is a comprehensive framework for systematic testing and quality assurance of AI systems. Developed from [Resaro's][Resaro] experience bridging governance, technical and business requirements, ASQI Engineer enables rigorous evaluation of AI systems through containerized test packages, automated assessment, and durable execution workflows.
+
+ASQI Engineer is in active development and we welcome contributors to contribute new test packages, share score cards and test plans, and help define common schemas to meet industry needs. Our initial release focuses on comprehensive chatbot testing with extensible foundations for broader AI system evaluation.
+
+## Key Features
+
+### **Modular Test Execution**
+- **Durable execution**: [DBOS]-powered fault tolerance with automatic retry and recovery
+- **Concurrent testing**: Parallel test execution with configurable concurrency limits
+- **Container isolation**: Each test runs in isolated Docker containers for consistency and reproducibility
+
+### **Flexible Scenario-based Testing**
+- **Core schema definition**: Specifies the underlying contract between test packages and users running tests, enabling an extensible approach to scale to new use cases and test modules
+- **Multi-system orchestration**: Tests can coordinate multiple AI systems (target, simulator, evaluator) in complex workflows
+- **Flexible configuration**: Test packages specify input systems and parameters that can be customised for individual use cases
+
+### **Automated Assessment**
+- **Structured reporting**: JSON output with detailed metrics and assessment outcomes
+- **Configurable score cards**: Define custom evaluation criteria with flexible assessment criteria
+
+### **Developer Experience**
+- **Type-safe configuration**: Pydantic schemas with JSON Schema generation for IDE support
+- **Rich CLI interface**: Typer-based commands with comprehensive help and validation
+- **Real-time feedback**: Live progress reporting with structured logging and tracing 
+
+## LLM Testing
+
+For our first release, we have introduced the `llm_api` system type and contributed 4 test packages for comprehensive LLM system testing. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
+
+### **LLM Test Containers**
+- **[Garak]**: Security vulnerability assessment with 40+ attack vectors and probes
+- **[DeepTeam]**: Red teaming library for adversarial robustness testing
+- **[TrustLLM]**: Comprehensive framework and benchmarks to evaluate trustworthiness of LLM systems
+- **Resaro Chatbot Simulator**: Persona and scenario based conversational testing with multi-turn dialogue simulation
+
+The `llm_api` system type uses OpenAI-compatible API interfaces. Through [LiteLLM] integration, ASQI Engineer provides unified access to 100+ LLM providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints. This standardisation enables test containers to work seamlessly across different LLM providers while supporting complex multi-system test scenarios (e.g., using different models for simulation, evaluation, and target testing).
 
 ## Quick Start
 
@@ -65,7 +100,7 @@ If you prefer local development:
 
 ## Environment Configuration
 
-ASQI supports multiple LLM providers via the `llm_api` Systems Under Test (SUT) `type` through environment variables. Configure these in a `.env` file in the project root.
+ASQI supports multiple LLM providers via the `llm_api` Systems `type` through environment variables. Configure these in a `.env` file in the project root.
 
 ### Required Environment Variables
 
@@ -87,14 +122,14 @@ API_KEY=sk-1234
 
 ### How Environment Variables Work
 
-1. **SUT Configuration**: SUTs can specify `base_url` and optionally reference an `env_file` for API keys
+1. **Systems Configuration**: Systems can specify `base_url` and optionally reference an `env_file` for API keys
 2. **Environment Fallbacks**: If not specified, ASQI uses `BASE_URL` and `API_KEY` from `.env`
 3. **Provider Keys**: Specific provider keys (e.g., `OPENAI_API_KEY`) are passed to test containers
 
-### Example SUT Configuration
+### Example Systems Configuration
 
 ```yaml
-systems_under_test:
+systems:
   # Recommended: Uses env_file for API key security
   direct_openai:
     type: "llm_api"
@@ -112,8 +147,8 @@ ASQI provides four main execution modes via typer subcommands:
 Validates configurations without executing tests:
 ```bash
 asqi validate \
-  --suite-file config/suites/demo_suite.yaml \
-  --suts-file config/suts/demo_suts.yaml \
+  --test-suite-config config/suites/demo_suite.yaml \
+  --systems-config config/systems/demo_systems.yaml \
   --manifests-dir test_containers/
 ```
 
@@ -128,9 +163,12 @@ cd ../..
 Then run tests without score card evaluation:
 ```bash
 asqi execute-tests \
-  --suite-file config/suites/demo_suite.yaml \
-  --suts-file config/suts/demo_suts.yaml \
+  --test-suite-config config/suites/demo_suite.yaml \
+  --systems-config config/systems/demo_systems.yaml \
   --output-file results.json
+
+# Or with short flags:
+asqi execute-tests -t config/suites/demo_suite.yaml -s config/systems/demo_systems.yaml -o results.json
 ```
 
 ### 3. Score Card Evaluation Only
@@ -138,18 +176,24 @@ Evaluates existing test results against score card criteria:
 ```bash
 asqi evaluate-score-cards \
   --input-file results.json \
-  --score-card-file config/score_cards/example_score_card.yaml \
+  --score-card-config config/score_cards/example_score_card.yaml \
   --output-file results_with_score_card.json
+
+# Or with short flags:
+asqi evaluate-score-cards --input-file results.json -r config/score_cards/example_score_card.yaml -o results_with_score_card.json
 ```
 
 ### 4. End-to-End Execution
 Combines test execution and score card evaluation:
 ```bash
 asqi execute \
-  --suite-file config/suites/demo_suite.yaml \
-  --suts-file config/suts/demo_suts.yaml \
-  --score-card-file config/score_cards/example_score_card.yaml \
+  --test-suite-config config/suites/demo_suite.yaml \
+  --systems-config config/systems/demo_systems.yaml \
+  --score-card-config config/score_cards/example_score_card.yaml \
   --output-file results_with_score_card.json
+
+# Or with short flags:
+asqi execute -t config/suites/demo_suite.yaml -s config/systems/demo_systems.yaml -r config/score_cards/example_score_card.yaml -o results_with_score_card.json
 ```
 
 ## Architecture
@@ -164,7 +208,7 @@ asqi execute \
 
 ### Key Concepts
 
-- **SUTs (Systems Under Test)**: AI systems being tested (APIs, models, etc.) defined in `config/suts/`
+- **Systems**: AI systems being tested (APIs, models, etc.) defined in `config/systems/`
 - **Test Suites**: Collections of tests defined in `config/suites/`
 - **Test Containers**: Docker images in `test_containers/` with embedded `manifest.yaml` 
 - **Score Cards**: Assessment criteria defined in `config/score_cards/` for automated grading
@@ -189,9 +233,12 @@ docker build -t my-registry/garak:latest .
 
 # Run security tests
 asqi execute-tests \
-  --suite-file config/suites/security_test.yaml \
-  --suts-file config/suts/demo_suts.yaml \
+  --test-suite-config config/suites/security_test.yaml \
+  --systems-config config/systems/demo_systems.yaml \
   --output-file garak_results.json
+
+# Or with short flags:
+asqi execute-tests -t config/suites/security_test.yaml -s config/systems/demo_systems.yaml -o garak_results.json
 ```
 
 ## Score Cards
@@ -222,17 +269,17 @@ uv run pytest --cov=src         # Run with coverage
 
 1. Create directory under `test_containers/`
 2. Add `Dockerfile`, `entrypoint.py`, and `manifest.yaml`
-3. Ensure entrypoint accepts `--sut-config` and `--test-params` JSON arguments
+3. Ensure entrypoint accepts `--systems-params` and `--test-params` JSON arguments
 4. Output test results as JSON to stdout
 
 Example manifest.yaml:
 ```yaml
 name: "my_test_framework"
 version: "1.0.0"
-image_name: "my-registry/my_test:latest"
-supported_suts:
-  - type: "llm_api"
-    required_config: ["provider", "model"]
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
 output_metrics: ["success", "score"]
 ```
 
@@ -254,7 +301,7 @@ This creates files in `dist/`:
 #### CLI Entry Point
 The `asqi` command maps to `src/asqi/main.py` and provides all functionality:
 ```bash
-asqi execute --suite-file config/suites/demo_suite.yaml --suts-file config/suts/demo_suts.yaml
+asqi execute --test-suite-config config/suites/demo_suite.yaml --systems-config config/systems/demo_systems.yaml
 ```
 
 ## Contributing
@@ -266,4 +313,11 @@ asqi execute --suite-file config/suites/demo_suite.yaml --suts-file config/suts/
 
 ## License
 
-TODO
+[Apache 2.0](./license) © [Resaro]
+
+[Resaro]: https://resaro.ai/
+[DBOS]: https://github.com/dbos-inc/dbos-transact-py
+[LiteLLM]: https://github.com/BerriAI/litellm
+[Garak]: https://github.com/NVIDIA/garak
+[DeepTeam]: https://github.com/confident-ai/deepteam
+[TrustLLM]: https://github.com/HowieHwong/TrustLLM

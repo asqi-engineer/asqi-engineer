@@ -437,7 +437,7 @@ class ScoreCardEngine:
                                 if condition_met:
                                     eval_result.outcome = assessment_rule.outcome
                                     logger.debug(
-                                        f"score_card indicator '{indicator.name}' for test '{test_result.test_name}' (SUT: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
+                                        f"score_card indicator '{indicator.name}' for test '{test_result.test_name}' (system under test: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
                                     )
                                     break
 

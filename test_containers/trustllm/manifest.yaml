@@ -2,9 +2,11 @@ name: "trustllm"
 version: "1.0"
 description: "TrustLLM comprehensive trustworthiness evaluation framework for LLMs across 6 dimensions: truthfulness, safety, fairness, robustness, privacy, and machine ethics."
 
-supported_suts:
-  - type: "llm_api"
-    required_config: ["model"]
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being evaluated for trustworthiness"
 
 input_schema:
   - name: "test_type"

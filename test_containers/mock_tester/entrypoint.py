@@ -9,7 +9,7 @@ def main():
     """Main entrypoint that demonstrates the container interface."""
     parser = argparse.ArgumentParser(description="Mock test container")
     parser.add_argument(
-        "--sut-params", required=True, help="SUT parameters as JSON string"
+        "--systems-params", required=True, help="Systems parameters as JSON string"
     )
     parser.add_argument(
         "--test-params", required=True, help="Test parameters as JSON string"
@@ -19,13 +19,18 @@ def main():
 
     try:
         # Parse inputs
-        sut_params = json.loads(args.sut_params)
+        systems_params = json.loads(args.systems_params)
         test_params = json.loads(args.test_params)
+
+        # Extract system_under_test
+        sut_params = systems_params.get("system_under_test", {})
+        if not sut_params:
+            raise ValueError("Missing system_under_test in systems_params")
 
         # Validate SUT type
         sut_type = sut_params.get("type")
         if sut_type not in ["llm_api"]:
-            raise ValueError(f"Unsupported SUT type: {sut_type}")
+            raise ValueError(f"Unsupported system_under_test type: {sut_type}")
 
         # Extract SUT parameters (flattened structure)
         base_url = sut_params["base_url"]  # Required, validated upstream

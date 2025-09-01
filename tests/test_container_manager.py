@@ -14,7 +14,7 @@ from asqi.container_manager import (
     MountExtractionError,
     _decommission_container,
     _resolve_abs,
-    check_images_availabilty,
+    check_images_availability,
     docker_client,
     extract_manifest_from_image,
     run_container_with_args,
@@ -119,7 +119,7 @@ class TestDockerClient:
 
 
 class TestCheckImagesAvailability:
-    """Test suite for check_images_availabilty function."""
+    """Test suite for check_images_availability function."""
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_all_available(self, mock_docker_client):
@@ -131,7 +131,7 @@ class TestCheckImagesAvailability:
         mock_client.images.get.return_value = MagicMock()
 
         images = ["image1:latest", "image2:latest"]
-        result = check_images_availabilty(images)
+        result = check_images_availability(images)
 
         expected = {"image1:latest": True, "image2:latest": True}
         assert result == expected
@@ -165,7 +165,7 @@ class TestCheckImagesAvailability:
         ]
 
         with pytest.raises(MissingImageException) as excinfo:
-            check_images_availabilty(images)
+            check_images_availability(images)
 
         message = str(excinfo.value)
 
@@ -193,7 +193,7 @@ class TestCheckImagesAvailability:
         mock_client.images.get.side_effect = docker_errors.APIError("API Error")
 
         images = ["problem:latest"]
-        result = check_images_availabilty(images)
+        result = check_images_availability(images)
 
         expected = {"problem:latest": False}
         assert result == expected
@@ -209,12 +209,12 @@ class TestCheckImagesAvailability:
         images = ["test:latest"]
 
         with pytest.raises(ConnectionError, match="Failed to connect to Docker daemon"):
-            check_images_availabilty(images)
+            check_images_availability(images)
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_empty_list(self, mock_docker_client):
         """Test with empty image list."""
-        result = check_images_availabilty([])
+        result = check_images_availability([])
         assert result == {}
 
 
@@ -228,7 +228,9 @@ class TestExtractManifestFromImage:
             "name": "test_container",
             "version": "1.0",
             "description": "Test container",
-            "supported_suts": [{"type": "llm_api", "required_config": ["model"]}],
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
             "input_schema": [
                 {"name": "test_param", "type": "string", "required": False}
             ],

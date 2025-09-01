@@ -75,9 +75,10 @@ class TrustLLMTester:
         "safety": ["jailbreak", "exaggerated_safety", "misuse"],
     }
 
-    def __init__(self, sut_params: Dict[str, Any]):
-        """Initialize with SUT parameters"""
-        self.sut_params = sut_params
+    def __init__(self, systems_params: Dict[str, Any]):
+        """Initialize with systems parameters"""
+        self.sut_params = systems_params.get("system_under_test", {})
+        self.systems_params = systems_params
         self.data_path = "/app/dataset/dataset"  # Fixed path to extracted dataset
         self.api_key = os.environ.get("API_KEY") or os.environ.get("OPENAI_API_KEY")
         config.openai_key = os.environ.get("OPENAI_API_KEY")
@@ -361,7 +362,7 @@ def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="TrustLLM test container")
     parser.add_argument(
-        "--sut-params", required=True, help="SUT parameters as JSON string"
+        "--systems-params", required=True, help="Systems parameters as JSON string"
     )
     parser.add_argument(
         "--test-params", required=True, help="Test parameters as JSON string"
@@ -370,23 +371,27 @@ def parse_arguments():
     args = parser.parse_args()
 
     try:
-        sut_params = json.loads(args.sut_params)
+        systems_params = json.loads(args.systems_params)
         test_params = json.loads(args.test_params)
-        return sut_params, test_params
+        return systems_params, test_params
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in arguments: {e}")
 
 
-def validate_inputs(sut_params: Dict[str, Any], test_params: Dict[str, Any]):
+def validate_inputs(systems_params: Dict[str, Any], test_params: Dict[str, Any]):
     """Validate input parameters"""
-    # Validate SUT params
+    # Validate system_under_test params
+    sut_params = systems_params.get("system_under_test", {})
+    if not sut_params:
+        raise ValueError("Missing system_under_test in systems_params")
+
     required_sut_fields = ["type", "base_url", "model"]
     for field in required_sut_fields:
         if field not in sut_params:
-            raise ValueError(f"Missing required SUT parameter: {field}")
+            raise ValueError(f"Missing required system_under_test parameter: {field}")
 
     if sut_params["type"] != "llm_api":
-        raise ValueError(f"Unsupported SUT type: {sut_params['type']}")
+        raise ValueError(f"Unsupported system_under_test type: {sut_params['type']}")
 
     # Validate test params
     test_type = test_params.get("test_type")
@@ -418,10 +423,10 @@ def validate_inputs(sut_params: Dict[str, Any], test_params: Dict[str, Any]):
 
 def main():
     try:
-        sut_params, test_params = parse_arguments()
-        validate_inputs(sut_params, test_params)
+        systems_params, test_params = parse_arguments()
+        validate_inputs(systems_params, test_params)
 
-        tester = TrustLLMTester(sut_params)
+        tester = TrustLLMTester(systems_params)
         result = tester.run_trustllm_evaluation(test_params)
 
         print(json.dumps(result), flush=True)

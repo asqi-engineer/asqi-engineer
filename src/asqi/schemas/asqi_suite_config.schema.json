@@ -13,13 +13,29 @@
           "title": "Image",
           "type": "string"
         },
-        "target_suts": {
-          "description": "A list of SUT names (from suts.yaml) to run this test against.",
+        "systems_under_test": {
+          "description": "A list of system names (from systems.yaml) to run this test against.",
           "items": {
             "type": "string"
           },
-          "title": "Target Suts",
+          "title": "Systems Under Test",
           "type": "array"
+        },
+        "systems": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional additional systems for the test (e.g., simulator_system, evaluator_system).",
+          "title": "Systems"
         },
         "tags": {
           "anyOf": [
@@ -62,7 +78,7 @@
       "required": [
         "name",
         "image",
-        "target_suts"
+        "systems_under_test"
       ],
       "title": "TestDefinition",
       "type": "object"

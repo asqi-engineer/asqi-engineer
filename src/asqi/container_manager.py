@@ -55,7 +55,7 @@ def docker_client():
         client.close()
 
 
-def check_images_availabilty(images: List[str]) -> Dict[str, bool]:
+def check_images_availability(images: List[str]) -> Dict[str, bool]:
     """
     Check if Docker images are available locally.
 

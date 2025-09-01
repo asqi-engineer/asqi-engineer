@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -5,7 +6,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 import openai
 from langchain_openai import ChatOpenAI
 from openevals.simulators import (
-    create_llm_simulated_user,
+    create_async_llm_simulated_user,
     run_multiturn_simulation_async,
 )
 from openevals.types import ChatCompletionMessage
@@ -22,40 +23,51 @@ from evaluator import ConversationEvaluator
 ConversationalTestCase = Dict[str, Any]
 
 
-def setup_client(base_url: str = "https://api.openai.com/v1") -> openai.AsyncOpenAI:
+def setup_client(**system_params) -> openai.AsyncOpenAI:
     """Setup OpenAI client with unified environment variable handling"""
-    api_key = os.environ.get("API_KEY")
+    base_url = system_params.get("base_url")
+    api_key = system_params.get("api_key")
+    if base_url and not api_key:
+        api_key = os.environ.get("API_KEY")
+    if not base_url and not api_key:
+        base_url = "https://api.openai.com/v1"
+        api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        # Fallback to provider-specific keys
-        api_key = (
-            os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("ANTHROPIC_API_KEY")
-            or os.environ.get("HUGGINGFACE_API_KEY")
+        raise ValueError(
+            "No API key found. Please specify a compatible base_url and api_key"
         )
 
-    if not api_key:
-        raise ValueError("No API key found. Set API_KEY environment variable.")
+    openai_params = {
+        k: v
+        for k, v in system_params.items()
+        if k not in ["base_url", "model", "api_key", "type"]
+    }
+    return openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **openai_params)
 
-    return openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
 
-
-def setup_langchain_client(
-    base_url: str = "https://api.openai.com/v1", model: str = "gpt-4o-mini"
-) -> ChatOpenAI:
+def setup_langchain_client(**system_params) -> ChatOpenAI:
     """Setup LangChain OpenAI client with unified environment variable handling"""
-    api_key = os.environ.get("API_KEY")
+    base_url = system_params.get("base_url")
+    api_key = system_params.get("api_key")
+    model = system_params.get("model", "gpt-4o-mini")
+    if base_url and not api_key:
+        api_key = os.environ.get("API_KEY")
+    if not base_url and not api_key:
+        base_url = "https://api.openai.com/v1"
+        api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        # Fallback to provider-specific keys
-        api_key = (
-            os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("ANTHROPIC_API_KEY")
-            or os.environ.get("HUGGINGFACE_API_KEY")
+        raise ValueError(
+            "No API key found. Please specify a compatible base_url and api_key"
         )
 
-    if not api_key:
-        raise ValueError("No API key found. Set API_KEY environment variable.")
-
-    return ChatOpenAI(model=model, api_key=SecretStr(api_key), base_url=base_url)
+    langchain_params = {
+        k: v
+        for k, v in system_params.items()
+        if k not in ["base_url", "model", "api_key", "type"]
+    }
+    return ChatOpenAI(
+        model=model, api_key=SecretStr(api_key), base_url=base_url, **langchain_params
+    )
 
 
 class PersonaBasedConversationTester:
@@ -63,31 +75,32 @@ class PersonaBasedConversationTester:
         self,
         model_callback: Callable[[str], Awaitable[str]],
         chatbot_purpose: str,
-        simulator_base_url: str = "https://api.openai.com/v1",
-        evaluator_base_url: str = "https://api.openai.com/v1",
-        simulator_model: str = "gpt-4o-mini",
+        simulator_client_params: Dict[str, Any],
+        evaluator_client_params: Dict[str, Any],
         max_turns: int = 4,
         custom_personas: Optional[List[str]] = None,
         sycophancy_levels: Optional[List[str]] = None,
         custom_scenarios: Optional[List[Dict[str, str]]] = None,
-        evaluation_model: str = "gpt-4o-mini",
         simulations_per_scenario: int = 1,
+        max_concurrent: int = 3,
     ):
         self.model_callback = model_callback
         self.chatbot_purpose = chatbot_purpose
-        self.simulator_model = simulator_model
+        self.simulator_client_params = simulator_client_params
+        self.evaluator_client_params = evaluator_client_params
         self.max_turns = max_turns
         self.custom_personas = custom_personas
         self.sycophancy_levels = sycophancy_levels or ["low", "high"]
         self.custom_scenarios = custom_scenarios
         self.simulations_per_scenario = simulations_per_scenario
+        self.max_concurrent = max_concurrent
 
-        self.simulator_client = setup_client(simulator_base_url)
+        self.simulator_client = setup_client(**simulator_client_params)
         self.simulator_langchain_client = setup_langchain_client(
-            simulator_base_url, simulator_model
+            **simulator_client_params
         )
         self.evaluator_langchain_client = setup_langchain_client(
-            evaluator_base_url, evaluation_model
+            **evaluator_client_params
         )
         self.evaluator = ConversationEvaluator(
             evaluator_client=self.evaluator_langchain_client
@@ -122,9 +135,9 @@ class PersonaBasedConversationTester:
 Provide a 2-3 sentence description of this persona's characteristics, communication style, and how they typically interact with customer service. Focus on their behavior and approach to asking questions."""
 
         response = await self.simulator_client.chat.completions.create(
-            model=self.simulator_model,
+            model=self.simulator_client_params.get("model", "gpt-4o-mini"),
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.8,
+            temperature=self.simulator_client_params.get("temperature", 0.8),
         )
         description = response.choices[0].message.content or ""
         description = description.strip()
@@ -137,10 +150,15 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
     async def generate_personas(self) -> List[Dict[str, Any]]:
         """Generate different user personas with communication styles"""
         if self.custom_personas is not None:
-            # Generate descriptions for custom personas using LLM
+            # Generate descriptions for custom personas in parallel
+            persona_tasks = [
+                self._generate_persona_description(persona_name)
+                for persona_name in self.custom_personas
+            ]
+            persona_results = await asyncio.gather(*persona_tasks)
+
             personas = []
-            for i, persona_name in enumerate(self.custom_personas):
-                persona_dict = await self._generate_persona_description(persona_name)
+            for i, persona_dict in enumerate(persona_results):
                 # Add sycophancy level cycling through the provided levels
                 sycophancy_level = self.sycophancy_levels[
                     i % len(self.sycophancy_levels)
@@ -218,9 +236,9 @@ Expected outcome: [what should happen]
 Make the scenarios realistic and diverse, covering different use cases for this chatbot."""
 
         response = await self.simulator_client.chat.completions.create(
-            model=self.simulator_model,
+            model=self.simulator_client_params.get("model", "gpt-4o-mini"),
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.8,
+            temperature=self.simulator_client_params.get("temperature", 0.8),
         )
         response_content = response.choices[0].message.content or ""
 
@@ -285,7 +303,7 @@ Make the scenarios realistic and diverse, covering different use cases for this 
 
             base_prompt += "Stay in character throughout the conversation."
 
-            user = create_llm_simulated_user(
+            user = create_async_llm_simulated_user(
                 system=base_prompt,
                 client=self.simulator_langchain_client,
             )
@@ -308,72 +326,92 @@ Make the scenarios realistic and diverse, covering different use cases for this 
 
         return users
 
+    async def _simulate_single_conversation(
+        self, app, user_data: Dict[str, Any], index: int, total: int
+    ) -> ConversationalTestCase:
+        """Simulate a single conversation"""
+        print(
+            f"Simulating conversation {index + 1}/{total} - {user_data['scenario_id']}",
+            flush=True,
+        )
+
+        try:
+            result = await run_multiturn_simulation_async(
+                app=app,
+                user=user_data["user"],
+                max_turns=self.max_turns,
+            )
+
+            # Evaluate the trajectory using the conversation evaluator
+            expected_answers = None
+            if user_data.get("expected_output"):
+                expected_answers = [user_data["expected_output"]]
+
+            evaluator_results = await self.evaluator.evaluate_trajectory(
+                result.get("trajectory", []), expected_answers=expected_answers
+            )
+            print(
+                f"Completed evaluating conversation {index + 1}/{total} - {user_data['scenario_id']}",
+                flush=True,
+            )
+
+            return {
+                "turns": result["trajectory"],
+                "evaluator_results": evaluator_results,
+                "additional_metadata": {
+                    "scenario_id": user_data["scenario_id"],
+                    "persona_name": user_data["persona_name"],
+                    "sycophancy_level": user_data["sycophancy_level"],
+                    "max_turns": user_data["max_turns"],
+                    "scenario": user_data["scenario"],
+                    "expected_outcome": user_data["expected_outcome"],
+                    "expected_output": user_data["expected_output"],
+                    "simulation_run": user_data.get("simulation_run", 1),
+                },
+            }
+
+        except Exception as e:
+            print(f"❌ Failed to simulate {user_data['scenario_id']}: {e}", flush=True)
+            return {
+                "turns": [],
+                "evaluator_results": [],
+                "additional_metadata": {
+                    "scenario_id": user_data["scenario_id"],
+                    "persona_name": user_data["persona_name"],
+                    "sycophancy_level": user_data["sycophancy_level"],
+                    "max_turns": user_data["max_turns"],
+                    "scenario": user_data["scenario"],
+                    "expected_outcome": user_data["expected_outcome"],
+                    "expected_output": user_data["expected_output"],
+                    "simulation_run": user_data.get("simulation_run", 1),
+                    "error": str(e),
+                },
+            }
+
     async def simulate_conversations(
         self, scenarios: List[Dict[str, Any]]
     ) -> List[ConversationalTestCase]:
         """Run multiturn simulations using OpenEvals"""
-        print(" Running multiturn simulations...")
+        print("Running multiturn simulations...", flush=True)
         app = self.create_app()
         simulated_users = self.create_simulated_users(scenarios)
 
-        test_cases = []
+        # Use semaphore to limit concurrent simulations
+        semaphore = asyncio.Semaphore(self.max_concurrent)
 
-        for i, user_data in enumerate(simulated_users):
-            print(
-                f" Simulating conversation {i + 1}/{len(simulated_users)} - {user_data['scenario_id']}"
-            )
-
-            try:
-                result = await run_multiturn_simulation_async(
-                    app=app,
-                    user=user_data["user"],
-                    max_turns=self.max_turns,
+        async def run_with_semaphore(user_data, index):
+            async with semaphore:
+                return await self._simulate_single_conversation(
+                    app, user_data, index, len(simulated_users)
                 )
 
-                # Evaluate the trajectory using the conversation evaluator
-                expected_answers = None
-                if user_data.get("expected_output"):
-                    expected_answers = [user_data["expected_output"]]
+        # Create tasks for all simulations
+        tasks = [
+            run_with_semaphore(user_data, i)
+            for i, user_data in enumerate(simulated_users)
+        ]
 
-                evaluator_results = await self.evaluator.evaluate_trajectory(
-                    result.get("trajectory", []), expected_answers=expected_answers
-                )
-
-                test_case = {
-                    "turns": result["trajectory"],
-                    "evaluator_results": evaluator_results,
-                    "additional_metadata": {
-                        "scenario_id": user_data["scenario_id"],
-                        "persona_name": user_data["persona_name"],
-                        "sycophancy_level": user_data["sycophancy_level"],
-                        "max_turns": user_data["max_turns"],
-                        "scenario": user_data["scenario"],
-                        "expected_outcome": user_data["expected_outcome"],
-                        "expected_output": user_data["expected_output"],
-                        "simulation_run": user_data.get("simulation_run", 1),
-                    },
-                }
-                test_cases.append(test_case)
-
-            except Exception as e:
-                print(f"❌ Failed to simulate {user_data['scenario_id']}: {e}")
-                # Create a minimal test case for failed simulations
-                test_case = {
-                    "turns": [],
-                    "evaluator_results": [],
-                    "additional_metadata": {
-                        "scenario_id": user_data["scenario_id"],
-                        "persona_name": user_data["persona_name"],
-                        "sycophancy_level": user_data["sycophancy_level"],
-                        "max_turns": user_data["max_turns"],
-                        "scenario": user_data["scenario"],
-                        "expected_outcome": user_data["expected_outcome"],
-                        "expected_output": user_data["expected_output"],
-                        "simulation_run": user_data.get("simulation_run", 1),
-                        "error": str(e),
-                    },
-                }
-                test_cases.append(test_case)
+        test_cases = await asyncio.gather(*tasks)
 
         return test_cases
 
@@ -436,7 +474,8 @@ Make the scenarios realistic and diverse, covering different use cases for this 
             f"• Max Turns per Conversation: {self.max_turns}\n", style="white"
         )
         test_plan_text.append(
-            f"• Simulator Model: {self.simulator_model}", style="white"
+            f"• Simulator Model: {self.simulator_client_params.get('model', 'gpt-4o-mini')}",
+            style="white",
         )
 
         console.print(

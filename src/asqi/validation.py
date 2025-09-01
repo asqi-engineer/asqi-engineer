@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from asqi.schemas import Manifest, SuiteConfig, SUTsConfig
+from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
 
 logger = logging.getLogger()
 
@@ -38,42 +38,94 @@ def validate_test_parameters(test, manifest: Manifest) -> List[str]:
     return errors
 
 
-def validate_sut_compatibility(
-    test, sut_definitions: Dict, manifest: Manifest
+def validate_system_compatibility(
+    test, system_definitions: Dict, manifest: Manifest
 ) -> List[str]:
     """
-    Validate SUT compatibility with test container.
+    Validate system compatibility with test container.
 
     Args:
         test: Test definition from suite config
-        sut_definitions: Dictionary of SUT definitions
+        system_definitions: Dictionary of system definitions
         manifest: Manifest for the test container
 
     Returns:
         List of validation error messages
     """
     errors = []
-    supported_sut_types = [s.type for s in manifest.supported_suts]
 
-    for sut_name in test.target_suts:
-        if sut_name not in sut_definitions:
-            available_suts = (
-                ", ".join(sut_definitions.keys()) if sut_definitions else "none"
+    # Create a map of required vs optional systems from manifest
+    required_systems = {}
+    optional_systems = {}
+
+    for system_input in manifest.input_systems:
+        if system_input.required:
+            required_systems[system_input.name] = system_input.type
+        else:
+            optional_systems[system_input.name] = system_input.type
+
+    # Validate systems_under_test (maps to system_under_test in manifest)
+    # Get all supported types for system_under_test from manifest
+    supported_types_for_system = [
+        s.type for s in manifest.input_systems if s.name == "system_under_test"
+    ]
+
+    target_systems = test.systems_under_test
+
+    for system_name in target_systems:
+        if system_name not in system_definitions:
+            available_systems = (
+                ", ".join(system_definitions.keys()) if system_definitions else "none"
             )
             errors.append(
-                f"Test '{test.name}': Unknown SUT '{sut_name}'. Available SUTs: {available_suts}"
+                f"Test '{test.name}': Unknown system '{system_name}'. Available systems: {available_systems}"
             )
             continue
 
-        sut_def = sut_definitions[sut_name]
-        if sut_def.type not in supported_sut_types:
+        system_def = system_definitions[system_name]
+        if system_def.type not in supported_types_for_system:
             supported_types = (
-                ", ".join(supported_sut_types) if supported_sut_types else "none"
+                ", ".join(supported_types_for_system)
+                if supported_types_for_system
+                else "none"
             )
             errors.append(
-                f"Test '{test.name}' on SUT '{sut_name}': "
-                f"Image '{test.image}' does not support SUT type '{sut_def.type}'. Supported types: {supported_types}"
+                f"Test '{test.name}' on system '{system_name}': "
+                f"Image '{test.image}' does not support system type '{system_def.type}'. Supported types: {supported_types}"
             )
+
+    # Validate additional systems from test.systems field
+    if hasattr(test, "systems") and test.systems:
+        for system_role, system_name in test.systems.items():
+            # Check if this system role is declared in manifest
+            expected_type = optional_systems.get(system_role)
+            if not expected_type:
+                valid_roles = (
+                    ", ".join(optional_systems.keys()) if optional_systems else "none"
+                )
+                errors.append(
+                    f"Test '{test.name}': Unknown system role '{system_role}'. Valid roles: {valid_roles}"
+                )
+                continue
+
+            # Check if referenced system exists
+            if system_name not in system_definitions:
+                available_systems = (
+                    ", ".join(system_definitions.keys())
+                    if system_definitions
+                    else "none"
+                )
+                errors.append(
+                    f"Test '{test.name}': Unknown {system_role} '{system_name}'. Available systems: {available_systems}"
+                )
+                continue
+
+            # Check if system type matches expected type
+            system_def = system_definitions[system_name]
+            if system_def.type != expected_type:
+                errors.append(
+                    f"Test '{test.name}' {system_role} '{system_name}': Expected type '{expected_type}', got '{system_def.type}'"
+                )
 
     return errors
 
@@ -114,21 +166,22 @@ def find_manifest_for_image(
 
 
 def validate_manifests_against_tests(
-    suite: SuiteConfig, suts: SUTsConfig, manifests: Dict[str, Manifest]
+    suite: SuiteConfig, systems: SystemsConfig, manifests: Dict[str, Manifest]
 ) -> List[str]:
     """
     Validate that all tests can be executed with available manifests.
 
     Args:
         suite: Test suite configuration
-        suts: SUTs configuration
+        systems: Systems configuration
         manifests: Dictionary of available manifests
 
     Returns:
         List of validation error messages
     """
     errors = []
-    sut_definitions = suts.systems_under_test
+    # Get the system definitions
+    system_definitions = systems.systems
 
     for test in suite.test_suite:
         # Check if manifest exists for test image
@@ -144,22 +197,24 @@ def validate_manifests_against_tests(
         param_errors = validate_test_parameters(test, manifest)
         errors.extend(param_errors)
 
-        # Validate SUT compatibility
-        sut_errors = validate_sut_compatibility(test, sut_definitions, manifest)
-        errors.extend(sut_errors)
+        # Validate system compatibility
+        system_errors = validate_system_compatibility(
+            test, system_definitions, manifest
+        )
+        errors.extend(system_errors)
 
     return errors
 
 
 def create_test_execution_plan(
-    suite: SuiteConfig, suts: SUTsConfig, image_availability: Dict[str, bool]
+    suite: SuiteConfig, systems: SystemsConfig, image_availability: Dict[str, bool]
 ) -> List[Dict[str, Any]]:
     """
     Create execution plan for all valid test combinations.
 
     Args:
         suite: Test suite configuration
-        suts: SUTs configuration
+        systems: Systems configuration
         image_availability: Dictionary of image availability status
 
     Returns:
@@ -167,7 +222,10 @@ def create_test_execution_plan(
     """
     if not suite or not suite.test_suite:
         return []
-    if not suts or not suts.systems_under_test:
+
+    # Get the system definitions
+    system_definitions = systems.systems
+    if not systems or not system_definitions:
         return []
 
     plan: List[Dict[str, Any]] = []
@@ -181,14 +239,17 @@ def create_test_execution_plan(
         if image not in available_images:
             continue
 
-        if not (target_suts := getattr(test, "target_suts", None)):
-            logger.warning(f"Skipping test '{test.name}' with no target SUTs")
+        # Get the target systems
+        target_systems = test.systems_under_test
+
+        if not target_systems:
+            logger.warning(f"Skipping test '{test.name}' with no target systems")
             continue
 
         # Process valid combinations
-        for sut_name in target_suts:
-            sut_def = suts.systems_under_test.get(sut_name)
-            if not sut_def or not getattr(sut_def, "type", None):
+        for system_name in target_systems:
+            system_def = system_definitions.get(system_name)
+            if not system_def or not getattr(system_def, "type", None):
                 continue
 
             vols = getattr(test, "volumes", None)
@@ -201,12 +262,29 @@ def create_test_execution_plan(
             else:
                 test_params = base_params or {}
 
+            # Build unified systems_params with system_under_test and additional systems
+            systems_params = {
+                "system_under_test": {"type": system_def.type, **system_def.params}
+            }
+
+            # Add additional systems if specified
+            if hasattr(test, "systems") and test.systems:
+                for system_role, referenced_system_name in test.systems.items():
+                    referenced_system_def = system_definitions.get(
+                        referenced_system_name
+                    )
+                    if referenced_system_def:
+                        systems_params[system_role] = {
+                            "type": referenced_system_def.type,
+                            **referenced_system_def.params,
+                        }
+
             plan.append(
                 {
                     "test_name": test.name,
                     "image": image,
-                    "sut_name": sut_name,
-                    "sut_params": {"type": sut_def.type, **sut_def.params},
+                    "sut_name": system_name,
+                    "systems_params": systems_params,
                     "test_params": test_params,
                 }
             )
@@ -215,21 +293,22 @@ def create_test_execution_plan(
 
 
 def validate_test_plan(
-    suite: SuiteConfig, suts: SUTsConfig, manifests: Dict[str, Manifest]
+    suite: SuiteConfig, systems: SystemsConfig, manifests: Dict[str, Manifest]
 ) -> List[str]:
     """
-    Validates the entire test plan by cross-referencing the suite, SUTs, and manifests.
+    Validates the entire test plan by cross-referencing the suite, systems, and manifests.
 
     Args:
         suite: The parsed SuiteConfig object.
-        suts: The parsed SUTsConfig object.
+        systems: The parsed systems configuration object.
         manifests: A dictionary mapping image names to their parsed Manifest objects.
 
     Returns:
         A list of error strings. An empty list indicates successful validation.
     """
     errors = []
-    sut_definitions = suts.systems_under_test
+    # Get the system definitions
+    system_definitions = systems.systems
 
     for test in suite.test_suite:
         # 1. Check if the test's image has a corresponding manifest
@@ -239,7 +318,9 @@ def validate_test_plan(
                 f"Test '{test.name}': Image '{test.image}' does not have a loaded manifest."
             )
             continue  # Cannot perform further validation for this test
-        supported_sut_types = [s.type for s in manifest.supported_suts]
+        supported_system_types = [
+            s.type for s in manifest.input_systems if s.name == "system_under_test"
+        ]
 
         # 2. Check parameters against the manifest's input_schema
         schema_params = {p.name: p for p in manifest.input_schema}
@@ -258,30 +339,49 @@ def validate_test_plan(
                     f"Test '{test.name}': Unknown parameter '{provided_param}' is not defined in manifest for '{test.image}'."
                 )
 
-        # 3. For each target SUT, perform validation
-        for sut_name in test.target_suts:
-            # 3a. Check if the SUT exists in the SUTs config
-            if sut_name not in sut_definitions:
-                errors.append(
-                    f"Test '{test.name}': Target SUT '{sut_name}' is not defined in the SUTs file."
-                )
-                continue  # Cannot perform further validation for this SUT
+        # 3. For each target system, perform validation
+        # Get the target systems
+        target_systems = test.systems_under_test
 
-            sut_def = sut_definitions[sut_name]
-
-            # 3b. Check if the container supports the SUT's type
-            if sut_def.type not in supported_sut_types:
+        for system_name in target_systems:
+            # 3a. Check if the system exists in the systems config
+            if system_name not in system_definitions:
                 errors.append(
-                    f"Test '{test.name}' on SUT '{sut_name}': Image '{test.image}' "
-                    f"(supports: {supported_sut_types}) is not compatible with SUT type '{sut_def.type}'."
+                    f"Test '{test.name}': Target system '{system_name}' is not defined in the systems file."
                 )
+                continue  # Cannot perform further validation for this system
+
+            system_def = system_definitions[system_name]
+
+            # 3b. Check if the container supports the system's type
+            if system_def.type not in supported_system_types:
+                errors.append(
+                    f"Test '{test.name}' on system '{system_name}': Image '{test.image}' "
+                    f"(supports: {supported_system_types}) is not compatible with system type '{system_def.type}'."
+                )
+
+        # 4. Validate optional simulator_system and evaluator_system fields
+        for optional_system_field in ["simulator_system", "evaluator_system"]:
+            optional_system_name = getattr(test, optional_system_field, None)
+            if optional_system_name:
+                if optional_system_name not in system_definitions:
+                    errors.append(
+                        f"Test '{test.name}': {optional_system_field} '{optional_system_name}' is not defined in the systems file."
+                    )
+                else:
+                    optional_system_def = system_definitions[optional_system_name]
+                    if optional_system_def.type not in supported_system_types:
+                        errors.append(
+                            f"Test '{test.name}' {optional_system_field} '{optional_system_name}': Image '{test.image}' "
+                            f"(supports: {supported_system_types}) is not compatible with system type '{optional_system_def.type}'."
+                        )
 
     return errors
 
 
 def validate_execution_inputs(
     suite_path: str,
-    suts_path: str,
+    systems_path: str,
     execution_mode: str,
     output_path: Optional[str] = None,
 ) -> None:
@@ -290,7 +390,7 @@ def validate_execution_inputs(
 
     Args:
         suite_path: Path to test suite YAML file
-        suts_path: Path to SUTs YAML file
+        systems_path: Path to systems YAML file
         execution_mode: Execution mode string
         output_path: Optional output file path
 
@@ -300,8 +400,8 @@ def validate_execution_inputs(
     if not suite_path or not isinstance(suite_path, str):
         raise ValueError("Invalid suite_path: must be non-empty string")
 
-    if not suts_path or not isinstance(suts_path, str):
-        raise ValueError("Invalid suts_path: must be non-empty string")
+    if not systems_path or not isinstance(systems_path, str):
+        raise ValueError("Invalid systems_path: must be non-empty string")
 
     if execution_mode not in ["tests_only", "end_to_end"]:
         raise ValueError(
@@ -341,8 +441,8 @@ def validate_score_card_inputs(
 def validate_test_execution_inputs(
     test_name: str,
     image: str,
-    sut_name: str,
-    sut_params: Dict[str, Any],
+    system_name: str,
+    system_params: Dict[str, Any],
     test_params: Dict[str, Any],
 ) -> None:
     """
@@ -351,8 +451,8 @@ def validate_test_execution_inputs(
     Args:
         test_name: Name of the test
         image: Docker image name
-        sut_name: Name of the SUT
-        sut_params: SUT parameters dictionary (flattened configuration)
+        system_name: Name of the system
+        system_params: System parameters dictionary (flattened configuration)
         test_params: Test parameters dictionary
 
     Raises:
@@ -364,11 +464,11 @@ def validate_test_execution_inputs(
     if not image or not isinstance(image, str):
         raise ValueError("Invalid image: must be non-empty string")
 
-    if not sut_name or not isinstance(sut_name, str):
-        raise ValueError("Invalid SUT name: must be non-empty string")
+    if not system_name or not isinstance(system_name, str):
+        raise ValueError("Invalid system name: must be non-empty string")
 
-    if not isinstance(sut_params, dict):
-        raise ValueError("Invalid SUT parameters: must be dictionary")
+    if not isinstance(system_params, dict):
+        raise ValueError("Invalid system parameters: must be dictionary")
 
     if not isinstance(test_params, dict):
         raise ValueError("Invalid test parameters: must be dictionary")
@@ -376,7 +476,7 @@ def validate_test_execution_inputs(
 
 def validate_workflow_configurations(
     suite: SuiteConfig,
-    suts: SUTsConfig,
+    systems: SystemsConfig,
     manifests: Optional[Dict[str, Manifest]] = None,
 ) -> List[str]:
     """
@@ -386,7 +486,7 @@ def validate_workflow_configurations(
 
     Args:
         suite: Test suite configuration
-        suts: SUTs configuration
+        systems: Systems configuration
         manifests: Optional manifests dictionary
 
     Returns:
@@ -401,8 +501,8 @@ def validate_workflow_configurations(
     if not isinstance(suite, SuiteConfig):
         raise ValueError("Invalid suite: must be SuiteConfig instance")
 
-    if not isinstance(suts, SUTsConfig):
-        raise ValueError("Invalid suts: must be SUTsConfig instance")
+    if not isinstance(systems, SystemsConfig):
+        raise ValueError("Invalid systems: must be SystemsConfig instance")
 
     if manifests is not None and not isinstance(manifests, dict):
         raise ValueError("Invalid manifests: must be dictionary")
@@ -411,11 +511,13 @@ def validate_workflow_configurations(
     if not suite.test_suite:
         errors.append("Test suite is empty: no tests to validate")
 
-    if not suts.systems_under_test:
-        errors.append("SUTs configuration is empty: no systems under test defined")
+    # Get the system definitions
+    system_definitions = systems.systems
+    if not system_definitions:
+        errors.append("Systems configuration is empty: no systems defined")
 
     # Detailed validation if manifests are provided
     if manifests is not None and not errors:  # Only if basic validation passes
-        errors.extend(validate_manifests_against_tests(suite, suts, manifests))
+        errors.extend(validate_manifests_against_tests(suite, systems, manifests))
 
     return errors
