@@ -9,7 +9,7 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
-from asqi.config import ContainerConfig, ExecutorConfig, merge_defaults_into_suite
+from asqi.config import ContainerConfig, ExecutorConfig, interpolate_env_vars, merge_defaults_into_suite
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
@@ -20,13 +20,13 @@ console = Console()
 
 
 def load_yaml_file(file_path: str) -> Dict[str, Any]:
-    """Loads a YAML file.
+    """Loads a YAML file with environment variable interpolation.
 
     Args:
         file_path: Path to the YAML file to load
 
     Returns:
-        Dictionary containing the parsed YAML data
+        Dictionary containing the parsed YAML data with environment variables interpolated
 
     Raises:
         FileNotFoundError: If the specified file does not exist
@@ -35,7 +35,10 @@ def load_yaml_file(file_path: str) -> Dict[str, Any]:
     """
     try:
         with open(file_path, "r") as f:
-            return yaml.safe_load(f)
+            data = yaml.safe_load(f)
+        
+        # Apply environment variable interpolation
+        return interpolate_env_vars(data)
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Configuration file not found: '{file_path}'") from e
     except yaml.YAMLError as e:

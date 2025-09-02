@@ -377,6 +377,37 @@ class TestUtilityFunctions:
         finally:
             os.unlink(temp_path)
 
+    def test_load_yaml_file_with_interpolation(self):
+        """Test YAML file loading with environment variable interpolation."""
+        os.environ["TEST_IMAGE"] = "my-registry.com/test-app"
+        os.environ["TEST_API_KEY"] = "sk-12345"
+        
+        yaml_content = """
+        image: "${TEST_IMAGE}:latest"
+        params:
+          api_key: "${TEST_API_KEY}"
+          timeout: "${TIMEOUT:-30}"
+        """
+        
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = f.name
+
+        try:
+            result = load_yaml_file(temp_path)
+            expected = {
+                "image": "my-registry.com/test-app:latest",
+                "params": {
+                    "api_key": "sk-12345",
+                    "timeout": "30"
+                }
+            }
+            assert result == expected
+        finally:
+            os.unlink(temp_path)
+            del os.environ["TEST_IMAGE"]
+            del os.environ["TEST_API_KEY"]
+
     def test_load_score_card_file_success(self):
         """Test successful score card file loading."""
         score_card_data = {
