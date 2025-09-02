@@ -42,23 +42,24 @@ def _interpolate_string(text: str) -> str:
     - ${VAR:-default} -> os.environ.get('VAR') or 'default' (if VAR is empty or None)
     - ${VAR-default} -> os.environ.get('VAR', 'default') (if VAR is None)
     """
+
     def replace_var(match):
         var_expr = match.group(1)
 
         # Check for default value syntax
-        if ':-' in var_expr:
-            var_name, default = var_expr.split(':-', 1)
+        if ":-" in var_expr:
+            var_name, default = var_expr.split(":-", 1)
             value = os.environ.get(var_name)
             return value if value else default
-        elif '-' in var_expr:
-            var_name, default = var_expr.split('-', 1)
+        elif "-" in var_expr:
+            var_name, default = var_expr.split("-", 1)
             return os.environ.get(var_name, default)
         else:
             # Direct substitution
-            return os.environ.get(var_expr, '')
+            return os.environ.get(var_expr, "")
 
     # Pattern matches ${...} where ... can contain any characters except }
-    pattern = r'\$\{([^}]+)\}'
+    pattern = r"\$\{([^}]+)\}"
     return re.sub(pattern, replace_var, text)
 
 
@@ -190,7 +191,7 @@ def load_config_file(file_path: str) -> Dict[str, Any]:
     """
     with open(file_path, "r") as f:
         data = yaml.safe_load(f)
-    
+
     # Apply environment variable interpolation
     return interpolate_env_vars(data)
 

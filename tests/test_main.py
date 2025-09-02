@@ -381,14 +381,14 @@ class TestUtilityFunctions:
         """Test YAML file loading with environment variable interpolation."""
         os.environ["TEST_IMAGE"] = "my-registry.com/test-app"
         os.environ["TEST_API_KEY"] = "sk-12345"
-        
+
         yaml_content = """
         image: "${TEST_IMAGE}:latest"
         params:
           api_key: "${TEST_API_KEY}"
           timeout: "${TIMEOUT:-30}"
         """
-        
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(yaml_content)
             temp_path = f.name
@@ -397,10 +397,7 @@ class TestUtilityFunctions:
             result = load_yaml_file(temp_path)
             expected = {
                 "image": "my-registry.com/test-app:latest",
-                "params": {
-                    "api_key": "sk-12345",
-                    "timeout": "30"
-                }
+                "params": {"api_key": "sk-12345", "timeout": "30"},
             }
             assert result == expected
         finally:

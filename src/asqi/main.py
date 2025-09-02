@@ -9,7 +9,12 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
-from asqi.config import ContainerConfig, ExecutorConfig, interpolate_env_vars, merge_defaults_into_suite
+from asqi.config import (
+    ContainerConfig,
+    ExecutorConfig,
+    interpolate_env_vars,
+    merge_defaults_into_suite,
+)
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
@@ -36,7 +41,7 @@ def load_yaml_file(file_path: str) -> Dict[str, Any]:
     try:
         with open(file_path, "r") as f:
             data = yaml.safe_load(f)
-        
+
         # Apply environment variable interpolation
         return interpolate_env_vars(data)
     except FileNotFoundError as e:

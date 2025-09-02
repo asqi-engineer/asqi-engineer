@@ -149,13 +149,13 @@ def test_interpolate_env_vars_nested_structures():
         data = {
             "dict_key": {"nested": "${TEST_VAR}"},
             "list_key": ["item1", "${TEST_VAR}", "item3"],
-            "simple": "${TEST_VAR}"
+            "simple": "${TEST_VAR}",
         }
         result = interpolate_env_vars(data)
         expected = {
             "dict_key": {"nested": "interpolated"},
             "list_key": ["item1", "interpolated", "item3"],
-            "simple": "interpolated"
+            "simple": "interpolated",
         }
         assert result == expected
     finally:
@@ -183,7 +183,7 @@ def test_load_config_file_with_interpolation(tmp_path):
         result = load_config_file(str(file))
         expected = {
             "image": "my-registry.com/my-app:latest",
-            "params": {"api_key": "sk-default"}
+            "params": {"api_key": "sk-default"},
         }
         assert result == expected
     finally:
