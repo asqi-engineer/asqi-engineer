@@ -90,6 +90,47 @@ systems:
       env_file: "production.env"  # Custom environment file
 ```
 
+### String Interpolation
+
+ASQI supports environment variable interpolation directly in YAML configuration files using shell-style syntax:
+
+```yaml
+# Direct substitution - uses environment variable or empty string if not set
+image: ${REGISTRY}/my-app:latest
+
+# Default value - uses environment variable or default if not set/unset
+image: ${REGISTRY:-docker.io}/my-app:latest
+
+# Default if unset - uses environment variable (including empty) or default if unset
+image: ${REGISTRY-docker.io}/my-app:latest
+```
+
+#### Examples
+
+```yaml
+suite_name: "Dynamic Testing Suite"
+test_suite:
+  - name: "registry_test"
+    image: ${REGISTRY:-my-registry}/garak:latest
+    systems_under_test: ["${TARGET_SYSTEM:-openai_gpt4o}"]
+    params:
+      api_key: "${API_KEY}"
+      model: "${MODEL:-gpt-4o-mini}"
+```
+
+#### Environment Setup
+
+Set variables in your shell or `.env` file:
+
+```bash
+export REGISTRY=my-private-registry.com
+export TARGET_SYSTEM=production_llm
+export API_KEY=sk-your-key
+export MODEL=gpt-4o
+```
+
+This feature enables dynamic configuration without modifying YAML files for different environments.
+
 ### REST API Systems
 
 For HTTP-based services and endpoints:
