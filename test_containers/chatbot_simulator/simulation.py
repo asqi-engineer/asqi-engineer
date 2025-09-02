@@ -492,7 +492,7 @@ class ConversationTestAnalyzer:
     def save_conversations(
         self,
         test_cases: List[ConversationalTestCase],
-        filepath: Path,
+        filepath: Path = Path("conversation_logs.json"),
     ) -> None:
         """Save full conversation threads with evaluation scores to a JSON file"""
         conversations = []
@@ -558,7 +558,7 @@ class ConversationTestAnalyzer:
             json.dump(conversations, f, indent=2, ensure_ascii=False)
 
         print(
-            f"💾 Saved {len(conversations)} conversation threads with evaluation scores to the mounted output volume with name {filepath.name}"
+            f"💾 Saved {len(conversations)} conversation threads with evaluation scores to {filepath}."
         )
 
     def analyze_results(
