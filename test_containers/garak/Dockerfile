@@ -1,19 +1,25 @@
-FROM python:3.11-slim
+
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install Rust and Cargo
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl build-essential && \
     curl https://sh.rustup.rs -sSf | sh -s -- -y && \
     . "$HOME/.cargo/env" && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*
 
-# Ensure cargo is on PATH for subsequent RUN commands
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Install garak and its dependencies
-RUN pip install --no-cache-dir garak==0.12.0
+RUN pip install --no-cache-dir --user garak==0.12.0
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY --from=builder /root/.local /root/.local
+
+ENV PATH="/root/.local/bin:${PATH}"
 
 COPY manifest.yaml .
 COPY entrypoint.py .

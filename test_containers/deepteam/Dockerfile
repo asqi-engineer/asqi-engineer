@@ -1,23 +1,20 @@
-FROM python:3.11-slim
-
+# Stage 1: Build dependencies
+FROM python:3.11-slim AS builder
 WORKDIR /app
-
-# Install Rust and Cargo
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl build-essential && \
     curl https://sh.rustup.rs -sSf | sh -s -- -y && \
     . "$HOME/.cargo/env" && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir --prefix=/install deepteam==0.2.4 litellm==1.76.0
 
-# Ensure cargo is on PATH for subsequent RUN commands
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Install deepteam and its dependencies
-RUN pip install --no-cache-dir deepteam==0.2.4 litellm==1.76.0
+# Stage 2: Runtime (Python 3.11 slim)
+FROM python:3.11-slim
+WORKDIR /app
+COPY --from=builder /install /usr/local
 COPY manifest.yaml .
 COPY entrypoint.py .
 
 ENV DEEPTEAM_TELEMETRY_OPT_OUT="YES"
 RUN chmod +x entrypoint.py
-
 ENTRYPOINT ["python", "./entrypoint.py"]
