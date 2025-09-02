@@ -1,7 +1,0 @@
-systems:
-  object_detection:
-    type: "computer_vision"
-    params:
-      model: "my-model"
-      env_file: ".env"
-      # No base_url or api_key specified - will use fallbacks from .env

@@ -1,7 +1,0 @@
-systems:
-  object_detection:
-    type: "computer_vision"
-    params:
-      type: "ultralytics"
-      model: "yolov8n.pt"
-      env_file: ".env" 
