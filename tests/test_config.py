@@ -172,6 +172,10 @@ def test_interpolate_env_vars_no_interpolation():
 def test_load_config_file_with_interpolation(tmp_path):
     """Test that load_config_file applies interpolation."""
     os.environ["TEST_REGISTRY"] = "my-registry.com"
+
+    # Store and temporarily unset API_KEY to test default value
+    original_api_key = os.environ.pop("API_KEY", None)
+
     try:
         yaml_content = """
         image: "${TEST_REGISTRY}/my-app:latest"
@@ -188,3 +192,6 @@ def test_load_config_file_with_interpolation(tmp_path):
         assert result == expected
     finally:
         del os.environ["TEST_REGISTRY"]
+        # Restore original API_KEY if it existed
+        if original_api_key is not None:
+            os.environ["API_KEY"] = original_api_key
