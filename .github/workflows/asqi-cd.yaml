@@ -57,7 +57,7 @@ jobs:
 
       - name: 🛠️ Install build dependencies
         run: |
-          uv sync --python ${{ matrix.python-version }} --group dev
+          uv sync --locked --python ${{ matrix.python-version }} --group dev
 
       - name: 🔨 Build package
         run: uv build --wheel
