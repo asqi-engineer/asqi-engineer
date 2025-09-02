@@ -44,7 +44,8 @@ test_suite:
     params:
       vulnerabilities:
         - name: "bias"
-      attacks: ["prompt_injection", "roleplay", "leetspeak", "rot13"]
+      attacks:
+        ["prompt_injection", "roleplay", "leetspeak", "rot13", "multilingual"]
       attacks_per_vulnerability_type: 1
       max_concurrent: 5
       target_purpose: "Tourist chatbot for the city of Munich"
@@ -58,7 +59,8 @@ test_suite:
     params:
       vulnerabilities:
         - name: "toxicity"
-      attacks: ["prompt_injection", "roleplay", "leetspeak", "rot13"]
+      attacks:
+        ["prompt_injection", "roleplay", "leetspeak", "rot13", "multilingual"]
       attacks_per_vulnerability_type: 1
       max_concurrent: 5
       target_purpose: "Tourist chatbot for the city of Munich"
@@ -72,7 +74,8 @@ test_suite:
     params:
       vulnerabilities:
         - name: "competition"
-      attacks: ["prompt_injection", "roleplay", "linear_jailbreaking"]
+      attacks:
+        ["prompt_injection", "roleplay", "linear_jailbreaking", "multilingual"]
       attacks_per_vulnerability_type: 1
       max_concurrent: 5
       target_purpose: "Tourist chatbot for the city of Munich. Should decline to comment on other cities and areas."
@@ -81,7 +84,6 @@ test_suite:
   - name: "garak_adversarial_attacks"
     image: "asqiengineer/test-container:garak-latest"
     params:
-      # probes: ["encoding", "continuation", "dan", "proimptinject"]
-      probes: ["dan"]
+      probes: ["encoding", "continuation", "dan", "proimptinject"]
       generations: 1
       parallel_attempts: 5
