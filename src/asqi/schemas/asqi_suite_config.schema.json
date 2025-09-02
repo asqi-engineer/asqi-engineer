@@ -3,23 +3,21 @@
     "TestDefinition": {
       "description": "A single test to be executed.",
       "properties": {
-        "name": {
-          "description": "A unique, human-readable name for this test instance.",
-          "title": "Name",
-          "type": "string"
-        },
-        "image": {
-          "description": "The Docker image to run for this test, e.g., 'my-registry/garak:latest'.",
-          "title": "Image",
-          "type": "string"
-        },
         "systems_under_test": {
-          "description": "A list of system names (from systems.yaml) to run this test against.",
-          "items": {
-            "type": "string"
-          },
-          "title": "Systems Under Test",
-          "type": "array"
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A list of system names (from systems.yaml) to run this test against. Can be inherited from test_suite_default.",
+          "title": "Systems Under Test"
         },
         "systems": {
           "anyOf": [
@@ -54,11 +52,18 @@
           "title": "Tags"
         },
         "params": {
-          "additionalProperties": true,
-          "default": {},
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
           "description": "Parameters to be passed to the test container's entrypoint.",
-          "title": "Params",
-          "type": "object"
+          "title": "Params"
         },
         "volumes": {
           "anyOf": [
@@ -70,17 +75,109 @@
               "type": "null"
             }
           ],
-          "default": {},
+          "default": null,
           "description": "Optional input/output mounts.",
           "title": "Volumes"
+        },
+        "name": {
+          "description": "A unique, human-readable name for this test instance.",
+          "title": "Name",
+          "type": "string"
+        },
+        "image": {
+          "description": "The Docker image to run for this test, e.g., 'my-registry/garak:latest'.",
+          "title": "Image",
+          "type": "string"
         }
       },
       "required": [
         "name",
-        "image",
-        "systems_under_test"
+        "image"
       ],
       "title": "TestDefinition",
+      "type": "object"
+    },
+    "TestSuiteDefault": {
+      "description": "Default values that apply to all tests in the suite unless overridden.",
+      "properties": {
+        "systems_under_test": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A list of system names (from systems.yaml) to run this test against. Can be inherited from test_suite_default.",
+          "title": "Systems Under Test"
+        },
+        "systems": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional additional systems for the test (e.g., simulator_system, evaluator_system).",
+          "title": "Systems"
+        },
+        "tags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional tags for filtering and reporting.",
+          "title": "Tags"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Parameters to be passed to the test container's entrypoint.",
+          "title": "Params"
+        },
+        "volumes": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional input/output mounts.",
+          "title": "Volumes"
+        }
+      },
+      "title": "TestSuiteDefault",
       "type": "object"
     }
   },
@@ -89,6 +186,18 @@
     "suite_name": {
       "title": "Suite Name",
       "type": "string"
+    },
+    "test_suite_default": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TestSuiteDefault"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Default values that apply to all tests in the suite unless overridden"
     },
     "test_suite": {
       "items": {

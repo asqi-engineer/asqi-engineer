@@ -120,7 +120,29 @@ class SystemsConfig(BaseModel):
 # ----------------------------------------------------------------------------
 
 
-class TestDefinition(BaseModel):
+class TestDefinitionBase(BaseModel):
+    """Base class for test configuration fields shared between TestDefinition and TestSuiteDefault."""
+
+    systems_under_test: Optional[List[str]] = Field(
+        None,
+        description="A list of system names (from systems.yaml) to run this test against. Can be inherited from test_suite_default.",
+    )
+    systems: Optional[Dict[str, str]] = Field(
+        None,
+        description="Optional additional systems for the test (e.g., simulator_system, evaluator_system).",
+    )
+    tags: Optional[List[str]] = Field(
+        None, description="Optional tags for filtering and reporting."
+    )
+    params: Optional[Dict[str, Any]] = Field(
+        None, description="Parameters to be passed to the test container's entrypoint."
+    )
+    volumes: Optional[Dict[str, Any]] = Field(
+        None, description="Optional input/output mounts."
+    )
+
+
+class TestDefinition(TestDefinitionBase):
     """A single test to be executed."""
 
     name: str = Field(
@@ -130,29 +152,22 @@ class TestDefinition(BaseModel):
         ...,
         description="The Docker image to run for this test, e.g., 'my-registry/garak:latest'.",
     )
-    systems_under_test: List[str] = Field(
-        ...,
-        description="A list of system names (from systems.yaml) to run this test against.",
-    )
-    systems: Optional[Dict[str, str]] = Field(
-        None,
-        description="Optional additional systems for the test (e.g., simulator_system, evaluator_system).",
-    )
-    tags: Optional[List[str]] = Field(
-        None, description="Optional tags for filtering and reporting."
-    )
-    params: Dict[str, Any] = Field(
-        {}, description="Parameters to be passed to the test container's entrypoint."
-    )
-    volumes: Optional[Dict[str, Any]] = Field(
-        {}, description="Optional input/output mounts."
-    )
+
+
+class TestSuiteDefault(TestDefinitionBase):
+    """Default values that apply to all tests in the suite unless overridden."""
+
+    pass
 
 
 class SuiteConfig(BaseModel):
     """Schema for the top-level Test Suite configuration file."""
 
     suite_name: str
+    test_suite_default: Optional[TestSuiteDefault] = Field(
+        None,
+        description="Default values that apply to all tests in the suite unless overridden",
+    )
     test_suite: List[TestDefinition]
 
 

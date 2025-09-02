@@ -21,14 +21,15 @@ def validate_test_parameters(test, manifest: Manifest) -> List[str]:
     schema_params = {p.name: p for p in manifest.input_schema}
 
     # Check for required but missing params
+    test_params = test.params or {}
     for schema_param in manifest.input_schema:
-        if schema_param.required and schema_param.name not in test.params:
+        if schema_param.required and schema_param.name not in test_params:
             errors.append(
                 f"Test '{test.name}': Missing required parameter '{schema_param.name}' (type: {schema_param.type}, description: {schema_param.description or 'none'})"
             )
 
     # Check for unknown params
-    for provided_param in test.params:
+    for provided_param in test_params:
         if provided_param not in schema_params:
             valid_params = ", ".join(schema_params.keys()) if schema_params else "none"
             errors.append(
@@ -326,14 +327,15 @@ def validate_test_plan(
         schema_params = {p.name: p for p in manifest.input_schema}
 
         # Check for required but missing params
+        test_params = test.params or {}
         for schema_param in manifest.input_schema:
-            if schema_param.required and schema_param.name not in test.params:
+            if schema_param.required and schema_param.name not in test_params:
                 errors.append(
                     f"Test '{test.name}': Required parameter '{schema_param.name}' is missing."
                 )
 
         # Check for unknown params
-        for provided_param in test.params:
+        for provided_param in test_params:
             if provided_param not in schema_params:
                 errors.append(
                     f"Test '{test.name}': Unknown parameter '{provided_param}' is not defined in manifest for '{test.image}'."
@@ -341,7 +343,7 @@ def validate_test_plan(
 
         # 3. For each target system, perform validation
         # Get the target systems
-        target_systems = test.systems_under_test
+        target_systems = test.systems_under_test or []
 
         for system_name in target_systems:
             # 3a. Check if the system exists in the systems config
@@ -510,6 +512,13 @@ def validate_workflow_configurations(
     # Content validation
     if not suite.test_suite:
         errors.append("Test suite is empty: no tests to validate")
+
+    # Validate that each test has systems_under_test after defaults merging
+    for test in suite.test_suite:
+        if not test.systems_under_test:
+            errors.append(
+                f"Test '{test.name}': systems_under_test is required but not provided in test definition or test_suite_default"
+            )
 
     # Get the system definitions
     system_definitions = systems.systems

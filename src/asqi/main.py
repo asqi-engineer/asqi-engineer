@@ -9,7 +9,7 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
-from asqi.config import ContainerConfig, ExecutorConfig
+from asqi.config import ContainerConfig, ExecutorConfig, merge_defaults_into_suite
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
@@ -90,6 +90,7 @@ def load_and_validate_plan(
         systems_config = SystemsConfig(**systems_data)
 
         suite_data = load_yaml_file(suite_path)
+        suite_data = merge_defaults_into_suite(suite_data)
         suite_config = SuiteConfig(**suite_data)
 
         # Load manifests - currently just loads locally. TODO: obtain from registry
