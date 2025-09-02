@@ -57,11 +57,11 @@ def docker_client():
 def check_images_availability(images: List[str]) -> Dict[str, bool]:
     """
     Check if Docker images are available locally.
-
     - Tries to fetch each image by exact name:tag.
-    - Records availability in a dict.
-    - If any images are missing, lists available tags for the repo
-    and raises MissingImageException with recommendations.
+
+    Returns:
+        Dict mapping image -> True/False indicating availability
+
     """
     availability: Dict[str, bool] = {}
 
@@ -82,38 +82,36 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
     return availability
 
 
-def pull_images(images: List[str]) -> Dict[str, bool]:
+def pull_images(images: List[str]):
     """
-    Pull the specified Docker images from Docker Hub (or configured registries).
+    Pull Docker images from registry if not available locally.
 
     Args:
-        images: List of image references (e.g., 'ubuntu:22.04', 'library/alpine:latest', 'user/repo:tag')
+        images: List of image references (e.g., 'ubuntu:22.04', 'user/repo:tag')
 
     Returns:
-        Dict mapping image -> True/False indicating availability after pull attempt.
+        None on success
 
-    Notes:
-        - If an image already exists locally, it's treated as available.
-        - Uses docker SDK to pull; handles common API errors and continues.
+    Raises:
+        MissingImageException: If images cannot be pulled (includes alternative suggestions)
+        ConnectionError: If unable to connect to Docker daemon
     """
-    result: Dict[str, bool] = {img: False for img in images}
-
+    images_to_pull = []
     # Quick local check to avoid unnecessary pulls
     with docker_client() as client:
         for image in images:
             try:
                 client.images.get(image)
-                result[image] = True
             except docker_errors.ImageNotFound:
-                pass
+                images_to_pull.append(image)
             except docker_errors.APIError as e:
                 logger.warning(f"Docker API error checking local image {image}: {e}")
 
     # Attempt to pull only those not present
-    images_to_pull = [img for img, ok in result.items() if not ok]
     if not images_to_pull:
-        return result
+        return
 
+    missing = []
     with docker_client() as client:
         for image in images_to_pull:
             try:
@@ -122,19 +120,42 @@ def pull_images(images: List[str]) -> Dict[str, bool]:
                 # Verify
                 try:
                     client.images.get(image)
-                    result[image] = True
                     logger.info(f"Successfully pulled '{image}'")
                 except docker_errors.ImageNotFound:
                     logger.error(f"Image '{image}' not found after pull")
-                    result[image] = False
+                    missing.append(image)
             except docker_errors.APIError as e:
                 logger.error(f"Failed to pull image '{image}': {e}")
-                result[image] = False
+                missing.append(image)
             except Exception as e:
                 logger.error(f"Unexpected error pulling '{image}': {e}")
-                result[image] = False
+                missing.append(image)
 
-    return result
+        if missing:
+            try:
+                local_images = client.images.list()
+                local_tags = [tag for img in local_images for tag in img.tags]
+            except docker_errors.APIError as e:
+                logger.warning(f"Failed to list local Docker images: {e}")
+                local_tags = []
+    if not missing:
+        return
+
+    msgs = []
+    for image in missing:
+        repo = image.rsplit(":", 1)[0] if ":" in image else image
+        repo_tags = [tag for tag in local_tags if tag.startswith(repo + ":")]
+
+        suggestion = get_close_matches(image, local_tags, n=1)
+
+        if repo_tags:  # different tags
+            msg = f"❌ Container not found: {image}\nDid you mean: {repo_tags[0]}"
+        elif suggestion:  # similar names
+            msg = f"❌ Container not found: {image}\nDid you mean: {suggestion[0]}"
+        else:
+            msg = f"❌ Container not found: {image}\nNo similar images found."
+        msgs.append(msg)
+    raise MissingImageException("\n\n".join(msgs))
 
 
 def extract_manifest_from_image(
