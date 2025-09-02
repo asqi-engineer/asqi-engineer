@@ -74,7 +74,7 @@ def setup_langchain_client(**system_params) -> ChatOpenAI:
 class PersonaBasedConversationTester:
     def __init__(
         self,
-        model_callback: Callable[[list[ChatCompletionMessage]], Awaitable[str]],
+        model_callback: Callable[[str], Awaitable[str]],
         chatbot_purpose: str,
         simulator_client_params: Dict[str, Any],
         evaluator_client_params: Dict[str, Any],
@@ -111,21 +111,25 @@ class PersonaBasedConversationTester:
         self.history: Dict[str, List[ChatCompletionMessage]] = {}
 
     def create_app(self):
-        """Create OpenEvals-compatible app function"""
+        """Create OpenEvals-compatible app function.
+        While this requires the input/output to be a list of messages, we only use the latest message for generating a response.
+        Any tracking of conversation history is handled by the actual user app wrapped in the model_callback function.
+        """
 
-        async def app(input: ChatCompletionMessage, thread_id: str = None, **kwargs):
-            if thread_id not in self.history:
-                self.history[thread_id] = []
-            self.history[thread_id].append(input)
-
-            response_content = await self.model_callback(self.history[thread_id])
+        async def app(
+            inputs: ChatCompletionMessage, thread_id: str = None, **kwargs
+        ) -> ChatCompletionMessage:
+            content = inputs["content"]
+            if not isinstance(content, str):
+                raise TypeError("Message content must be a string")
+            response_content = await self.model_callback(content)
 
             # Create response message
             response_message: ChatCompletionMessage = {
                 "role": "assistant",
                 "content": response_content,
             }
-            self.history[thread_id].append(response_message)
+
             return response_message
 
         return app
