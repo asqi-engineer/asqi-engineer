@@ -15,7 +15,9 @@ from asqi.container_manager import (
     check_images_availability,
     docker_client,
     extract_manifest_from_image,
-    run_container_with_args, pull_images, MissingImageException,
+    run_container_with_args,
+    pull_images,
+    MissingImageException,
 )
 from asqi.schemas import Manifest
 
@@ -156,10 +158,7 @@ class TestCheckImagesAvailability:
 
         result = check_images_availability(images)
 
-        expected = {
-            "available:latest": True,
-            "missing:latest": False
-        }
+        expected = {"available:latest": True, "missing:latest": False}
         assert result == expected
 
     @patch("asqi.container_manager.docker_client")
@@ -728,12 +727,16 @@ class TestPullImages:
 
     @patch("asqi.container_manager.logger")
     @patch("asqi.container_manager.docker_client")
-    def test_pull_missing_failure_raises_with_suggestion(self, mock_docker_client, mock_logger):
+    def test_pull_missing_failure_raises_with_suggestion(
+        self, mock_docker_client, mock_logger
+    ):
         mock_client_first = MagicMock()
         mock_client_second = MagicMock()
 
         # First pass: both missing
-        mock_client_first.images.get.side_effect = docker_errors.ImageNotFound("missing")
+        mock_client_first.images.get.side_effect = docker_errors.ImageNotFound(
+            "missing"
+        )
 
         # Second pass: pull fails via APIError
         mock_client_second.images.pull.side_effect = docker_errors.APIError("denied")
@@ -746,7 +749,9 @@ class TestPullImages:
         mock_cm.__enter__.side_effect = [mock_client_first, mock_client_second]
 
         with pytest.raises(MissingImageException) as exc:
-            pull_images(["repo/tool:1.0"])  # will fail to pull, suggestion should pick "repo/tool:latest"
+            pull_images(
+                ["repo/tool:1.0"]
+            )  # will fail to pull, suggestion should pick "repo/tool:latest"
 
         msg = str(exc.value)
         assert "Container not found: repo/tool:1.0" in msg
