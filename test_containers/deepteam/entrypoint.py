@@ -3,7 +3,7 @@ import asyncio
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import openai
 from deepeval.models import DeepEvalBaseLLM
@@ -80,7 +80,9 @@ class CustomOpenAIModel(DeepEvalBaseLLM):
         retry=retry_if_exception_type(retryable_exceptions),
         after=log_retry_error,
     )
-    def generate(self, prompt: str, schema: Optional[BaseModel] = None) -> str:
+    def generate(  # type: ignore
+        self, prompt: str, schema: Optional[BaseModel] = None
+    ) -> Union[str, BaseModel]:
         client = OpenAI(
             api_key=self.api_key, base_url=self.base_url, **self.client_kwargs
         )
@@ -92,17 +94,30 @@ class CustomOpenAIModel(DeepEvalBaseLLM):
         }
 
         if schema:
-            completion_params["response_format"] = schema
+            completion_params["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema.__name__,
+                    "schema": schema.model_json_schema(),
+                },
+            }
 
         response = client.chat.completions.create(**completion_params)
-        return response.choices[0].message.content or ""
+        content = response.choices[0].message.content
+
+        if schema:
+            data = json.loads(content)
+            return schema.model_validate(data)
+        return content
 
     @retry(
         wait=wait_exponential_jitter(initial=1, exp_base=2, jitter=2, max=10),
         retry=retry_if_exception_type(retryable_exceptions),
         after=log_retry_error,
     )
-    async def a_generate(self, prompt: str, schema: Optional[BaseModel] = None) -> str:
+    async def a_generate(  # type: ignore
+        self, prompt: str, schema: Optional[BaseModel] = None
+    ) -> Union[str, BaseModel]:
         client = AsyncOpenAI(
             api_key=self.api_key, base_url=self.base_url, **self.client_kwargs
         )
@@ -114,10 +129,21 @@ class CustomOpenAIModel(DeepEvalBaseLLM):
         }
 
         if schema:
-            completion_params["response_format"] = schema
+            completion_params["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema.__name__,
+                    "schema": schema.model_json_schema(),
+                },
+            }
 
         response = await client.chat.completions.create(**completion_params)
-        return response.choices[0].message.content or ""
+        content = response.choices[0].message.content
+
+        if schema:
+            data = json.loads(content)
+            return schema.model_validate(data)
+        return content
 
     def get_model_name(self) -> str:
         return self.model_name
