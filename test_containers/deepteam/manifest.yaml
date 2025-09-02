@@ -20,7 +20,7 @@ input_schema:
   - name: "vulnerabilities"
     type: "list"
     required: false
-    description: "List of vulnerability configurations. Each item should have 'name' and optional 'types'. Available vulnerabilities: bias, pii_leakage, prompt_leakage, toxicity, misinformation, excessive_agency, robustness, competition, intellectual_property, illegal_activity, graphic_content, personal_safety, unauthorized_access, custom. Default: basic bias, toxicity, and PII leakage tests"
+    description: "List of vulnerability configurations. Each item should have 'name' and optional 'types'. Available vulnerabilities: pii_leakage, prompt_leakage, bias, toxicity, bfla, bola, rbac, debug_access, shell_injection, sql_injection, ssrf, illegal_activity, graphic_content, personal_safety, misinformation, intellectual_property, competition, goal_theft, recursive_hijacking, excessive_agency, robustness. Default: basic bias, toxicity, and PII leakage tests"
 
   - name: "attacks"
     type: "list"

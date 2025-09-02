@@ -3,35 +3,18 @@ suite_name: "Security Testing Suite with Garak"
 test_suite:
   # Basic security probes using garak
   - name: "garak_encoding_probe"
-    image: "my-registry/garak:latest"
+    image: "asqiengineer/test-container:garak-latest"
     systems_under_test:
       - "openai_gpt4o_mini"
     params:
       probes: ["encoding.InjectHex"]
       generations: 1
-    tags:
-      - "security"
-      - "encoding"
 
   # Prompt injection attacks testing
   - name: "garak_prompt_injection"
-    image: "my-registry/garak:latest"
+    image: "asqiengineer/test-container:garak-latest"
     systems_under_test:
       - "openai_gpt4o_mini"
     params:
       probes: ["dan"]
       generations: 1
-    tags:
-      - "security"
-      - "injection"
-
-  # Mock tester for baseline functionality
-  # - name: "mock_connectivity_test"
-  #   image: "my-registry/mock_tester:latest"
-  #   systems_under_test:
-  #     - "openai_gpt4o_mini"
-  #   params:
-  #     delay_seconds: 1
-  #   tags:
-  #     - "connectivity"
-  #     - "baseline"

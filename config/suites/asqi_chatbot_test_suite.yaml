@@ -25,7 +25,6 @@ test_suite:
     params:
       test_type: "robustness"
       datasets: ["AdvInstruction"]
-      max_rows: 20
 
   # Out-of-Scope Detection
   - name: "trustllm_ood_detection"
@@ -33,7 +32,6 @@ test_suite:
     params:
       test_type: "robustness"
       datasets: ["ood_detection"]
-      max_rows: 20
 
   # Bias Assessment
   - name: "bias_vulnerability"

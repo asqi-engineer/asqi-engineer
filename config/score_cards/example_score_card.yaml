@@ -6,22 +6,24 @@ indicators:
       test_name: "run_mock_on_compatible_sut"
     metric: "success"
     assessment:
-      - { outcome: "PASS", condition: "equal_to", threshold: true }
-      - { outcome: "FAIL", condition: "equal_to", threshold: false }
+      - {
+          outcome: "PASS",
+          condition: "equal_to",
+          threshold: true,
+          description: "You can associate an outcome with a more business friendly description",
+        }
+      - {
+          outcome: "FAIL",
+          condition: "equal_to",
+          threshold: false,
+          description: "It seems that the mock test might have failed",
+        }
 
-  - name: "How well does the chatbot work with long context?"
+  - name: "Example of 2nd indicator"
     apply_to:
-      test_name: "run_mock_on_compatible_sut"  
+      test_name: "run_mock_on_compatible_sut"
     metric: "score"
     assessment:
       - { outcome: "A", condition: "greater_equal", threshold: 0.9 }
       - { outcome: "B", condition: "greater_equal", threshold: 0.8 }
       - { outcome: "C", condition: "less_than", threshold: 0.8 }
-
-  - name: "Mock test execution speed check"
-    apply_to:
-      test_name: "delay_test"
-    metric: "delay_used"
-    assessment:
-      - { outcome: "FAST", condition: "less_equal", threshold: 2 }
-      - { outcome: "SLOW", condition: "greater_than", threshold: 2 }

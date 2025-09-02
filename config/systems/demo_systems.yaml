@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../src/asqi/schemas/asqi_systems_config.schema.json
 systems:
   openai_gpt4o_mini:
-    type: "llm_api"
+    type: "llm_api" # The llm_api type requires an openai compatible endpoint, we recommend using a proxy service like litellm
     params:
       base_url: "http://localhost:4000/v1" # Use litellm on port 4000
       model: "openai/gpt-4o-mini" # Uses litellm configured model
@@ -19,7 +19,7 @@ systems:
     params:
       base_url: "http://localhost:4000" # Use litellm on port 4000
       model: "bedrock/arn:aws:bedrock:us-east-1:156772879641:inference-profile/us.amazon.nova-lite-v1:0" # Uses litellm configured model
-      api_key: "sk-1234" # API key configured in litellm proxy
+      api_key: ${API_KEY} # You can also use string interpolation like this!
 
   # Direct OpenAI API access with explicit API key
   direct_openai:
@@ -27,14 +27,13 @@ systems:
     params:
       base_url: "https://api.openai.com/v1"
       model: "gpt-4o-mini"
-      api_key: "sk-your-openai-key-here"
+      api_key: ${OPENAI_API_KEY}
 
-  # LiteLLM proxy using fallback values from .env file
   my_llm_service:
     type: "llm_api"
     params:
       model: "my-model"
-      # No base_url or api_key specified - will use fallbacks from .env
+      env_file: .env # Pass in all env variables from file
 
   # This SUT is *not* compatible, for demonstrating validation failure
   my_backend_api:
