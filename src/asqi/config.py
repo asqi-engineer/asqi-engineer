@@ -1,10 +1,66 @@
 import copy
 import os
+import re
 from dataclasses import dataclass
 from typing import Any, ClassVar, Dict, Optional
 
 import yaml
 from pydantic import BaseModel, Field
+
+
+def interpolate_env_vars(data: Any) -> Any:
+    """
+    Recursively interpolate environment variables in configuration data.
+
+    Supports the following syntax:
+    - ${VAR} - Direct substitution of VAR
+    - ${VAR:-default} - Use VAR if set and non-empty, otherwise use default
+    - ${VAR-default} - Use VAR if set (including empty), otherwise use default
+
+    Args:
+        data: The data structure to interpolate (dict, list, or primitive)
+
+    Returns:
+        The data structure with environment variables interpolated
+    """
+    if isinstance(data, dict):
+        return {key: interpolate_env_vars(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [interpolate_env_vars(item) for item in data]
+    elif isinstance(data, str):
+        return _interpolate_string(data)
+    else:
+        return data
+
+
+def _interpolate_string(text: str) -> str:
+    """
+    Interpolate environment variables in a string using regex.
+
+    Patterns:
+    - ${VAR} -> os.environ.get('VAR', '')
+    - ${VAR:-default} -> os.environ.get('VAR') or 'default' (if VAR is empty or None)
+    - ${VAR-default} -> os.environ.get('VAR', 'default') (if VAR is None)
+    """
+
+    def replace_var(match):
+        var_expr = match.group(1)
+
+        # Check for default value syntax
+        if ":-" in var_expr:
+            var_name, default = var_expr.split(":-", 1)
+            value = os.environ.get(var_name)
+            return value if value else default
+        elif "-" in var_expr:
+            var_name, default = var_expr.split("-", 1)
+            return os.environ.get(var_name, default)
+        else:
+            # Direct substitution
+            return os.environ.get(var_expr, "")
+
+    # Pattern matches ${...} where ... can contain any characters except }
+    pattern = r"\$\{([^}]+)\}"
+    return re.sub(pattern, replace_var, text)
 
 
 class ContainerConfig(BaseModel):
@@ -53,6 +109,9 @@ class ContainerConfig(BaseModel):
 
         with open(path, "r") as f:
             data = yaml.safe_load(f) or {}
+
+        # Apply environment variable interpolation
+        data = interpolate_env_vars(data)
 
         # Merge YAML run_params over defaults; if absent, use defaults
         merged_run_params = dict(cls.DEFAULT_RUN_PARAMS)
@@ -122,16 +181,19 @@ class ExecutorConfig:
 
 def load_config_file(file_path: str) -> Dict[str, Any]:
     """
-    Load and parse a YAML configuration file.
+    Load and parse a YAML configuration file with environment variable interpolation.
 
     Args:
         file_path: Path to YAML file
 
     Returns:
-        Parsed configuration dictionary
+        Parsed configuration dictionary with environment variables interpolated
     """
     with open(file_path, "r") as f:
-        return yaml.safe_load(f)
+        data = yaml.safe_load(f)
+
+    # Apply environment variable interpolation
+    return interpolate_env_vars(data)
 
 
 def merge_defaults_into_suite(config: Dict[str, Any]) -> Dict[str, Any]:
