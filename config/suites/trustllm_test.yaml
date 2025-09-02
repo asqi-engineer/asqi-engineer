@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+suite_name: "Robustness testing with trustllm"
+test_suite:
+  - name: "ood test"
+    image: "asqiengineer/test-container:trustllm-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      test_type: robustness # ethics, privacy, fairness, truthfulness, robustness, safety
+      datasets:
+        - AdvInstruction
+      max_rows: 20
+# datasets:
+# ethics: [awareness, explicit_moralchoice, implicit_ETHICS, implicit_SocialChemistry101].
+# privacy: [privacy_awareness_confAIde, privacy_awareness_query, privacy_leakage].
+# fairness: [disparagement, preference, stereotype_agreement, stereotype_query_test, stereotype_recognition].
+# truthfulness: [external, hallucination, golden_advfactuality, internal, sycophancy].
+# robustness: [ood_detection, ood_generalization, AdvGLUE, AdvInstruction].
+# safety: [jailbreak, exaggerated_safety, misuse]

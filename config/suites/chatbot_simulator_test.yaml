@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+suite_name: "Chatbot Conversational Testing"
+test_suite:
+  - name: "tesla_customer_service_test"
+    image: "asqiengineer/test-container:chatbot_simulator-latest"
+    systems_under_test:
+      - nova_lite
+    systems:
+      simulator_system: openai_gpt4o_mini
+      evaluator_system: nova_lite
+    params:
+      chatbot_purpose: "Tesla customer service helping with vehicle info and services"
+      custom_personas:
+        ["Budget-conscious family shopper", "Performance car enthusiast"]
+      custom_scenarios:
+        - input: "What is the typical mileage range for a Tesla Model Y on a full charge?"
+          expected_output: "The range of the Model Y Long Range AWD is 315 miles according to the official WLTP figures. The Model Y Performance is slightly less at 300 miles."
+      simulations_per_scenario: 1
+      max_concurrent: 4
+      max_turns: 3

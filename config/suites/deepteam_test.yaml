@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+suite_name: "Security Testing Suite with Deepteam"
+test_suite:
+  - name: "profanity test"
+    image: "asqiengineer/test-container:deepteam-latest"
+    systems_under_test:
+      - nova_lite
+    systems:
+      simulator_system: "openai_gpt4o_mini"
+      evaluator_system: "openai_gpt4o_mini"
+    params:
+      vulnerabilities:
+        - { "name": "toxicity", "types": ["profanity"] }
+      attacks:
+        - roleplay
+# vulnerabilities:
+# pii_leakage, prompt_leakage
+# bias, toxicity
+# bfla, bola, rbac, debug_access, shell_injection, sql_injection, ssrf
+# illegal_activity, graphic_content, personal_safety
+# misinformation, intellectual_property, competition
+# goal_theft, recursive_hijacking, excessive_agency, robustness
+# attacks:
+# base64, graybox, leetspeak, math_problem, multilingual, prompt_injection, prompt_probing, roleplay, rot13
+# crescendo_jailbreaking, linear_jailbreaking, tree_jailbreaking, sequential_jailbreak, bad_likert_judge
+
