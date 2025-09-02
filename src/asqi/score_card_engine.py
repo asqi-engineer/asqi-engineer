@@ -203,6 +203,7 @@ class ScoreCardEvaluationResult:
         self.sut_name: Optional[str] = None
         self.computed_value: Optional[Union[int, float, bool]] = None
         self.details: str = ""
+        self.description: Optional[str] = None
         self.error: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -212,10 +213,11 @@ class ScoreCardEvaluationResult:
             "test_name": self.test_name,
             "sut_name": self.sut_name,
             "test_result_id": self.test_result_id,
-            "outcome": self.outcome,
             "metric_value": self.metric_value,
             "computed_value": self.computed_value,
             "details": self.details,
+            "outcome": self.outcome,
+            "description": self.description,
             "error": self.error,
         }
 
@@ -436,6 +438,9 @@ class ScoreCardEngine:
                                 # If this rule's condition is satisfied, assign the outcome
                                 if condition_met:
                                     eval_result.outcome = assessment_rule.outcome
+                                    eval_result.description = (
+                                        assessment_rule.description
+                                    )
                                     logger.debug(
                                         f"score_card indicator '{indicator.name}' for test '{test_result.test_name}' (system under test: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
                                     )

@@ -41,6 +41,19 @@
           "default": null,
           "description": "Threshold value for comparison conditions",
           "title": "Threshold"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable description for this assessment outcome",
+          "title": "Description"
         }
       },
       "required": [

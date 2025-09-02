@@ -204,6 +204,9 @@ class AssessmentRule(BaseModel):
     threshold: Optional[Union[int, float, bool]] = Field(
         None, description="Threshold value for comparison conditions"
     )
+    description: Optional[str] = Field(
+        None, description="Human-readable description for this assessment outcome"
+    )
 
 
 class ScoreCardIndicator(BaseModel):
