@@ -87,4 +87,3 @@ test_suite:
       probes: ["encoding", "continuation", "dan"]
       generations: 1
       parallel_attempts: 10
-      garak_log_filename: garak_output_dan.jsonl
