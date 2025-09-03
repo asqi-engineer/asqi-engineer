@@ -103,7 +103,13 @@ async def run_chatbot_simulation(
     print(f"Generated {len(test_cases)} conversation test cases")
 
     analyzer = ConversationTestAnalyzer(success_threshold=success_threshold)
-    analyzer.save_conversations(test_cases, conversation_log_filepath)
+    try:
+        analyzer.save_conversations(test_cases, conversation_log_filepath)
+    except (OSError, IOError, PermissionError) as e:
+        print(
+            f"Warning: Could not save conversation logs to {conversation_log_filepath}: {e}",
+            file=sys.stderr,
+        )
 
     analysis_json = analyzer.analyze_results(test_cases)
     print("\n🎉 Conversation testing complete!")

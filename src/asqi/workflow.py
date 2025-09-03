@@ -236,7 +236,9 @@ def execute_single_test(
         if os.path.exists(env_file_path):
             try:
                 env_vars = dotenv_values(env_file_path)
-                container_env.update(env_vars)
+                # Filter out None values to ensure all env vars are strings
+                filtered_env_vars = {k: v for k, v in env_vars.items() if v is not None}
+                container_env.update(filtered_env_vars)
                 DBOS.logger.info(f"Loaded environment variables from {env_file_path}")
             except Exception as e:
                 DBOS.logger.warning(

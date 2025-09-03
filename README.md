@@ -298,6 +298,35 @@ input_systems:
 output_metrics: ["success", "score"]
 ```
 
+### Log Storage to Volumes
+
+Test containers can save detailed logs to mounted volumes for later analysis:
+
+**Chatbot Simulator**:
+- Saves detailed conversation logs via `conversation_log_filename` parameter (default: `conversation_logs.json`)
+- Contains full conversation transcripts, evaluation details, and persona information
+
+**Garak Security Tester**:
+- Saves full garak report via `garak_log_filename` parameter (default: `garak_output.jsonl`)
+- Contains detailed probe results, vulnerability assessments, and raw garak output in JSON Lines format
+
+**Example Usage**:
+```yaml
+test_suite:
+  - name: "chatbot_test"
+    image: "my-registry/chatbot_simulator:latest"
+    volumes:
+      output: /path/to/logs  # Mount host directory for log storage
+    params:
+      conversation_log_filename: "my_test_conversations.json"
+  - name: "security_test"
+    image: "my-registry/garak:latest"
+    volumes:
+      output: /path/to/logs  # Mount host directory for log storage
+    params:
+      garak_log_filename: "security_report.jsonl"
+```
+
 ## Building and Distribution
 
 ASQI can be packaged and distributed as a Python wheel for easy installation and sharing.

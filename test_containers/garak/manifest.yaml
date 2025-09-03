@@ -21,6 +21,10 @@ input_schema:
     type: "integer"
     required: false
     description: "How many probe attempts to launch in parallel. Defaults to 8."
+  - name: "garak_log_filename"
+    type: "string"
+    required: false
+    description: "Filename for saving the full garak report to mounted volume (default: garak_output.jsonl)"
 
 output_metrics:
   - name: "success"
