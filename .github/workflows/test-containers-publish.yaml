@@ -82,6 +82,9 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
     steps:
+      - name: Free disk space
+        run: rm -rf /opt/hostedtoolcache
+
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -136,6 +139,9 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
     steps:
+      - name: Free disk space
+        run: rm -rf /opt/hostedtoolcache
+       
       - name: No changes to publish (noop)
         if: ${{ matrix.skip == true }}
         run: echo "No changed test containers to publish."
