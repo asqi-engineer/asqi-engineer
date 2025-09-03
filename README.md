@@ -13,8 +13,8 @@ ASQI Engineer is in active development and we welcome contributors to contribute
 
 ### For Developers  
 - [Developer Guide](#developer-guide) - Development setup, architecture, and contributing
-- [Environment Configuration](#environment-configuration) - Advanced API keys and provider setup
-- [Usage](#usage) - Advanced command-line usage and execution modes
+- [Environment Configuration](#environment-configuration) - API keys handling and provider setup
+- [Usage](#usage) - Command-line usage and execution modes
 
 ## Key Features
 
@@ -66,6 +66,27 @@ Download and start the essential services (PostgreSQL and LiteLLM proxy):
 ```bash
 # Download docker-compose configuration
 curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/docker-compose.yaml
+
+# Download LiteLLM configuration
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/litellm_config.yaml
+
+# Create environment file
+cat > .env << 'EOF'
+# LLM API Keys
+LITELLM_MASTER_KEY="sk-1234"
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY= 
+AWS_BEARER_TOKEN_BEDROCK=
+
+# Otel
+OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+
+# DB
+DBOS_DATABASE_URL=postgres://postgres:asqi@localhost:5432/asqi_starter
+EOF
+
+# Add your actual API keys to the .env file (replace empty values)
+# Modify litellm_config.yaml to expose the LiteLLM services you want to use
 
 # Start essential services in background
 docker compose up -d
@@ -326,6 +347,8 @@ The ASQI Chatbot Quality Index is a multi-dimensional assessment framework that 
 
 ### Running the ASQI Chatbot Evaluation
 
+**🚧 This is a draft quality index under active development.** We are actively seeking collaboration from the community to:
+
 The complete evaluation combines multiple test containers and provides comprehensive scoring:
 
 ```bash
@@ -341,6 +364,8 @@ asqi execute \
   -o chatbot_asqi_assessment.json
 ```
 
+Here's a sample [chatbot_asqi_assessment.json](./chatbot_asqi_assessment.json) tested with AWS Nova Lite model. Feel free to test it out on your own system or modify the set of tests and parameters.
+
 ### Sample Assessment Dimensions
 
 The ASQI Chatbot score card evaluates questions like:
@@ -353,8 +378,6 @@ The ASQI Chatbot score card evaluates questions like:
 - **"How strong is resistance to jailbreaking?"** - Tests security against adversarial prompts
 
 ### Beta Status and Collaboration
-
-**🚧 This is a draft quality index under active development.** We are actively seeking collaboration from the community to:
 
 - **Refine assessment criteria**: Help define industry-standard thresholds and grading scales
 - **Expand test coverage**: Contribute new test scenarios and edge cases
@@ -376,7 +399,7 @@ Contact us through [GitHub Issues](https://github.com/asqi-engineer/asqi-enginee
 
 ### Development Setup
 
-#### Option 1: Dev Container (Recommended)
+#### Dev Container
 
 The easiest way to get started with development is using a dev container with all dependencies pre-configured:
 
@@ -416,30 +439,6 @@ The easiest way to get started with development is using a dev container with al
    asqi --help
    ```
 
-#### Option 2: Local Development
-
-If you prefer local development:
-
-**Prerequisites:**
-- Python 3.12+
-- Docker (for running test containers)
-- uv (Python package manager)
-
-**Installation:**
-1. **Clone and setup:**
-  ```bash
-  git clone https://github.com/asqi-engineer/asqi-engineer.git
-  cd asqi
-   uv sync --dev  # Install dependencies including dev tools
-   ```
-
-2. Setup Postgres for DBOS. See `.devcontainer/docker-compose.yaml` for example configuration.
-
-3. **Verify installation:**
-   ```bash
-   asqi --help
-   ```
-
 ### Environment Configuration
 
 ASQI supports multiple LLM providers via the `llm_api` Systems `type` through environment variables. Configure these in a `.env` file in the project root.
@@ -458,8 +457,8 @@ OPENAI_API_KEY=sk-your-openai-key
 ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
 AWS_BEARER_TOKEN_BEDROCK=your-bedrock-token
 
-BASE_URL=http://localhost:4000
-API_KEY=sk-1234
+OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+DBOS_DATABASE_URL=postgres://postgres:asqi@db:5432/asqi_starter
 ```
 
 #### How Environment Variables Work
@@ -568,42 +567,25 @@ asqi execute -t config/suites/demo_test.yaml -s config/systems/demo_systems.yaml
 
 For development or custom modifications, you can build test containers locally:
 
-#### Mock Tester
+__Mock Tester:__
 ```bash
 cd test_containers/mock_tester
-docker build -t my-registry/mock_tester:latest .
+docker build -t asqiengineer/test-container:mock-tester-latest .
 ```
 
-#### Garak Security Tester
+__Garak Security Tester:__
 ```bash
 cd test_containers/garak
-docker build -t my-registry/garak:latest .
+docker build -t asqiengineer/test-container:garak-latest .
 ```
 
-#### Other Test Containers
-Similar build processes apply to other containers in the `test_containers/` directory.
-
-### Score Cards
-
-ASQI includes a simple grading engine for automated test result evaluation:
-
-```yaml
-score_card_name: "Example Assessment"
-indicators:
-  - name: "Test success requirement"
-    apply_to:
-      test_name: "run_mock_on_compatible_sut"
-    metric: "success"
-    assessment:
-      - { outcome: "PASS", condition: "equal_to", threshold: true }
-      - { outcome: "FAIL", condition: "equal_to", threshold: false }
-```
+Similar build processes apply to other containers in the `test_containers/` directory. You could also run `./build_all.sh` to build all containers.
 
 ### Development
 
 #### Running Tests
 ```bash
-uv run pytest                    # Run all tests
+uv run pytest                   # Run all tests
 uv run pytest --cov=src         # Run with coverage
 ```
 
@@ -678,18 +660,9 @@ uv build --wheel
 This creates files in `dist/`:
 - `asqi-[version]-py3-none-any.whl` (wheel - binary distribution)
 
-**CLI Entry Point:**
-The `asqi` command maps to `src/asqi/main.py` and provides all functionality:
-```bash
-asqi execute --test-suite-config config/suites/demo_test.yaml --systems-config config/systems/demo_systems.yaml
-```
-
 #### Contributing
 
-1. Install development dependencies: `uv sync --dev`
-2. Run tests: `uv run pytest`
-3. Check code quality: `uv run ruff check && uv run ruff format`
-4. Run security scan: `uv run bandit -r src/`
+Run the pre-commit hooks to auto link and format your code being pushing to the repository. The CI process with run additional checks and automatically publish the libraries with an appropriate release tag.
 
 ## License
 

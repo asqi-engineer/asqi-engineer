@@ -18,6 +18,27 @@ Download and start the essential services (PostgreSQL and LiteLLM proxy):
 # Download docker-compose configuration
 curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/docker-compose.yaml
 
+# Download LiteLLM configuration
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/litellm_config.yaml
+
+# Create environment file
+cat > .env << 'EOF'
+# LLM API Keys
+LITELLM_MASTER_KEY="sk-1234"
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY= 
+AWS_BEARER_TOKEN_BEDROCK=
+
+# Otel
+OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+
+# DB
+DBOS_DATABASE_URL=postgres://postgres:asqi@localhost:5432/asqi_starter
+EOF
+
+# Add your actual API keys to the .env file (replace empty values)
+# Modify litellm_config.yaml to expose the LiteLLM services you want to use
+
 # Start essential services in background
 docker compose up -d
 
