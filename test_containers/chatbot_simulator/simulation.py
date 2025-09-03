@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import openai
@@ -110,9 +111,14 @@ class PersonaBasedConversationTester:
         self.history: Dict[str, List[ChatCompletionMessage]] = {}
 
     def create_app(self):
-        """Create OpenEvals-compatible app function"""
+        """Create OpenEvals-compatible app function.
+        While this requires the input/output to be a list of messages, we only use the latest message for generating a response.
+        Any tracking of conversation history is handled by the actual user app wrapped in the model_callback function.
+        """
 
-        async def app(inputs: ChatCompletionMessage, thread_id: str = None, **kwargs):
+        async def app(
+            inputs: ChatCompletionMessage, thread_id: str = None, **kwargs
+        ) -> ChatCompletionMessage:
             content = inputs["content"]
             if not isinstance(content, str):
                 raise TypeError("Message content must be a string")
@@ -490,7 +496,7 @@ class ConversationTestAnalyzer:
     def save_conversations(
         self,
         test_cases: List[ConversationalTestCase],
-        filename: str = "conversation_logs.json",
+        filepath: Path = Path("conversation_logs.json"),
     ) -> None:
         """Save full conversation threads with evaluation scores to a JSON file"""
         conversations = []
@@ -552,11 +558,11 @@ class ConversationTestAnalyzer:
             }
             conversations.append(conversation_data)
 
-        with open(filename, "w", encoding="utf-8") as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(conversations, f, indent=2, ensure_ascii=False)
 
         print(
-            f"💾 Saved {len(conversations)} conversation threads with evaluation scores to {filename}"
+            f"💾 Saved {len(conversations)} conversation threads with evaluation scores to {filepath}."
         )
 
     def analyze_results(

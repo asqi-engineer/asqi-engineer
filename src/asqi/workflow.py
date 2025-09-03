@@ -17,6 +17,8 @@ from asqi.config import (
     save_results_to_file,
 )
 from asqi.container_manager import (
+    INPUT_MOUNT_PATH,
+    OUTPUT_MOUNT_PATH,
     check_images_availability,
     extract_manifest_from_image,
     run_container_with_args,
@@ -222,8 +224,11 @@ def execute_single_test(
         result.success = False
         return result
 
-    # Prepare environment variables from system_under_test params
-    container_env = {}
+    # Prepare environment variables from system_under_test params (reuse loaded env_vars)
+    container_env = {
+        "OUTPUT_MOUNT_PATH": str(OUTPUT_MOUNT_PATH),
+        "INPUT_MOUNT_PATH": str(INPUT_MOUNT_PATH),
+    }
 
     # Load environment variables only if explicitly specified via env_file
     if "env_file" in sut_params:
