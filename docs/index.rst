@@ -3,7 +3,9 @@
 ASQI Engineer
 =============
 
-**AI Systems Quality Index Engineer** - A comprehensive framework for systematic testing and quality assurance of AI systems. Built for reliability and scale, ASQI enables rigorous evaluation through containerized test packages, automated assessment, and durable execution workflows.
+**ASQI (AI Solutions Quality Index) Engineer** is a comprehensive framework for systematic testing and quality assurance of AI systems. Developed from `Resaro's <https://resaro.ai/>`_ experience bridging governance, technical and business requirements, ASQI Engineer enables rigorous evaluation of AI systems through containerized test packages, automated assessment, and durable execution workflows.
+
+ASQI Engineer is in active development and we welcome contributors to contribute new test packages, share score cards and test plans, and help define common schemas to meet industry needs. Our initial release focuses on comprehensive chatbot testing with extensible foundations for broader AI system evaluation.
 
 .. container:: buttons
 
@@ -19,7 +21,7 @@ Key Features
     .. grid-item-card:: ⚡ Durable Execution
         :text-align: center
 
-        DBOS-powered fault tolerance with automatic retry and recovery for reliable test execution.
+        `DBOS <https://github.com/dbos-inc/dbos-transact-py>`_-powered fault tolerance with automatic retry and recovery for reliable test execution.
 
     .. grid-item-card:: 🐳 Container Isolation
         :text-align: center
@@ -47,6 +49,21 @@ Key Features
         Separate validation, test execution, and evaluation phases for flexible CI/CD integration.
 
 
+LLM Testing
+------------
+
+For our first release, we have introduced the ``llm_api`` system type and contributed 4 test packages for comprehensive LLM system testing. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
+
+LLM Test Containers
+^^^^^^^^^^^^^^^^^^^
+
+- **Garak**: Security vulnerability assessment with 40+ attack vectors and probes
+- **DeepTeam**: Red teaming library for adversarial robustness testing  
+- **TrustLLM**: Comprehensive framework and benchmarks to evaluate trustworthiness of LLM systems
+- **Resaro Chatbot Simulator**: Persona and scenario based conversational testing with multi-turn dialogue simulation
+
+The ``llm_api`` system type uses OpenAI-compatible API interfaces. Through `LiteLLM <https://github.com/BerriAI/litellm>`_ integration, ASQI Engineer provides unified access to 100+ LLM providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints.
+
 Test Packages
 -------------
 
@@ -60,7 +77,7 @@ Test Packages
 
         +++
 
-        .. button-ref:: llm-test-containers
+        .. button-ref:: test-containers
             :ref-type: doc
             :color: primary
             :outline:
@@ -74,7 +91,7 @@ Test Packages
 
         +++
 
-        .. button-ref:: llm-test-containers
+        .. button-ref:: test-containers
             :ref-type: doc
             :color: primary
             :outline:
@@ -88,7 +105,7 @@ Test Packages
 
         +++
 
-        .. button-ref:: llm-test-containers
+        .. button-ref:: test-containers
             :ref-type: doc
             :color: primary
             :outline:
@@ -109,10 +126,62 @@ Test Packages
 
             Create Containers
 
+Beta: ASQI Chatbot Quality Index
+--------------------------------
+
+.. warning::
+   🚧 This is a draft quality index under active development.
+
+ASQI Engineer includes a **draft comprehensive quality index specifically designed for chatbot systems**. This beta feature provides a standardized framework for evaluating chatbot quality across multiple dimensions that matter to businesses deploying conversational AI.
+
+What is the ASQI Chatbot Quality Index?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ASQI Chatbot Quality Index is a multi-dimensional assessment framework that evaluates chatbot systems across performance and risk handling across eight key areas:
+
+- **Relevance**: How relevant is the information provided by the chatbot?
+- **Accuracy**: How correct is the information provided by the chatbot?
+- **Consistency**: How consistently does the chatbot perform when users express the same intent using different words, styles, or structures?
+- **Out-of-domain Handling**: How well does the chatbot identify when users are asking for something it's not designed to do?
+- **Bias Mitigation**: How effectively does the chatbot avoid biased, stereotypical, or discriminatory responses?
+- **Toxicity Control**: To what extent is offensive or toxic output controlled?
+- **Competition Mention**: How effectively does the chatbot avoid promoting competitors while maintaining appropriate responses when directly asked about market alternatives?
+- **Jailbreaking Resistance**: How strong is the resistance to different jailbreaking techniques?
+
+Running the ASQI Chatbot Evaluation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The complete evaluation combines multiple test containers and provides comprehensive scoring:
+
+.. code-block:: bash
+
+   # Download the comprehensive chatbot test suite
+   curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/asqi_chatbot_test_suite.yaml
+   curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/score_cards/asqi_chatbot_score_card.yaml
+
+   # Run comprehensive chatbot evaluation (tests multiple containers)
+   asqi execute \
+     -t asqi_chatbot_test_suite.yaml \
+     -s demo_systems.yaml \
+     -r asqi_chatbot_score_card.yaml \
+     -o chatbot_asqi_assessment.json
+
+Beta Status and Collaboration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+We are actively seeking collaboration from the community to:
+
+- **Refine assessment criteria**: Help define industry-standard thresholds and grading scales
+- **Expand test coverage**: Contribute new test scenarios and edge cases  
+- **Develop domain-specific indices**: Create specialized quality indices for different chatbot use cases
+- **Validate against real deployments**: Share feedback from production chatbot evaluations
+
+We welcome contributions through `GitHub Issues <https://github.com/asqi-engineer/asqi-engineer/issues>`_ to discuss collaboration opportunities or share your experience with the beta ASQI Chatbot Quality Index.
+
 Contributors
 ------------
 
-.. contributors:: lepture/shibuya
+.. contributors:: asqi-engineer/asqi-engineer
     :avatars:
 
 .. toctree::
@@ -129,6 +198,7 @@ Contributors
    :hidden:
 
    configuration
+   test-containers
    llm-test-containers
    custom-test-containers
 
