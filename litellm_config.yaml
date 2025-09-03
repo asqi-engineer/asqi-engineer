@@ -5,11 +5,11 @@ model_list:
       api_key: os.environ/OPENAI_API_KEY # does os.getenv("OPENAI_API_KEY")
   - model_name: claude-4-sonnet
     litellm_params:
-        model: anthropic/claude-sonnet-4-20250514
-        api_key: os.environ/ANTHROPIC_API_KEY
+      model: anthropic/claude-sonnet-4-20250514
+      api_key: os.environ/ANTHROPIC_API_KEY
   # Allow all OpenAI models
-  - model_name: "openai/*" 
-    litellm_params: 
+  - model_name: "openai/*"
+    litellm_params:
       model: "openai/*"
       api_key: os.environ/OPENAI_API_KEY
   # Allow all bedrock models
@@ -17,11 +17,7 @@ model_list:
     litellm_params:
       model: "bedrock/*"
       api_key: os.environ/AWS_BEARER_TOKEN_BEDROCK
+      drop_params: true # Some frameworks might send not supported params e.g. frequency_penalty
 
 litellm_settings:
   callbacks: ["otel"]
-  
-  # - model_name: anthropic-claude
-  #   litellm_params:
-  #     model: bedrock/arn:aws:bedrock:us-east-1:156772879641:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0
-  #     api_key: os.environ/AWS_BEARER_TOKEN_BEDROCK
