@@ -185,38 +185,29 @@ def execute_single_test(
         result.success = False
         return result
 
-    # Load environment variables for fallback values
-    env_file_path = sut_params.get("env_file", ".env")
-    env_vars = {}
-    if os.path.exists(env_file_path):
-        try:
-            env_vars = dotenv_values(env_file_path)
-            DBOS.logger.debug(
-                f"Loaded environment variables from {env_file_path} for fallbacks"
-            )
-        except Exception as e:
-            DBOS.logger.warning(
-                f"Failed to load environment file {env_file_path} for fallbacks: {e}"
-            )
-
-    # Apply environment variable fallbacks for global configuration
-    sut_params_with_fallbacks = sut_params.copy()
-
-    # Apply BASE_URL fallback if not specified
-    if "base_url" not in sut_params_with_fallbacks:
-        if base_url_env := env_vars.get("BASE_URL"):
-            sut_params_with_fallbacks["base_url"] = base_url_env
-            DBOS.logger.info(f"Using BASE_URL from .env file: {base_url_env}")
-
-    # Apply API_KEY fallback if not specified (this will be used in environment variable processing)
-    if "api_key" not in sut_params_with_fallbacks:
-        if api_key_env := env_vars.get("API_KEY"):
-            sut_params_with_fallbacks["api_key"] = api_key_env
-            DBOS.logger.info("Using API_KEY from .env file")
-
-    # Build unified systems_params with updated system_under_test
+    # No global fallbacks - users must explicitly specify credentials
+    # Build unified systems_params without any automatic fallbacks
     systems_params_with_fallbacks = systems_params.copy()
-    systems_params_with_fallbacks["system_under_test"] = sut_params_with_fallbacks
+
+    # Load environment variables and merge into system parameters if env_file specified
+    sut_params = systems_params_with_fallbacks["system_under_test"]
+    if "env_file" in sut_params:
+        env_file_path = sut_params["env_file"]
+        if os.path.exists(env_file_path):
+            try:
+                env_vars = dotenv_values(env_file_path)
+                # Add BASE_URL and API_KEY from env_file to system parameters if not already present
+                if "base_url" not in sut_params and "BASE_URL" in env_vars:
+                    sut_params["base_url"] = env_vars["BASE_URL"]
+                if "api_key" not in sut_params and "API_KEY" in env_vars:
+                    sut_params["api_key"] = env_vars["API_KEY"]
+                DBOS.logger.info(f"Loaded environment variables from {env_file_path}")
+            except Exception as e:
+                DBOS.logger.warning(
+                    f"Failed to load environment file {env_file_path}: {e}"
+                )
+        else:
+            DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
 
     # Prepare command line arguments
     try:
@@ -239,22 +230,25 @@ def execute_single_test(
         "INPUT_MOUNT_PATH": str(INPUT_MOUNT_PATH),
     }
 
-    # Use already loaded environment variables (avoid loading twice)
-    if env_vars:
-        container_env.update(env_vars)
-        DBOS.logger.info(f"Loaded environment variables from {env_file_path}")
-    else:
-        if "env_file" in sut_params_with_fallbacks:
-            # User explicitly specified an env_file that doesn't exist
-            DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
+    # Load environment variables only if explicitly specified via env_file
+    if "env_file" in sut_params:
+        env_file_path = sut_params["env_file"]
+        if os.path.exists(env_file_path):
+            try:
+                env_vars = dotenv_values(env_file_path)
+                container_env.update(env_vars)
+                DBOS.logger.info(f"Loaded environment variables from {env_file_path}")
+            except Exception as e:
+                DBOS.logger.warning(
+                    f"Failed to load environment file {env_file_path}: {e}"
+                )
         else:
-            DBOS.logger.debug("No .env file found in working directory")
+            DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
 
-    if "api_key" in sut_params_with_fallbacks:
-        container_env["API_KEY"] = sut_params_with_fallbacks["api_key"]
-        DBOS.logger.info(
-            "Using direct API key for authentication (overriding any .env setting)"
-        )
+    # Pass through explicit API key if specified
+    if "api_key" in sut_params:
+        container_env["API_KEY"] = sut_params["api_key"]
+        DBOS.logger.info("Using direct API key for authentication")
 
     # Execute container
     result.start_time = time.time()

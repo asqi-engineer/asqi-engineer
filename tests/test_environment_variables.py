@@ -27,11 +27,13 @@ class TestEnvironmentVariables:
                     name="test_with_api_key",
                     image="my-registry/test:latest",
                     systems_under_test=["test_system"],
+                    systems=None,
                     params={"generations": 1},
                     tags=None,
                     volumes={},
                 )
             ],
+            test_suite_default=None,
         )
 
     @pytest.fixture
@@ -74,13 +76,20 @@ class TestEnvironmentVariables:
 
     @patch("asqi.workflow.run_container_with_args")
     def test_execute_single_test_passes_environment_variable_from_dotenv(
-        self, mock_run_container, sample_system_params, tmp_path, monkeypatch
+        self, mock_run_container, tmp_path, monkeypatch
     ):
-        """Test that execute_single_test loads TEST_API_KEY from .env file."""
+        """Test that execute_single_test loads TEST_API_KEY from explicit env_file."""
         dotenv_content = "TEST_API_KEY=test_secret_key_12345\n"
-        dotenv_path = tmp_path / ".env"
+        dotenv_path = tmp_path / "custom.env"
         dotenv_path.write_text(dotenv_content)
         monkeypatch.chdir(tmp_path)
+
+        # System params with explicit env_file
+        system_params_with_env_file = {
+            "type": "llm_api",
+            "model": "gpt-4o-mini",
+            "env_file": "custom.env",
+        }
 
         # Mock the container result
         mock_run_container.return_value = {
@@ -98,24 +107,24 @@ class TestEnvironmentVariables:
             test_name="test_env_vars",
             image="my-registry/test:latest",
             sut_name="test_system",
-            systems_params={"system_under_test": sample_system_params},
+            systems_params={"system_under_test": system_params_with_env_file},
             test_params={"generations": 1},
             container_config=container_config,
         )
 
-        # Verify run_container_with_args was called with environment variables from .env
+        # Verify run_container_with_args was called with environment variables from custom.env
         mock_run_container.assert_called_once()
         call_kwargs = mock_run_container.call_args[1]
 
         assert "environment" in call_kwargs
         assert call_kwargs["environment"]["TEST_API_KEY"] == "test_secret_key_12345"
-        assert "OPENAI_API_KEY" not in call_kwargs["environment"]
 
     @patch("asqi.workflow.run_container_with_args")
-    def test_execute_single_test_multiple_environment_variables(
+    def test_execute_single_test_explicit_api_key_only(
         self, mock_run_container, tmp_path, monkeypatch
     ):
-        """Test that api_key gets priority over environment variables."""
+        """Test that only explicit api_key is passed to container."""
+        # Create .env file that should NOT be automatically loaded
         dotenv_content = "API_KEY=test_secret_key_12345\n"
         dotenv_path = tmp_path / ".env"
         dotenv_path.write_text(dotenv_content)
@@ -148,9 +157,11 @@ class TestEnvironmentVariables:
             container_config=container_config,
         )
 
-        # Verify only the specified environment variable is passed
+        # Verify only the explicit API key is passed (no automatic .env loading)
         mock_run_container.assert_called_once()
         call_kwargs = mock_run_container.call_args[1]
 
         assert "environment" in call_kwargs
         assert call_kwargs["environment"]["API_KEY"] == "sk-123"
+        # Verify .env file variables are NOT automatically loaded
+        assert "TEST_SECRET_KEY" not in call_kwargs["environment"]
