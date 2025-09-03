@@ -111,10 +111,7 @@ def main():
             env = os.environ.copy()
 
             # Set appropriate API key environment variable based on model type
-            if api_key:
-                env[API_ENV] = api_key
-            else:
-                env[API_ENV] = env["API_KEY"]
+            env[API_ENV] = api_key
 
             print(
                 f"DEBUG: About to run command: {' '.join(garak_cmd)}", file=sys.stderr
