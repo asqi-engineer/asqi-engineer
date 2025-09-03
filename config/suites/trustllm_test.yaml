@@ -5,11 +5,14 @@ test_suite:
     image: "asqiengineer/test-container:trustllm-latest"
     systems_under_test:
       - "nova_lite"
+    volumes:
+      output: /workspaces/asqi/output # Add a output volume to save the log file
     params:
       test_type: robustness # ethics, privacy, fairness, truthfulness, robustness, safety
       datasets:
         - AdvInstruction
       max_rows: 20
+      output_dir: "advinstruction_output"
 # datasets:
 # ethics: [awareness, explicit_moralchoice, implicit_ETHICS, implicit_SocialChemistry101].
 # privacy: [privacy_awareness_confAIde, privacy_awareness_query, privacy_leakage].

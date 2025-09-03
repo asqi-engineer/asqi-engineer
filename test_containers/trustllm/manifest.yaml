@@ -28,6 +28,11 @@ input_schema:
     type: "integer"
     required: false
     description: "Maximum number of rows to process from each dataset for faster testing. Defaults to 20."
+  
+  - name: "output_dir"
+    type: "string"
+    required: false
+    description: "Directory name for saving TrustLLM generation results to mounted volume (default: trustllm_results)"
 
 output_metrics:
   - name: "success"
