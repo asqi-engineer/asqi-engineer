@@ -54,9 +54,9 @@ The easiest way to get started is using a dev container with all dependencies pr
    - All development dependencies pre-installed
 
 3. **Using VS Code:**
-   ```bash
-   git clone <repository-url>
-   cd asqi
+  ```bash
+  git clone https://github.com/asqi-engineer/asqi-engineer.git
+  cd asqi
    cp .env.example .env
    code .
    # VS Code will prompt to "Reopen in Container" - click Yes
@@ -84,9 +84,9 @@ If you prefer local development:
 
 **Installation:**
 1. **Clone and setup:**
-   ```bash
-   git clone <repository-url>
-   cd asqi
+  ```bash
+  git clone https://github.com/asqi-engineer/asqi-engineer.git
+  cd asqi
    uv sync --dev  # Install dependencies including dev tools
    ```
 
