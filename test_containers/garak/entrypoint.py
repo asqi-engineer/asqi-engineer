@@ -40,6 +40,16 @@ def main():
         generations = test_params.get("generations", 1)
         parallel_attempts = test_params.get("parallel_attempts", 8)
 
+        # Extract log file parameter
+        garak_log_filename = test_params.get("garak_log_filename", "garak_output.jsonl")
+
+        # Validate filename to prevent directory traversal
+        garak_log_path = Path(garak_log_filename)
+        if len(garak_log_path.parts) != 1:
+            raise ValueError(
+                "Invalid garak_log_filename: must be a filename only, no directory traversal allowed."
+            )
+
         # Determine if this is the official OpenAI API or a compatible endpoint
         is_openai_official = False
         model = ""
@@ -191,6 +201,22 @@ def main():
                         report_file = report_files[0]
                         eval_entries = []
                         _run_info = None
+
+                        # Copy the full garak report to output volume if OUTPUT_MOUNT_PATH is available
+                        if "OUTPUT_MOUNT_PATH" in os.environ:
+                            output_mount_path = Path(os.environ["OUTPUT_MOUNT_PATH"])
+                            garak_output_path = output_mount_path / garak_log_filename
+
+                            # Copy the report file content to the mounted volume
+                            with (
+                                open(report_file, "r") as src,
+                                open(garak_output_path, "w") as dst,
+                            ):
+                                dst.write(src.read())
+                            print(
+                                f"Garak report saved to: {garak_output_path}",
+                                file=sys.stderr,
+                            )
 
                         with open(report_file, "r") as f:
                             for line in f:
