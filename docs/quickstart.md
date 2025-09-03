@@ -1,128 +1,124 @@
 # Quick Start
 
-Get up and running with ASQI Engineer in minutes using our pre-configured development environment or local installation.
+Get up and running with ASQI Engineer in minutes.
 
-## Option 1: Dev Container (Recommended)
+## Installation
 
-The easiest way to get started is using a dev container with all dependencies pre-configured.
+Install ASQI Engineer from PyPI:
 
-### Prerequisites
-- Docker Desktop or Docker Engine
-- VS Code with Dev Containers extension
+```bash
+pip install asqi-engineer
+```
 
-### What's Included
-- Python 3.12+ with uv package manager
-- PostgreSQL database (for DBOS durability)
-- LiteLLM proxy server (for unified LLM API access)
-- All development dependencies pre-installed
+### Setup Essential Services
 
-### Setup Steps
+Download and start the essential services (PostgreSQL and LiteLLM proxy):
 
-1. **Clone and configure:**
+```bash
+# Download docker-compose configuration
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/docker-compose.yaml
+
+# Start essential services in background
+docker compose up -d
+
+# Verify services are running
+docker compose ps
+```
+
+This provides:
+- **PostgreSQL**: Database for DBOS durability (`localhost:5432`)
+- **LiteLLM Proxy**: Unified API endpoint for multiple LLM providers (`localhost:4000`)
+- **Jaeger**: Distributed tracing UI for workflow observability (`localhost:16686`)
+
+### Download Test Container Images
+
+Pull the pre-built test container images from Docker Hub:
+
+```bash
+# Core test containers
+docker pull asqiengineer/test-container:mock_tester-latest
+docker pull asqiengineer/test-container:garak-latest
+docker pull asqiengineer/test-container:chatbot_simulator-latest
+docker pull asqiengineer/test-container:trustllm-latest
+docker pull asqiengineer/test-container:deepteam-latest
+
+# Verify installation
+asqi --help
+```
+
+### Configure Your Systems
+
+Before running tests, you need to configure the AI systems you want to test:
+
+1. **Download example configurations:**
    ```bash
-   git clone <repository-url>
-   cd asqi
+   curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/systems/demo_systems.yaml
+   curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/.env.example
+   ```
+
+2. **Setup environment variables:**
+   ```bash
+   # Copy and configure your API keys
    cp .env.example .env
-   code .
-   # VS Code will prompt to "Reopen in Container" - click Yes
+   # Edit .env file with your actual API keys
    ```
 
-2. **Configure environment variables:**
-   Edit `.env` with your API keys:
-   ```bash
-   OPENAI_API_KEY=sk-your-openai-key
-   ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
-   LITELLM_MASTER_KEY=sk-1234
+3. **Configure your systems (`demo_systems.yaml`):**
+   ```yaml
+   systems:
+     my_llm_service:
+       type: "llm_api"
+       params:
+         base_url: "http://localhost:4000/v1"  # LiteLLM proxy
+         model: "gpt-4o-mini"
+         api_key: "sk-1234"
+     
+     openai_gpt4o_mini:
+       type: "llm_api"
+       params:
+         base_url: "https://api.openai.com/v1"
+         model: "gpt-4o-mini"
+         api_key: "${OPENAI_API_KEY}"  # Uses environment variable
    ```
 
-3. **Verify setup:**
-   ```bash
-   asqi --help
-   ```
+## Basic Usage
 
-### DevContainer Services
+Run your first test with the mock tester:
 
-The dev container automatically starts these services:
-
-- **PostgreSQL**: `localhost:5432` (user: `postgres`, password: `asqi`, database: `asqi_starter`)
-- **LiteLLM Proxy**: `http://localhost:4000` (OpenAI-compatible API endpoint)
-  - Management UI: `http://localhost:4000/ui`
-- **Jaeger**: `http://localhost:16686` (Distributed tracing UI)
-
-```{note}
-You may need to change the ports in `.devcontainer/docker-compose.yml` to avoid conflicts with existing local services.
-```
-
-## Option 2: Local Development
-
-If you prefer local development without containers:
-
-### Prerequisites
-- Python 3.12+
-- Docker (for running test containers)
-- uv (Python package manager)
-
-### Installation
-
-1. **Clone and setup:**
-   ```bash
-   git clone <repository-url>
-   cd asqi
-   uv sync --dev  # Install dependencies including dev tools
-   ```
-
-2. **Setup PostgreSQL for DBOS:**
-   See `.devcontainer/docker-compose.yaml` for example configuration, or use your existing PostgreSQL instance.
-
-3. **Configure environment:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-4. **Verify installation:**
-   ```bash
-   asqi --help
-   ```
-
-## First Test Run
-
-Let's run a simple test to verify everything works:
-
-### 1. Build the Mock Test Container
 ```bash
-cd test_containers/mock_tester
-docker build -t my-registry/mock_tester:latest .
-cd ../..
-```
+# Download example test suite
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/demo_test.yaml
 
-### 2. Run a Validation
-```bash
-asqi validate \
-  --test-suite-config config/suites/demo_suite.yaml \
-  --systems-config config/systems/demo_systems.yaml \
-  --manifests-dir test_containers/
-```
-
-### 3. Execute Tests
-```bash
+# Run the test
 asqi execute-tests \
-  --test-suite-config config/suites/demo_suite.yaml \
-  --systems-config config/systems/demo_systems.yaml \
-  --output-file my_first_results.json
+  --test-suite-config demo_test.yaml \
+  --systems-config demo_systems.yaml \
+  --output-file results.json
 ```
 
-### 4. Evaluate with Score Cards
+## Evaluate with Score Cards
+
+Score cards provide automated assessment of test results against business-relevant criteria:
+
 ```bash
+# Download and apply basic score card
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/score_cards/example_score_card.yaml
 asqi evaluate-score-cards \
-  --input-file my_first_results.json \
-  --score-card-config config/score_cards/example_score_card.yaml \
-  --output-file my_first_results_graded.json
+  --input-file results.json \
+  --score-card-config example_score_card.yaml \
+  --output-file results_with_grades.json
+
+# Or run end-to-end (tests + score card evaluation)
+asqi execute \
+  --test-suite-config demo_test.yaml \
+  --systems-config demo_systems.yaml \
+  --score-card-config example_score_card.yaml \
+  --output-file complete_results.json
 ```
 
 ## Next Steps
 
-- Explore [Configuration](configuration.md) to understand how to configure systems and test suites
-- Review [Test Containers](test-containers.md) to see available testing frameworks
-- Check out [Examples](examples.md) for practical usage scenarios
+- Review [Available Test Containers](test-containers.md) to see all testing frameworks and examples
+- Explore [Configuration](configuration.md) to understand how to configure systems, test suites, and score cards
+- Check out [Examples](examples.md) for advanced usage scenarios
 - See [CLI Reference](cli.rst) for complete command documentation

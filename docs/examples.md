@@ -9,28 +9,22 @@ Practical examples and workflows for using ASQI Engineer in real-world scenarios
 Start with a basic test to validate your setup:
 
 ```bash
-# 1. Build the mock tester container
-cd test_containers/mock_tester
-docker build -t my-registry/mock_tester:latest .
-cd ../..
+# Download example test suite
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/demo_test.yaml
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/systems/demo_systems.yaml
 
-# 2. Validate configuration
-asqi validate \
-  --test-suite-config config/suites/demo_suite.yaml \
-  --systems-config config/systems/demo_systems.yaml \
-  --manifests-dir test_containers/
-
-# 3. Run tests
+# Run the test
 asqi execute-tests \
-  --test-suite-config config/suites/demo_suite.yaml \
-  --systems-config config/systems/demo_systems.yaml \
-  --output-file demo_results.json
+  --test-suite-config demo_test.yaml \
+  --systems-config demo_systems.yaml \
+  --output-file results.json
 
-# 4. Evaluate with score cards
+# Evaluate with score cards
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/score_cards/example_score_card.yaml
 asqi evaluate-score-cards \
-  --input-file demo_results.json \
-  --score-card-config config/score_cards/example_score_card.yaml \
-  --output-file demo_results_graded.json
+  --input-file results.json \
+  --score-card-config example_score_card.yaml \
+  --output-file results_with_grades.json
 ```
 
 ### End-to-End Execution
@@ -39,9 +33,9 @@ For a complete workflow in one command:
 
 ```bash
 asqi execute \
-  --test-suite-config config/suites/demo_suite_multiple.yaml \
-  --systems-config config/systems/demo_systems.yaml \
-  --score-card-config config/score_cards/example_score_card.yaml \
+  --test-suite-config demo_test.yaml \
+  --systems-config demo_systems.yaml \
+  --score-card-config example_score_card.yaml \
   --output-file complete_results.json
 ```
 
@@ -52,16 +46,13 @@ asqi execute \
 Test your LLM for common security vulnerabilities:
 
 ```bash
-# Build garak container
-cd test_containers/garak
-docker build -t my-registry/garak:latest .
-cd ../..
+# Download security test configuration
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/garak_test.yaml
 
-# Run security tests
-export OPENAI_API_KEY="your-openai-key"
+# Run security tests (requires API key in environment or system config)
 asqi execute-tests \
-  --test-suite-config config/suites/security_test.yaml \
-  --systems-config config/systems/demo_systems.yaml \
+  --test-suite-config garak_test.yaml \
+  --systems-config demo_systems.yaml \
   --output-file security_results.json
 ```
 
