@@ -41,7 +41,7 @@ def setup_client(**system_params) -> openai.AsyncOpenAI:
     openai_params = {
         k: v
         for k, v in system_params.items()
-        if k not in ["base_url", "model", "api_key", "type"]
+        if k not in ["base_url", "model", "api_key", "type", "env_file"]
     }
     return openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **openai_params)
 
@@ -64,7 +64,7 @@ def setup_langchain_client(**system_params) -> ChatOpenAI:
     langchain_params = {
         k: v
         for k, v in system_params.items()
-        if k not in ["base_url", "model", "api_key", "type"]
+        if k not in ["base_url", "model", "api_key", "type", "env_file"]
     }
     return ChatOpenAI(
         model=model, api_key=SecretStr(api_key), base_url=base_url, **langchain_params
