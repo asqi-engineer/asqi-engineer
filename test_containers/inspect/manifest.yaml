@@ -1,0 +1,43 @@
+name: "inspect"
+version: "1.0"
+description: "Generic Inspect evaluation container for running various LLM evaluations"
+
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested"
+
+input_schema:
+  - name: "evaluation"
+    type: "string"
+    required: false
+    description: "The evaluation to run (e.g., 'xstest', 'truthfulqa', 'mmlu'). Default: 'xstest'"
+    default: "xstest"
+  - name: "evaluation_params"
+    type: "object"
+    required: false
+    description: "Parameters to pass to the evaluation function. Default: {}"
+    default: {}
+  - name: "limit"
+    type: "integer"
+    required: false
+    description: "Maximum number of samples to evaluate. Default: 10"
+    default: 10
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the test execution completed successfully"
+  - name: "evaluation"
+    type: "string"
+    description: "The evaluation that was run"
+  - name: "evaluation_params"
+    type: "object"
+    description: "The parameters used for the evaluation"
+  - name: "total_samples"
+    type: "integer"
+    description: "Total number of samples evaluated"
+  - name: "metrics"
+    type: "object"
+    description: "Additional metrics returned by the evaluation"

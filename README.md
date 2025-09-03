@@ -90,6 +90,7 @@ docker pull asqiengineer/test-container:garak-latest
 docker pull asqiengineer/test-container:chatbot_simulator-latest
 docker pull asqiengineer/test-container:trustllm-latest
 docker pull asqiengineer/test-container:deepteam-latest
+docker pull asqiengineer/test-container:inspect-latest
 
 # Verify installation
 asqi --help
@@ -154,6 +155,7 @@ ASQI provides several pre-built test containers for different testing scenarios:
 - **Chatbot Simulator** (`asqiengineer/test-container:chatbot_simulator-latest`): Persona-based conversational testing with multi-turn dialogue
 - **TrustLLM** (`asqiengineer/test-container:trustllm-latest`): Comprehensive trustworthiness evaluation framework
 - **DeepTeam** (`asqiengineer/test-container:deepteam-latest`): Red teaming library for adversarial robustness testing
+- **Inspect XSTest** (`asqiengineer/test-container:inspect-latest`): Safety behavior evaluation using XSTest benchmark
 
 All containers are available on Docker Hub and can be pulled using the commands shown in the installation section above.
 
@@ -220,6 +222,18 @@ curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/confi
 
 # Run red teaming tests
 asqi execute-tests -t deepteam_test.yaml -s demo_systems.yaml -o redteam_results.json
+```
+
+### Inspect XSTest Example
+
+Safety behavior evaluation using the XSTest benchmark:
+
+```bash
+# Download XSTest evaluation configuration
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/inspect_test.yaml
+
+# Run safety behavior evaluation on safe prompts
+asqi execute-tests -t inspect_test.yaml -s demo_systems.yaml -o xstest_results.json
 ```
 
 ## Evaluating Score Cards
