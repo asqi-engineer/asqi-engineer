@@ -21,7 +21,6 @@ from asqi.container_manager import (
     extract_manifest_from_image,
     run_container_with_args,
     pull_images,
-    MissingImageException,
 )
 from asqi.output import (
     create_test_execution_progress,
