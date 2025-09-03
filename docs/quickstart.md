@@ -16,7 +16,7 @@ Download and start the essential services (PostgreSQL and LiteLLM proxy):
 
 ```bash
 # Download docker-compose configuration
-curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/docker-compose.yaml
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/docker/docker-compose.yml
 
 # Download LiteLLM configuration
 curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/litellm_config.yaml
@@ -26,11 +26,11 @@ cat > .env << 'EOF'
 # LLM API Keys
 LITELLM_MASTER_KEY="sk-1234"
 OPENAI_API_KEY=
-ANTHROPIC_API_KEY= 
+ANTHROPIC_API_KEY=
 AWS_BEARER_TOKEN_BEDROCK=
 
 # Otel
-OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
 
 # DB
 DBOS_DATABASE_URL=postgres://postgres:asqi@localhost:5432/asqi_starter
@@ -47,6 +47,7 @@ docker compose ps
 ```
 
 This provides:
+
 - **PostgreSQL**: Database for DBOS durability (`localhost:5432`)
 - **LiteLLM Proxy**: Unified API endpoint for multiple LLM providers (`localhost:4000`)
 - **Jaeger**: Distributed tracing UI for workflow observability (`localhost:16686`)
@@ -71,35 +72,28 @@ asqi --help
 
 Before running tests, you need to configure the AI systems you want to test:
 
-1. **Download example configurations:**
+1. **Download example system configurations:**
+
    ```bash
    curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/systems/demo_systems.yaml
-   curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/.env.example
    ```
 
-2. **Setup environment variables:**
-   ```bash
-   # Copy and configure your API keys
-   cp .env.example .env
-   # Edit .env file with your actual API keys
-   ```
-
-3. **Configure your systems (`demo_systems.yaml`):**
+2. **Configure your systems (`demo_systems.yaml`):**
    ```yaml
    systems:
      my_llm_service:
        type: "llm_api"
        params:
-         base_url: "http://localhost:4000/v1"  # LiteLLM proxy
+         base_url: "http://localhost:4000/v1" # LiteLLM proxy
          model: "gpt-4o-mini"
          api_key: "sk-1234"
-     
+
      openai_gpt4o_mini:
        type: "llm_api"
        params:
          base_url: "https://api.openai.com/v1"
          model: "gpt-4o-mini"
-         api_key: "${OPENAI_API_KEY}"  # Uses environment variable
+         api_key: "${OPENAI_API_KEY}" # Uses environment variable
    ```
 
 ## Basic Usage

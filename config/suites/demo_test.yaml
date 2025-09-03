@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
 suite_name: "Mock Tester Sanity Check"
 test_suite:
-  - name: "run_mock_on_compatible_sut"
+  - name: "openai_gpt4o_mini"
     image: "asqiengineer/test-container:mock_tester-latest"
     systems_under_test:
       - "my_llm_service" # if using demo_suts, it should fail with other systems_under_test or my_backend_api
