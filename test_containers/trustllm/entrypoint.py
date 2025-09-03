@@ -1,7 +1,9 @@
 import argparse
 import json
 import os
+import shutil
 import sys
+from pathlib import Path
 from typing import Any, Dict
 
 from trustllm import config
@@ -222,6 +224,16 @@ class TrustLLMTester:
                     "error": "test_type is required",
                 }
 
+            # Extract output directory parameter
+            output_dir_name = test_params.get("output_dir", "trustllm_results")
+
+            # Validate directory name to prevent directory traversal
+            output_dir_path = Path(output_dir_name)
+            if len(output_dir_path.parts) != 1:
+                raise ValueError(
+                    "Invalid output_dir: must be a directory name only, no directory traversal allowed."
+                )
+
             test_type = test_type.lower()
             if test_type not in self.DATASET_MAP:
                 return {
@@ -340,6 +352,51 @@ class TrustLLMTester:
                     "evaluation_error": dataset_result.get("evaluation_error"),
                     "sample_count": dataset_result.get("actual_sample_count", 0),
                 }
+
+            # Copy relevant generation results to user-specified directory
+            try:
+                output_mount_path = Path(os.environ["OUTPUT_MOUNT_PATH"])
+                generation_results_dir = Path("generation_results")
+
+                if generation_results_dir.exists():
+                    # Create target directory structure: {output_dir}/generation_results/{model}/{test_type}/
+                    target_base_dir = output_mount_path / output_dir_name
+                    model_dir = (
+                        generation_results_dir / self.sut_params["model"] / test_type
+                    )
+
+                    if model_dir.exists():
+                        target_dir = (
+                            target_base_dir
+                            / "generation_results"
+                            / self.sut_params["model"]
+                            / test_type
+                        )
+                        target_dir.mkdir(parents=True, exist_ok=True)
+
+                        # Copy only the relevant test_type results
+                        for dataset_name in datasets_tested:
+                            for dataset_file in model_dir.glob(f"*{dataset_name}*"):
+                                shutil.copy2(dataset_file, target_dir)
+
+                        print(
+                            f"TrustLLM generation results copied to: {target_dir}",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print(
+                            f"Warning: No results found in {model_dir}", file=sys.stderr
+                        )
+                else:
+                    print(
+                        "Warning: No generation_results directory found to copy",
+                        file=sys.stderr,
+                    )
+            except (OSError, IOError, PermissionError) as e:
+                print(
+                    f"Warning: Could not copy TrustLLM results to volume: {e}",
+                    file=sys.stderr,
+                )
 
             return {
                 "success": True,

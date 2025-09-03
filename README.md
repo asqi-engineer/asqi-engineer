@@ -310,6 +310,10 @@ Test containers can save detailed logs to mounted volumes for later analysis:
 - Saves full garak report via `garak_log_filename` parameter (default: `garak_output.jsonl`)
 - Contains detailed probe results, vulnerability assessments, and raw garak output in JSON Lines format
 
+**TrustLLM Evaluator**:
+- Copies generation results to user-specified directory via `output_dir` parameter (default: `trustllm_results`)
+- Preserves TrustLLM directory structure: `{output_dir}/generation_results/{model}/{test_type}/{dataset}.json`
+
 **Example Usage**:
 ```yaml
 test_suite:
@@ -325,6 +329,12 @@ test_suite:
       output: /path/to/logs  # Mount host directory for log storage
     params:
       garak_log_filename: "security_report.jsonl"
+  - name: "trustworthiness_test"
+    image: "my-registry/trustllm:latest"
+    volumes:
+      output: /path/to/logs  # Mount host directory for log storage
+    params:
+      output_dir: "my_trustllm_results"
 ```
 
 ## Building and Distribution

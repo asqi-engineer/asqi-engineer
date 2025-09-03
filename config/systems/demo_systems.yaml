@@ -19,7 +19,7 @@ systems:
     params:
       base_url: "http://localhost:4000" # Use litellm on port 4000
       model: "bedrock/arn:aws:bedrock:us-east-1:156772879641:inference-profile/us.amazon.nova-lite-v1:0" # Uses litellm configured model
-      api_key: ${API_KEY} # You can also use string interpolation like this!
+      env_file: .env # Pass in all env variables from file
 
   # Direct OpenAI API access with explicit API key
   direct_openai:
@@ -27,7 +27,7 @@ systems:
     params:
       base_url: "https://api.openai.com/v1"
       model: "gpt-4o-mini"
-      api_key: ${OPENAI_API_KEY}
+      api_key: ${OPENAI_API_KEY} # You can also use string interpolation like this!
 
   my_llm_service:
     type: "llm_api"
