@@ -337,8 +337,7 @@ Make the scenarios realistic and diverse, covering different use cases for this 
     ) -> ConversationalTestCase:
         """Simulate a single conversation"""
         print(
-            f"Simulating conversation {index + 1}/{total} - {user_data['scenario_id']}",
-            flush=True,
+            f"Simulating conversation {index + 1}/{total} - {user_data['scenario_id']}"
         )
 
         try:
@@ -377,7 +376,7 @@ Make the scenarios realistic and diverse, covering different use cases for this 
             }
 
         except Exception as e:
-            print(f"❌ Failed to simulate {user_data['scenario_id']}: {e}", flush=True)
+            print(f"❌ Failed to simulate {user_data['scenario_id']}: {e}")
             return {
                 "turns": [],
                 "evaluator_results": [],
@@ -398,7 +397,7 @@ Make the scenarios realistic and diverse, covering different use cases for this 
         self, scenarios: List[Dict[str, Any]]
     ) -> List[ConversationalTestCase]:
         """Run multiturn simulations using OpenEvals"""
-        print("Running multiturn simulations...", flush=True)
+        print("Running multiturn simulations...")
         app = self.create_app()
         simulated_users = self.create_simulated_users(scenarios)
 

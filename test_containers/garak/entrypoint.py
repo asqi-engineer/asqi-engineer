@@ -202,11 +202,10 @@ def main():
                         eval_entries = []
                         _run_info = None
 
-                        # Copy the full garak report to output volume if OUTPUT_MOUNT_PATH is available
-                        if "OUTPUT_MOUNT_PATH" in os.environ:
-                            output_mount_path = Path(os.environ["OUTPUT_MOUNT_PATH"])
-                            garak_output_path = output_mount_path / garak_log_filename
-
+                        # Copy the full garak report to output volume
+                        output_mount_path = Path(os.environ["OUTPUT_MOUNT_PATH"])
+                        garak_output_path = output_mount_path / garak_log_filename
+                        try:
                             # Copy the report file content to the mounted volume
                             with (
                                 open(report_file, "r") as src,
@@ -215,6 +214,11 @@ def main():
                                 dst.write(src.read())
                             print(
                                 f"Garak report saved to: {garak_output_path}",
+                                file=sys.stderr,
+                            )
+                        except (OSError, IOError, PermissionError) as e:
+                            print(
+                                f"Warning: Could not save garak report to {garak_output_path}: {e}",
                                 file=sys.stderr,
                             )
 
