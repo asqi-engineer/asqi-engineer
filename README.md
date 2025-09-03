@@ -122,21 +122,36 @@ API_KEY=sk-1234
 
 ### How Environment Variables Work
 
-1. **Systems Configuration**: Systems can specify `base_url` and optionally reference an `env_file` for API keys
-2. **Environment Fallbacks**: If not specified, ASQI uses `BASE_URL` and `API_KEY` from `.env`
-3. **Provider Keys**: Specific provider keys (e.g., `OPENAI_API_KEY`) are passed to test containers
+1. **Direct Parameters**: Systems can specify `base_url` and `api_key` directly in configuration
+2. **String Interpolation**: Use `${VARIABLE_NAME}` to reference environment variables
+3. **Environment File Loading**: Use `env_file` to automatically load `BASE_URL` and `API_KEY` as system parameters, and pass ALL variables from that file to test containers
 
 ### Example Systems Configuration
 
 ```yaml
 systems:
-  # Recommended: Uses env_file for API key security
-  direct_openai:
+  # Option 1: Direct configuration
+  direct_config:
     type: "llm_api"
     params:
       base_url: "https://api.openai.com/v1"
       model: "gpt-4o-mini"
-      env_file: ".env"  # References OPENAI_API_KEY from .env file
+      api_key: "sk-your-key"
+
+  # Option 2: String interpolation
+  interpolated_config:
+    type: "llm_api"
+    params:
+      base_url: "https://api.openai.com/v1"
+      model: "gpt-4o-mini"
+      api_key: ${OPENAI_API_KEY}
+
+  # Option 3: Environment file loading (loads BASE_URL, API_KEY, and all other vars)
+  env_file_config:
+    type: "llm_api"
+    params:
+      model: "my-model"
+      env_file: ".env"  # Loads all variables from .env file
 ```
 
 ## Usage
