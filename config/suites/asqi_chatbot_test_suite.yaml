@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
 suite_name: "Comprehensive Chatbot ASQI Evaluation"
 test_suite_default:
-  systems_under_test: ["openai_gpt4o_mini"]
+  systems_under_test: ["nova_lite"]
 
 test_suite:
   - name: "chatbot_simulator_regular_conversation"
@@ -84,6 +84,6 @@ test_suite:
     volumes:
       output: /workspaces/asqi/output
     params:
-      probes: ["encoding", "continuation", "dan"]
+      probes: ["dan.STAN"] # WIP
       generations: 1
       parallel_attempts: 10
