@@ -110,7 +110,7 @@ def dbos_check_images_availability(images: List[str]) -> Dict[str, bool]:
 
 
 @DBOS.step()
-def dbos_pull_images(images: List[str]) -> Dict[str, bool]:
+def dbos_pull_images(images: List[str]):
     """Pull missing Docker images from registries."""
     return pull_images(images)
 
@@ -442,21 +442,7 @@ def run_test_suite_workflow(
         with console.status(
             "[bold blue]Pulling missing images from registry...", spinner="dots"
         ):
-            pull_results = dbos_pull_images(missing_images)
-            # Merge pull results into availability map
-            for img, pulled in pull_results.items():
-                image_availability[img] = bool(pulled)
-            missing_images = [
-                img for img, success in pull_results.items() if not success
-            ]
-            # If any are missing, compose a helpful message using a fresh client context
-            if missing_images:
-                msgs = []
-                for image in missing_images:
-                    msg = f"❌ Container not found: {image}\nNo similar images found."
-                    msgs.append(msg)
-
-                raise MissingImageException("\n\n".join(msgs))
+            dbos_pull_images(missing_images)
 
     # Extract manifests from available images (post-pull)
     manifests = {}
