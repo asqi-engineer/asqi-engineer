@@ -477,7 +477,7 @@ def run_container_with_args(
                 if output_lines:
                     result["output"] = "\n".join(output_lines)
                 else:
-                    logger.error(f"container.logs() : {container.logs()}")
+                    logger.debug(f"container.logs() : {container.logs()}")
                     result["output"] = container.logs().decode(
                         "utf-8", errors="replace"
                     )
