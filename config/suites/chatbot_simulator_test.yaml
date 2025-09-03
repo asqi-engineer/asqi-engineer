@@ -8,6 +8,8 @@ test_suite:
     systems:
       simulator_system: openai_gpt4o_mini
       evaluator_system: nova_lite
+    volumes:
+      output: /workspaces/asqi/output # Add a output volume to save the log file
     params:
       chatbot_purpose: "Tesla customer service helping with vehicle info and services"
       custom_personas:
@@ -18,3 +20,4 @@ test_suite:
       simulations_per_scenario: 1
       max_concurrent: 4
       max_turns: 3
+      conversation_log_filename: conversation_logs.json
