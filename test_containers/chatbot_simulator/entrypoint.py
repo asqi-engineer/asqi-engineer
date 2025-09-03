@@ -1,6 +1,8 @@
 import argparse
 import asyncio
 import json
+import os
+from pathlib import Path
 import sys
 from typing import Any, Dict
 
@@ -17,7 +19,7 @@ def create_model_callback(sut_params: Dict[str, Any]):
     model = sut_params.get("model", "gpt-4o-mini")
 
     async def model_callback(input_text: str) -> str:
-        """Model callback that implements the chatbot logic"""
+        """Model callback that wraps the chatbot function"""
         try:
             response = await client.chat.completions.create(
                 model=model,
@@ -46,7 +48,19 @@ async def run_chatbot_simulation(
     simulations_per_scenario = test_params.get("simulations_per_scenario", 1)
     success_threshold = test_params.get("success_threshold", 0.7)
     max_concurrent = test_params.get("max_concurrent", 3)
+    conversation_log_filename = Path(
+        test_params.get("conversation_log_filename", "conversation_logs.json")
+    )
+    # Validate filename
+    if len(conversation_log_filename.parts) != 1:
+        raise ValueError(
+            "Invalid conversation_log_filename: must be a filename only, no directory traversal allowed."
+        )
 
+    conversation_log_filepath = (
+        Path(os.environ["OUTPUT_MOUNT_PATH"]) / conversation_log_filename
+    )
+    print(f"Conversation logs will be saved to: {conversation_log_filepath}")
     # Get simulator and evaluator system if provided
     simulator_system = systems_params.get("simulator_system", {})
     evaluator_system = systems_params.get("evaluator_system", {})
@@ -89,8 +103,7 @@ async def run_chatbot_simulation(
     print(f"Generated {len(test_cases)} conversation test cases")
 
     analyzer = ConversationTestAnalyzer(success_threshold=success_threshold)
-    conversations_file = "conversation_logs.json"
-    analyzer.save_conversations(test_cases, conversations_file)
+    analyzer.save_conversations(test_cases, conversation_log_filepath)
 
     analysis_json = analyzer.analyze_results(test_cases)
     print("\n🎉 Conversation testing complete!")
@@ -184,6 +197,10 @@ def main():
         }
         print(json.dumps(error_result, indent=2))
         sys.exit(1)
+
+
+def demo_app():
+    """Demo app function for testing."""
 
 
 if __name__ == "__main__":

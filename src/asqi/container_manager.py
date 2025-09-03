@@ -19,8 +19,8 @@ from asqi.schemas import Manifest
 logger = logging.getLogger(__name__)
 
 # === Constants ===
-INPUT_MOUNT_PATH = "/input"
-OUTPUT_MOUNT_PATH = "/output"
+INPUT_MOUNT_PATH = Path("/input")
+OUTPUT_MOUNT_PATH = Path("/output")
 
 # === Active container tracking and shutdown handling ===
 _active_lock = threading.Lock()
@@ -361,7 +361,7 @@ def _extract_mounts_from_args(
                 host_in = _devcontainer_host_path(client, inp)
                 mounts.append(
                     Mount(
-                        target=INPUT_MOUNT_PATH,
+                        target=str(INPUT_MOUNT_PATH),
                         source=host_in,
                         type="bind",
                         read_only=True,
@@ -372,7 +372,7 @@ def _extract_mounts_from_args(
                 host_out = _devcontainer_host_path(client, outp)
                 mounts.append(
                     Mount(
-                        target=OUTPUT_MOUNT_PATH,
+                        target=str(OUTPUT_MOUNT_PATH),
                         source=host_out,
                         type="bind",
                         read_only=False,

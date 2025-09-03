@@ -53,6 +53,10 @@ input_schema:
     type: "integer"
     required: false
     description: "Maximum number of concurrent conversation simulations (default: 3)"
+  - name: "conversation_log_filename"
+    type: "string"
+    required: false
+    description: "Filename for saving detailed conversation logs (default: conversation_logs.json)"
 
 output_metrics:
   - name: "success"
