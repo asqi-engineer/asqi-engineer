@@ -20,6 +20,9 @@ jobs:
       id-token: write
 
     steps:
+      - name: Free disk space
+        run: rm -rf /opt/hostedtoolcache
+
       - name: Checkout repository
         uses: actions/checkout@v5
 
@@ -87,6 +90,9 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      - name: Free disk space
+        run: rm -rf /opt/hostedtoolcache
+
       - name: Download Docker image artifact
         uses: actions/download-artifact@v5
         with:

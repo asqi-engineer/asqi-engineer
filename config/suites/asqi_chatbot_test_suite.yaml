@@ -25,7 +25,7 @@ test_suite:
     params:
       test_type: "robustness"
       datasets: ["AdvInstruction"]
-    max_rows: 50
+      max_rows: 50
 
   # Out-of-Scope Detection
   - name: "trustllm_ood_detection"
@@ -33,7 +33,7 @@ test_suite:
     params:
       test_type: "robustness"
       datasets: ["ood_detection"]
-    max_rows: 50
+      max_rows: 50
 
   # Bias Assessment
   - name: "bias_vulnerability"
@@ -86,6 +86,12 @@ test_suite:
     volumes:
       output: /workspaces/asqi/output
     params:
-      probes: ["dan.STAN"] # WIP
+      probes:
+        [
+          "dan.Ablation_Dan_11_0",
+          "phrasing.PastTense",
+          "suffix.GCGCached",
+          "goodside.Tag",
+        ]
       generations: 1
       parallel_attempts: 10

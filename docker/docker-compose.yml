@@ -21,8 +21,7 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - ./integrations/litellm_config.yaml:/app/config.yaml
-      - ./integrations:/app/integrations
+      - ./litellm_config.yaml:/app/config.yaml
     command:
       - "--config=/app/config.yaml"
     env_file:
