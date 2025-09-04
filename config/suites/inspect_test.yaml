@@ -645,11 +645,11 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  - name: "inspect_stereoset"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: 
-      - "nova_lite"
-    params:
-      evaluation: "stereoset"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_stereoset"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "stereoset"
+  #     evaluation_params: {}
+  #     limit: 2

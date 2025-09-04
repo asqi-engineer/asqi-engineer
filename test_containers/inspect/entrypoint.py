@@ -164,7 +164,7 @@ def main():
             "air_bench": ("inspect_evals.air_bench", "air_bench"), # done
             "apps": ("inspect_evals.apps", "apps"),
             "bbeh": ("inspect_evals.bbeh", "bbeh"), # done
-            "bbh": ("inspect_evals.bbh", "bbh"),
+            "bbh": ("inspect_evals.bbh", "bbh"), # done
             "bigcodebench": ("inspect_evals.bigcodebench", "bigcodebench"),
             "browse_comp": ("inspect_evals.browse_comp", "browse_comp"), # done
             "core_bench": ("inspect_evals.core_bench", "core_bench"),
@@ -174,10 +174,10 @@ def main():
             "hle": ("inspect_evals.hle", "hle"),
             "livebench": ("inspect_evals.livebench", "livebench"),
             "mask": ("inspect_evals.mask", "mask"),
-            "musr": ("inspect_evals.musr", "musr"),
+            "musr": ("inspect_evals.musr", "musr"), # done
             "niah": ("inspect_evals.niah", "niah"), # done
             "simpleqa": ("inspect_evals.simpleqa", "simpleqa"), # done
-            "stereoset": ("inspect_evals.stereoset", "stereoset"),
+            "stereoset": ("inspect_evals.stereoset", "stereoset"), # done
         }
 
         # Get evaluation function
