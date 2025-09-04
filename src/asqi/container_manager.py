@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import tempfile
 import threading
 from contextlib import contextmanager
@@ -420,7 +419,6 @@ def _extract_mounts_from_args(
                 )
 
             if outp:
-                os.makedirs(outp, exist_ok=True)
                 host_out = _devcontainer_host_path(client, outp)
                 mounts.append(
                     Mount(

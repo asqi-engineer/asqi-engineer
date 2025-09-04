@@ -3,6 +3,7 @@ import os
 import time
 from datetime import datetime
 from difflib import get_close_matches
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dbos import DBOS, DBOSConfig, Queue
@@ -21,8 +22,8 @@ from asqi.container_manager import (
     OUTPUT_MOUNT_PATH,
     check_images_availability,
     extract_manifest_from_image,
-    run_container_with_args,
     pull_images,
+    run_container_with_args,
 )
 from asqi.output import (
     create_test_execution_progress,
@@ -429,6 +430,54 @@ def run_test_suite_workflow(
         }
 
     console.print(f"\n[bold blue]Executing Test Suite:[/bold blue] {suite.suite_name}")
+
+    try:
+        for _, test in enumerate(suite.test_suite):
+            vols = getattr(test, "volumes", None)
+            if not vols:
+                continue
+
+            if not isinstance(vols, dict):
+                raise ValueError(
+                    f"'volumes' for test '{test.name}' must be a dict, got {type(vols).__name__}"
+                )
+
+            for key in ("input", "output"):
+                if key in vols:
+                    raw_path = vols[key]
+                    if not isinstance(raw_path, str) or not raw_path.strip():
+                        raise ValueError(
+                            f"Invalid '{key}' volume path in test '{test.name}': must be a non-empty string."
+                        )
+
+                    path = Path(raw_path).expanduser().resolve()
+
+                    if not path.exists():
+                        raise ValueError(
+                            f"Configured '{key}' volume does not exist for test '{test.name}': {path}"
+                        )
+
+                    if not path.is_dir():
+                        raise ValueError(
+                            f"Configured '{key}' volume is not a directory for test '{test.name}': {path}"
+                        )
+
+    except ValueError as e:
+        error_msg = f"Volume validation failed: {e}"
+        DBOS.logger.error(error_msg)
+        return {
+            "summary": create_workflow_summary(
+                suite_name=suite.suite_name,
+                workflow_id=DBOS.workflow_id or "",
+                status="VALIDATION_FAILED",
+                total_tests=0,
+                successful_tests=0,
+                failed_tests=0,
+                execution_time=time.time() - workflow_start_time,
+                error=error_msg,
+            ),
+            "results": [],
+        }
 
     # Collect all unique images from test suite
     unique_images = list(set(test.image for test in suite.test_suite))
