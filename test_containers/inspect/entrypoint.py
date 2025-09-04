@@ -162,18 +162,18 @@ def main():
             "agentharm": ("inspect_evals.agentharm", "agentharm"), # done
             "agie_aqua_rat": ("inspect_evals.agieval", "agie_aqua_rat"), # done
             "air_bench": ("inspect_evals.air_bench", "air_bench"), # done
-            "apps": ("inspect_evals.apps", "apps"),
+            "apps": ("inspect_evals.apps", "apps"), # TODO
             "bbeh": ("inspect_evals.bbeh", "bbeh"), # done
             "bbh": ("inspect_evals.bbh", "bbh"), # done
-            "bigcodebench": ("inspect_evals.bigcodebench", "bigcodebench"),
+            "bigcodebench": ("inspect_evals.bigcodebench", "bigcodebench"), # TODO
             "browse_comp": ("inspect_evals.browse_comp", "browse_comp"), # done
-            "core_bench": ("inspect_evals.core_bench", "core_bench"),
+            "core_bench": ("inspect_evals.core_bench", "core_bench"), # TODO
             "cybermetric_80": ("inspect_evals.cybermetric", "cybermetric_80"), # done
-            "docvqa": ("inspect_evals.docvqa", "docvqa"),
-            "gaia": ("inspect_evals.gaia", "gaia"),
-            "hle": ("inspect_evals.hle", "hle"),
+            "docvqa": ("inspect_evals.docvqa", "docvqa"), # TODO
+            "gaia": ("inspect_evals.gaia", "gaia"), # TODO
+            "hle": ("inspect_evals.hle", "hle"), # TODO
             "livebench": ("inspect_evals.livebench", "livebench"), # done
-            "mask": ("inspect_evals.mask", "mask"),
+            "mask": ("inspect_evals.mask", "mask"), # TODO
             "musr": ("inspect_evals.musr", "musr"), # done
             "niah": ("inspect_evals.niah", "niah"), # done
             "simpleqa": ("inspect_evals.simpleqa", "simpleqa"), # done

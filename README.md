@@ -178,7 +178,7 @@ ASQI provides several pre-built test containers for different testing scenarios:
 - **Chatbot Simulator** (`asqiengineer/test-container:chatbot_simulator-latest`): Persona-based conversational testing with multi-turn dialogue
 - **TrustLLM** (`asqiengineer/test-container:trustllm-latest`): Comprehensive trustworthiness evaluation framework
 - **DeepTeam** (`asqiengineer/test-container:deepteam-latest`): Red teaming library for adversarial robustness testing
-- **Inspect XSTest** (`asqiengineer/test-container:inspect-latest`): Safety behavior evaluation using XSTest benchmark
+- **Inspect** (`asqiengineer/test-container:inspect-latest`): Comprehensive LLM evaluation framework with 42+ benchmarks covering code generation, mathematics, commonsense reasoning, safety, multilingual capabilities, and more
 
 All containers are available on Docker Hub and can be pulled using the commands shown in the installation section above.
 
@@ -248,16 +248,52 @@ curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/confi
 asqi execute-tests -t deepteam_test.yaml -s demo_systems.yaml -o redteam_results.json
 ```
 
-### Inspect XSTest Example
+### Inspect Evaluation Framework Example
 
-Safety behavior evaluation using the XSTest benchmark:
+Comprehensive LLM evaluation using the Inspect framework with 42+ benchmarks:
 
 ```bash
-# Download XSTest evaluation configuration
+# Download comprehensive evaluation configuration
 curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/inspect_test.yaml
 
-# Run safety behavior evaluation on safe prompts
-asqi execute-tests -t inspect_test.yaml -s demo_systems.yaml -o xstest_results.json
+# Run multiple evaluation types (code generation, math, commonsense reasoning, safety)
+asqi execute-tests -t inspect_test.yaml -s demo_systems.yaml -o inspect_results.json
+```
+
+The Inspect test container supports a wide range of evaluation categories:
+
+- **Code Generation**: HumanEval, GSM8K, MBPP, DS1000
+- **Mathematics**: MATH, MathVista, AIME2024, GSM8K
+- **Commonsense Reasoning**: HellaSwag, Winogrande, PIQA, CommonsenseQA
+- **Safety & Alignment**: BBQ, BOLD, StrongReject, Sycophancy
+- **Science & Knowledge**: ARC, MedQA, PubMedQA, ChemBench
+- **Multilingual**: MMLU-Pro, PAWS, AGI Eval benchmarks
+- **Reading Comprehension**: DROP, RACE-H
+- **And many more...**
+
+**Example configuration for specific evaluations:**
+
+```yaml
+test_suite:
+  - name: "code_generation_test"
+    image: "asqiengineer/test-container:inspect-latest"
+    params:
+      evaluation: "humaneval"
+      limit: 50
+
+  - name: "math_reasoning_test"
+    image: "asqiengineer/test-container:inspect-latest"
+    params:
+      evaluation: "gsm8k"
+      limit: 100
+
+  - name: "safety_test"
+    image: "asqiengineer/test-container:inspect-latest"
+    params:
+      evaluation: "xstest"
+      evaluation_params:
+        subset: "safe"
+      limit: 25
 ```
 
 ## Evaluating Score Cards

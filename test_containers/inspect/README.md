@@ -18,8 +18,11 @@ The container currently supports the following evaluations from inspect-evals:
 - **mmlu_pro**: MMLU Pro benchmark
 
 ### Code Evaluations
+- **humaneval**: HumanEval benchmark for code generation
 - **gsm8k**: GSM8K benchmark for math reasoning
+- **mbpp**: MBPP benchmark for basic Python programming
 - **ifeval**: IFEval benchmark for instruction following
+- **ds1000**: DS1000 benchmark for data science tasks
 
 ### Commonsense Reasoning
 - **hellaswag**: HellaSwag benchmark for commonsense reasoning
@@ -49,41 +52,62 @@ The container currently supports the following evaluations from inspect-evals:
 
 ### Safety and Alignment
 - **bbq**: BBQ benchmark for bias evaluation
+- **bold**: BOLD benchmark for bias evaluation
 - **strong_reject**: Strong Reject benchmark
 - **sycophancy**: Sycophancy benchmark
 
+### Agent and Tool Use
+- **agentdojo**: AgentDojo benchmark for agent safety evaluation
+- **agentharm**: AgentHarm benchmark for agent harm evaluation
+
 ### Multilingual
 - **paws**: PAWS benchmark for paraphrase adversaries
+- **agie_aqua_rat**: AGI Eval AQuA-RAT benchmark
+
+### Programming and Software Engineering
+- **air_bench**: AIR Bench benchmark for AI research tasks
+
+### Reasoning and Analysis
+- **bbeh**: BBEH benchmark for bias evaluation
+- **bbh**: BBH benchmark for big bench hard tasks
+- **browse_comp**: Browse Comp benchmark for web browsing comprehension
+- **cybermetric_80**: CyberMetric benchmark (80 samples)
+- **livebench**: LiveBench benchmark for live evaluation
+- **musr**: MUSR benchmark for multi-step reasoning
+- **niah**: NIAH benchmark for natural instruction following
+- **simpleqa**: SimpleQA benchmark for question answering
+- **stereoset**: StereoSet benchmark for bias evaluation
+
+### Multi-modal
+- **mmmu_multiple_choice**: MMMU multiple choice benchmark
+- **mmmu_open**: MMMU open-ended benchmark
 
 ### Long Context and Reasoning
 - **infinite_bench_math_calc**: Infinite Bench mathematical calculation
 - **infinite_bench_passkey**: Infinite Bench passkey retrieval
+- **infinite_bench_code_debug**: Infinite Bench code debugging tasks
 
-## Planned Evaluations (Coming Soon)
+## In progress (Coming Soon)
 
-The following evaluations are planned but not yet fully supported:
+The following evaluations are in progress but not yet fully supported:
 
 ### Code Evaluations
-- **humaneval**: HumanEval benchmark for code generation (requires Docker-in-Docker)
-- **mbpp**: MBPP benchmark for basic Python programming (requires Docker-in-Docker)
-- **ds1000**: DS1000 benchmark for data science tasks (requires Docker-in-Docker)
+- **apps**: APPS benchmark for programming problems (requires trust_remote_code)
+- **bigcodebench**: BigCodeBench benchmark for code generation
 - **class_eval**: ClassEval benchmark for object-oriented programming (requires Docker-in-Docker)
+- **swe_bench**: SWE-bench for software engineering (requires additional dependencies)
 
 ### Agent and Tool Use
 - **agent_bench_os**: Agent Bench OS benchmark (requires Docker-in-Docker)
 
 ### Specialized Domains
-- **bold**: BOLD benchmark for bias evaluation (requires additional PyTorch dependencies)
-- **swe_bench**: SWE-bench for software engineering (requires additional dependencies)
+- **core_bench**: CORE Bench benchmark (requires gpg for dataset decryption)
 - **cybench**: CyBench for cybersecurity evaluation
-
-### Multi-modal
+- **docvqa**: DocVQA benchmark for document visual question answering (memory intensive)
+- **gaia**: GAIA benchmark for general AI assistants (requires HuggingFace authentication)
+- **hle**: HLE benchmark (requires HuggingFace authentication)
+- **mask**: MASK benchmark (requires HuggingFace authentication)
 - **mmiu**: MMIU benchmark for multi-modal understanding
-- **mmmu_multiple_choice**: MMMU multiple choice benchmark
-- **mmmu_open**: MMMU open-ended benchmark
-
-### Long Context
-- **infinite_bench_code_debug**: Infinite Bench code debugging tasks
 
 ### Science
 - **sciq**: SciQ benchmark for science questions
@@ -232,6 +256,38 @@ Note: The specific metrics in the `metrics` object depend on the evaluation type
     evaluation_params:
       scorer_model: "openai/gpt-4o"
     limit: 10
+
+# AgentDojo Safety Evaluation
+- name: "agentdojo"
+  image: "asqiengineer/test-container:inspect-latest"
+  params:
+    evaluation: "agentdojo"
+    evaluation_params: {}
+    limit: 10
+
+# BBH Big Bench Hard Tasks
+- name: "bbh"
+  image: "asqiengineer/test-container:inspect-latest"
+  params:
+    evaluation: "bbh"
+    evaluation_params: {}
+    limit: 15
+
+# LiveBench Live Evaluation
+- name: "livebench"
+  image: "asqiengineer/test-container:inspect-latest"
+  params:
+    evaluation: "livebench"
+    evaluation_params: {}
+    limit: 20
+
+# StereoSet Bias Evaluation
+- name: "stereoset"
+  image: "asqiengineer/test-container:inspect-latest"
+  params:
+    evaluation: "stereoset"
+    evaluation_params: {}
+    limit: 25
 ```
 
 ## Example Test Run
