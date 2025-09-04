@@ -85,76 +85,76 @@ def main():
             # Basic evaluations
             "xstest": ("inspect_evals.xstest", "xstest"),  # done
             "truthfulqa": ("inspect_evals.truthfulqa", "truthfulqa"),  # done
-            "boolq": ("inspect_evals.boolq", "boolq"),
+            "boolq": ("inspect_evals.boolq", "boolq"), # done       
             
             # MMLU variants
-            "mmlu": ("inspect_evals.mmlu", "mmlu_0_shot"),
-            "mmlu_0_shot": ("inspect_evals.mmlu", "mmlu_0_shot"),
-            "mmlu_5_shot": ("inspect_evals.mmlu", "mmlu_5_shot"),
+            "mmlu": ("inspect_evals.mmlu", "mmlu_0_shot"), # done
+            "mmlu_0_shot": ("inspect_evals.mmlu", "mmlu_0_shot"), # done
+            "mmlu_5_shot": ("inspect_evals.mmlu", "mmlu_5_shot"), # done
             
             # Code evaluations
-            "humaneval": ("inspect_evals.humaneval", "humaneval"),
+            "humaneval": ("inspect_evals.humaneval", "humaneval"), # TODO DinD
             "gsm8k": ("inspect_evals.gsm8k", "gsm8k"),  # done
-            "mbpp": ("inspect_evals.mbpp", "mbpp"),
-            "ifeval": ("inspect_evals.ifeval", "ifeval"),
+            "mbpp": ("inspect_evals.mbpp", "mbpp"), # TODO DinD
+            "ifeval": ("inspect_evals.ifeval", "ifeval"), # TODO
             
             # Commonsense reasoning
             "hellaswag": ("inspect_evals.hellaswag", "hellaswag"),  # done
-            "winogrande": ("inspect_evals.winogrande", "winogrande"),
+            "winogrande": ("inspect_evals.winogrande", "winogrande"), # done
             "piqa": ("inspect_evals.piqa", "piqa"),  # done
             "commonsense_qa": ("inspect_evals.commonsense_qa", "commonsense_qa"),  # done
             
             # Science and knowledge
             "arc": ("inspect_evals.arc", "arc_challenge"),  # done
-            "arc_easy": ("inspect_evals.arc", "arc_easy"),
-            "arc_challenge": ("inspect_evals.arc", "arc_challenge"),
-            "sciq": ("inspect_evals.sciknoweval", "sciknoweval"),
+            "arc_easy": ("inspect_evals.arc", "arc_easy"), # done
+            "arc_challenge": ("inspect_evals.arc", "arc_challenge"), # done
+            "sciq": ("inspect_evals.sciknoweval", "sciknoweval"), # TODO
             "medqa": ("inspect_evals.medqa", "medqa"),  # done
-            "pubmedqa": ("inspect_evals.pubmedqa", "pubmedqa"),
+            "pubmedqa": ("inspect_evals.pubmedqa", "pubmedqa"), # done
             
             # Mathematics
             "math": ("inspect_evals.math", "math"),  # done
-            "mathvista": ("inspect_evals.mathvista", "mathvista"),
-            "aime2024": ("inspect_evals.aime2024", "aime2024"),
-            "mgsm": ("inspect_evals.mgsm", "mgsm"),
+            "mathvista": ("inspect_evals.mathvista", "mathvista"), # done
+            "aime2024": ("inspect_evals.aime2024", "aime2024"), # done
+            "mgsm": ("inspect_evals.mgsm", "mgsm"), # done
             
             # Reading comprehension
             "drop": ("inspect_evals.drop", "drop"),  # done
-            "race_h": ("inspect_evals.race_h", "race_h"),
+            "race_h": ("inspect_evals.race_h", "race_h"), # done
             
             # Safety and alignment
             "bbq": ("inspect_evals.bbq", "bbq"),  # done
-            "bold": ("inspect_evals.bold", "bold"),
+            "bold": ("inspect_evals.bold", "bold"), # TODO missing torch
             "strong_reject": ("inspect_evals.strong_reject", "strong_reject"),  # done
-            "sycophancy": ("inspect_evals.sycophancy", "sycophancy"),
+            "sycophancy": ("inspect_evals.sycophancy", "sycophancy"), # done
             
             # Agent and tool use
-            "agent_bench_os": ("inspect_evals.agent_bench", "agent_bench_os"),
+            "agent_bench_os": ("inspect_evals.agent_bench", "agent_bench_os"), # TODO DinD
             
             # Multilingual
             "mmlu_pro": ("inspect_evals.mmlu_pro", "mmlu_pro"),  # done
-            "paws": ("inspect_evals.paws", "paws"),
-            "lingoly": ("inspect_evals.lingoly", "lingoly"),
+            "paws": ("inspect_evals.paws", "paws"), # done
+            "lingoly": ("inspect_evals.lingoly", "lingoly"), # TODO
             
             # Programming and software engineering
-            "ds1000": ("inspect_evals.ds1000", "ds1000"),
-            "swe_bench": ("inspect_evals.swe_bench", "swe_bench"),
-            "class_eval": ("inspect_evals.class_eval", "class_eval"),
+            "ds1000": ("inspect_evals.ds1000", "ds1000"), # TODO DinD
+            "swe_bench": ("inspect_evals.swe_bench", "swe_bench"), # TODO extra deps
+            "class_eval": ("inspect_evals.class_eval", "class_eval"), # TODO DinD
             
             # Multi-modal
-            "mmiu": ("inspect_evals.mmiu", "mmiu"),
-            "mmmu_multiple_choice": ("inspect_evals.mmmu", "mmmu_multiple_choice"),
-            "mmmu_open": ("inspect_evals.mmmu", "mmmu_open"),
+            "mmiu": ("inspect_evals.mmiu", "mmiu"), # TODO
+            "mmmu_multiple_choice": ("inspect_evals.mmmu", "mmmu_multiple_choice"), # TODO
+            "mmmu_open": ("inspect_evals.mmmu", "mmmu_open"), # TODO
             
             # Long context and reasoning
-            "infinite_bench_code_debug": ("inspect_evals.infinite_bench", "infinite_bench_code_debug"),
-            "infinite_bench_math_calc": ("inspect_evals.infinite_bench", "infinite_bench_math_calc"),
-            "infinite_bench_passkey": ("inspect_evals.infinite_bench", "infinite_bench_passkey"),
+            "infinite_bench_code_debug": ("inspect_evals.infinite_bench", "infinite_bench_code_debug"), # TODO 
+            "infinite_bench_math_calc": ("inspect_evals.infinite_bench", "infinite_bench_math_calc"), # done
+            "infinite_bench_passkey": ("inspect_evals.infinite_bench", "infinite_bench_passkey"), # done
             
             # Specialized domains
-            "chembench": ("inspect_evals.chembench", "chembench"),
-            "healthbench": ("inspect_evals.healthbench", "healthbench"),
-            "cybench": ("inspect_evals.cybench", "cybench"),
+            "chembench": ("inspect_evals.chembench", "chembench"), # done
+            "healthbench": ("inspect_evals.healthbench", "healthbench"), # done
+            "cybench": ("inspect_evals.cybench", "cybench"), # TODO simple
             "gpqa_diamond": ("inspect_evals.gpqa", "gpqa_diamond"),  # done
         }
 

@@ -1,5 +1,7 @@
 suite_name: "Inspect Evaluation Suite"
 test_suite:
+
+  # Basic evaluations
   # - name: "inspect_xstest_safe"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
@@ -42,6 +44,54 @@ test_suite:
   #       target: "mc2"
   #     limit: 2
 
+  # - name: "inspect_boolq"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "boolq"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # MMLU variants
+  # - name: "inspect_mmlu"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmlu"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_mmlu_0_shot"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmlu_0_shot"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_mmlu_5_shot"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmlu_5_shot"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Code evaluations
+  # TODO: DinD
+  # - name: "inspect_humaneval"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "humaneval"
+  #     evaluation_params: {}
+  #     limit: 2
+
   # - name: "inspect_gsm8k"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
@@ -51,6 +101,27 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
+  # TODO: DinD
+  # - name: "inspect_mbpp"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mbpp"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # TODO:
+  # - name: "inspect_ifeval"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "ifeval"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Commonsense reasoning
   # - name: "inspect_hellaswag"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
@@ -60,12 +131,12 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # - name: "inspect_arc"
+  # - name: "inspect_winogrande"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
   #     - "nova_lite"
   #   params:
-  #     evaluation: "arc"
+  #     evaluation: "winogrande"
   #     evaluation_params: {}
   #     limit: 2
 
@@ -78,48 +149,50 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # - name: "inspect_math"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "math"
-  #     evaluation_params: {}
-  #     limit: 2
-
-  # - name: "inspect_bbq"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "bbq"
-  #     evaluation_params: {}
-  #     limit: 2
-
-  # - name: "inspect_mmlu_pro"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "mmlu_pro"
-  #     evaluation_params: {}
-  #     limit: 2
-
-  # - name: "inspect_gpqa"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "gpqa_diamond"
-  #     evaluation_params: {}
-  #     limit: 2
-
   # - name: "inspect_commonsense_qa"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
   #     - "nova_lite"
   #   params:
   #     evaluation: "commonsense_qa"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Science and knowledge
+  # - name: "inspect_arc"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "arc"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_arc_easy"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "arc_easy"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_arc_challenge"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "arc_challenge"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # TODO:
+  # - name: "inspect_sciq"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "sciq"
   #     evaluation_params: {}
   #     limit: 2
 
@@ -132,6 +205,53 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
+  # - name: "inspect_pubmedqa"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "pubmedqa"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Mathematics
+  # - name: "inspect_math"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "math"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_mathvista"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mathvista"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_aime2024"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "aime2024"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_mgsm"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mgsm"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Reading comprehension
   # - name: "inspect_drop"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
@@ -141,11 +261,219 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
+
+  # - name: "inspect_race_h"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "race_h"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Safety and alignment
+  # - name: "inspect_bbq"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "bbq"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # TODO: missing torch
+  # - name: "inspect_bold"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "bold"
+  #     evaluation_params: {}
+  #     limit: 2
+
   # - name: "inspect_strong_reject"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
   #     - "nova_lite"
   #   params:
   #     evaluation: "strong_reject"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_sycophancy"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "sycophancy"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Agent and tool use
+  # TODO DinD
+  # - name: "inspect_agent_bench_os"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "agent_bench_os"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Multilingual
+  # - name: "inspect_mmlu_pro"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmlu_pro"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_paws"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "paws"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # TODO
+  # - name: "inspect_lingoly"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "lingoly"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Programming and software engineering
+  # TODO DinD
+  # - name: "inspect_ds1000"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "ds1000"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Todo Extra dep
+  # - name: "inspect_swe_bench"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "swe_bench"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # TODO DinD
+  # - name: "inspect_class_eval"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "class_eval"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Multi-modal
+  # # TODO
+  # - name: "inspect_mmiu"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmiu"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # # TODO
+  # - name: "inspect_mmmu_multiple_choice"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmmu_multiple_choice"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # # TODO
+  # - name: "inspect_mmmu_open"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmmu_open"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # # Long context and reasoning
+  # # TODO
+  # - name: "inspect_infinite_bench_code_debug"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_code_debug"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_infinite_bench_math_calc"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_math_calc"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_infinite_bench_passkey"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_passkey"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # Specialized domains
+  # - name: "inspect_chembench"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "chembench"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_healthbench"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "healthbench"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # TODO 
+  # - name: "inspect_cybench"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "cybench"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_gpqa_diamond"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "gpqa_diamond"
   #     evaluation_params: {}
   #     limit: 2
