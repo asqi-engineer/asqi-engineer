@@ -62,9 +62,14 @@ html_theme_options = {
                     "summary": "Configure systems, suites, and score cards",
                 },
                 {
+                    "title": "Test Containers",
+                    "url": "test-containers",
+                    "summary": "Available test containers and examples",
+                },
+                {
                     "title": "LLM Test Containers",
                     "url": "llm-test-containers",
-                    "summary": "Pre-built LLM testing frameworks",
+                    "summary": "Detailed LLM testing frameworks",
                 },
                 {
                     "title": "Custom Containers",

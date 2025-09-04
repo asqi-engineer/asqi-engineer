@@ -82,6 +82,18 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
     steps:
+      - name: Free Disk Space
+        if: ${{ matrix.skip != true }}
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: true
+          swap-storage: false
+
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -181,6 +193,17 @@ jobs:
       name: ${{ steps.parse.outputs.name }}
       version: ${{ steps.parse.outputs.version }}
     steps:
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: true
+          swap-storage: false
+
       - name: Parse tag
         id: parse
         run: |

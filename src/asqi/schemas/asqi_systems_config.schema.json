@@ -1,0 +1,43 @@
+{
+  "$defs": {
+    "SystemDefinition": {
+      "description": "A single system definition.",
+      "properties": {
+        "type": {
+          "description": "e.g., 'llm_api', 'rest_api'. Used to match with test container capabilities.",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "description": "Parameters specific to the system type (e.g., base_url, model name, API key).",
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "params"
+      ],
+      "title": "SystemDefinition",
+      "type": "object"
+    }
+  },
+  "description": "Schema for the top-level systems configuration file.",
+  "properties": {
+    "systems": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SystemDefinition"
+      },
+      "description": "Dictionary of system definitions.",
+      "title": "Systems",
+      "type": "object"
+    }
+  },
+  "required": [
+    "systems"
+  ],
+  "title": "ASQI SystemsConfig",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

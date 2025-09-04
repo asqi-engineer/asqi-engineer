@@ -22,6 +22,7 @@ from asqi.container_manager import (
     check_images_availability,
     extract_manifest_from_image,
     run_container_with_args,
+    pull_images,
 )
 from asqi.output import (
     create_test_execution_progress,
@@ -107,6 +108,12 @@ class TestExecutionResult:
 def dbos_check_images_availability(images: List[str]) -> Dict[str, bool]:
     """Check if all required Docker images are available locally."""
     return check_images_availability(images)
+
+
+@DBOS.step()
+def dbos_pull_images(images: List[str]):
+    """Pull missing Docker images from registries."""
+    return pull_images(images)
 
 
 @DBOS.step()
@@ -431,6 +438,7 @@ def run_test_suite_workflow(
     with console.status("[bold blue]Checking image availability...", spinner="dots"):
         image_availability = dbos_check_images_availability(unique_images)
 
+    # Try to pull missing images from Docker Hub/registries
     missing_images = [
         img for img, available in image_availability.items() if not available
     ]
@@ -438,8 +446,12 @@ def run_test_suite_workflow(
         console.print(
             f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally"
         )
+        with console.status(
+            "[bold blue]Pulling missing images from registry...", spinner="dots"
+        ):
+            dbos_pull_images(missing_images)
 
-    # Extract manifests from available images
+    # Extract manifests from available images (post-pull)
     manifests = {}
     available_images = [
         img for img, available in image_availability.items() if available

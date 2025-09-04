@@ -10,7 +10,6 @@ from docker import errors as docker_errors
 from asqi.config import ContainerConfig
 from asqi.container_manager import (
     ManifestExtractionError,
-    MissingImageException,
     MountExtractionError,
     _decommission_container,
     _resolve_abs,
@@ -18,6 +17,8 @@ from asqi.container_manager import (
     docker_client,
     extract_manifest_from_image,
     run_container_with_args,
+    pull_images,
+    MissingImageException,
 )
 from asqi.schemas import Manifest
 
@@ -151,38 +152,15 @@ class TestCheckImagesAvailability:
 
         mock_client.images.get.side_effect = mock_get_image
 
-        # Local images: one correct + used for suggestion
-        mock_client.images.list.return_value = [
-            MagicMock(tags=["availabel:latest"]),  # typo image in local list
-            MagicMock(tags=["available:latest"]),  # correct local image
-        ]
-
         images = [
             "available:latest",
-            "availabel:latest",
-            "available:second",
             "missing:latest",
         ]
 
-        with pytest.raises(MissingImageException) as excinfo:
-            check_images_availability(images)
+        result = check_images_availability(images)
 
-        message = str(excinfo.value)
-
-        # ✅ Correct image should not appear in error message
-        assert "❌ Container not found: available:latest" not in message
-
-        # ❌ Typo case: should suggest "available:latest"
-        assert "❌ Container not found: availabel:latest" in message
-        assert "Did you mean: available:latest" in message
-
-        # ❌ Wrong tag case: should suggest "available:latest"
-        assert "❌ Container not found: available:second" in message
-        assert "Did you mean: available:latest" in message
-
-        # ❌ Completely missing should say no similar images
-        assert "❌ Container not found: missing:latest" in message
-        assert "No similar images found." in message
+        expected = {"available:latest": True, "missing:latest": False}
+        assert result == expected
 
     @patch("asqi.container_manager.docker_client")
     def test_check_images_availability_api_error(self, mock_docker_client):
@@ -735,3 +713,86 @@ class TestDecommissionContainer:
         )
         mock_logger.warning.assert_not_called()  # Ensure no log generated for stop failure
         assert mock_container.id not in mock_active_containers
+
+
+class TestPullImages:
+    @patch("asqi.container_manager.docker_client")
+    def test_no_pull_when_all_present(self, mock_docker_client):
+        # Setup client that returns images.get without error
+        mock_client = MagicMock()
+        mock_docker_client.return_value.__enter__.return_value = mock_client
+        mock_client.images.get.return_value = MagicMock()
+
+        pull_images(["repo1/img:1", "repo2/img:2"])  # should not raise
+
+        # First check pass called twice
+        assert mock_client.images.get.call_count == 2
+        # No pull attempted because images_to_pull is empty
+        mock_client.images.pull.assert_not_called()
+
+    @patch("asqi.container_manager.docker_client")
+    def test_pull_missing_then_verify_success(self, mock_docker_client):
+        mock_client_first = MagicMock()
+        mock_client_second = MagicMock()
+
+        # First context manager: determine images_to_pull
+        # imageA present, imageB missing
+        def first_get(name):
+            if name == "imageA:latest":
+                return MagicMock()
+            raise docker_errors.ImageNotFound("not here")
+
+        mock_client_first.images.get.side_effect = first_get
+
+        # Second context manager: perform pull and verify
+        # pull ok; get after pull returns object
+        mock_client_second.images.pull.return_value = MagicMock()
+        mock_client_second.images.get.return_value = MagicMock()
+
+        # Configure context manager to yield different clients sequentially
+        mock_cm = mock_docker_client.return_value
+        mock_cm.__enter__.side_effect = [mock_client_first, mock_client_second]
+
+        pull_images(["imageA:latest", "imageB:1.2"])
+
+        # Ensure only missing image was pulled
+        mock_client_second.images.pull.assert_called_once_with("imageB:1.2")
+        # Verification get called
+        mock_client_second.images.get.assert_called_with("imageB:1.2")
+
+    @patch("asqi.container_manager.logger")
+    @patch("asqi.container_manager.docker_client")
+    def test_pull_missing_failure_raises_with_suggestion(
+        self, mock_docker_client, mock_logger
+    ):
+        mock_client_first = MagicMock()
+        mock_client_second = MagicMock()
+
+        # First pass: both missing
+        mock_client_first.images.get.side_effect = docker_errors.ImageNotFound(
+            "missing"
+        )
+
+        # Second pass: pull fails via APIError
+        mock_client_second.images.pull.side_effect = docker_errors.APIError("denied")
+        # Local image list contains a similar tag to suggest
+        mock_image = MagicMock()
+        mock_image.tags = ["repo/tool:latest", "repo/other:1.0"]
+        mock_client_second.images.list.return_value = [mock_image]
+
+        mock_cm = mock_docker_client.return_value
+        mock_cm.__enter__.side_effect = [mock_client_first, mock_client_second]
+
+        with pytest.raises(MissingImageException) as exc:
+            pull_images(
+                ["repo/tool:1.0"]
+            )  # will fail to pull, suggestion should pick "repo/tool:latest"
+
+        msg = str(exc.value)
+        assert "Container not found: repo/tool:1.0" in msg
+        assert "Did you mean:" in msg
+        assert "repo/tool:latest" in msg or "repo/other:1.0" in msg
+        # Ensure we attempted to list local images for suggestions
+        mock_client_second.images.list.assert_called_once()
+        # And error was logged
+        mock_logger.error.assert_called()

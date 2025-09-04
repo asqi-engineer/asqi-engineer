@@ -7,41 +7,48 @@ ASQI Engineer is in active development and we welcome contributors to contribute
 ## Table of Contents
 
 ### For Users
+
 - [Quick Start for Users](#quick-start-for-users) - Install, setup services, and configure systems
 - [Test Container Examples](#test-container-examples) - Practical examples for each test container
 - [Available Test Containers](#available-test-containers) - Overview of testing capabilities
 
-### For Developers  
+### For Developers
+
 - [Developer Guide](#developer-guide) - Development setup, architecture, and contributing
-- [Environment Configuration](#environment-configuration) - Advanced API keys and provider setup
-- [Usage](#usage) - Advanced command-line usage and execution modes
+- [Environment Configuration](#environment-configuration) - API keys handling and provider setup
+- [Usage](#usage) - Command-line usage and execution modes
 
 ## Key Features
 
 ### **Modular Test Execution**
+
 - **Durable execution**: [DBOS]-powered fault tolerance with automatic retry and recovery
 - **Concurrent testing**: Parallel test execution with configurable concurrency limits
 - **Container isolation**: Each test runs in isolated Docker containers for consistency and reproducibility
 
 ### **Flexible Scenario-based Testing**
+
 - **Core schema definition**: Specifies the underlying contract between test packages and users running tests, enabling an extensible approach to scale to new use cases and test modules
 - **Multi-system orchestration**: Tests can coordinate multiple AI systems (target, simulator, evaluator) in complex workflows
 - **Flexible configuration**: Test packages specify input systems and parameters that can be customised for individual use cases
 
 ### **Automated Assessment**
+
 - **Structured reporting**: JSON output with detailed metrics and assessment outcomes
 - **Configurable score cards**: Define custom evaluation criteria with flexible assessment criteria
 
 ### **Developer Experience**
+
 - **Type-safe configuration**: Pydantic schemas with JSON Schema generation for IDE support
 - **Rich CLI interface**: Typer-based commands with comprehensive help and validation
-- **Real-time feedback**: Live progress reporting with structured logging and tracing 
+- **Real-time feedback**: Live progress reporting with structured logging and tracing
 
 ## LLM Testing
 
 For our first release, we have introduced the `llm_api` system type and contributed 4 test packages for comprehensive LLM system testing. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
 
 ### **LLM Test Containers**
+
 - **[Garak]**: Security vulnerability assessment with 40+ attack vectors and probes
 - **[DeepTeam]**: Red teaming library for adversarial robustness testing
 - **[TrustLLM]**: Comprehensive framework and benchmarks to evaluate trustworthiness of LLM systems
@@ -65,7 +72,28 @@ Download and start the essential services (PostgreSQL and LiteLLM proxy):
 
 ```bash
 # Download docker-compose configuration
-curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/docker-compose.yaml
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/docker/docker-compose.yml
+
+# Download LiteLLM configuration
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/litellm_config.yaml
+
+# Create environment file
+cat > .env << 'EOF'
+# LLM API Keys
+LITELLM_MASTER_KEY="sk-1234"
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+AWS_BEARER_TOKEN_BEDROCK=
+
+# Otel
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
+
+# DB
+DBOS_DATABASE_URL=postgres://postgres:asqi@localhost:5432/asqi_starter
+EOF
+
+# Add your actual API keys to the .env file (replace empty values)
+# Modify litellm_config.yaml to expose the LiteLLM services you want to use
 
 # Start essential services in background
 docker compose up -d
@@ -75,6 +103,7 @@ docker compose ps
 ```
 
 This provides:
+
 - **PostgreSQL**: Database for DBOS durability (`localhost:5432`)
 - **LiteLLM Proxy**: Unified API endpoint for multiple LLM providers (`localhost:4000`)
 - **Jaeger**: Distributed tracing UI for workflow observability (`localhost:16686`)
@@ -99,35 +128,29 @@ asqi --help
 
 Before running tests, you need to configure the AI systems you want to test:
 
-1. **Download example configurations:**
+1. **Download example system configurations:**
+
    ```bash
    curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/systems/demo_systems.yaml
-   curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/.env.example
    ```
 
-2. **Setup environment variables:**
-   ```bash
-   # Copy and configure your API keys
-   cp .env.example .env
-   # Edit .env file with your actual API keys
-   ```
+2. **Configure your systems (`demo_systems.yaml`):**
 
-3. **Configure your systems (`demo_systems.yaml`):**
    ```yaml
    systems:
      my_llm_service:
        type: "llm_api"
        params:
-         base_url: "http://localhost:4000/v1"  # LiteLLM proxy
+         base_url: "http://localhost:4000/v1" # LiteLLM proxy
          model: "gpt-4o-mini"
          api_key: "sk-1234"
-     
+
      openai_gpt4o_mini:
        type: "llm_api"
        params:
          base_url: "https://api.openai.com/v1"
          model: "gpt-4o-mini"
-         api_key: "${OPENAI_API_KEY}"  # Uses environment variable
+         api_key: "${OPENAI_API_KEY}" # Uses environment variable
    ```
 
 ### Basic Usage
@@ -184,6 +207,7 @@ curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/confi
 # Run security tests (includes encoding attacks and prompt injection)
 asqi execute-tests -t garak_test.yaml -s demo_systems.yaml -o security_results.json
 ```
+
 Note: Certain tests requires a `OPENAI_API_KEY` so it is recommended to pass it in via the `env_file` field as part of the system config.
 
 ### Chatbot Simulator Example
@@ -191,10 +215,10 @@ Note: Certain tests requires a `OPENAI_API_KEY` so it is recommended to pass it 
 Persona-based conversational testing with multi-turn dialogue:
 
 ```bash
-# Download chatbot simulation configuration  
+# Download chatbot simulation configuration
 curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/chatbot_simulator_test.yaml
 
-# Run conversational tests 
+# Run conversational tests
 asqi execute-tests -t chatbot_simulator_test.yaml -s demo_systems.yaml -o chatbot_results.json
 ```
 
@@ -229,6 +253,7 @@ Score cards provide automated assessment of test results against business-releva
 ### How Score Cards Work
 
 Score cards consist of **indicators** that evaluate specific metrics from test results:
+
 - **Apply to specific tests**: Target individual test names from your test suite
 - **Extract metrics**: Pull any field from test container JSON output
 - **Assessment criteria**: Define pass/fail thresholds with business-friendly outcomes
@@ -252,6 +277,7 @@ asqi execute -t demo_test.yaml -s demo_systems.yaml -r example_score_card.yaml -
 ```
 
 **Example Score Card Configuration (`example_score_card.yaml`):**
+
 ```yaml
 score_card_name: "Approved ASQI"
 indicators:
@@ -264,7 +290,7 @@ indicators:
         condition: "equal_to"
         threshold: true
         description: "Test executed successfully"
-      - outcome: "FAIL" 
+      - outcome: "FAIL"
         condition: "equal_to"
         threshold: false
         description: "Test execution failed"
@@ -287,7 +313,7 @@ Score card evaluations produce structured results with summary and detailed asse
 {
   "summary": {
     "suite_name": "Security Testing Suite with Garak",
-    "status": "COMPLETED", 
+    "status": "COMPLETED",
     "total_tests": 2,
     "successful_tests": 2
   },
@@ -326,6 +352,8 @@ The ASQI Chatbot Quality Index is a multi-dimensional assessment framework that 
 
 ### Running the ASQI Chatbot Evaluation
 
+**🚧 This is a draft quality index under active development.** We are actively seeking collaboration from the community to:
+
 The complete evaluation combines multiple test containers and provides comprehensive scoring:
 
 ```bash
@@ -341,6 +369,8 @@ asqi execute \
   -o chatbot_asqi_assessment.json
 ```
 
+Here's a sample [chatbot_asqi_assessment.json](./chatbot_asqi_assessment.json) tested with AWS Nova Lite model. Feel free to test it out on your own system or modify the set of tests and parameters.
+
 ### Sample Assessment Dimensions
 
 The ASQI Chatbot score card evaluates questions like:
@@ -354,8 +384,6 @@ The ASQI Chatbot score card evaluates questions like:
 
 ### Beta Status and Collaboration
 
-**🚧 This is a draft quality index under active development.** We are actively seeking collaboration from the community to:
-
 - **Refine assessment criteria**: Help define industry-standard thresholds and grading scales
 - **Expand test coverage**: Contribute new test scenarios and edge cases
 - **Develop domain-specific indices**: Create specialized quality indices for different chatbot use cases
@@ -366,7 +394,7 @@ The ASQI Chatbot score card evaluates questions like:
 We welcome contributions to develop this and other quality indices:
 
 - **Share feedback**: Try the beta index on your chatbot systems and report results
-- **Contribute test cases**: Add new scenarios that matter for your use cases  
+- **Contribute test cases**: Add new scenarios that matter for your use cases
 - **Develop new indices**: Help create quality frameworks for other AI system types
 - **Collaborate on standards**: Work with us to establish industry benchmarks
 
@@ -376,36 +404,42 @@ Contact us through [GitHub Issues](https://github.com/asqi-engineer/asqi-enginee
 
 ### Development Setup
 
-#### Option 1: Dev Container (Recommended)
+#### Dev Container
 
 The easiest way to get started with development is using a dev container with all dependencies pre-configured:
 
 1. **Prerequisites:**
+
    - Docker Desktop or Docker Engine
    - VS Code with Dev Containers extension
 
 2. **What's Included:**
+
    - Python 3.12+ with uv package manager
    - PostgreSQL database (for DBOS durability)
    - LiteLLM proxy server (for unified LLM API access)
    - All development dependencies pre-installed
 
 3. **Using VS Code:**
-  ```bash
-  git clone https://github.com/asqi-engineer/asqi-engineer.git
-  cd asqi
-   cp .env.example .env
-   code .
-   # VS Code will prompt to "Reopen in Container" - click Yes
-   ```
-    Note that you may need to change the ports the devcontainer services (see next bullet) are running on to avoid conflicts with existing local services. Edit the host machine ports in .devcontainer/docker-compose.yml to avoid conflicts. 
+
+```bash
+git clone https://github.com/asqi-engineer/asqi-engineer.git
+cd asqi
+ cp .env.example .env
+ code .
+ # VS Code will prompt to "Reopen in Container" - click Yes
+```
+
+    Note that you may need to change the ports the devcontainer services (see next bullet) are running on to avoid conflicts with existing local services. Edit the host machine ports in .devcontainer/docker-compose.yml to avoid conflicts.
 
 4. **Docker Compose DevContainer Services:**
+
    - PostgreSQL: `localhost:5432` (user: `postgres`, password: `asqi`, database: `asqi_starter`)
    - LiteLLM Proxy: `http://localhost:4000` (OpenAI-compatible API endpoint), visit the UI with `http://localhost:4000/ui`.
    - Jaeger: `http://localhost:16686` (Distributed tracing UI)
 
 5. **Install dependencies**
+
    ```bash
    uv sync --dev  # Install development dependencies
    ```
@@ -413,30 +447,6 @@ The easiest way to get started with development is using a dev container with al
 6. **Verify setup:**
    ```bash
    source .venv/bin/activate
-   asqi --help
-   ```
-
-#### Option 2: Local Development
-
-If you prefer local development:
-
-**Prerequisites:**
-- Python 3.12+
-- Docker (for running test containers)
-- uv (Python package manager)
-
-**Installation:**
-1. **Clone and setup:**
-  ```bash
-  git clone https://github.com/asqi-engineer/asqi-engineer.git
-  cd asqi
-   uv sync --dev  # Install dependencies including dev tools
-   ```
-
-2. Setup Postgres for DBOS. See `.devcontainer/docker-compose.yaml` for example configuration.
-
-3. **Verify installation:**
-   ```bash
    asqi --help
    ```
 
@@ -452,14 +462,15 @@ cp .env.example .env
 ```
 
 **LLM Provider API Keys:**
+
 ```bash
 LITELLM_MASTER_KEY=sk-1234
 OPENAI_API_KEY=sk-your-openai-key
 ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
 AWS_BEARER_TOKEN_BEDROCK=your-bedrock-token
 
-BASE_URL=http://localhost:4000
-API_KEY=sk-1234
+OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+DBOS_DATABASE_URL=postgres://postgres:asqi@db:5432/asqi_starter
 ```
 
 #### How Environment Variables Work
@@ -493,7 +504,7 @@ systems:
     type: "llm_api"
     params:
       model: "my-model"
-      env_file: ".env"  # Loads all variables from .env file
+      env_file: ".env" # Loads all variables from .env file
 ```
 
 ### Usage
@@ -501,7 +512,9 @@ systems:
 ASQI provides four main execution modes via typer subcommands:
 
 #### 1. Validation Mode
+
 Validates configurations without executing tests:
+
 ```bash
 asqi validate \
   --test-suite-config config/suites/demo_test.yaml \
@@ -510,7 +523,9 @@ asqi validate \
 ```
 
 #### 2. Test Execution Only
+
 Run tests without score card evaluation:
+
 ```bash
 asqi execute-tests \
   --test-suite-config config/suites/demo_test.yaml \
@@ -522,7 +537,9 @@ asqi execute-tests -t config/suites/demo_test.yaml -s config/systems/demo_system
 ```
 
 #### 3. Score Card Evaluation Only
+
 Evaluates existing test results against score card criteria:
+
 ```bash
 asqi evaluate-score-cards \
   --input-file results.json \
@@ -534,7 +551,9 @@ asqi evaluate-score-cards --input-file results.json -r config/score_cards/exampl
 ```
 
 #### 4. End-to-End Execution
+
 Combines test execution and score card evaluation:
+
 ```bash
 asqi execute \
   --test-suite-config config/suites/demo_test.yaml \
@@ -560,7 +579,7 @@ asqi execute -t config/suites/demo_test.yaml -s config/systems/demo_systems.yaml
 
 - **Systems**: AI systems being tested (APIs, models, etc.) defined in `config/systems/`
 - **Test Suites**: Collections of tests defined in `config/suites/`
-- **Test Containers**: Docker images in `test_containers/` with embedded `manifest.yaml` 
+- **Test Containers**: Docker images in `test_containers/` with embedded `manifest.yaml`
 - **Score Cards**: Assessment criteria defined in `config/score_cards/` for automated grading
 - **Manifests**: Metadata describing test container capabilities and schemas
 
@@ -568,42 +587,28 @@ asqi execute -t config/suites/demo_test.yaml -s config/systems/demo_systems.yaml
 
 For development or custom modifications, you can build test containers locally:
 
-#### Mock Tester
+**Mock Tester:**
+
 ```bash
 cd test_containers/mock_tester
-docker build -t my-registry/mock_tester:latest .
+docker build -t asqiengineer/test-container:mock-tester-latest .
 ```
 
-#### Garak Security Tester
+**Garak Security Tester:**
+
 ```bash
 cd test_containers/garak
-docker build -t my-registry/garak:latest .
+docker build -t asqiengineer/test-container:garak-latest .
 ```
 
-#### Other Test Containers
-Similar build processes apply to other containers in the `test_containers/` directory.
-
-### Score Cards
-
-ASQI includes a simple grading engine for automated test result evaluation:
-
-```yaml
-score_card_name: "Example Assessment"
-indicators:
-  - name: "Test success requirement"
-    apply_to:
-      test_name: "run_mock_on_compatible_sut"
-    metric: "success"
-    assessment:
-      - { outcome: "PASS", condition: "equal_to", threshold: true }
-      - { outcome: "FAIL", condition: "equal_to", threshold: false }
-```
+Similar build processes apply to other containers in the `test_containers/` directory. You could also run `./build_all.sh` to build all containers.
 
 ### Development
 
 #### Running Tests
+
 ```bash
-uv run pytest                    # Run all tests
+uv run pytest                   # Run all tests
 uv run pytest --cov=src         # Run with coverage
 ```
 
@@ -615,6 +620,7 @@ uv run pytest --cov=src         # Run with coverage
 4. Output test results as JSON to stdout
 
 Example manifest.yaml:
+
 ```yaml
 name: "my_test_framework"
 version: "1.0.0"
@@ -630,36 +636,40 @@ output_metrics: ["success", "score"]
 Test containers can save detailed logs to mounted volumes for later analysis:
 
 **Chatbot Simulator**:
+
 - Saves detailed conversation logs via `conversation_log_filename` parameter (default: `conversation_logs.json`)
 - Contains full conversation transcripts, evaluation details, and persona information
 
 **Garak Security Tester**:
+
 - Saves full garak report via `garak_log_filename` parameter (default: `garak_output.jsonl`)
 - Contains detailed probe results, vulnerability assessments, and raw garak output in JSON Lines format
 
 **TrustLLM Evaluator**:
+
 - Copies generation results to user-specified directory via `output_dir` parameter (default: `trustllm_results`)
 - Preserves TrustLLM directory structure: `{output_dir}/generation_results/{model}/{test_type}/{dataset}.json`
 
 **Example Usage**:
+
 ```yaml
 test_suite:
   - name: "chatbot_test"
     image: "my-registry/chatbot_simulator:latest"
     volumes:
-      output: /path/to/logs  # Mount host directory for log storage
+      output: /path/to/logs # Mount host directory for log storage
     params:
       conversation_log_filename: "my_test_conversations.json"
   - name: "security_test"
     image: "my-registry/garak:latest"
     volumes:
-      output: /path/to/logs  # Mount host directory for log storage
+      output: /path/to/logs # Mount host directory for log storage
     params:
       garak_log_filename: "security_report.jsonl"
   - name: "trustworthiness_test"
     image: "my-registry/trustllm:latest"
     volumes:
-      output: /path/to/logs  # Mount host directory for log storage
+      output: /path/to/logs # Mount host directory for log storage
     params:
       output_dir: "my_trustllm_results"
 ```
@@ -676,20 +686,12 @@ uv build --wheel
 ```
 
 This creates files in `dist/`:
-- `asqi-[version]-py3-none-any.whl` (wheel - binary distribution)
 
-**CLI Entry Point:**
-The `asqi` command maps to `src/asqi/main.py` and provides all functionality:
-```bash
-asqi execute --test-suite-config config/suites/demo_test.yaml --systems-config config/systems/demo_systems.yaml
-```
+- `asqi-[version]-py3-none-any.whl` (wheel - binary distribution)
 
 #### Contributing
 
-1. Install development dependencies: `uv sync --dev`
-2. Run tests: `uv run pytest`
-3. Check code quality: `uv run ruff check && uv run ruff format`
-4. Run security scan: `uv run bandit -r src/`
+Run the pre-commit hooks to auto link and format your code being pushing to the repository. The CI process with run additional checks and automatically publish the libraries with an appropriate release tag.
 
 ## License
 

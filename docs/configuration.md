@@ -8,20 +8,23 @@ For the best development experience, add schema references to your YAML files:
 
 ```yaml
 # For systems configuration files
-# yaml-language-server: $schema=../../src/asqi/schemas/asqi_systems_config.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/refs/heads/main/src/asqi/schemas/asqi_systems_config.schema.json
 
 # For test suite files  
-# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/refs/heads/main/src/asqi/schemas/asqi_suite_config.schema.json
 
 # For score card files
-# yaml-language-server: $schema=../../src/asqi/schemas/asqi_score_card.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/refs/heads/main/src/asqi/schemas/asqi_score_card.schema.json
+
+# For test container manifest files
+# yaml-language-server: $schema=https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/refs/heads/main/src/asqi/schemas/asqi_manifest.schema.json
 ```
 
-This enables real-time validation, autocompletion, and documentation in VS Code, PyCharm, and other editors.
+This enables real-time validation, autocompletion, and documentation in VS Code, PyCharm, and other editors using the published schemas from GitHub.
 
 ## Systems Configuration
 
-Systems represent the AI services, models, and APIs that participate in testing. They are defined in `config/systems/` directory.
+Systems represent the AI services, models, and APIs that participate in testing.
 
 ### LLM API Systems
 
@@ -60,21 +63,6 @@ ASQI supports a three-level configuration hierarchy:
 1. **Explicit Parameters** (highest priority): Directly specified in system configuration
 2. **Environment File Fallbacks**: Values from `.env` file or custom `env_file`
 3. **Validation Error**: If required fields are missing
-
-#### Global Fallback Configuration
-
-Create a `.env` file in your project root:
-
-```bash
-# Global fallback values for systems without base_url or api_key
-BASE_URL=http://localhost:4000/v1
-API_KEY=sk-1234
-
-# Provider-specific API keys
-OPENAI_API_KEY=sk-your-openai-key
-ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
-AWS_BEARER_TOKEN_BEDROCK=your-bedrock-token
-```
 
 #### Environment File Reference
 
@@ -118,37 +106,9 @@ test_suite:
       model: "${MODEL:-gpt-4o-mini}"
 ```
 
-#### Environment Setup
-
-Set variables in your shell or `.env` file:
-
-```bash
-export REGISTRY=my-private-registry.com
-export TARGET_SYSTEM=production_llm
-export API_KEY=sk-your-key
-export MODEL=gpt-4o
-```
-
-This feature enables dynamic configuration without modifying YAML files for different environments.
-
-### REST API Systems
-
-For HTTP-based services and endpoints:
-
-```yaml
-systems:
-  my_backend_api:
-    type: "rest_api"
-    params:
-      uri: "https://api.example.com/v1/data"
-      headers:
-        Authorization: "Bearer your-token"
-      timeout: 30
-```
-
 ## Test Suite Configuration
 
-Test suites define collections of tests to execute against your systems. They are stored in `config/suites/` directory.
+Test suites define collections of tests to execute against your systems.
 
 ### Basic Test Suite
 
@@ -207,15 +167,6 @@ test_suite:
       attack_types: ["jailbreak", "prompt_injection"]
       max_iterations: 20
 ```
-
-### Test Parameters
-
-Each test container defines its own parameter schema. Common patterns include:
-
-- **Performance Parameters**: `timeout`, `max_iterations`, `concurrency`
-- **Test Scope**: `probes`, `attack_types`, `test_categories`
-- **Quality Settings**: `generations`, `num_scenarios`, `evaluation_criteria`
-- **Behavioral Settings**: `sycophancy_level`, `persona_types`, `difficulty`
 
 ## Score Card Configuration
 
@@ -355,6 +306,56 @@ output_metrics:
     type: "float"
     description: "Percentage of successful attacks (0.0 to 1.0)"
 ```
+
+## Score Card Configuration
+
+Score cards define automated assessment criteria for test results. They evaluate individual test executions (not aggregated results).
+
+### Basic Score Card Structure
+
+```yaml
+score_card_name: "Production Readiness Assessment"
+indicators:
+  - name: "Test Success Requirement"
+    apply_to:
+      test_name: "security_scan"
+    metric: "success"
+    assessment:
+      - { outcome: "PASS", condition: "equal_to", threshold: true }
+      - { outcome: "FAIL", condition: "equal_to", threshold: false }
+```
+
+### Assessment Conditions
+
+Score cards support various comparison operators:
+
+```yaml
+indicators:
+  - name: "Performance Score Assessment"
+    apply_to:
+      test_name: "benchmark_test"
+    metric: "score"
+    assessment:
+      - { outcome: "EXCELLENT", condition: "greater_equal", threshold: 0.9 }
+      - { outcome: "GOOD", condition: "greater_equal", threshold: 0.8 }
+      - { outcome: "ACCEPTABLE", condition: "greater_equal", threshold: 0.7 }
+      - { outcome: "NEEDS_IMPROVEMENT", condition: "less_than", threshold: 0.7 }
+
+  - name: "Security Threshold"
+    apply_to:
+      test_name: "vulnerability_scan"
+    metric: "vulnerabilities_found"
+    assessment:
+      - { outcome: "SECURE", condition: "equal_to", threshold: 0 }
+      - { outcome: "LOW_RISK", condition: "less_equal", threshold: 2 }
+      - { outcome: "HIGH_RISK", condition: "greater_than", threshold: 2 }
+```
+
+### Available Conditions
+
+- `equal_to`: Exact value matching (supports boolean and numeric)
+- `greater_than` / `less_than`: Strict numeric comparisons
+- `greater_equal` / `less_equal`: Inclusive numeric comparisons
 
 ## Validation and Error Handling
 

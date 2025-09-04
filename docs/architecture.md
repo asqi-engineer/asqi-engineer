@@ -166,36 +166,3 @@ systems_params = {
 4. **Outcome Generation**: Produce structured assessment outcomes
 5. **Result Enhancement**: Merge score card results with original test data
 
-## Fault Tolerance and Durability
-
-### DBOS Integration
-- **Automatic Retry**: Failed operations are automatically retried with exponential backoff
-- **Workflow Persistence**: Execution state is persisted across system failures
-- **Recovery**: Workflows can resume from the last successful checkpoint
-- **Tracing**: Full execution traces for debugging and monitoring
-
-### Container Isolation
-- **Reproducible Execution**: Each test runs in an isolated Docker container
-- **Resource Limits**: Configurable CPU, memory, and timeout constraints
-- **Clean Environments**: No shared state between test executions
-- **Consistent Results**: Same inputs produce same outputs regardless of host environment
-
-## Extensibility
-
-### Adding New Test Containers
-1. **Container Structure**: Follow standardized interface with `manifest.yaml`
-2. **System Types**: Support existing system types or propose new ones
-3. **JSON Output**: Structured results enable score card integration
-4. **Documentation**: Manifest describes capabilities and requirements
-
-### Custom System Types
-While `llm_api` is the primary focus, the architecture supports:
-- **REST APIs**: HTTP-based services and endpoints
-- **Custom Protocols**: Database connections, file systems, etc.
-- **Hybrid Systems**: Combinations of multiple system types
-
-### Score Card Extensions
-- **Custom Metrics**: Evaluate any field from test container output
-- **Complex Conditions**: Combine multiple assessment criteria
-- **Business Logic**: Map technical metrics to business-relevant outcomes
-- **Reporting**: Generate custom assessment reports and dashboards
