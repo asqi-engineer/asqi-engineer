@@ -137,7 +137,7 @@ def main():
             "lingoly": ("inspect_evals.lingoly", "lingoly"), # TODO
             
             # Programming and software engineering
-            "ds1000": ("inspect_evals.ds1000", "ds1000"), # TODO DinD
+            "ds1000": ("inspect_evals.ds1000", "ds1000"), # done
             "swe_bench": ("inspect_evals.swe_bench", "swe_bench"), # TODO extra deps
             "class_eval": ("inspect_evals.class_eval", "class_eval"), # TODO DinD
             
@@ -147,7 +147,7 @@ def main():
             "mmmu_open": ("inspect_evals.mmmu", "mmmu_open"), # TODO
             
             # Long context and reasoning
-            "infinite_bench_code_debug": ("inspect_evals.infinite_bench", "infinite_bench_code_debug"), # TODO 
+            "infinite_bench_code_debug": ("inspect_evals.infinite_bench", "infinite_bench_code_debug"), # done 
             "infinite_bench_math_calc": ("inspect_evals.infinite_bench", "infinite_bench_math_calc"), # done
             "infinite_bench_passkey": ("inspect_evals.infinite_bench", "infinite_bench_passkey"), # done
             
