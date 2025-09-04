@@ -83,8 +83,8 @@ def main():
         # Define available evaluations with their import paths and functions
         EVALUATION_REGISTRY = {
             # Basic evaluations
-            "xstest": ("inspect_evals.xstest", "xstest"),
-            "truthfulqa": ("inspect_evals.truthfulqa", "truthfulqa"),
+            "xstest": ("inspect_evals.xstest", "xstest"),  # done
+            "truthfulqa": ("inspect_evals.truthfulqa", "truthfulqa"),  # done
             "boolq": ("inspect_evals.boolq", "boolq"),
             
             # MMLU variants
@@ -94,51 +94,45 @@ def main():
             
             # Code evaluations
             "humaneval": ("inspect_evals.humaneval", "humaneval"),
-            "gsm8k": ("inspect_evals.gsm8k", "gsm8k"),
+            "gsm8k": ("inspect_evals.gsm8k", "gsm8k"),  # done
             "mbpp": ("inspect_evals.mbpp", "mbpp"),
             "ifeval": ("inspect_evals.ifeval", "ifeval"),
-            # "bigcodebench": ("inspect_evals.bigcodebench", "bigcodebench"),  # Removed: requires Docker-in-Docker
             
             # Commonsense reasoning
-            "hellaswag": ("inspect_evals.hellaswag", "hellaswag"),
+            "hellaswag": ("inspect_evals.hellaswag", "hellaswag"),  # done
             "winogrande": ("inspect_evals.winogrande", "winogrande"),
-            "piqa": ("inspect_evals.piqa", "piqa"),
-            "commonsense_qa": ("inspect_evals.commonsense_qa", "commonsense_qa"),
+            "piqa": ("inspect_evals.piqa", "piqa"),  # done
+            "commonsense_qa": ("inspect_evals.commonsense_qa", "commonsense_qa"),  # done
             
             # Science and knowledge
-            "arc": ("inspect_evals.arc", "arc_challenge"),
+            "arc": ("inspect_evals.arc", "arc_challenge"),  # done
             "arc_easy": ("inspect_evals.arc", "arc_easy"),
             "arc_challenge": ("inspect_evals.arc", "arc_challenge"),
             "sciq": ("inspect_evals.sciknoweval", "sciknoweval"),
-            "medqa": ("inspect_evals.medqa", "medqa"),
+            "medqa": ("inspect_evals.medqa", "medqa"),  # done
             "pubmedqa": ("inspect_evals.pubmedqa", "pubmedqa"),
             
             # Mathematics
-            "math": ("inspect_evals.math", "math"),
+            "math": ("inspect_evals.math", "math"),  # done
             "mathvista": ("inspect_evals.mathvista", "mathvista"),
             "aime2024": ("inspect_evals.aime2024", "aime2024"),
             "mgsm": ("inspect_evals.mgsm", "mgsm"),
             
             # Reading comprehension
-            # "squad": ("inspect_evals.squad", "squad"),  # Removed: dataset compatibility issue
-            "drop": ("inspect_evals.drop", "drop"),
+            "drop": ("inspect_evals.drop", "drop"),  # done
             "race_h": ("inspect_evals.race_h", "race_h"),
             
             # Safety and alignment
-            "bbq": ("inspect_evals.bbq", "bbq"),
+            "bbq": ("inspect_evals.bbq", "bbq"),  # done
             "bold": ("inspect_evals.bold", "bold"),
-            "strong_reject": ("inspect_evals.strong_reject", "strong_reject"),
+            "strong_reject": ("inspect_evals.strong_reject", "strong_reject"),  # done
             "sycophancy": ("inspect_evals.sycophancy", "sycophancy"),
             
             # Agent and tool use
             "agent_bench_os": ("inspect_evals.agent_bench", "agent_bench_os"),
-            # "gaia": ("inspect_evals.gaia", "gaia"),  # Removed: incomplete results
-            # "gaia_level1": ("inspect_evals.gaia", "gaia_level1"),  # Removed: incomplete results
-            # "gaia_level2": ("inspect_evals.gaia", "gaia_level2"),  # Removed: incomplete results
-            # "gaia_level3": ("inspect_evals.gaia", "gaia_level3"),  # Removed: incomplete results
             
             # Multilingual
-            "mmlu_pro": ("inspect_evals.mmlu_pro", "mmlu_pro"),
+            "mmlu_pro": ("inspect_evals.mmlu_pro", "mmlu_pro"),  # done
             "paws": ("inspect_evals.paws", "paws"),
             "lingoly": ("inspect_evals.lingoly", "lingoly"),
             
@@ -161,7 +155,7 @@ def main():
             "chembench": ("inspect_evals.chembench", "chembench"),
             "healthbench": ("inspect_evals.healthbench", "healthbench"),
             "cybench": ("inspect_evals.cybench", "cybench"),
-            "gpqa_diamond": ("inspect_evals.gpqa", "gpqa_diamond"),
+            "gpqa_diamond": ("inspect_evals.gpqa", "gpqa_diamond"),  # done
         }
 
         # Get evaluation function

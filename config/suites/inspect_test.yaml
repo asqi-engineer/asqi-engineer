@@ -1,18 +1,20 @@
 suite_name: "Inspect Evaluation Suite"
 test_suite:
-  - name: "inspect_xstest_safe"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai", "openai_gpt4o_mini", "nova_lite"]
-    params:
-      evaluation: "xstest"
-      evaluation_params:
-        subset: "safe"
-        scorer_model: "openai/gpt-4o"
-      limit: 2
+  # - name: "inspect_xstest_safe"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "xstest"
+  #     evaluation_params:
+  #       subset: "safe"
+  #       scorer_model: "openai/gpt-4o"
+  #     limit: 2
 
   # - name: "inspect_xstest_unsafe"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "xstest"
   #     evaluation_params:
@@ -22,7 +24,8 @@ test_suite:
 
   # - name: "inspect_truthfulqa_mc1"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "truthfulqa"
   #     evaluation_params:
@@ -31,7 +34,8 @@ test_suite:
 
   # - name: "inspect_truthfulqa_mc2"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "truthfulqa"
   #     evaluation_params:
@@ -40,7 +44,8 @@ test_suite:
 
   # - name: "inspect_gsm8k"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "gsm8k"
   #     evaluation_params: {}
@@ -48,7 +53,8 @@ test_suite:
 
   # - name: "inspect_hellaswag"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "hellaswag"
   #     evaluation_params: {}
@@ -56,7 +62,8 @@ test_suite:
 
   # - name: "inspect_arc"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "arc"
   #     evaluation_params: {}
@@ -64,7 +71,8 @@ test_suite:
 
   # - name: "inspect_piqa"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "piqa"
   #     evaluation_params: {}
@@ -72,7 +80,8 @@ test_suite:
 
   # - name: "inspect_math"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "math"
   #     evaluation_params: {}
@@ -80,7 +89,8 @@ test_suite:
 
   # - name: "inspect_bbq"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "bbq"
   #     evaluation_params: {}
@@ -88,7 +98,8 @@ test_suite:
 
   # - name: "inspect_mmlu_pro"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "mmlu_pro"
   #     evaluation_params: {}
@@ -96,7 +107,8 @@ test_suite:
 
   # - name: "inspect_gpqa"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "gpqa_diamond"
   #     evaluation_params: {}
@@ -104,7 +116,8 @@ test_suite:
 
   # - name: "inspect_commonsense_qa"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "commonsense_qa"
   #     evaluation_params: {}
@@ -112,7 +125,8 @@ test_suite:
 
   # - name: "inspect_medqa"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "medqa"
   #     evaluation_params: {}
@@ -120,7 +134,8 @@ test_suite:
 
   # - name: "inspect_drop"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "drop"
   #     evaluation_params: {}
@@ -128,7 +143,8 @@ test_suite:
 
   # - name: "inspect_strong_reject"
   #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: ["direct_openai"]
+  #   systems_under_test: 
+  #     - "nova_lite"
   #   params:
   #     evaluation: "strong_reject"
   #     evaluation_params: {}
