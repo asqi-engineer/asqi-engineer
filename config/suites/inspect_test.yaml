@@ -82,15 +82,14 @@ test_suite:
   #     limit: 2
 
   # Code evaluations
-  # TODO: DinD
-  - name: "inspect_humaneval"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: 
-      - "nova_lite"
-    params:
-      evaluation: "humaneval"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_humaneval"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "humaneval"
+  #     evaluation_params: {}
+  #     limit: 2
 
   # - name: "inspect_gsm8k"
   #   image: "asqiengineer/test-container:inspect-latest"
@@ -101,15 +100,14 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # TODO: DinD
-  - name: "inspect_mbpp"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: 
-      - "nova_lite"
-    params:
-      evaluation: "mbpp"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_mbpp"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mbpp"
+  #     evaluation_params: {}
+  #     limit: 2
 
   # - name: "inspect_ifeval"
   #   image: "asqiengineer/test-container:inspect-latest"
@@ -186,14 +184,14 @@ test_suite:
   #     limit: 2
 
   # TODO:
-  # - name: "inspect_sciq"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "sciq"
-  #     evaluation_params: {}
-  #     limit: 2
+  - name: "inspect_sciq"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "sciq"
+      evaluation_params: {}
+      limit: 2
 
   # - name: "inspect_medqa"
   #   image: "asqiengineer/test-container:inspect-latest"
@@ -281,14 +279,14 @@ test_suite:
   #     limit: 2
 
   # TODO: missing torch
-  # - name: "inspect_bold"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "bold"
-  #     evaluation_params: {}
-  #     limit: 2
+  - name: "inspect_bold"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "bold"
+      evaluation_params: {}
+      limit: 2
 
   # - name: "inspect_strong_reject"
   #   image: "asqiengineer/test-container:inspect-latest"

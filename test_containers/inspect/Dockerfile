@@ -23,7 +23,13 @@ RUN pip install --no-cache-dir sympy
 # Install datasets with trust_remote_code support
 RUN pip install --no-cache-dir datasets
 RUN pip install --no-cache-dir git+https://github.com/josejg/instruction_following_eval
+# cybench
 RUN pip install --no-cache-dir inspect-cyber==0.1.0
+# bold
+RUN pip install --no-cache-dir torch
+RUN pip install --no-cache-dir detoxify
+RUN pip install --no-cache-dir transformers
+RUN pip install --no-cache-dir vaderSentiment
 
 # Copy test container files
 COPY manifest.yaml .

@@ -93,9 +93,9 @@ def main():
             "mmlu_5_shot": ("inspect_evals.mmlu", "mmlu_5_shot"), # done
             
             # Code evaluations
-            "humaneval": ("inspect_evals.humaneval", "humaneval"), # TODO DinD
+            "humaneval": ("inspect_evals.humaneval", "humaneval"), # done
             "gsm8k": ("inspect_evals.gsm8k", "gsm8k"),  # done
-            "mbpp": ("inspect_evals.mbpp", "mbpp"), # TODO DinD
+            "mbpp": ("inspect_evals.mbpp", "mbpp"), # done
             "ifeval": ("inspect_evals.ifeval", "ifeval"), # done
             
             # Commonsense reasoning
