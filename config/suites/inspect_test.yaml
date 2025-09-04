@@ -83,14 +83,14 @@ test_suite:
 
   # Code evaluations
   # TODO: DinD
-  # - name: "inspect_humaneval"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "humaneval"
-  #     evaluation_params: {}
-  #     limit: 2
+  - name: "inspect_humaneval"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "humaneval"
+      evaluation_params: {}
+      limit: 2
 
   # - name: "inspect_gsm8k"
   #   image: "asqiengineer/test-container:inspect-latest"
@@ -102,23 +102,23 @@ test_suite:
   #     limit: 2
 
   # TODO: DinD
-  # - name: "inspect_mbpp"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "mbpp"
-  #     evaluation_params: {}
-  #     limit: 2
-
-  - name: "inspect_ifeval"
+  - name: "inspect_mbpp"
     image: "asqiengineer/test-container:inspect-latest"
     systems_under_test: 
       - "nova_lite"
     params:
-      evaluation: "ifeval"
+      evaluation: "mbpp"
       evaluation_params: {}
       limit: 2
+
+  # - name: "inspect_ifeval"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "ifeval"
+  #     evaluation_params: {}
+  #     limit: 2
 
   # Commonsense reasoning
   # - name: "inspect_hellaswag"

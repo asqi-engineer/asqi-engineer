@@ -259,6 +259,19 @@ def execute_single_test(
         container_env["API_KEY"] = sut_params["api_key"]
         DBOS.logger.info("Using direct API key for authentication")
 
+    # Configure Docker-in-Docker for inspect
+    if "inspect" in image:
+        container_config.run_params.update({
+            "privileged": True,
+            "volumes": {
+                "/var/run/docker.sock": {
+                    "bind": "/var/run/docker.sock",
+                    "mode": "rw"
+                }
+            }
+        })
+        DBOS.logger.info(f"Configured Docker-in-Docker for test: {test_name} (image: {image})")
+
     # Execute container
     result.start_time = time.time()
 
