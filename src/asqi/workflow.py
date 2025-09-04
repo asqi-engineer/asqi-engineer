@@ -429,8 +429,7 @@ def run_test_suite_workflow(
             "results": [],
         }
 
-    console.print(f"\n[bold blue]Executing Test Suite:[/bold blue] {suite.suite_name}")
-
+    # Validate volume paths in suite (input/output)
     try:
         for _, test in enumerate(suite.test_suite):
             vols = getattr(test, "volumes", None)
@@ -478,6 +477,8 @@ def run_test_suite_workflow(
             ),
             "results": [],
         }
+
+    console.print(f"\n[bold blue]Executing Test Suite:[/bold blue] {suite.suite_name}")
 
     # Collect all unique images from test suite
     unique_images = list(set(test.image for test in suite.test_suite))
