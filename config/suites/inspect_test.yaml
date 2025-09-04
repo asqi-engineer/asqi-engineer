@@ -473,14 +473,14 @@ test_suite:
   #     limit: 2
 
   # Additional evaluations
-  - name: "inspect_agentdojo"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: 
-      - "nova_lite"
-    params:
-      evaluation: "agentdojo"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_agentdojo"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "agentdojo"
+  #     evaluation_params: {}
+  #     limit: 2
 
   # - name: "inspect_agentharm"
   #   image: "asqiengineer/test-container:inspect-latest"
@@ -527,14 +527,14 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  - name: "inspect_bbh"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: 
-      - "nova_lite"
-    params:
-      evaluation: "bbh"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_bbh"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "bbh"
+  #     evaluation_params: {}
+  #     limit: 2
 
   # TODO: takes really long
   # - name: "inspect_bigcodebench"
@@ -600,14 +600,14 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_livebench"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: 
-      - "nova_lite"
-    params:
-      evaluation: "livebench"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_livebench"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "livebench"
+  #     evaluation_params: {}
+  #     limit: 2
 
   - name: "inspect_mask"
     image: "asqiengineer/test-container:inspect-latest"
@@ -618,14 +618,14 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_musr"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: 
-      - "nova_lite"
-    params:
-      evaluation: "musr"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_musr"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "musr"
+  #     evaluation_params: {}
+  #     limit: 2
 
   # - name: "inspect_niah"
   #   image: "asqiengineer/test-container:inspect-latest"

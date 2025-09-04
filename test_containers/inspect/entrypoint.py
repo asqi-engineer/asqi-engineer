@@ -158,7 +158,7 @@ def main():
             "gpqa_diamond": ("inspect_evals.gpqa", "gpqa_diamond"),  # done
             
             # Additional evaluations
-            "agentdojo": ("inspect_evals.agentdojo", "agentdojo"),
+            "agentdojo": ("inspect_evals.agentdojo", "agentdojo"), # done
             "agentharm": ("inspect_evals.agentharm", "agentharm"), # done
             "agie_aqua_rat": ("inspect_evals.agieval", "agie_aqua_rat"), # done
             "air_bench": ("inspect_evals.air_bench", "air_bench"), # done
@@ -172,7 +172,7 @@ def main():
             "docvqa": ("inspect_evals.docvqa", "docvqa"),
             "gaia": ("inspect_evals.gaia", "gaia"),
             "hle": ("inspect_evals.hle", "hle"),
-            "livebench": ("inspect_evals.livebench", "livebench"),
+            "livebench": ("inspect_evals.livebench", "livebench"), # done
             "mask": ("inspect_evals.mask", "mask"),
             "musr": ("inspect_evals.musr", "musr"), # done
             "niah": ("inspect_evals.niah", "niah"), # done

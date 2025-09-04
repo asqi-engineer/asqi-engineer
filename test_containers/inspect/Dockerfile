@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir inspect-ai==0.3.129
 # Clone inspect_evals and install with extras using uv pip
 RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
     cd inspect_evals && \
-    uv pip install --system -e .[ifeval,cybench,bold,bbq,math]
+    uv pip install --system -e .[core_bench,livebench,agentdojo,ifeval,cybench,bold,bbq,math]
 
 RUN pip install --no-cache-dir openai
 
