@@ -143,9 +143,9 @@ def main():
             
             # Multi-modal
             "mmiu": ("inspect_evals.mmiu", "mmiu"), # TODO
-            "mmmu_multiple_choice": ("inspect_evals.mmmu", "mmmu_multiple_choice"), # TODO
-            "mmmu_open": ("inspect_evals.mmmu", "mmmu_open"), # TODO
-            
+            "mmmu_multiple_choice": ("inspect_evals.mmmu", "mmmu_multiple_choice"), # done
+            "mmmu_open": ("inspect_evals.mmmu", "mmmu_open"), # done
+
             # Long context and reasoning
             "infinite_bench_code_debug": ("inspect_evals.infinite_bench", "infinite_bench_code_debug"), # done 
             "infinite_bench_math_calc": ("inspect_evals.infinite_bench", "infinite_bench_math_calc"), # done

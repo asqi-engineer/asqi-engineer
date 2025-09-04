@@ -386,36 +386,35 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # TODO
-  - name: "inspect_mmmu_multiple_choice"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: 
-      - "nova_lite"
-    params:
-      evaluation: "mmmu_multiple_choice"
-      evaluation_params: {}
-      limit: 1
+  # - name: "inspect_mmmu_multiple_choice"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmmu_multiple_choice"
+  #     evaluation_params:
+  #       subjects: ["Computer_Science"]
+  #     limit: 1
 
-  # TODO
-  - name: "inspect_mmmu_open"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: 
-      - "nova_lite"
-    params:
-      evaluation: "mmmu_open"
-      evaluation_params: {}
-      limit: 1
+  # - name: "inspect_mmmu_open"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmmu_open"
+  #     evaluation_params:
+  #       subjects: ["Computer_Science"]
+  #     limit: 1
 
   # # Long context and reasoning
-  # # TODO
-  - name: "inspect_infinite_bench_code_debug"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: 
-      - "nova_lite"
-    params:
-      evaluation: "infinite_bench_code_debug"
-      evaluation_params: {}
-      limit: 1
+  # - name: "inspect_infinite_bench_code_debug"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_code_debug"
+  #     evaluation_params: {}
+  #     limit: 1
 
   # - name: "inspect_infinite_bench_math_calc"
   #   image: "asqiengineer/test-container:inspect-latest"
