@@ -7,14 +7,14 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import docker
 import yaml
-from docker import errors as docker_errors
-from docker.types import Mount
 
+import docker
 from asqi.config import ContainerConfig
 from asqi.logging_config import create_container_logger
 from asqi.schemas import Manifest
+from docker import errors as docker_errors
+from docker.types import Mount
 
 logger = logging.getLogger(__name__)
 
