@@ -111,15 +111,14 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # TODO:
-  # - name: "inspect_ifeval"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "ifeval"
-  #     evaluation_params: {}
-  #     limit: 2
+  - name: "inspect_ifeval"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "ifeval"
+      evaluation_params: {}
+      limit: 2
 
   # Commonsense reasoning
   # - name: "inspect_hellaswag"

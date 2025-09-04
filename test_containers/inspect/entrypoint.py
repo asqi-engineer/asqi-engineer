@@ -96,7 +96,7 @@ def main():
             "humaneval": ("inspect_evals.humaneval", "humaneval"), # TODO DinD
             "gsm8k": ("inspect_evals.gsm8k", "gsm8k"),  # done
             "mbpp": ("inspect_evals.mbpp", "mbpp"), # TODO DinD
-            "ifeval": ("inspect_evals.ifeval", "ifeval"), # TODO
+            "ifeval": ("inspect_evals.ifeval", "ifeval"), # done
             
             # Commonsense reasoning
             "hellaswag": ("inspect_evals.hellaswag", "hellaswag"),  # done

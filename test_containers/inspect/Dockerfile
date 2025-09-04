@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir openai
 RUN pip install --no-cache-dir sympy
 # Install datasets with trust_remote_code support
 RUN pip install --no-cache-dir datasets
+RUN pip install --no-cache-dir git+https://github.com/josejg/instruction_following_eval
 
 # Copy test container files
 COPY manifest.yaml .
