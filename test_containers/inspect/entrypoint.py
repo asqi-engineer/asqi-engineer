@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Try to import inspect log utilities (may not be available in all environments)
 try:
@@ -53,12 +54,28 @@ def main():
         limit = test_params.get("limit", 10)
 
         # Set environment variables for inspect
-        # Inspect requires model names in the format "provider/model"
-        if not model.startswith("openai/"):
-            model = f"openai/{model}"
-        os.environ["INSPECT_EVAL_MODEL"] = model
+        # Inspect requires model names in the format "provider/model" or "openai-api/provider/model"
+        parsed = urlparse(base_url)
+        netloc = parsed.netloc
+        parts = netloc.split('.')
+        provider = parts[-2] if len(parts) >= 2 else 'unknown'
+        
+        if provider == 'openai':
+            full_model = f"openai/{model}"
+        else:
+            full_model = f"openai-api/{provider}/{model}"
+            provider_upper = provider.upper().replace('-', '_')
+        
+        # Always set OPENAI_API_KEY and OPENAI_BASE_URL for compatibility
         os.environ["OPENAI_API_KEY"] = api_key
         os.environ["OPENAI_BASE_URL"] = base_url
+        
+        # Also set provider-specific environment variables
+        provider_upper = provider.upper().replace('-', '_')
+        os.environ[f"{provider_upper}_API_KEY"] = api_key
+        os.environ[f"{provider_upper}_BASE_URL"] = base_url
+        
+        os.environ["INSPECT_EVAL_MODEL"] = full_model
 
         # Import inspect modules
         from inspect_ai import eval as inspect_eval
@@ -167,11 +184,13 @@ def main():
             task = task_func(**evaluation_params)
 
             # Run evaluation with limit
+            print(f"DEBUG: Starting evaluation with limit={limit}", file=sys.stderr)
             log = inspect_eval(
                 task,
                 limit=limit,
                 log_dir=temp_dir
             )[0]  # eval returns a list, get first result
+            print(f"DEBUG: Evaluation completed, log.location = {log.location}", file=sys.stderr)
 
             metrics = {}
             try:
@@ -188,6 +207,7 @@ def main():
                                 metrics[metric_name] = metric_obj.value
             except (ImportError, Exception) as e:
                 # Fallback to the old method if reading the log file fails
+                print(f"DEBUG: Failed to read eval log: {e}", file=sys.stderr)
                 pass
 
             # Extract results from the log
@@ -213,6 +233,7 @@ def main():
                 scores = results[0].scores if hasattr(results[0], 'scores') else None
             else:
                 scores = None
+                print("DEBUG: No scores found", file=sys.stderr)
 
             # Count response types from individual sample scores if available
             total_samples = 0
@@ -248,6 +269,7 @@ def main():
             sys.exit(0)
 
     except json.JSONDecodeError as e:
+        print(f"DEBUG: JSON decode error: {e}", file=sys.stderr)
         error_result = {
             "success": False,
             "error": f"Invalid JSON in arguments: {e}",
@@ -259,6 +281,9 @@ def main():
         sys.exit(1)
 
     except Exception as e:
+        print(f"DEBUG: Unexpected error: {e}", file=sys.stderr)
+        import traceback
+        print(f"DEBUG: Traceback: {traceback.format_exc()}", file=sys.stderr)
         error_result = {
             "success": False,
             "error": f"Unexpected error: {str(e)}",

@@ -2,7 +2,7 @@ suite_name: "Inspect Evaluation Suite"
 test_suite:
   - name: "inspect_xstest_safe"
     image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
+    systems_under_test: ["direct_openai", "openai_gpt4o_mini", "nova_lite"]
     params:
       evaluation: "xstest"
       evaluation_params:
@@ -10,126 +10,126 @@ test_suite:
         scorer_model: "openai/gpt-4o"
       limit: 2
 
-  - name: "inspect_xstest_unsafe"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "xstest"
-      evaluation_params:
-        subset: "unsafe"
-        scorer_model: "openai/gpt-4o"
-      limit: 2
+  # - name: "inspect_xstest_unsafe"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "xstest"
+  #     evaluation_params:
+  #       subset: "unsafe"
+  #       scorer_model: "openai/gpt-4o"
+  #     limit: 2
 
-  - name: "inspect_truthfulqa_mc1"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "truthfulqa"
-      evaluation_params:
-        target: "mc1"
-      limit: 2
+  # - name: "inspect_truthfulqa_mc1"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "truthfulqa"
+  #     evaluation_params:
+  #       target: "mc1"
+  #     limit: 2
 
-  - name: "inspect_truthfulqa_mc2"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "truthfulqa"
-      evaluation_params:
-        target: "mc2"
-      limit: 2
+  # - name: "inspect_truthfulqa_mc2"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "truthfulqa"
+  #     evaluation_params:
+  #       target: "mc2"
+  #     limit: 2
 
-  - name: "inspect_gsm8k"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "gsm8k"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_gsm8k"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "gsm8k"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_hellaswag"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "hellaswag"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_hellaswag"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "hellaswag"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_arc"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "arc"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_arc"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "arc"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_piqa"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "piqa"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_piqa"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "piqa"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_math"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "math"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_math"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "math"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_bbq"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "bbq"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_bbq"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "bbq"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_mmlu_pro"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "mmlu_pro"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_mmlu_pro"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "mmlu_pro"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_gpqa"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "gpqa_diamond"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_gpqa"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "gpqa_diamond"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_commonsense_qa"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "commonsense_qa"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_commonsense_qa"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "commonsense_qa"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_medqa"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "medqa"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_medqa"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "medqa"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_drop"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "drop"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_drop"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "drop"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_strong_reject"
-    image: "asqiengineer/test-container:inspect-latest"
-    systems_under_test: ["direct_openai"]
-    params:
-      evaluation: "strong_reject"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_strong_reject"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: ["direct_openai"]
+  #   params:
+  #     evaluation: "strong_reject"
+  #     evaluation_params: {}
+  #     limit: 2
