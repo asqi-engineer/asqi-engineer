@@ -13,23 +13,18 @@ RUN curl -fsSL https://get.docker.com -o get-docker.sh && \
 
 WORKDIR /app
 
-# Install inspect_ai from PyPI and inspect_evals from GitHub
+# Install uv
+RUN pip install --no-cache-dir uv
+
+# Install inspect_ai from PyPI
 RUN pip install --no-cache-dir inspect-ai==0.3.129
-RUN pip install --no-cache-dir git+https://github.com/UKGovernmentBEIS/inspect_evals.git@main
-# Install additional dependencies needed for OpenAI
+
+# Clone inspect_evals and install with extras using uv pip
+RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
+    cd inspect_evals && \
+    uv pip install --system -e .[ifeval,cybench,bold,bbq,math]
+
 RUN pip install --no-cache-dir openai
-# Install sympy for math evaluation
-RUN pip install --no-cache-dir sympy
-# Install datasets with trust_remote_code support
-RUN pip install --no-cache-dir datasets
-RUN pip install --no-cache-dir git+https://github.com/josejg/instruction_following_eval
-# cybench
-RUN pip install --no-cache-dir inspect-cyber==0.1.0
-# bold
-RUN pip install --no-cache-dir torch
-RUN pip install --no-cache-dir detoxify
-RUN pip install --no-cache-dir transformers
-RUN pip install --no-cache-dir vaderSentiment
 
 # Copy test container files
 COPY manifest.yaml .

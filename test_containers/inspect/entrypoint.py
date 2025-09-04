@@ -124,7 +124,7 @@ def main():
             
             # Safety and alignment
             "bbq": ("inspect_evals.bbq", "bbq"),  # done
-            "bold": ("inspect_evals.bold", "bold"), # TODO missing torch
+            "bold": ("inspect_evals.bold", "bold"), # done
             "strong_reject": ("inspect_evals.strong_reject", "strong_reject"),  # done
             "sycophancy": ("inspect_evals.sycophancy", "sycophancy"), # done
             
