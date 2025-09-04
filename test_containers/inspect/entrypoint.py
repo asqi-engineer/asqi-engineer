@@ -156,6 +156,28 @@ def main():
             "healthbench": ("inspect_evals.healthbench", "healthbench"), # done
             "cybench": ("inspect_evals.cybench", "cybench"), # TODO simple
             "gpqa_diamond": ("inspect_evals.gpqa", "gpqa_diamond"),  # done
+            
+            # Additional evaluations
+            "agentdojo": ("inspect_evals.agentdojo", "agentdojo"),
+            "agentharm": ("inspect_evals.agentharm", "agentharm"), # done
+            "agie_aqua_rat": ("inspect_evals.agieval", "agie_aqua_rat"), # done
+            "air_bench": ("inspect_evals.air_bench", "air_bench"), # done
+            "apps": ("inspect_evals.apps", "apps"),
+            "bbeh": ("inspect_evals.bbeh", "bbeh"), # done
+            "bbh": ("inspect_evals.bbh", "bbh"),
+            "bigcodebench": ("inspect_evals.bigcodebench", "bigcodebench"),
+            "browse_comp": ("inspect_evals.browse_comp", "browse_comp"), # done
+            "core_bench": ("inspect_evals.core_bench", "core_bench"),
+            "cybermetric_80": ("inspect_evals.cybermetric", "cybermetric_80"), # done
+            "docvqa": ("inspect_evals.docvqa", "docvqa"),
+            "gaia": ("inspect_evals.gaia", "gaia"),
+            "hle": ("inspect_evals.hle", "hle"),
+            "livebench": ("inspect_evals.livebench", "livebench"),
+            "mask": ("inspect_evals.mask", "mask"),
+            "musr": ("inspect_evals.musr", "musr"),
+            "niah": ("inspect_evals.niah", "niah"), # done
+            "simpleqa": ("inspect_evals.simpleqa", "simpleqa"), # done
+            "stereoset": ("inspect_evals.stereoset", "stereoset"),
         }
 
         # Get evaluation function

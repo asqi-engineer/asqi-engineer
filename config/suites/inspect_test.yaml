@@ -471,3 +471,185 @@ test_suite:
   #     evaluation: "gpqa_diamond"
   #     evaluation_params: {}
   #     limit: 2
+
+  # Additional evaluations
+  - name: "inspect_agentdojo"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "agentdojo"
+      evaluation_params: {}
+      limit: 2
+
+  # - name: "inspect_agentharm"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "agentharm"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_agie_aqua_rat"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "agie_aqua_rat"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_air_bench"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "air_bench"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  - name: "inspect_apps"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "apps"
+      evaluation_params: {}
+      limit: 2
+
+  # - name: "inspect_bbeh"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "bbeh"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  - name: "inspect_bbh"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "bbh"
+      evaluation_params: {}
+      limit: 2
+
+  # TODO: takes really long
+  # - name: "inspect_bigcodebench"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "bigcodebench"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_browse_comp"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "browse_comp"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  - name: "inspect_core_bench"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "core_bench"
+      evaluation_params: {}
+      limit: 2
+
+  # - name: "inspect_cybermetric_80"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "cybermetric_80"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  - name: "inspect_docvqa"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "docvqa"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_gaia"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "gaia"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_hle"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "hle"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_livebench"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "livebench"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_mask"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "mask"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_musr"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "musr"
+      evaluation_params: {}
+      limit: 2
+
+  # - name: "inspect_niah"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "niah"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  # - name: "inspect_simpleqa"
+  #   image: "asqiengineer/test-container:inspect-latest"
+  #   systems_under_test: 
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "simpleqa"
+  #     evaluation_params: {}
+  #     limit: 2
+
+  - name: "inspect_stereoset"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "stereoset"
+      evaluation_params: {}
+      limit: 2
