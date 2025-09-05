@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -52,6 +53,10 @@ def main():
         evaluation = test_params.get("evaluation", "xstest")
         evaluation_params = test_params.get("evaluation_params", {})
         limit = test_params.get("limit", 10)
+        volumes = test_params.get("volumes", {})
+        
+        # Automatically store logs if output volume is configured
+        store_logs = "output" in volumes
 
         # Set environment variables for inspect
         # Inspect requires model names in the format "provider/model" or "openai-api/provider/model"
@@ -266,6 +271,24 @@ def main():
             )[0]  # eval returns a list, get first result
             print(f"DEBUG: Evaluation completed, log.location = {log.location}", file=sys.stderr)
 
+            persistent_log_dir = None
+            if store_logs:
+                test_name = os.environ.get("TEST_NAME", evaluation)
+                persistent_log_dir = f"/output/{test_name}"
+                if os.path.exists(persistent_log_dir):
+                    if os.path.isdir(persistent_log_dir):
+                        shutil.rmtree(persistent_log_dir)
+                    else:
+                        os.remove(persistent_log_dir)
+                
+                # Check if log.location is a file or directory
+                if os.path.isdir(log.location):
+                    shutil.copytree(log.location, persistent_log_dir)
+                else:
+                    # Create directory and copy file
+                    os.makedirs(persistent_log_dir, exist_ok=True)
+                    shutil.copy2(log.location, os.path.join(persistent_log_dir, os.path.basename(log.location)))
+
             metrics = {}
             try:
                 from inspect_ai.log import read_eval_log
@@ -335,7 +358,8 @@ def main():
                 "evaluation_params": evaluation_params,
                 "total_samples": total_samples,
                 "model": model,
-                "metrics": metrics
+                "metrics": metrics,
+                "log_dir": persistent_log_dir
             }
 
             # Output results as JSON

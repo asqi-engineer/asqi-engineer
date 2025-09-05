@@ -2,27 +2,29 @@ suite_name: "Inspect Evaluation Suite"
 test_suite:
 
   # Basic evaluations
-  # - name: "inspect_xstest_safe"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "xstest"
-  #     evaluation_params:
-  #       subset: "safe"
-  #       scorer_model: "openai/gpt-4o"
-  #     limit: 2
+  - name: "inspect_xstest_safe"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    volumes:
+      output: "./test_data/output/inspect"
+    params:
+      evaluation: "xstest"
+      evaluation_params:
+        subset: "safe"
+        scorer_model: "openai/gpt-4o"
+      limit: 2
 
-  # - name: "inspect_xstest_unsafe"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "xstest"
-  #     evaluation_params:
-  #       subset: "unsafe"
-  #       scorer_model: "openai/gpt-4o"
-  #     limit: 2
+  - name: "inspect_xstest_unsafe"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "xstest"
+      evaluation_params:
+        subset: "unsafe"
+        scorer_model: "openai/gpt-4o"
+      limit: 2
 
   # - name: "inspect_truthfulqa_mc1"
   #   image: "asqiengineer/test-container:inspect-latest"

@@ -41,3 +41,6 @@ output_metrics:
   - name: "metrics"
     type: "object"
     description: "Additional metrics returned by the evaluation"
+  - name: "log_dir"
+    type: "string"
+    description: "Path to stored evaluation logs (present when output volume is configured)"
