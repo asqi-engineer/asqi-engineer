@@ -14,7 +14,8 @@ RUN curl -fsSL https://get.docker.com -o get-docker.sh && \
 WORKDIR /app
 
 # Install uv
-RUN pip install --no-cache-dir uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
 
 # Install inspect_ai from PyPI
 RUN pip install --no-cache-dir inspect-ai==0.3.129
@@ -22,9 +23,10 @@ RUN pip install --no-cache-dir inspect-ai==0.3.129
 # Clone inspect_evals and install with extras using uv pip
 RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
     cd inspect_evals && \
-    uv pip install --system -e .[core_bench,livebench,agentdojo,ifeval,cybench,bold,bbq,math]
+    git checkout 479a4685 && \
+    uv pip install --system -e .[core_bench,livebench,agentdojo,ifeval,cybench,bold,bbq,math,sevenllm,mle_bench]
 
-RUN pip install --no-cache-dir openai
+RUN pip install --no-cache-dir openai==1.104.1
 
 # Copy test container files
 COPY manifest.yaml .
