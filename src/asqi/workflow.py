@@ -3,7 +3,6 @@ import os
 import time
 from datetime import datetime
 from difflib import get_close_matches
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dbos import DBOS, DBOSConfig, Queue
@@ -38,6 +37,7 @@ from asqi.validation import (
     validate_execution_inputs,
     validate_score_card_inputs,
     validate_test_execution_inputs,
+    validate_test_volumes,
     validate_workflow_configurations,
 )
 
@@ -429,37 +429,8 @@ def run_test_suite_workflow(
             "results": [],
         }
 
-    # Validate volume paths in suite (input/output)
     try:
-        for _, test in enumerate(suite.test_suite):
-            vols = getattr(test, "volumes", None)
-            if not vols:
-                continue
-
-            if not isinstance(vols, dict):
-                raise ValueError(
-                    f"'volumes' for test '{test.name}' must be a dict, got {type(vols).__name__}"
-                )
-
-            for key in ("input", "output"):
-                if key in vols:
-                    raw_path = vols[key]
-                    if not isinstance(raw_path, str) or not raw_path.strip():
-                        raise ValueError(
-                            f"Invalid '{key}' volume path in test '{test.name}': must be a non-empty string."
-                        )
-
-                    path = Path(raw_path).expanduser().resolve()
-
-                    if not path.exists():
-                        raise ValueError(
-                            f"Configured '{key}' volume does not exist for test '{test.name}': {path}"
-                        )
-
-                    if not path.is_dir():
-                        raise ValueError(
-                            f"Configured '{key}' volume is not a directory for test '{test.name}': {path}"
-                        )
+        validate_test_volumes(suite)
 
     except ValueError as e:
         error_msg = f"Volume validation failed: {e}"
