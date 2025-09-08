@@ -13,7 +13,6 @@ Thank you for contributing to ASQI Engineer. This document lists every common wa
 - Contributing score cards or suites
 - Documentation contributions
 - CI, releases and packaging
-- Pre-commit and style guidance
 - Help & contact
 
 ## How to interact
@@ -57,7 +56,7 @@ If your feature is substantial, propose a short design in a discuss/issue before
 1. Fork the repository, create a branch with a clear name: `feat/<short>-summary` or `fix/<short>-summary`.
 2. Write tests for your change. Tests live in `tests/` and must cover the new behaviour.
 3. Run the test suite locally and ensure `uv run pytest` passes.
-4. Lint and format code: run pre-commit hooks (see section below).
+4. Lint and format code: run the repository's linting/formatting workflow.
 5. Push your branch, open a Pull Request against `main` (or the repo's default branch). Reference any related issues.
 6. Use descriptive PR titles and include a short changelog entry when relevant.
 
@@ -97,15 +96,6 @@ Basic test commands:
 uv run pytest
 uv run pytest --maxfail=1 -q
 ```
-
-Run the repository pre-commit hooks locally (recommended before committing):
-
-```bash
-pre-commit run --all-files
-```
-
-If you use black/isort/ruff in your editor, configure it to follow the repo settings.
-
 ## Adding or updating test containers
 
 Test containers live in `test_containers/`. When adding a new container:
@@ -152,10 +142,12 @@ Docs live in `docs/`. To update docs:
 - The repository uses CI pipeline in `.github/workflows/` that runs tests and builds artifacts.
 - To create a release: follow the repository release process (tagging + CI publishing). See `.github/workflows/asqi-cd.yaml` for build steps.
 
-## Pre-commit and style guidance
+## Help & contact
 
-- Run `pre-commit` hooks before pushing. The hooks enforce formatting and basic linting.
-- Use `black` for formatting and `ruff`/`flake8` for linting rules the repo uses.
+- For general help, open an Issue and tag `help-wanted`.
+- For contribution process questions, ping maintainers in PRs or use Discussions.
+
+Thank you for helping improve ASQI Engineer!
 
 ## Help & contact
 
