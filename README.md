@@ -126,6 +126,7 @@ If a link is missing or the page content is unclear, please open an issue: https
 - Tests live in `tests/` and can be run with `uv run pytest`.
 - Test containers and example manifests are in `test_containers/` and `config/`.
 - If you add a container, include `manifest.yaml` and ensure the entrypoint supports `--systems-params` and `--test-params`.
+- Contribution and community guidance: read [CONTRIBUTION.md](./CONTRIBUTION.md).
 
 ## License
 
