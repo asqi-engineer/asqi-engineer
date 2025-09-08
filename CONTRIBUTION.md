@@ -1,6 +1,6 @@
 # Contribution Guide
 
-Thank you for contributing to ASQI Engineer. This document lists every common way a user or contributor may interact with the project and gives clear, actionable steps for each case: filing issues, requesting features, contributing code, adding test containers, updating docs, and more.
+Thank you for contributing to ASQI Engineer. This document lists every common way you may interact with the project.
 
 ## Table of contents
 - How to interact (issues, discussions, support)
