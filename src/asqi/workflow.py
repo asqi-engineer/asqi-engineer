@@ -21,8 +21,8 @@ from asqi.container_manager import (
     OUTPUT_MOUNT_PATH,
     check_images_availability,
     extract_manifest_from_image,
-    run_container_with_args,
     pull_images,
+    run_container_with_args,
 )
 from asqi.output import (
     create_test_execution_progress,
@@ -37,6 +37,7 @@ from asqi.validation import (
     validate_execution_inputs,
     validate_score_card_inputs,
     validate_test_execution_inputs,
+    validate_test_volumes,
     validate_workflow_configurations,
 )
 
@@ -419,6 +420,26 @@ def run_test_suite_workflow(
                 suite_name="unknown",
                 workflow_id=DBOS.workflow_id or "",
                 status="CONFIG_ERROR",
+                total_tests=0,
+                successful_tests=0,
+                failed_tests=0,
+                execution_time=time.time() - workflow_start_time,
+                error=error_msg,
+            ),
+            "results": [],
+        }
+
+    try:
+        validate_test_volumes(suite)
+
+    except ValueError as e:
+        error_msg = f"Volume validation failed: {e}"
+        DBOS.logger.error(error_msg)
+        return {
+            "summary": create_workflow_summary(
+                suite_name=suite.suite_name,
+                workflow_id=DBOS.workflow_id or "",
+                status="VALIDATION_FAILED",
                 total_tests=0,
                 successful_tests=0,
                 failed_tests=0,

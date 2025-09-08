@@ -1,9 +1,63 @@
 import logging
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
 
 logger = logging.getLogger()
+
+
+def validate_test_volumes(
+    suite: SuiteConfig,
+    allowed_keys: tuple[str, ...] = ("input", "output"),
+    require_at_least_one: bool = True,
+) -> None:
+    """
+    Validate per-test volumes and raise ValueError on the first problem.
+
+    Rules:
+    - volumes may be omitted entirely (skip)
+    - if present, must be a dict
+    - require_at_least_one=True => at least one of allowed_keys must be present
+    - only validate keys that are present
+    - each provided path must be a non-empty string, exist, and be a directory
+    """
+    allowed = set(allowed_keys)
+
+    for test in suite.test_suite:
+        vols = getattr(test, "volumes", None)
+        if not vols:
+            continue
+
+        if not isinstance(vols, dict):
+            raise ValueError(
+                f"'volumes' for test '{test.name}' must be a dict, got {type(vols).__name__}"
+            )
+
+        present = allowed & vols.keys()
+        if require_at_least_one and not present:
+            raise ValueError(
+                f"Test '{test.name}' must specify at least one of: {', '.join(sorted(allowed))}"
+            )
+
+        for key in present:
+            raw_path = vols[key]
+            if not isinstance(raw_path, str) or not raw_path.strip():
+                raise ValueError(
+                    f"Invalid '{key}' volume path in test '{test.name}': must be a non-empty string."
+                )
+
+            path = Path(raw_path).expanduser().resolve()
+
+            if not path.exists():
+                raise ValueError(
+                    f"Configured '{key}' volume does not exist for test '{test.name}': {path}"
+                )
+
+            if not path.is_dir():
+                raise ValueError(
+                    f"Configured '{key}' volume is not a directory for test '{test.name}': {path}"
+                )
 
 
 def validate_test_parameters(test, manifest: Manifest) -> List[str]:
