@@ -148,10 +148,3 @@ Docs live in `docs/`. To update docs:
 - For contribution process questions, ping maintainers in PRs or use Discussions.
 
 Thank you for helping improve ASQI Engineer!
-
-## Help & contact
-
-- For general help, open an Issue and tag `help-wanted`.
-- For contribution process questions, ping maintainers in PRs or use Discussions.
-
-Thank you for helping improve ASQI Engineer!
