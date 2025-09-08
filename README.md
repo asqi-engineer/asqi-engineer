@@ -123,10 +123,15 @@ If a link is missing or the page content is unclear, please open an issue: https
 
 ## Contributing & development
 
-- Tests live in `tests/` and can be run with `uv run pytest`.
-- Test containers and example manifests are in `test_containers/` and `config/`.
-- If you add a container, include `manifest.yaml` and ensure the entrypoint supports `--systems-params` and `--test-params`.
-- Contribution and community guidance: read [CONTRIBUTION.md](./CONTRIBUTION.md).
+We keep contributor-facing documentation split into two focused documents so each file stays concise and actionable.
+
+Quick actions:
+
+- To see how to contribute (PR process, templates, commit guidance), open `CONTRIBUTION.md`.
+- To get your dev environment ready and run tests locally (venv, `uv` commands, and devcontainer), open `DEVELOPMENT.md`.
+- Example configs and test containers live under `config/` and `test_containers/` respectively.
+
+If you're unsure where to start, read `CONTRIBUTION.md` first for the workflow and then follow the setup steps in `DEVELOPMENT.md` to run the test suite locally.
 
 ## License
 
