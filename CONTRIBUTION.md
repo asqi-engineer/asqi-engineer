@@ -1,4 +1,4 @@
-[# Contribution Guide]
+# Contribution Guide
 
 Thank you for contributing to ASQI Engineer. This document focuses on the contribution workflow, PR expectations, and where to find the technical setup instructions.
 
