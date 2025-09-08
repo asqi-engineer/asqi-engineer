@@ -2,20 +2,20 @@
 
 Thank you for contributing to ASQI Engineer. This document lists every common way you may interact with the project.
 
-## Table of contents
-- How to interact (issues, discussions, support)
-- Reporting bugs
-- Requesting features
-- Contributing code (PR workflow)
-- Local development & devcontainer
-- Running tests and linting
-- Adding or updating test containers
-- Contributing score cards or suites
-- Documentation contributions
-- CI, releases and packaging
-- Help & contact
+## Table of Contents
+- How to Interact (issues, discussions, support)
+- Reporting Bugs
+- Requesting Features
+- Contributing Code (PR Workflow)
+- Local Development & Devcontainer
+- Running Tests and Linting
+- Adding or Updating Test Containers
+- Contributing Score Cards or Suites
+- Documentation Contributions
+- CI, Releases and Packaging
+- Help & Contact
 
-## How to interact
+## How to Interact
 
 - Report bugs using GitHub Issues with clear title and steps to reproduce.
 - Request features by opening an Issue and tagging it as a proposal/feature request.
@@ -23,7 +23,7 @@ Thank you for contributing to ASQI Engineer. This document lists every common wa
 
 If you need quick help, open an Issue and label it `help-wanted`.
 
-## Reporting bugs
+## Reporting Bugs
 
 When filing a bug report include:
 
@@ -40,7 +40,7 @@ Suggested issue template fields:
 - `logs` - paste relevant logs or attach files
 - `commit` - commit hash
 
-## Requesting features
+## Requesting Features
 
 Open an issue and include:
 
@@ -51,7 +51,7 @@ Open an issue and include:
 
 If your feature is substantial, propose a short design in a discuss/issue before starting implementation.
 
-## Contributing code (PR workflow)
+## Contributing Code (PR Workflow)
 
 1. Fork the repository, create a branch with a clear name: `feat/<short>-summary` or `fix/<short>-summary`.
 2. Write tests for your change. Tests live in `tests/` and must cover the new behaviour.
@@ -62,11 +62,11 @@ If your feature is substantial, propose a short design in a discuss/issue before
 
 PR reviewers will check tests, style, and compatibility. Be prepared to iterate on feedback.
 
-### Commit message guidance
+### Commit Message Guidance
 
 Use conventional commit-like messages, e.g. `feat: add X`, `fix: correct Y`, `docs: update Z`.
 
-## Local development & devcontainer
+## Local Development & Devcontainer
 
 Recommended quick-start:
 
@@ -88,7 +88,7 @@ source .venv/bin/activate
 
 Devcontainer: If you prefer to use the provided devcontainer, open the repo in VS Code and accept the prompt to reopen in container. See `.devcontainer/` for details.
 
-## Running tests and linting
+## Running Tests and Linting
 
 Basic test commands:
 
@@ -96,7 +96,7 @@ Basic test commands:
 uv run pytest
 uv run pytest --maxfail=1 -q
 ```
-## Adding or updating test containers
+## Adding or Updating Test Containers
 
 Test containers live in `test_containers/`. When adding a new container:
 
@@ -109,7 +109,7 @@ Test containers live in `test_containers/`. When adding a new container:
 4. Add an example suite under `config/suites/` and reference it in `docs/examples.md`.
 5. Add tests that validate the manifest and basic compatibility via `tests/` (see test helpers already in the repo).
 
-Recommended manifest fields (example):
+Recommended Manifest Fields (Example):
 
 ```yaml
 name: "my_test_framework"
@@ -123,13 +123,13 @@ output_metrics: ["success", "score"]
 
 If containers save logs to a mounted volume, document the default filenames in `manifest.yaml` so users can find them.
 
-## Contributing score cards or suites
+## Contributing Score Cards or Suites
 
 - Add score card YAMLs to `config/score_cards/` and test suites to `config/suites/`.
 - Include an example run command in `docs/examples.md`.
 - When changing scoring logic, provide unit tests that exercise indicator evaluation and edge cases.
 
-## Documentation contributions
+## Documentation Contributions
 
 Docs live in `docs/`. To update docs:
 
@@ -137,12 +137,12 @@ Docs live in `docs/`. To update docs:
 2. Preview local docs (if you run Sphinx): `make -C docs html`.
 3. Keep docs concise and add examples for common flows.
 
-## CI, releases and packaging
+## CI, Releases and Packaging
 
 - The repository uses CI pipeline in `.github/workflows/` that runs tests and builds artifacts.
 - To create a release: follow the repository release process (tagging + CI publishing). See `.github/workflows/asqi-cd.yaml` for build steps.
 
-## Help & contact
+## Help & Contact
 
 - For general help, open an Issue and tag `help-wanted`.
 - For contribution process questions, ping maintainers in PRs or use Discussions.
