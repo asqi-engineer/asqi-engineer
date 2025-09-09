@@ -1,84 +1,36 @@
 # Quick Start
 
-Get up and running with ASQI Engineer in minutes.
-
 ## Installation
 
-Install ASQI Engineer from PyPI:
+Get started with ASQI Engineer in 3 simple steps:
+
+**1. Install the package:**
 
 ```bash
 pip install asqi-engineer
 ```
 
-### Setup Essential Services
-
-Download and start the essential services (PostgreSQL and LiteLLM proxy):
+**2. Run the setup script:**
 
 ```bash
-# Download docker-compose configuration
-curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/docker/docker-compose.yml
+curl -sSL https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/setup.sh | bash
+```
 
-# Download LiteLLM configuration
-curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/litellm_config.yaml
+**3. Configure and run:**
 
-# Create environment file
-cat > .env << 'EOF'
-# LLM API Keys
-LITELLM_MASTER_KEY="sk-1234"
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-AWS_BEARER_TOKEN_BEDROCK=
-
-# Otel
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
-
-# DB
-DBOS_DATABASE_URL=postgres://postgres:asqi@localhost:5432/asqi_starter
-EOF
-
-# Add your actual API keys to the .env file (replace empty values)
-# Modify litellm_config.yaml to expose the LiteLLM services you want to use
-
-# Start essential services in background
+```bash
+# Start the services and run your first test:
 docker compose up -d
-
-# Verify services are running
-docker compose ps
+asqi execute-tests -t config/suites/demo_test.yaml -s config/systems/demo_systems.yaml
 ```
 
-This provides:
+This short flow should download a demo test container and generate the test results in `output.json`.
 
-- **PostgreSQL**: Database for DBOS durability (`localhost:5432`)
-- **LiteLLM Proxy**: Unified API endpoint for multiple LLM providers (`localhost:4000`)
-- **Jaeger**: Distributed tracing UI for workflow observability (`localhost:16686`)
+## Getting Started with AI System Testing
 
-### Download Test Container Images
+To configure the AI systems you want to test:
 
-Pull the pre-built test container images from Docker Hub:
-
-```bash
-# Core test containers
-docker pull asqiengineer/test-container:mock_tester-latest
-docker pull asqiengineer/test-container:garak-latest
-docker pull asqiengineer/test-container:chatbot_simulator-latest
-docker pull asqiengineer/test-container:trustllm-latest
-docker pull asqiengineer/test-container:deepteam-latest
-
-# Verify installation
-asqi --help
-```
-
-### Configure Your Systems
-
-Before running tests, you need to configure the AI systems you want to test:
-
-1. **Download example system configurations:**
-
-   ```bash
-   curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/systems/demo_systems.yaml
-   ```
-
-2. **Configure your systems (`demo_systems.yaml`):**
+1. **Configure your systems (`config/systems/demo_systems.yaml`):**
 
    ```yaml
    systems:
@@ -97,40 +49,71 @@ Before running tests, you need to configure the AI systems you want to test:
          api_key: "${OPENAI_API_KEY}" # Uses environment variable
    ```
 
-## Basic Usage
+   You should also modify the `.env` file created by the setup script to add your actual API keys.
 
-Run your first test with the mock tester:
+2. **Download the required test packages**
 
-```bash
-# Download example test suite
-curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/demo_test.yaml
+   ```bash
+    # Core test containers
+    docker pull asqiengineer/test-container:mock_tester-latest
+    docker pull asqiengineer/test-container:garak-latest
+    docker pull asqiengineer/test-container:chatbot_simulator-latest
+    docker pull asqiengineer/test-container:trustllm-latest
+    docker pull asqiengineer/test-container:deepteam-latest
 
-# Run the test
-asqi execute-tests \
-  --test-suite-config demo_test.yaml \
-  --systems-config demo_systems.yaml \
-  --output-file results.json
-```
+    # Verify installation
+    asqi --help
+    ```
 
-## Evaluate with Score Cards
+3. **Try Out the CLI commands**
 
-Score cards provide automated assessment of test results against business-relevant criteria:
+    **Test execution only** (great for development and debugging):
+    ```bash
+    asqi execute-tests \
+      -t config/suites/demo_test.yaml \
+      -s config/systems/demo_systems.yaml \
+      -o results.json
+    ```
 
-```bash
-# Download and apply basic score card
-curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/score_cards/example_score_card.yaml
-asqi evaluate-score-cards \
-  --input-file results.json \
-  --score-card-config example_score_card.yaml \
-  --output-file results_with_grades.json
+    **Score card evaluation only** (apply different evaluation criteria to existing results):
+    ```bash
+    asqi evaluate-score-cards \
+      --input-file results.json \
+      -r config/score_cards/example_score_card.yaml \
+      -o results_with_grades.json
+    ```
 
-# Or run end-to-end (tests + score card evaluation)
-asqi execute \
-  --test-suite-config demo_test.yaml \
-  --systems-config demo_systems.yaml \
-  --score-card-config example_score_card.yaml \
-  --output-file complete_results.json
-```
+    **End-to-end execution** (tests + score card evaluation in one workflow):
+    ```bash
+    asqi execute \
+      -t config/suites/demo_test.yaml \
+      -s config/systems/demo_systems.yaml \
+      -r config/score_cards/example_score_card.yaml \
+      -o complete_results.json
+    ```
+
+4. **Explore Different Test Packages**
+
+With all configurations downloaded, you can immediately try different testing scenarios:
+
+  ```bash
+  # View all available configurations
+  ls config/suites/       # All test suites
+  ls config/score_cards/  # All score cards  
+  ls config/systems/      # System configurations
+
+  # Security testing with Garak
+  asqi execute-tests -t config/suites/garak_test.yaml -s config/systems/demo_systems.yaml
+
+  # Conversational testing with personas  
+  asqi execute-tests -t config/suites/chatbot_simulator_test.yaml -s config/systems/demo_systems.yaml
+
+  # TrustLLM evaluation
+  asqi execute-tests -t config/suites/trustllm_test.yaml -s config/systems/demo_systems.yaml
+
+  # Red team testing
+  asqi execute-tests -t config/suites/deepteam_test.yaml -s config/systems/demo_systems.yaml
+  ```
 
 ## Next Steps
 

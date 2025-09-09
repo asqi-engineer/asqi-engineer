@@ -1,6 +1,8 @@
 # ASQI Engineer
 
-ASQI (AI Solutions Quality Index) Engineer helps teams test and evaluate AI systems consistently. It runs containerized test packages, automates scoring, and provides durable execution workflows.
+![ASQI Engineer](./docs/asqi-engineer-cover.png)
+
+ASQI (AI Solutions Quality Index) Engineer helps teams test and evaluate AI systems. It runs containerized test packages, automates scoring, and provides durable execution workflows.
 
 The project focuses first on chatbot testing and supports extensions for other AI system types. [Resaro][Resaro] welcomes contributions of test packages, score cards, and schemas.
 
@@ -51,53 +53,33 @@ For our first release, we have introduced the `llm_api` system type and contribu
 
 The `llm_api` system type uses OpenAI-compatible API interfaces. Through [LiteLLM] integration, ASQI Engineer provides unified access to 100+ LLM providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints. This standardisation enables test containers to work seamlessly across different LLM providers while supporting complex multi-system test scenarios (e.g., using different models for simulation, evaluation, and target testing).
 
-
 ## Quick Start
 
-Install the package:
+Get started with ASQI Engineer in 3 simple steps:
+
+**1. Install the package:**
 
 ```bash
 pip install asqi-engineer
 ```
 
-Prepare a minimal `.env` with your LLM key(s) and DB URL:
+**2. Run the setup script:**
 
 ```bash
-cat > .env << 'EOF'
-# LLM API Keys
-LITELLM_MASTER_KEY="sk-1234"
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-AWS_BEARER_TOKEN_BEDROCK=
-
-# Otel
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
-
-# DB
-DBOS_DATABASE_URL=postgres://postgres:asqi@localhost:5432/asqi_starter
-EOF
+curl -sSL https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/setup.sh | bash
 ```
 
-Download the compose and LiteLLM config and start essential services:
+This downloads all required configuration files and creates a `.env` template.
+
+**3. Configure and run:**
 
 ```bash
-curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/docker/docker-compose.yml
-curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/litellm_config.yaml
+# Start the services and run your first test:
 docker compose up -d
-docker compose ps
+asqi execute-tests -t config/suites/demo_test.yaml -s config/systems/demo_systems.yaml
 ```
 
-Run a quick demo using the example configs already in this repo:
-
-```bash
-asqi execute-tests \
-  --test-suite-config config/suites/demo_test.yaml \
-  --systems-config config/systems/demo_systems.yaml \
-  --output-file demo_results.json
-```
-
-This short flow gets you to a runnable demo. For full setup, advanced examples, and provider-specific notes see the docs: https://www.asqi.ai/quickstart.html
-
+This short flow should download a demo test container and generate the test results in `output.json`. Now, to actually test your AI system, configure the `.env` file and try out the other test packages in: https://www.asqi.ai/quickstart.html
 
 ## Documentation
 
@@ -127,11 +109,11 @@ We keep contributor-facing documentation split into two focused documents so eac
 
 Quick actions:
 
-- To see how to contribute (PR process, templates, commit guidance), open `CONTRIBUTION.md`.
-- To get your dev environment ready and run tests locally (venv, `uv` commands, and devcontainer), open `DEVELOPMENT.md`.
+- To see how to contribute (PR process, templates, commit guidance), open [CONTRIBUTION.md].
+- To get your dev environment ready and run tests locally (venv, `uv` commands, and devcontainer), open [DEVELOPMENT.md].
 - Example configs and test containers live under `config/` and `test_containers/` respectively.
 
-If you're unsure where to start, read `CONTRIBUTION.md` first for the workflow and then follow the setup steps in `DEVELOPMENT.md` to run the test suite locally.
+If you're unsure where to start, read [CONTRIBUTION.md] first for the workflow and then follow the setup steps in [DEVELOPMENT.md] to run the test suite locally.
 
 ## License
 
@@ -143,3 +125,5 @@ If you're unsure where to start, read `CONTRIBUTION.md` first for the workflow a
 [Garak]: https://github.com/NVIDIA/garak
 [DeepTeam]: https://github.com/confident-ai/deepteam
 [TrustLLM]: https://github.com/HowieHwong/TrustLLM
+[CONTRIBUTION.md]: ./CONTRIBUTION.md
+[DEVELOPMENT.md]: ./DEVELOPMENT.md
