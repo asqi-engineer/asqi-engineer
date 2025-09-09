@@ -1,6 +1,8 @@
 # ASQI Engineer
 
-ASQI (AI Solutions Quality Index) Engineer helps teams test and evaluate AI systems consistently. It runs containerized test packages, automates scoring, and provides durable execution workflows.
+![ASQI Engineer](./docs/asqi-engineer-cover.png)
+
+ASQI (AI Solutions Quality Index) Engineer helps teams test and evaluate AI systems. It runs containerized test packages, automates scoring, and provides durable execution workflows.
 
 The project focuses first on chatbot testing and supports extensions for other AI system types. [Resaro][Resaro] welcomes contributions of test packages, score cards, and schemas.
 
@@ -51,7 +53,6 @@ For our first release, we have introduced the `llm_api` system type and contribu
 
 The `llm_api` system type uses OpenAI-compatible API interfaces. Through [LiteLLM] integration, ASQI Engineer provides unified access to 100+ LLM providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints. This standardisation enables test containers to work seamlessly across different LLM providers while supporting complex multi-system test scenarios (e.g., using different models for simulation, evaluation, and target testing).
 
-
 ## Quick Start
 
 Install the package:
@@ -98,7 +99,6 @@ asqi execute-tests \
 
 This short flow gets you to a runnable demo. For full setup, advanced examples, and provider-specific notes see the docs: https://www.asqi.ai/quickstart.html
 
-
 ## Documentation
 
 Detailed documentation lives on the project docs site — use the links below to jump to the full guides and examples:
@@ -127,11 +127,11 @@ We keep contributor-facing documentation split into two focused documents so eac
 
 Quick actions:
 
-- To see how to contribute (PR process, templates, commit guidance), open `CONTRIBUTION.md`.
-- To get your dev environment ready and run tests locally (venv, `uv` commands, and devcontainer), open `DEVELOPMENT.md`.
+- To see how to contribute (PR process, templates, commit guidance), open [CONTRIBUTION.md].
+- To get your dev environment ready and run tests locally (venv, `uv` commands, and devcontainer), open [DEVELOPMENT.md].
 - Example configs and test containers live under `config/` and `test_containers/` respectively.
 
-If you're unsure where to start, read `CONTRIBUTION.md` first for the workflow and then follow the setup steps in `DEVELOPMENT.md` to run the test suite locally.
+If you're unsure where to start, read [CONTRIBUTION.md] first for the workflow and then follow the setup steps in [DEVELOPMENT.md] to run the test suite locally.
 
 ## License
 
@@ -143,3 +143,5 @@ If you're unsure where to start, read `CONTRIBUTION.md` first for the workflow a
 [Garak]: https://github.com/NVIDIA/garak
 [DeepTeam]: https://github.com/confident-ai/deepteam
 [TrustLLM]: https://github.com/HowieHwong/TrustLLM
+[CONTRIBUTION.md]: ./CONTRIBUTION.md
+[DEVELOPMENT.md]: ./DEVELOPMENT.md
