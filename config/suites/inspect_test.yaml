@@ -2,133 +2,109 @@ suite_name: "Inspect Evaluation Suite"
 test_suite:
 
   # Basic evaluations
-  # - name: "inspect_xstest_safe"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   volumes:
-  #     output: "./test_data/output/inspect"
-  #   params:
-  #     evaluation: "xstest"
-  #     evaluation_params:
-  #       subset: "safe"
-  #       scorer_model: "openai/gpt-4o"
-  #     limit: 2
+  - name: "inspect_truthfulqa_mc1"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "truthfulqa"
+      evaluation_params:
+        target: "mc1"
+      limit: 2
 
-  # - name: "inspect_xstest_unsafe"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "xstest"
-  #     evaluation_params:
-  #       subset: "unsafe"
-  #       scorer_model: "openai/gpt-4o"
-  #     limit: 2
+  - name: "inspect_truthfulqa_mc2"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "truthfulqa"
+      evaluation_params:
+        target: "mc2"
+      limit: 2
 
-  # - name: "inspect_truthfulqa_mc1"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "truthfulqa"
-  #     evaluation_params:
-  #       target: "mc1"
-  #     limit: 2
+  - name: "inspect_boolq"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "boolq"
+      evaluation_params: {}
+      limit: 2
 
-  # - name: "inspect_truthfulqa_mc2"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "truthfulqa"
-  #     evaluation_params:
-  #       target: "mc2"
-  #     limit: 2
+  # MMLU variantss
+  - name: "inspect_mmlu"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "mmlu"
+      evaluation_params: {}
+      limit: 2
 
-  # - name: "inspect_boolq"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "boolq"
-  #     evaluation_params: {}
-  #     limit: 2
+  - name: "inspect_mmlu_0_shot"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "mmlu_0_shot"
+      evaluation_params: {}
+      limit: 2
 
-  # MMLU variants
-  # - name: "inspect_mmlu"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "mmlu"
-  #     evaluation_params: {}
-  #     limit: 2
+  - name: "inspect_mmlu_5_shot"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "mmlu_5_shot"
+      evaluation_params: {}
+      limit: 2
 
-  # - name: "inspect_mmlu_0_shot"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "mmlu_0_shot"
-  #     evaluation_params: {}
-  #     limit: 2
+  # Code evaluationss
+  - name: "inspect_humaneval"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "humaneval"
+      evaluation_params: {}
+      limit: 2
 
-  # - name: "inspect_mmlu_5_shot"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "mmlu_5_shot"
-  #     evaluation_params: {}
-  #     limit: 2
+  - name: "inspect_gsm8k"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "gsm8k"
+      evaluation_params: {}
+      limit: 2
 
-  # Code evaluations
-  # - name: "inspect_humaneval"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "humaneval"
-  #     evaluation_params: {}
-  #     limit: 2
+  - name: "inspect_mbpp"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "mbpp"
+      evaluation_params: {}
+      limit: 2
 
-  # - name: "inspect_gsm8k"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "gsm8k"
-  #     evaluation_params: {}
-  #     limit: 2
+  - name: "inspect_ifeval"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "ifeval"
+      evaluation_params: {}
+      limit: 2
 
-  # - name: "inspect_mbpp"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "mbpp"
-  #     evaluation_params: {}
-  #     limit: 2
-
-  # - name: "inspect_ifeval"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "ifeval"
-  #     evaluation_params: {}
-  #     limit: 2
-
-  # Commonsense reasoning
-  # - name: "inspect_hellaswag"
-  #   image: "asqiengineer/test-container:inspect-latest"
-  #   systems_under_test: 
-  #     - "nova_lite"
-  #   params:
-  #     evaluation: "hellaswag"
-  #     evaluation_params: {}
-  #     limit: 2
+  # Commonsense reasonings
+  - name: "inspect_hellaswag"
+    image: "asqiengineer/test-container:inspect-latest"
+    systems_under_test: 
+      - "nova_lite"
+    params:
+      evaluation: "hellaswag"
+      evaluation_params: {}
+      limit: 2
 
   # - name: "inspect_winogrande"
   #   image: "asqiengineer/test-container:inspect-latest"
@@ -157,7 +133,7 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # Science and knowledge
+  # # Science and knowledge
   # - name: "inspect_arc"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
@@ -203,7 +179,7 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # Mathematics
+  # # Mathematicss
   # - name: "inspect_math"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
@@ -240,7 +216,7 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # Reading comprehension
+  # # Reading comprehension
   # - name: "inspect_drop"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
@@ -260,7 +236,7 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # Safety and alignment
+  # # Safety and alignment
   # - name: "inspect_bbq"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
@@ -297,7 +273,7 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # Multilingual
+  # # Multilingual
   # - name: "inspect_mmlu_pro"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
@@ -374,7 +350,7 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # Specialized domains
+  # # Specialized domains
   # - name: "inspect_chembench"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
@@ -402,7 +378,7 @@ test_suite:
   #     evaluation_params: {}
   #     limit: 2
 
-  # Additional evaluations
+  # # Additional evaluations
   # - name: "inspect_agentdojo"
   #   image: "asqiengineer/test-container:inspect-latest"
   #   systems_under_test: 
