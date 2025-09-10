@@ -225,7 +225,7 @@ def execute(
         ..., "--score-card-config", "-r", help="Path to grading score card YAML file."
     ),
     output_file: Optional[str] = typer.Option(
-        "output.json",
+        "output_scorecard.json",
         "--output-file",
         "-o",
         help="Path to save execution results JSON file.",
@@ -328,7 +328,7 @@ def execute_tests(
         ..., "--systems-config", "-s", help="Path to the systems YAML file."
     ),
     output_file: Optional[str] = typer.Option(
-        "output_scorecard.json",
+        "output.json",
         "--output-file",
         "-o",
         help="Path to save execution results JSON file.",

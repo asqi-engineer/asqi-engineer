@@ -237,6 +237,60 @@ class TestMainCLI:
         assert "Error 1" in result.stdout
         assert "Error 2" in result.stdout
 
+    @patch("asqi.workflow.start_test_execution")
+    @patch("asqi.workflow.DBOS")
+    def test_default_output_filenames(self, mock_dbos, mock_start):
+        """Test that default output filenames are logical."""
+        mock_start.return_value = "workflow-test"
+
+        result = self.runner.invoke(
+            app, ["execute-tests", "-t", "suite.yaml", "-s", "systems.yaml"]
+        )
+        assert result.exit_code == 0
+        mock_start.assert_called_with(
+            suite_path="suite.yaml",
+            systems_path="systems.yaml",
+            output_path="output.json",
+            score_card_configs=None,
+            execution_mode="tests_only",
+            test_names=None,
+            executor_config={
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            container_config=ContainerConfig.with_streaming(False),
+        )
+
+    @patch("asqi.workflow.start_test_execution")
+    @patch("asqi.main.load_score_card_file")
+    @patch("asqi.workflow.DBOS")
+    def test_execute_default_scorecard_filename(
+        self, mock_dbos, mock_load_score, mock_start
+    ):
+        """Test execute (with score cards) defaults to output_scorecard.json."""
+        mock_load_score.return_value = {"score_card_name": "Test"}
+        mock_start.return_value = "workflow-test"
+
+        result = self.runner.invoke(
+            app,
+            ["execute", "-t", "suite.yaml", "-s", "systems.yaml", "-r", "score.yaml"],
+        )
+        assert result.exit_code == 0
+        mock_start.assert_called_with(
+            suite_path="suite.yaml",
+            systems_path="systems.yaml",
+            output_path="output_scorecard.json",
+            score_card_configs=[{"score_card_name": "Test"}],
+            execution_mode="end_to_end",
+            executor_config={
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            container_config=ContainerConfig.with_streaming(False),
+        )
+
     @patch("asqi.main.load_score_card_file")
     @patch("asqi.workflow.DBOS")
     def test_score_card_config_error(self, mock_dbos, mock_load_score):

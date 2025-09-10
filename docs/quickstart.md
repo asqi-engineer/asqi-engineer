@@ -1,5 +1,10 @@
 # Quick Start
 
+### Requirements
+
+- **Python 3.12+** is required
+- Docker for running test containers
+
 ## Installation
 
 Get started with ASQI Engineer in 3 simple steps:
