@@ -30,11 +30,15 @@ services:
       DATABASE_URL: "postgres://postgres:asqi@db:5432/asqi_starter"
       STORE_MODEL_IN_DB: "True" # allows adding models to proxy via UI
       OTEL_EXPORTER_OTLP_PROTOCOL: "otlp_http"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318/v1/traces"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318/v1/traces"
     depends_on:
       - db
     healthcheck:
-      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 http://localhost:4000/health/liveliness || exit 1" ]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 http://localhost:4000/health/liveliness || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3

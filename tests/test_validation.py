@@ -16,6 +16,7 @@ from asqi.validation import (
     validate_test_execution_inputs,
     validate_test_parameters,
     validate_test_plan,
+    validate_test_volumes,
     validate_workflow_configurations,
 )
 
@@ -795,3 +796,71 @@ class TestParameterValidationEdgeCases:
         errors = validate_test_parameters(test, manifest)
         assert any("Unknown parameter 'unexpected_param'" in e for e in errors)
         assert "Valid parameters: none" in errors[0]
+
+
+class TestVolumeValidation:
+    def _suite(self, vols):
+        return SuiteConfig(
+            **{
+                "suite_name": "test volumes test",
+                "test_suite": [
+                    {
+                        "name": "t",
+                        "image": "img:latest",
+                        "systems_under_test": ["my_llm_service"],
+                        "params": {},
+                        **({"volumes": vols} if vols is not None else {}),
+                    }
+                ],
+            }
+        )
+
+    @pytest.mark.parametrize("variant", ["input_only", "output_only", "both"])
+    def test_ok(self, tmp_path, variant):
+        in_dir = tmp_path / "in"
+        in_dir.mkdir()
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        vols = (
+            {"input": str(in_dir)}
+            if variant == "input_only"
+            else {"output": str(out_dir)}
+            if variant == "output_only"
+            else {"input": str(in_dir), "output": str(out_dir)}
+        )
+        validate_test_volumes(self._suite(vols))
+
+    def test_no_volumes_is_ok(self):
+        validate_test_volumes(self._suite(None))
+
+    def test_missing_both_keys_raises(self, tmp_path):
+        other = tmp_path / "other"
+        other.mkdir()
+        with pytest.raises(ValueError, match="at least one of"):
+            validate_test_volumes(self._suite({"other": str(other)}))
+
+    def test_volumes_not_dict_raises(self, tmp_path):
+        # build a valid suite first
+        in_dir = tmp_path / "in"
+        in_dir.mkdir()
+        suite = self._suite({"input": str(in_dir)})
+
+        suite.test_suite[0].volumes = "this is not a dict test"  # type: ignore[assignment]
+
+        with pytest.raises(ValueError, match="must be a dict"):
+            validate_test_volumes(suite)
+
+    def test_non_string_or_empty_path_raises(self):
+        with pytest.raises(ValueError, match="non-empty string"):
+            validate_test_volumes(self._suite({"input": "   "}))
+        with pytest.raises(ValueError, match="non-empty string"):
+            validate_test_volumes(self._suite({"output": 123}))
+
+    def test_nonexistent_or_not_dir_raises(self, tmp_path):
+        with pytest.raises(ValueError, match="does not exist"):
+            validate_test_volumes(self._suite({"input": str(tmp_path / "missing")}))
+
+        f = tmp_path / "file.txt"
+        f.write_text("x")
+        with pytest.raises(ValueError, match="is not a directory"):
+            validate_test_volumes(self._suite({"output": str(f)}))
