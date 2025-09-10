@@ -474,6 +474,13 @@ def run_test_suite_workflow(
 
     # Extract manifests from available images (post-pull)
     manifests = {}
+
+    # After pulling, we need to check availability again to include newly pulled images
+    if missing_images:
+        updated_image_availability = dbos_check_images_availability(unique_images)
+        image_availability.update(updated_image_availability)
+
+    # Now get all available images including ones that were just pulled
     available_images = [
         img for img, available in image_availability.items() if available
     ]
