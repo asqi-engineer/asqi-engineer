@@ -686,3 +686,49 @@ class TestLoadAndValidatePlan:
             # With empty suite and systems, it should succeed without errors
             # (empty manifest is skipped but doesn't cause validation failure)
             assert result["status"] == "success"
+
+
+class TestLoadDotenvFunctionality:
+    """Test that load_dotenv is functioning correctly in main.py."""
+
+    @patch("dotenv.load_dotenv")
+    def test_load_dotenv_loads_env_variables(self, mock_load_dotenv):
+        """Tests that DBOS_DATABASE_URL is available in the environment
+        after importing main.py.
+        """
+
+        # Mock the .env file content by setting environment variables when load_dotenv is called
+        def mock_dotenv_side_effect(*args, **kwargs):
+            os.environ["DBOS_DATABASE_URL"] = (
+                "postgres://test:test@localhost:5432/test_db"
+            )
+            return True
+
+        mock_load_dotenv.side_effect = mock_dotenv_side_effect
+
+        # Clear the environment variable first to ensure it's not already set
+        original_dbos_url = os.environ.pop("DBOS_DATABASE_URL", None)
+
+        try:
+            # Import main.py which should trigger load_dotenv() at module level
+            import importlib
+
+            import asqi.main
+
+            importlib.reload(asqi.main)
+
+            # Check if environment variables are now available from mocked .env file
+            dbos_url = os.environ.get("DBOS_DATABASE_URL")
+
+            # This assertion will fail if load_dotenv() is commented out
+            assert dbos_url is not None, (
+                "DBOS_DATABASE_URL should be loaded from .env file"
+            )
+            assert dbos_url == "postgres://test:test@localhost:5432/test_db"
+
+        finally:
+            # Restore original environment state
+            if original_dbos_url is not None:
+                os.environ["DBOS_DATABASE_URL"] = original_dbos_url
+            elif "DBOS_DATABASE_URL" in os.environ:
+                del os.environ["DBOS_DATABASE_URL"]

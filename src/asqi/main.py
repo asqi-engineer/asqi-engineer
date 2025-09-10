@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import typer
 import yaml
+from dotenv import load_dotenv
 from pydantic import ValidationError
 from rich.console import Console
 
@@ -20,6 +21,7 @@ from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
 from asqi.validation import validate_test_plan
 
+load_dotenv()
 configure_logging()
 console = Console()
 
