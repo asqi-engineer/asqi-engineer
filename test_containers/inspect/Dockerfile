@@ -17,14 +17,15 @@ WORKDIR /app
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
 
-# Install inspect_ai from PyPI
-RUN pip install --no-cache-dir inspect-ai==0.3.129
+# Set environment variable to allow remote code execution for datasets
+ENV HF_DATASETS_TRUST_REMOTE_CODE=1
 
-# Clone inspect_evals and install with extras using uv pip
+# Clone inspect_evals and install with uv sync
 RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
     cd inspect_evals && \
     git checkout 479a4685 && \
-    uv pip install --system -e .[core_bench,livebench,agentdojo,ifeval,cybench,bold,bbq,math,sevenllm,mle_bench]
+    uv venv && \
+    uv sync --all-extras
 
 RUN pip install --no-cache-dir openai==1.104.1
 
@@ -34,10 +35,7 @@ COPY entrypoint.py .
 
 RUN chmod +x entrypoint.py
 
-# Set environment variable to allow remote code execution for datasets
-ENV HF_DATASETS_TRUST_REMOTE_CODE=1
-
 # Set environment variable to acknowledge Cybench security risks
 ENV CYBENCH_ACKNOWLEDGE_RISKS=1
 
-ENTRYPOINT ["python", "./entrypoint.py"]
+ENTRYPOINT ["/app/inspect_evals/.venv/bin/python", "./entrypoint.py"]
