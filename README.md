@@ -57,6 +57,11 @@ The `llm_api` system type uses OpenAI-compatible API interfaces. Through [LiteLL
 
 Get started with ASQI Engineer in 3 simple steps:
 
+### Requirements
+
+- **Python 3.12+** is required
+- Docker for running test containers
+
 **1. Install the package:**
 
 ```bash

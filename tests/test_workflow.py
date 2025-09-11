@@ -558,3 +558,76 @@ def test_start_score_card_evaluation(tmp_path):
         # Should call evaluate_score_cards_workflow
         call_args = mock_start.call_args[0]
         assert call_args[0].__name__ == "evaluate_score_cards_workflow"
+
+
+def test_image_pulled_but_manifest_not_extracted_bug():
+    """Test that reproduces issue #150 where validation fails despite image being pulled.
+
+    After pulling missing images, manifests are not extracted from newly pulled images,
+    causing validation to fail even though the images are now available.
+    """
+    suite_config = {
+        "suite_name": "test",
+        "test_suite": [
+            {
+                "name": "test1",
+                "image": "test/image:latest",
+                "systems_under_test": ["sys1"],
+            }
+        ],
+    }
+
+    systems_config = {"systems": {"sys1": {"type": "llm_api", "params": {}}}}
+
+    manifest = Manifest(
+        name="test",
+        version="1",
+        description="",
+        input_systems=[
+            SystemInput(name="system_under_test", type="llm_api", required=True)
+        ],
+        input_schema=[],
+        output_metrics=[],
+        output_artifacts=None,
+    )
+
+    with (
+        patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
+        patch("asqi.workflow.dbos_pull_images"),
+        patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
+        patch("asqi.workflow.validate_test_plan") as mock_validate,
+        patch("asqi.workflow.create_test_execution_plan") as mock_plan,
+        patch("asqi.workflow.Queue") as mock_queue,
+    ):
+        # Image not available initially, then available after pull
+        mock_avail.side_effect = [
+            {"test/image:latest": False},  # Before pull
+            {"test/image:latest": True},  # After pull (our fix enables this)
+        ]
+
+        mock_extract.return_value = manifest
+        mock_validate.side_effect = (
+            lambda s, sys, manifests: [] if manifests else ["No manifest"]
+        )
+        mock_plan.return_value = [
+            {
+                "test_name": "test1",
+                "image": "test/image:latest",
+                "sut_name": "sys1",
+                "systems_params": {"system_under_test": {"type": "llm_api"}},
+                "test_params": {},
+            }
+        ]
+
+        success_result = TestExecutionResult("test1", "sys1", "test/image:latest")
+        success_result.success = True
+        mock_queue.return_value.enqueue.return_value = DummyHandle(success_result)
+
+        result = _call_inner_workflow(
+            suite_config,
+            systems_config,
+            {"concurrent_tests": 1, "max_failures": 10, "progress_interval": 10},
+            ContainerConfig(),
+        )
+
+        assert result["summary"]["status"] == "COMPLETED"
