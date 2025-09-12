@@ -29,14 +29,14 @@ systems:
       model: "gpt-4o-mini"
       api_key: ${OPENAI_API_KEY} # You can also use string interpolation like this!
 
-  # my_llm_service:
-  #   type: "llm_api"
-  #   params:
-  #     model: "my-model"
-  #     env_file: .env # Pass in all env variables from file
+  my_llm_service:
+    type: "llm_api"
+    params:
+      model: "my-model"
+      env_file: .env # Pass in all env variables from file
 
-  # # This SUT is *not* compatible, for demonstrating validation failure
-  # my_backend_api:
-  #   type: "rest_api"
-  #   params:
-  #     uri: "https://api.example.com/v1/data"
+  # This SUT is *not* compatible, for demonstrating validation failure
+  my_backend_api:
+    type: "rest_api"
+    params:
+      uri: "https://api.example.com/v1/data"
