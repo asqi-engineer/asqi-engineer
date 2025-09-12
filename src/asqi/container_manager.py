@@ -445,6 +445,7 @@ def run_container_with_args(
     args: List[str],
     container_config: ContainerConfig,
     environment: Optional[Dict[str, str]] = None,
+    name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Run a Docker container with specified arguments and return results.
@@ -454,6 +455,7 @@ def run_container_with_args(
         args: Command line arguments to pass to container
         container_config: Container execution configurations
         environment: Optional dictionary of environment variables to pass to container
+        name: Optional name for the container (will be used as container name in Docker)
 
     Returns:
         Dictionary with execution results including exit_code, output, success, etc.
@@ -485,13 +487,20 @@ def run_container_with_args(
             if mounts:
                 logger.info(f"Mounts: {mounts}")
 
-            container = client.containers.run(
-                image,
-                command=args,
-                environment=environment or {},
-                mounts=mounts,
+            # Prepare run parameters
+            run_kwargs = {
+                "image": image,
+                "command": args,
+                "environment": environment or {},
+                "mounts": mounts,
                 **container_config.run_params,
-            )
+            }
+
+            # Add name if provided
+            if name:
+                run_kwargs["name"] = name
+
+            container = client.containers.run(**run_kwargs)
 
             with _active_lock:
                 _active_containers.add(container.id)  # type: ignore
