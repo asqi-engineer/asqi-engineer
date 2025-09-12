@@ -1,4 +1,4 @@
-name: "inspect"
+name: "inspect_evals"
 version: "1.0"
 description: "Generic Inspect evaluation container for running various LLM evaluations"
 host_access: true
