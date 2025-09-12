@@ -1,0 +1,12 @@
+suite_name: "Inspect Writing Evaluation Suite"
+test_suite:
+
+  # WritingBench
+  - name: "inspect_writingbench"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "writingbench"
+      evaluation_params: {}
+      limit: 2

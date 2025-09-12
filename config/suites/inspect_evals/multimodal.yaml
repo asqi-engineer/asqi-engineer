@@ -1,0 +1,21 @@
+suite_name: "Inspect Multimodal Evaluation Suite"
+test_suite:
+
+  # ZeroBench
+  - name: "inspect_zerobench"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "zerobench"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_zerobench_subquestions"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "zerobench_subquestions"
+      evaluation_params: {}
+      limit: 2

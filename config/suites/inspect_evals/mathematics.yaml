@@ -1,0 +1,52 @@
+suite_name: "Inspect Mathematics Evaluation Suite"
+test_suite:
+
+  # AIME 2024
+  - name: "inspect_aime2024"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "aime2024"
+      evaluation_params: {}
+      limit: 2
+
+  # GSM8K
+  - name: "inspect_gsm8k"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "gsm8k"
+      evaluation_params: {}
+      limit: 2
+
+  # MATH
+  - name: "inspect_math"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "math"
+      evaluation_params: {}
+      limit: 2
+
+  # MGSM
+  - name: "inspect_mgsm"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "mgsm"
+      evaluation_params: {}
+      limit: 2
+
+  # MathVista
+  - name: "inspect_mathvista"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "mathvista"
+      evaluation_params: {}
+      limit: 2

@@ -1,0 +1,22 @@
+suite_name: "Inspect Bias Evaluation Suite"
+test_suite:
+
+  # BBQ
+  - name: "inspect_bbq"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "bbq"
+      evaluation_params: {}
+      limit: 2
+
+  # BOLD
+  - name: "inspect_bold"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "bold"
+      evaluation_params: {}
+      limit: 2

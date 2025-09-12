@@ -7,6 +7,277 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
+# Define available evaluations with their import paths and functions
+EVALUATION_REGISTRY = {
+    ## Coding
+    # ❌ APPS
+    "apps": ("inspect_evals.apps", "apps"), # TODO
+    # ✅ AgentBench
+    "agent_bench_os": ("inspect_evals.agent_bench", "agent_bench_os"), 
+    # ❌ BigCodeBench
+    "bigcodebench": ("inspect_evals.bigcodebench", "bigcodebench"), # TODO: very large
+    # ❌ CORE-Bench
+    "core_bench": ("inspect_evals.core_bench", "core_bench"), # TODO
+    # ✅ ClassEval
+    "class_eval": ("inspect_evals.class_eval", "class_eval"), 
+    # ✅ DS-1000
+    "ds1000": ("inspect_evals.ds1000", "ds1000"), 
+    # ✅ HumanEval
+    "humaneval": ("inspect_evals.humaneval", "humaneval"), 
+    # ✅ MBPP
+    "mbpp": ("inspect_evals.mbpp", "mbpp"), 
+    # ❌ MLE-bench
+    "mle_bench": ("inspect_evals.mle_bench", "mle_bench"), # TODO: Kaggle Auth required
+    "mle_bench_full": ("inspect_evals.mle_bench", "mle_bench_full"), # TODO: Kaggle Auth required
+    "mle_bench_lite": ("inspect_evals.mle_bench", "mle_bench_lite"), # TODO: Kaggle Auth required
+    # ❌ SWE-bench
+    "swe_bench": ("inspect_evals.swe_bench", "swe_bench"), # TODO extra deps
+    "swe_bench_verified_mini": ("inspect_evals.swe_bench", "swe_bench_verified_mini"), # TODO extra deps
+    # ❌ SciCode
+    "scicode": ("inspect_evals.scicode", "scicode"), # TODO
+    # ✅ USACO
+    "usaco": ("inspect_evals.usaco", "usaco"), # TODO
+
+    ## Assistants
+    # 🟡 AssistantBench
+    "assistant_bench_closed_book_one_shot": ("inspect_evals.assistant_bench", "assistant_bench_closed_book_one_shot"), 
+    "assistant_bench_closed_book_zero_shot": ("inspect_evals.assistant_bench", "assistant_bench_closed_book_zero_shot"), 
+    "assistant_bench_web_browser": ("inspect_evals.assistant_bench", "assistant_bench_web_browser"), # TODO: Requires GOOGLE_CSE_API_KEY
+    "assistant_bench_web_search_one_shot": ("inspect_evals.assistant_bench", "assistant_bench_web_search_one_shot"), # TODO: Requires GOOGLE_CSE_API_KEY
+    "assistant_bench_web_search_zero_shot": ("inspect_evals.assistant_bench", "assistant_bench_web_search_zero_shot"), # TODO: Requires GOOGLE_CSE_API_KEY
+    # ✅ BrowseComp
+    "browse_comp": ("inspect_evals.browse_comp", "browse_comp"), 
+    # 🟡 GAIA
+    "gaia": ("inspect_evals.gaia", "gaia"), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+    "gaia_level1": ("inspect_evals.gaia", "gaia_level1"), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+    "gaia_level2": ("inspect_evals.gaia", "gaia_level2"), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+    "gaia_level3": ("inspect_evals.gaia", "gaia_level3"), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+    # ❌ Mind2Web
+    "mind2web": ("inspect_evals.mind2web", "mind2web"), # TODO
+    # ❌ OSWorld
+    "osworld": ("inspect_evals.osworld", "osworld"), # TODO
+    # ✅ Sycophancy
+    "sycophancy": ("inspect_evals.sycophancy", "sycophancy"), 
+
+    ## Cybersecurity
+    # ❌ CYBERSECEVAL 3
+    "visual_prompt_injection": ("inspect_evals.cyberseceval_3", "visual_prompt_injection"), # TODO
+    # ❌ Catastrophic Cyber Capabilities Benchmark (3CB)
+    "threecb": ("inspect_evals.threecb", "threecb"), # TODO
+    # ❌ Cybench
+    "cybench": ("inspect_evals.cybench", "cybench"), # TODO simple
+    # ✅ CyberMetric
+    "cybermetric_80": ("inspect_evals.cybermetric", "cybermetric_80"), 
+    "cybermetric_500": ("inspect_evals.cybermetric", "cybermetric_500"), 
+    "cybermetric_2000": ("inspect_evals.cybermetric", "cybermetric_2000"), #done
+    "cybermetric_10000": ("inspect_evals.cybermetric", "cybermetric_10000"), 
+    # ✅ CyberSecEval_2
+    "cyse2_interpreter_abuse": ("inspect_evals.cyberseceval_2", "cyse2_interpreter_abuse"), 
+    "cyse2_prompt_injection": ("inspect_evals.cyberseceval_2", "cyse2_prompt_injection"), 
+    "cyse2_vulnerability_exploit": ("inspect_evals.cyberseceval_2", "cyse2_vulnerability_exploit"), 
+    # ✅ GDM Dangerous Capabilities: Capture the Flag
+    "gdm_in_house_ctf": ("inspect_evals.gdm_capabilities", "gdm_in_house_ctf"), 
+    # ✅ InterCode: Security and Coding Capture-the-Flag Challenges
+    "gdm_intercode_ctf": ("inspect_evals.gdm_capabilities", "gdm_intercode_ctf"), # TODO
+    # 🟡 SEvenLLM
+    "sevenllm_mcq_en": ("inspect_evals.sevenllm", "sevenllm_mcq_en"), 
+    "sevenllm_mcq_zh": ("inspect_evals.sevenllm", "sevenllm_mcq_zh"), 
+    "sevenllm_qa_en": ("inspect_evals.sevenllm", "sevenllm_qa_en"), 
+    "sevenllm_qa_zh": ("inspect_evals.sevenllm", "sevenllm_qa_zh"), # TODO: keras 3 issue
+    # ✅ SecQA
+    "sec_qa_v1": ("inspect_evals.sec_qa", "sec_qa_v1"), 
+    "sec_qa_v1_5_shot": ("inspect_evals.sec_qa", "sec_qa_v1_5_shot"), 
+    "sec_qa_v2": ("inspect_evals.sec_qa", "sec_qa_v2"), 
+    "sec_qa_v2_5_shot": ("inspect_evals.sec_qa", "sec_qa_v2_5_shot"), 
+
+    ## Safeguards
+    # ❌ AbstentionBench
+    "abstention_bench": ("inspect_evals.abstention_bench", "abstention_bench"), # TODO
+    # ✅ AgentDojo
+    "agentdojo": ("inspect_evals.agentdojo", "agentdojo"), 
+    # ✅ AgentHarm
+    "agentharm": ("inspect_evals.agentharm", "agentharm"), 
+    "agentharm_benign": ("inspect_evals.agentharm", "agentharm_benign"), 
+    # ✅ LAB-Bench
+    "lab_bench_cloning_scenarios": ("inspect_evals.lab_bench", "lab_bench_cloning_scenarios"), 
+    "lab_bench_dbqa": ("inspect_evals.lab_bench", "lab_bench_dbqa"),  
+    "lab_bench_figqa": ("inspect_evals.lab_bench", "lab_bench_figqa"), 
+    "lab_bench_litqa": ("inspect_evals.lab_bench", "lab_bench_litqa"), 
+    "lab_bench_protocolqa": ("inspect_evals.lab_bench", "lab_bench_protocolqa"), 
+    "lab_bench_seqqa": ("inspect_evals.lab_bench", "lab_bench_seqqa"), 
+    # ❌ MASK
+    "mask": ("inspect_evals.mask", "mask"), # TODO
+    # ✅ StereoSet
+    "stereoset": ("inspect_evals.stereoset", "stereoset"), 
+    # ✅ StrongREJECT
+    "strong_reject": ("inspect_evals.strong_reject", "strong_reject"),  
+    # ✅ WMDP
+    "wmdp_bio": ("inspect_evals.wmdp", "wmdp_bio"), 
+    "wmdp_chem": ("inspect_evals.wmdp", "wmdp_chem"), 
+    "wmdp_cyber": ("inspect_evals.wmdp", "wmdp_cyber"), 
+
+    ## ✅✅ Mathematics
+    # ✅ AIME 2024
+    "aime2024": ("inspect_evals.aime2024", "aime2024"), 
+    # ✅ GSM8K
+    "gsm8k": ("inspect_evals.gsm8k", "gsm8k"),  
+    # ✅ MATH
+    "math": ("inspect_evals.math", "math"),  
+    # ✅ MGSM
+    "mgsm": ("inspect_evals.mgsm", "mgsm"), 
+    # ✅ MathVista
+    "mathvista": ("inspect_evals.mathvista", "mathvista"), 
+
+    ## Reasoning
+    # ✅ ARC
+    "arc": ("inspect_evals.arc", "arc_challenge"),  
+    "arc_challenge": ("inspect_evals.arc", "arc_challenge"), 
+    "arc_easy": ("inspect_evals.arc", "arc_easy"), 
+    # ✅ BBH
+    "bbh": ("inspect_evals.bbh", "bbh"), 
+    # ✅ BIG-Bench Extra Hard
+    "bbeh": ("inspect_evals.bbeh", "bbeh"), 
+    "bbeh_mini": ("inspect_evals.bbeh", "bbeh_mini"), 
+    # ✅ BoolQ
+    "boolq": ("inspect_evals.boolq", "boolq"), 
+    # ✅ DROP
+    "drop": ("inspect_evals.drop", "drop"),  
+    # ✅ HellaSwag
+    "hellaswag": ("inspect_evals.hellaswag", "hellaswag"),  
+    # ✅ IFEval
+    "ifeval": ("inspect_evals.ifeval", "ifeval"), 
+    # 🟡 LingOly
+    "lingoly": ("inspect_evals.lingoly", "lingoly"), # TODO: HuggingFace authentication required
+    "lingoly_too": ("inspect_evals.lingoly", "lingoly_too"), 
+    # ✅ MMMU
+    "mmmu_multiple_choice": ("inspect_evals.mmmu", "mmmu_multiple_choice"), 
+    "mmmu_open": ("inspect_evals.mmmu", "mmmu_open"), 
+    # ✅ MuSR
+    "musr": ("inspect_evals.musr", "musr"), 
+    # ✅ Needle in a Haystack (NIAH)
+    "niah": ("inspect_evals.niah", "niah"), 
+    # ✅ PAWS
+    "paws": ("inspect_evals.paws", "paws"), 
+    # ✅ PIQA
+    "piqa": ("inspect_evals.piqa", "piqa"),  
+    # ✅ RACE-H
+    "race_h": ("inspect_evals.race_h", "race_h"), 
+    # 🟡 SQuAD
+    "squad": ("inspect_evals.squad", "squad"), # TODO: Dataset issue on HuggingFace side
+    # ✅ WINOGRANDE
+    "winogrande": ("inspect_evals.winogrande", "winogrande"), 
+    # ✅ WorldSense
+    "worldsense": ("inspect_evals.worldsense", "worldsense"), 
+    # ✅ ∞Bench
+    "infinite_bench_code_debug": ("inspect_evals.infinite_bench", "infinite_bench_code_debug"), 
+    "infinite_bench_code_run": ("inspect_evals.infinite_bench", "infinite_bench_code_run"), 
+    "infinite_bench_kv_retrieval": ("inspect_evals.infinite_bench", "infinite_bench_kv_retrieval"), 
+    "infinite_bench_longbook_choice_eng": ("inspect_evals.infinite_bench", "infinite_bench_longbook_choice_eng"), 
+    "infinite_bench_longdialogue_qa_eng": ("inspect_evals.infinite_bench", "infinite_bench_longdialogue_qa_eng"), 
+    "infinite_bench_math_calc": ("inspect_evals.infinite_bench", "infinite_bench_math_calc"), 
+    "infinite_bench_math_find": ("inspect_evals.infinite_bench", "infinite_bench_math_find"), 
+    "infinite_bench_number_string": ("inspect_evals.infinite_bench", "infinite_bench_number_string"), 
+    "infinite_bench_passkey": ("inspect_evals.infinite_bench", "infinite_bench_passkey"), 
+
+    ## Knowledge
+    # ✅ AGIEval
+    "agie_aqua_rat": ("inspect_evals.agieval", "agie_aqua_rat"), 
+    "agie_logiqa_en": ("inspect_evals.agieval", "agie_logiqa_en"), 
+    "agie_lsat_ar": ("inspect_evals.agieval", "agie_lsat_ar"), 
+    "agie_lsat_lr": ("inspect_evals.agieval", "agie_lsat_lr"), 
+    "agie_lsat_rc": ("inspect_evals.agieval", "agie_lsat_rc"), 
+    "agie_math": ("inspect_evals.agieval", "agie_math"), 
+    "agie_sat_en": ("inspect_evals.agieval", "agie_sat_en"), 
+    "agie_sat_en_without_passage": ("inspect_evals.agieval", "agie_sat_en_without_passage"), 
+    "agie_sat_math": ("inspect_evals.agieval", "agie_sat_math"), #done
+    # ✅ AIR Bench
+    "air_bench": ("inspect_evals.air_bench", "air_bench"), 
+    # ✅ ChemBench
+    "chembench": ("inspect_evals.chembench", "chembench"), 
+    # ✅ CommonsenseQA
+    "commonsense_qa": ("inspect_evals.commonsense_qa", "commonsense_qa"),  
+    # ✅ GPQA
+    "gpqa_diamond": ("inspect_evals.gpqa", "gpqa_diamond"),  
+    # ✅ HealthBench
+    "healthbench": ("inspect_evals.healthbench", "healthbench"), 
+    # 🟡 Humanity's Last Exam
+    "hle": ("inspect_evals.hle", "hle"), # TODO: HuggingFace authentication required
+    # ✅ LiveBench
+    "livebench": ("inspect_evals.livebench", "livebench"), 
+    # ✅ MMLU-Pro
+    "mmlu_pro": ("inspect_evals.mmlu_pro", "mmlu_pro"),  
+    # ✅ MMLU
+    "mmlu": ("inspect_evals.mmlu", "mmlu_0_shot"), 
+    "mmlu_0_shot": ("inspect_evals.mmlu", "mmlu_0_shot"), 
+    "mmlu_5_shot": ("inspect_evals.mmlu", "mmlu_5_shot"), 
+    # ✅ MedQA
+    "medqa": ("inspect_evals.medqa", "medqa"),  
+    # ✅ O-NET
+    "onet_m6": ("inspect_evals.onet", "onet_m6"), 
+    # ✅ Pre-Flight
+    "pre_flight": ("inspect_evals.pre_flight", "pre_flight"), 
+    # ✅ PubMedQA
+    "pubmedqa": ("inspect_evals.pubmedqa", "pubmedqa"), 
+    # ✅ SOS BENCH
+    "sosbench": ("inspect_evals.sosbench", "sosbench"), 
+    # ❌ SciKnowEval
+    "sciq": ("inspect_evals.sciknoweval", "sciknoweval"), # TODO
+    # ✅ SimpleQA
+    "simpleqa": ("inspect_evals.simpleqa", "simpleqa"), 
+    # ✅ TruthfulQA
+    "truthfulqa": ("inspect_evals.truthfulqa", "truthfulqa"),  
+    # ✅ XSTest
+    "xstest": ("inspect_evals.xstest", "xstest"),  
+
+    ## Scheming
+    # ✅ Agentic Misalignment
+    "agentic_misalignment": ("inspect_evals.agentic_misalignment", "agentic_misalignment"), 
+    # ❌ GDM Dangerous Capabilities: Self-reasoning
+    "gdm_approved_directories": ("inspect_evals.gdm_capabilities", "gdm_approved_directories"), # TODO
+    "gdm_calculator_improvement": ("inspect_evals.gdm_capabilities", "gdm_calculator_improvement"), # TODO
+    "gdm_context_length_mod_instrumental_only": ("inspect_evals.gdm_capabilities", "gdm_context_length_mod_instrumental_only"), # TODO
+    "gdm_context_length_mod_irreversibility_only": ("inspect_evals.gdm_capabilities", "gdm_context_length_mod_irreversibility_only"), # TODO
+    "gdm_database_tool": ("inspect_evals.gdm_capabilities", "gdm_database_tool"), # TODO
+    "gdm_latency_calculator": ("inspect_evals.gdm_capabilities", "gdm_latency_calculator"), # TODO
+    "gdm_max_messages_calculator": ("inspect_evals.gdm_capabilities", "gdm_max_messages_calculator"), # TODO
+    "gdm_max_tokens": ("inspect_evals.gdm_capabilities", "gdm_max_tokens"), # TODO
+    "gdm_oversight_frequency": ("inspect_evals.gdm_capabilities", "gdm_oversight_frequency"), # TODO
+    "gdm_read_logs": ("inspect_evals.gdm_capabilities", "gdm_read_logs"), # TODO
+    "gdm_turn_off_filters": ("inspect_evals.gdm_capabilities", "gdm_turn_off_filters"), # TODO
+    # ❌ GDM Dangerous Capabilities: Stealth
+    "gdm_classifier_evasion": ("inspect_evals.gdm_capabilities", "gdm_classifier_evasion"), # TODO
+    "gdm_cover_your_tracks": ("inspect_evals.gdm_capabilities", "gdm_cover_your_tracks"), # TODO
+    "gdm_oversight_pattern": ("inspect_evals.gdm_capabilities", "gdm_oversight_pattern"), # TODO
+    "gdm_strategic_rule_breaking": ("inspect_evals.gdm_capabilities", "gdm_strategic_rule_breaking"), # TODO
+
+    ## Multimodal
+    # ❌ DocVQA
+    "docvqa": ("inspect_evals.docvqa", "docvqa"), # TODO
+    # ❌ MMIU
+    "mmiu": ("inspect_evals.mmiu", "mmiu"), # TODO
+    # ❌ V*Bench
+    "vstar_bench_attribute_recognition": ("inspect_evals.vstar_bench", "vstar_bench_attribute_recognition"), # TODO
+    "vstar_bench_spatial_relationship_reasoning": ("inspect_evals.vstar_bench", "vstar_bench_spatial_relationship_reasoning"), # TODO
+    # ✅ ZeroBench
+    "zerobench": ("inspect_evals.zerobench", "zerobench"), 
+    "zerobench_subquestions": ("inspect_evals.zerobench", "zerobench_subquestions"), 
+
+    ## Bias
+    # ✅ BBQ
+    "bbq": ("inspect_evals.bbq", "bbq"),  
+    # ❌ BOLD
+    "bold": ("inspect_evals.bold", "bold"), # TODO: Your currently installed version of Keras is Keras 3, but this is not yet supported in Transformers.
+
+    ## ✅✅ Personality
+    # ✅ Personality
+    "personality_BFI": ("inspect_evals.personality", "personality_BFI"), 
+    "personality_TRAIT": ("inspect_evals.personality", "personality_TRAIT"), # Gated Dataset (mirlab/TRAIT on HuggingFace)
+    
+    ## Writing
+    # 🟡 WritingBench
+    "writingbench": ("inspect_evals.writingbench", "writingbench"), # TODO: requires ANTHROPIC_API_KEY
+}
+
 # Configure datasets to trust remote code before any other imports
 try:
     import datasets
@@ -99,163 +370,6 @@ def main():
         # Import inspect modules
         from inspect_ai import eval as inspect_eval
 
-        # Define available evaluations with their import paths and functions
-        EVALUATION_REGISTRY = {
-            # Basic evaluations
-            "agie_aqua_rat": ("inspect_evals.agieval", "agie_aqua_rat"), # done
-            "agie_logiqa_en": ("inspect_evals.agieval", "agie_logiqa_en"), # done
-            "agie_lsat_ar": ("inspect_evals.agieval", "agie_lsat_ar"), # done
-            "agie_lsat_lr": ("inspect_evals.agieval", "agie_lsat_lr"), # done
-            "agie_lsat_rc": ("inspect_evals.agieval", "agie_lsat_rc"), # done
-            "agie_math": ("inspect_evals.agieval", "agie_math"), # done
-            "agie_sat_en": ("inspect_evals.agieval", "agie_sat_en"), # done
-            "agie_sat_en_without_passage": ("inspect_evals.agieval", "agie_sat_en_without_passage"), # done
-            "agie_sat_math": ("inspect_evals.agieval", "agie_sat_math"), #done
-            "aime2024": ("inspect_evals.aime2024", "aime2024"), # done
-            "agent_bench_os": ("inspect_evals.agent_bench", "agent_bench_os"), # done
-            "agentdojo": ("inspect_evals.agentdojo", "agentdojo"), # done
-            "agentharm": ("inspect_evals.agentharm", "agentharm"), # done
-            "agentharm_benign": ("inspect_evals.agentharm", "agentharm_benign"), # done
-            "agentic_misalignment": ("inspect_evals.agentic_misalignment", "agentic_misalignment"), # done
-            "air_bench": ("inspect_evals.air_bench", "air_bench"), # done
-            "apps": ("inspect_evals.apps", "apps"), # TODO
-            "arc": ("inspect_evals.arc", "arc_challenge"),  # done
-            "arc_challenge": ("inspect_evals.arc", "arc_challenge"), # done
-            "arc_easy": ("inspect_evals.arc", "arc_easy"), # done
-            "assistant_bench_closed_book_one_shot": ("inspect_evals.assistant_bench", "assistant_bench_closed_book_one_shot"), # done
-            "assistant_bench_closed_book_zero_shot": ("inspect_evals.assistant_bench", "assistant_bench_closed_book_zero_shot"), # done
-            "assistant_bench_web_browser": ("inspect_evals.assistant_bench", "assistant_bench_web_browser"), # TODO: Requires GOOGLE_CSE_API_KEY
-            "assistant_bench_web_search_one_shot": ("inspect_evals.assistant_bench", "assistant_bench_web_search_one_shot"), # TODO: Requires GOOGLE_CSE_API_KEY
-            "assistant_bench_web_search_zero_shot": ("inspect_evals.assistant_bench", "assistant_bench_web_search_zero_shot"), # TODO: Requires GOOGLE_CSE_API_KEY
-            "bbeh": ("inspect_evals.bbeh", "bbeh"), # done
-            "bbeh_mini": ("inspect_evals.bbeh", "bbeh_mini"), # done
-            "bbh": ("inspect_evals.bbh", "bbh"), # done
-            "bbq": ("inspect_evals.bbq", "bbq"),  # done
-            "bigcodebench": ("inspect_evals.bigcodebench", "bigcodebench"), # TODO: very large
-            "bold": ("inspect_evals.bold", "bold"), # done
-            "boolq": ("inspect_evals.boolq", "boolq"), # done
-            "browse_comp": ("inspect_evals.browse_comp", "browse_comp"), # done
-            "chembench": ("inspect_evals.chembench", "chembench"), # done
-            "class_eval": ("inspect_evals.class_eval", "class_eval"), # done
-            "commonsense_qa": ("inspect_evals.commonsense_qa", "commonsense_qa"),  # done
-            "core_bench": ("inspect_evals.core_bench", "core_bench"), # TODO
-            "cybermetric_80": ("inspect_evals.cybermetric", "cybermetric_80"), # done
-            "cybermetric_500": ("inspect_evals.cybermetric", "cybermetric_500"), # done
-            "cybermetric_2000": ("inspect_evals.cybermetric", "cybermetric_2000"), #done
-            "cybermetric_10000": ("inspect_evals.cybermetric", "cybermetric_10000"), # done
-            "cybench": ("inspect_evals.cybench", "cybench"), # TODO simple
-            "cyse2_interpreter_abuse": ("inspect_evals.cyberseceval_2", "cyse2_interpreter_abuse"), # done
-            "cyse2_prompt_injection": ("inspect_evals.cyberseceval_2", "cyse2_prompt_injection"), # done
-            "cyse2_vulnerability_exploit": ("inspect_evals.cyberseceval_2", "cyse2_vulnerability_exploit"), # done
-            "visual_prompt_injection": ("inspect_evals.cyberseceval_3", "visual_prompt_injection"), # TODO
-            "docvqa": ("inspect_evals.docvqa", "docvqa"), # TODO
-            "drop": ("inspect_evals.drop", "drop"),  # done
-            "ds1000": ("inspect_evals.ds1000", "ds1000"), # done
-            "gaia": ("inspect_evals.gaia", "gaia"), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
-            "gaia_level1": ("inspect_evals.gaia", "gaia_level1"), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
-            "gaia_level2": ("inspect_evals.gaia", "gaia_level2"), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
-            "gaia_level3": ("inspect_evals.gaia", "gaia_level3"), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
-            "gdm_approved_directories": ("inspect_evals.gdm_capabilities", "gdm_approved_directories"), # TODO
-            "gdm_calculator_improvement": ("inspect_evals.gdm_capabilities", "gdm_calculator_improvement"), # TODO
-            "gdm_classifier_evasion": ("inspect_evals.gdm_capabilities", "gdm_classifier_evasion"), # TODO
-            "gdm_context_length_mod_instrumental_only": ("inspect_evals.gdm_capabilities", "gdm_context_length_mod_instrumental_only"), # TODO
-            "gdm_context_length_mod_irreversibility_only": ("inspect_evals.gdm_capabilities", "gdm_context_length_mod_irreversibility_only"), # TODO
-            "gdm_cover_your_tracks": ("inspect_evals.gdm_capabilities", "gdm_cover_your_tracks"), # TODO
-            "gdm_database_tool": ("inspect_evals.gdm_capabilities", "gdm_database_tool"), # TODO
-            "gdm_in_house_ctf": ("inspect_evals.gdm_capabilities", "gdm_in_house_ctf"), # TODOs
-            "gdm_intercode_ctf": ("inspect_evals.gdm_capabilities", "gdm_intercode_ctf"), # TODO
-            "gdm_latency_calculator": ("inspect_evals.gdm_capabilities", "gdm_latency_calculator"), # TODO
-            "gdm_max_messages_calculator": ("inspect_evals.gdm_capabilities", "gdm_max_messages_calculator"), # TODO
-            "gdm_max_tokens": ("inspect_evals.gdm_capabilities", "gdm_max_tokens"), # TODO
-            "gdm_oversight_frequency": ("inspect_evals.gdm_capabilities", "gdm_oversight_frequency"), # TODO
-            "gdm_oversight_pattern": ("inspect_evals.gdm_capabilities", "gdm_oversight_pattern"), # TODO
-            "gdm_read_logs": ("inspect_evals.gdm_capabilities", "gdm_read_logs"), # TODO
-            "gdm_strategic_rule_breaking": ("inspect_evals.gdm_capabilities", "gdm_strategic_rule_breaking"), # TODO
-            "gdm_turn_off_filters": ("inspect_evals.gdm_capabilities", "gdm_turn_off_filters"), # TODO
-            "gpqa_diamond": ("inspect_evals.gpqa", "gpqa_diamond"),  # done
-            "gsm8k": ("inspect_evals.gsm8k", "gsm8k"),  # done
-            "healthbench": ("inspect_evals.healthbench", "healthbench"), # done
-            "hellaswag": ("inspect_evals.hellaswag", "hellaswag"),  # done
-            "hle": ("inspect_evals.hle", "hle"), # TODO: HuggingFace authentication required
-            "humaneval": ("inspect_evals.humaneval", "humaneval"), # done
-            "ifeval": ("inspect_evals.ifeval", "ifeval"), # done
-            "infinite_bench_code_debug": ("inspect_evals.infinite_bench", "infinite_bench_code_debug"), # done
-            "infinite_bench_code_run": ("inspect_evals.infinite_bench", "infinite_bench_code_run"), # done
-            "infinite_bench_kv_retrieval": ("inspect_evals.infinite_bench", "infinite_bench_kv_retrieval"), # done
-            "infinite_bench_longbook_choice_eng": ("inspect_evals.infinite_bench", "infinite_bench_longbook_choice_eng"), # done
-            "infinite_bench_longdialogue_qa_eng": ("inspect_evals.infinite_bench", "infinite_bench_longdialogue_qa_eng"), # done
-            "infinite_bench_math_calc": ("inspect_evals.infinite_bench", "infinite_bench_math_calc"), # done
-            "infinite_bench_math_find": ("inspect_evals.infinite_bench", "infinite_bench_math_find"), # done
-            "infinite_bench_number_string": ("inspect_evals.infinite_bench", "infinite_bench_number_string"), # done
-            "infinite_bench_passkey": ("inspect_evals.infinite_bench", "infinite_bench_passkey"), # done
-            "lab_bench_cloning_scenarios": ("inspect_evals.lab_bench", "lab_bench_cloning_scenarios"), # done
-            "lab_bench_dbqa": ("inspect_evals.lab_bench", "lab_bench_dbqa"), # done 
-            "lab_bench_figqa": ("inspect_evals.lab_bench", "lab_bench_figqa"), # done
-            "lab_bench_litqa": ("inspect_evals.lab_bench", "lab_bench_litqa"), # done
-            "lab_bench_protocolqa": ("inspect_evals.lab_bench", "lab_bench_protocolqa"), # done
-            "lab_bench_seqqa": ("inspect_evals.lab_bench", "lab_bench_seqqa"), # done
-            "lingoly": ("inspect_evals.lingoly", "lingoly"), # TODO: HuggingFace authentication required
-            "lingoly_too": ("inspect_evals.lingoly", "lingoly_too"), # done
-            "livebench": ("inspect_evals.livebench", "livebench"), # done
-            "mask": ("inspect_evals.mask", "mask"), # TODO
-            "math": ("inspect_evals.math", "math"),  # done
-            "mathvista": ("inspect_evals.mathvista", "mathvista"), # done
-            "mbpp": ("inspect_evals.mbpp", "mbpp"), # done
-            "medqa": ("inspect_evals.medqa", "medqa"),  # done
-            "mgsm": ("inspect_evals.mgsm", "mgsm"), # done
-            "mle_bench": ("inspect_evals.mle_bench", "mle_bench"), # TODO: Kaggle Auth required
-            "mle_bench_full": ("inspect_evals.mle_bench", "mle_bench_full"), # TODO: Kaggle Auth required
-            "mle_bench_lite": ("inspect_evals.mle_bench", "mle_bench_lite"), # TODO: Kaggle Auth required
-            "mmlu": ("inspect_evals.mmlu", "mmlu_0_shot"), # done
-            "mmlu_0_shot": ("inspect_evals.mmlu", "mmlu_0_shot"), # done
-            "mmlu_5_shot": ("inspect_evals.mmlu", "mmlu_5_shot"), # done
-            "mmlu_pro": ("inspect_evals.mmlu_pro", "mmlu_pro"),  # done
-            "mmiu": ("inspect_evals.mmiu", "mmiu"), # TODO
-            "mmmu_multiple_choice": ("inspect_evals.mmmu", "mmmu_multiple_choice"), # done
-            "mmmu_open": ("inspect_evals.mmmu", "mmmu_open"), # done
-            "musr": ("inspect_evals.musr", "musr"), # done
-            "niah": ("inspect_evals.niah", "niah"), # done
-            "onet_m6": ("inspect_evals.onet", "onet_m6"), # done
-            "osworld": ("inspect_evals.osworld", "osworld"), # TODO
-            "paws": ("inspect_evals.paws", "paws"), # done
-            "personality_BFI": ("inspect_evals.personality", "personality_BFI"), # done
-            "personality_TRAIT": ("inspect_evals.personality", "personality_TRAIT"), # TODO: HuggingFace authentication required
-            "pre_flight": ("inspect_evals.pre_flight", "pre_flight"), # done
-            "piqa": ("inspect_evals.piqa", "piqa"),  # done
-            "pubmedqa": ("inspect_evals.pubmedqa", "pubmedqa"), # done
-            "race_h": ("inspect_evals.race_h", "race_h"), # done
-            "sciq": ("inspect_evals.sciknoweval", "sciknoweval"), # TODO
-            "scicode": ("inspect_evals.scicode", "scicode"),
-            "sec_qa_v1": ("inspect_evals.sec_qa", "sec_qa_v1"), # done
-            "sec_qa_v1_5_shot": ("inspect_evals.sec_qa", "sec_qa_v1_5_shot"), # done
-            "sec_qa_v2": ("inspect_evals.sec_qa", "sec_qa_v2"), # done
-            "sec_qa_v2_5_shot": ("inspect_evals.sec_qa", "sec_qa_v2_5_shot"), # done
-            "sevenllm_mcq_en": ("inspect_evals.sevenllm", "sevenllm_mcq_en"), # done
-            "sevenllm_mcq_zh": ("inspect_evals.sevenllm", "sevenllm_mcq_zh"), # done
-            "sevenllm_qa_en": ("inspect_evals.sevenllm", "sevenllm_qa_en"), # done
-            "sevenllm_qa_zh": ("inspect_evals.sevenllm", "sevenllm_qa_zh"), # TODO: keras 3 issue
-            "simpleqa": ("inspect_evals.simpleqa", "simpleqa"), # done
-            "sosbench": ("inspect_evals.sosbench", "sosbench"), # done
-            "squad": ("inspect_evals.squad", "squad"), # TODO: Dataset issue on HuggingFace side
-            "stereoset": ("inspect_evals.stereoset", "stereoset"), # done
-            "strong_reject": ("inspect_evals.strong_reject", "strong_reject"),  # done
-            "swe_bench": ("inspect_evals.swe_bench", "swe_bench"), # TODO extra deps
-            "swe_bench_verified_mini": ("inspect_evals.swe_bench", "swe_bench_verified_mini"), # TODO extra deps
-            "sycophancy": ("inspect_evals.sycophancy", "sycophancy"), # done
-            "truthfulqa": ("inspect_evals.truthfulqa", "truthfulqa"),  # done
-            "usaco": ("inspect_evals.usaco", "usaco"), # TODO
-            "vstar_bench_attribute_recognition": ("inspect_evals.vstar_bench", "vstar_bench_attribute_recognition"), # TODO
-            "vstar_bench_spatial_relationship_reasoning": ("inspect_evals.vstar_bench", "vstar_bench_spatial_relationship_reasoning"), # TODO
-            "winogrande": ("inspect_evals.winogrande", "winogrande"), # done
-            "wmdp_bio": ("inspect_evals.wmdp", "wmdp_bio"), # done
-            "wmdp_chem": ("inspect_evals.wmdp", "wmdp_chem"), # done
-            "wmdp_cyber": ("inspect_evals.wmdp", "wmdp_cyber"), # done
-            "worldsense": ("inspect_evals.worldsense", "worldsense"), # done
-            "writingbench": ("inspect_evals.writingbench", "writingbench"), # TODO: requires ANTHROPIC_API_KEY
-            "xstest": ("inspect_evals.xstest", "xstest"),  # done
-            "zerobench": ("inspect_evals.zerobench", "zerobench"), # done
-            "zerobench_subquestions": ("inspect_evals.zerobench", "zerobench_subquestions"), # done
-        }
 
         # Get evaluation function
         if evaluation not in EVALUATION_REGISTRY:
