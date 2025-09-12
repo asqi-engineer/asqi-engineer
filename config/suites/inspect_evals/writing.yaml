@@ -5,8 +5,10 @@ test_suite:
   - name: "inspect_writingbench"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
-      - "nova_lite"
+      - "openai_gpt4o_mini"
     params:
       evaluation: "writingbench"
-      evaluation_params: {}
+      evaluation_params: {
+        "judge_model": "openai/gpt-4o",
+      }
       limit: 2

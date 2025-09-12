@@ -102,7 +102,7 @@ test_suite:
   - name: "inspect_lingoly"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
-      - "nova_lite"
+      - "openai_gpt4o_mini"
     params:
       evaluation: "lingoly"
       evaluation_params: {}

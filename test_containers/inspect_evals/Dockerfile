@@ -19,7 +19,7 @@ ENV HF_DATASETS_TRUST_REMOTE_CODE=1
 # Clone inspect_evals and install with uv sync
 RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
     cd inspect_evals && \
-    git checkout 479a4685 && \
+    git checkout 72a9fe6 && \
     uv venv && \
     uv sync --all-extras
 

@@ -12,9 +12,8 @@ input_systems:
 input_schema:
   - name: "evaluation"
     type: "string"
-    required: false
-    description: "The evaluation to run (e.g., 'xstest', 'truthfulqa', 'mmlu'). Default: 'xstest'"
-    default: "xstest"
+    required: true
+    description: "The evaluation to run (e.g., 'xstest', 'truthfulqa', 'mmlu'). Default: 'medqa'"
   - name: "evaluation_params"
     type: "object"
     required: false

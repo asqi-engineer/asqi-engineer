@@ -235,9 +235,19 @@ test_suite:
   - name: "inspect_sosbench"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
-      - "nova_lite"
+      - "openai_gpt4o_mini"
     params:
       evaluation: "sosbench"
+      evaluation_params: {}
+      limit: 2
+
+  # SciKnowEval
+  - name: "inspect_sciq"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "sciq"
       evaluation_params: {}
       limit: 2
 

@@ -69,7 +69,7 @@ EVALUATION_REGISTRY = {
     # ✅ CyberMetric
     "cybermetric_80": ("inspect_evals.cybermetric", "cybermetric_80"), 
     "cybermetric_500": ("inspect_evals.cybermetric", "cybermetric_500"), 
-    "cybermetric_2000": ("inspect_evals.cybermetric", "cybermetric_2000"), #done
+    "cybermetric_2000": ("inspect_evals.cybermetric", "cybermetric_2000"),
     "cybermetric_10000": ("inspect_evals.cybermetric", "cybermetric_10000"), 
     # ✅ CyberSecEval_2
     "cyse2_interpreter_abuse": ("inspect_evals.cyberseceval_2", "cyse2_interpreter_abuse"), 
@@ -91,8 +91,8 @@ EVALUATION_REGISTRY = {
     "sec_qa_v2_5_shot": ("inspect_evals.sec_qa", "sec_qa_v2_5_shot"), 
 
     ## Safeguards
-    # ❌ AbstentionBench
-    "abstention_bench": ("inspect_evals.abstention_bench", "abstention_bench"), # TODO
+    # ✅ AbstentionBench
+    "abstention_bench": ("inspect_evals.abstention_bench", "abstention_bench"), # Info: #1 Dataset 'Idavidrein/gpqa' on HuggingFace is a gated dataset. You must be authenticated to access it. #2 Use openai scorer model as the default requires openrouter
     # ✅ AgentDojo
     "agentdojo": ("inspect_evals.agentdojo", "agentdojo"), 
     # ✅ AgentHarm
@@ -105,8 +105,8 @@ EVALUATION_REGISTRY = {
     "lab_bench_litqa": ("inspect_evals.lab_bench", "lab_bench_litqa"), 
     "lab_bench_protocolqa": ("inspect_evals.lab_bench", "lab_bench_protocolqa"), 
     "lab_bench_seqqa": ("inspect_evals.lab_bench", "lab_bench_seqqa"), 
-    # ❌ MASK
-    "mask": ("inspect_evals.mask", "mask"), # TODO
+    # ✅ MASK
+    "mask": ("inspect_evals.mask", "mask"), # Info: Dataset 'cais/MASK' on HuggingFace is a gated dataset. You must be authenticated to access it.
     # ✅ StereoSet
     "stereoset": ("inspect_evals.stereoset", "stereoset"), 
     # ✅ StrongREJECT
@@ -147,7 +147,7 @@ EVALUATION_REGISTRY = {
     # ✅ IFEval
     "ifeval": ("inspect_evals.ifeval", "ifeval"), 
     # 🟡 LingOly
-    "lingoly": ("inspect_evals.lingoly", "lingoly"), # TODO: HuggingFace authentication required
+    "lingoly": ("inspect_evals.lingoly", "lingoly"), # TODO: Dataset 'ambean/lingOly' is a gated dataset on the Hub. You must be authenticated to access it.
     "lingoly_too": ("inspect_evals.lingoly", "lingoly_too"), 
     # ✅ MMMU
     "mmmu_multiple_choice": ("inspect_evals.mmmu", "mmmu_multiple_choice"), 
@@ -163,7 +163,7 @@ EVALUATION_REGISTRY = {
     # ✅ RACE-H
     "race_h": ("inspect_evals.race_h", "race_h"), 
     # 🟡 SQuAD
-    "squad": ("inspect_evals.squad", "squad"), # TODO: Dataset issue on HuggingFace side
+    "squad": ("inspect_evals.squad", "squad"), # TODO: ValueError: Feature type 'List' not found. Available feature types: ['Value', 'ClassLabel', 'Translation', ...
     # ✅ WINOGRANDE
     "winogrande": ("inspect_evals.winogrande", "winogrande"), 
     # ✅ WorldSense
@@ -189,7 +189,7 @@ EVALUATION_REGISTRY = {
     "agie_math": ("inspect_evals.agieval", "agie_math"), 
     "agie_sat_en": ("inspect_evals.agieval", "agie_sat_en"), 
     "agie_sat_en_without_passage": ("inspect_evals.agieval", "agie_sat_en_without_passage"), 
-    "agie_sat_math": ("inspect_evals.agieval", "agie_sat_math"), #done
+    "agie_sat_math": ("inspect_evals.agieval", "agie_sat_math"), 
     # ✅ AIR Bench
     "air_bench": ("inspect_evals.air_bench", "air_bench"), 
     # ✅ ChemBench
@@ -200,8 +200,8 @@ EVALUATION_REGISTRY = {
     "gpqa_diamond": ("inspect_evals.gpqa", "gpqa_diamond"),  
     # ✅ HealthBench
     "healthbench": ("inspect_evals.healthbench", "healthbench"), 
-    # 🟡 Humanity's Last Exam
-    "hle": ("inspect_evals.hle", "hle"), # TODO: HuggingFace authentication required
+    # ✅ Humanity's Last Exam
+    "hle": ("inspect_evals.hle", "hle"), # Info: Gated Dataset (cais/hle on HuggingFace)
     # ✅ LiveBench
     "livebench": ("inspect_evals.livebench", "livebench"), 
     # ✅ MMLU-Pro
@@ -219,15 +219,15 @@ EVALUATION_REGISTRY = {
     # ✅ PubMedQA
     "pubmedqa": ("inspect_evals.pubmedqa", "pubmedqa"), 
     # ✅ SOS BENCH
-    "sosbench": ("inspect_evals.sosbench", "sosbench"), 
+    "sosbench": ("inspect_evals.sosbench", "sosbench"), # Info: Fails with bedrock: "The model returned the\nfollowing errors: Malformed input request: #: extraneous key [thinking] is not  \npermitted, please reformat your input and try again.
     # ❌ SciKnowEval
-    "sciq": ("inspect_evals.sciknoweval", "sciknoweval"), # TODO
+    "sciq": ("inspect_evals.sciknoweval", "sciknoweval"), # TODO: No such file or directory: './src/inspect_evals/sciknoweval/evaluator_prompt.yaml'
     # ✅ SimpleQA
     "simpleqa": ("inspect_evals.simpleqa", "simpleqa"), 
     # ✅ TruthfulQA
     "truthfulqa": ("inspect_evals.truthfulqa", "truthfulqa"),  
     # ✅ XSTest
-    "xstest": ("inspect_evals.xstest", "xstest"),  
+    "xstest": ("inspect_evals.xstest", "xstest"), # Info: gated dataset (walledai/XSTest on HuggingFace)
 
     ## Scheming
     # ✅ Agentic Misalignment
@@ -271,11 +271,11 @@ EVALUATION_REGISTRY = {
     ## ✅✅ Personality
     # ✅ Personality
     "personality_BFI": ("inspect_evals.personality", "personality_BFI"), 
-    "personality_TRAIT": ("inspect_evals.personality", "personality_TRAIT"), # Gated Dataset (mirlab/TRAIT on HuggingFace)
-    
-    ## Writing
-    # 🟡 WritingBench
-    "writingbench": ("inspect_evals.writingbench", "writingbench"), # TODO: requires ANTHROPIC_API_KEY
+    "personality_TRAIT": ("inspect_evals.personality", "personality_TRAIT"), # Info: Gated Dataset (mirlab/TRAIT on HuggingFace)
+
+    ## ✅✅ Writing
+    # ✅ WritingBench
+    "writingbench": ("inspect_evals.writingbench", "writingbench"), # Info: Set judge_model to "openai/{model}"
 }
 
 # Configure datasets to trust remote code before any other imports
@@ -292,6 +292,70 @@ try:
     INSPECT_LOG_AVAILABLE = True
 except ImportError:
     INSPECT_LOG_AVAILABLE = False
+
+def _configure_provider_environment(base_url: str, model: str, api_key: str) -> tuple[str, str]:
+    """
+    Configure environment variables for LLM provider based on base URL.
+    
+    Args:
+        base_url: The base URL of the LLM API endpoint
+        model: The model name
+        api_key: The API key for authentication
+        
+    Returns:
+        Tuple of (full_model_name, provider_upper_case)
+        
+    Raises:
+        ValueError: If URL parsing fails or provider cannot be determined
+    """
+    try:
+        parsed = urlparse(base_url)
+        if not parsed.netloc:
+            raise ValueError(f"Invalid base_url: no netloc found in {base_url}")
+            
+        netloc = parsed.netloc
+        parts = netloc.split('.')
+        
+        # Extract provider name more robustly
+        if len(parts) < 2:
+            if ':' in netloc:
+                provider = netloc.split(':')[0]
+            else:
+                provider = netloc
+        else:
+            if ':' in parts[-2]:
+                provider = parts[-2].split(':')[0]
+            else:
+                provider = parts[-2]
+        
+        provider = provider.lower().strip()
+        if not provider:
+            raise ValueError(f"Could not determine provider from URL: {base_url}")
+        
+        # For localhost or unknown providers, use a generic provider name
+        if provider in ['localhost', 'unknown']:
+            provider = 'lightllm'
+            
+        # Set full model name based on provider
+        if provider == 'openai':
+            full_model = f"openai/{model}"
+        else:
+            full_model = f"openai-api/{provider}/{model}"
+        
+        # Always set OpenAI compatibility variables
+        os.environ["OPENAI_API_KEY"] = api_key
+        os.environ["OPENAI_BASE_URL"] = base_url
+        
+        # Set provider-specific environment variables
+        provider_upper = provider.upper().replace('-', '_')
+        os.environ[f"{provider_upper}_API_KEY"] = api_key
+        os.environ[f"{provider_upper}_BASE_URL"] = base_url
+        
+        return full_model, provider_upper
+        
+    except Exception as e:
+        raise ValueError(f"Failed to configure provider environment: {e}") from e
+
 
 def main():
     """Main entrypoint for Inspect evaluation."""
@@ -339,25 +403,7 @@ def main():
 
         # Set environment variables for inspect
         # Inspect requires model names in the format "provider/model" or "openai-api/provider/model"
-        parsed = urlparse(base_url)
-        netloc = parsed.netloc
-        parts = netloc.split('.')
-        provider = parts[-2] if len(parts) >= 2 else 'unknown'
-        
-        if provider == 'openai':
-            full_model = f"openai/{model}"
-        else:
-            full_model = f"openai-api/{provider}/{model}"
-            provider_upper = provider.upper().replace('-', '_')
-        
-        # Always set OPENAI_API_KEY and OPENAI_BASE_URL for compatibility
-        os.environ["OPENAI_API_KEY"] = api_key
-        os.environ["OPENAI_BASE_URL"] = base_url
-        
-        # Also set provider-specific environment variables
-        provider_upper = provider.upper().replace('-', '_')
-        os.environ[f"{provider_upper}_API_KEY"] = api_key
-        os.environ[f"{provider_upper}_BASE_URL"] = base_url
+        full_model, _ = _configure_provider_environment(base_url, model, api_key)
         
         os.environ["INSPECT_EVAL_MODEL"] = full_model
 
