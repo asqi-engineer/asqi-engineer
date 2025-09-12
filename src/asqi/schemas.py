@@ -54,6 +54,9 @@ class Manifest(BaseModel):
     name: str = Field(..., description="The canonical name for the test framework.")
     version: str
     description: Optional[str] = None
+    host_access: bool = Field(
+        False, description="Whether the container requires host access (e.g., for Docker-in-Docker)."
+    )
     input_systems: List[SystemInput] = Field(
         ...,
         description="Systems required as input. Should minimally include a system_under_test",

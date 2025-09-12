@@ -1,6 +1,7 @@
 name: "inspect"
 version: "1.0"
 description: "Generic Inspect evaluation container for running various LLM evaluations"
+host_access: true
 
 input_systems:
   - name: "system_under_test"

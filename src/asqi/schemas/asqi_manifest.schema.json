@@ -178,6 +178,12 @@
       "default": null,
       "title": "Description"
     },
+    "host_access": {
+      "default": false,
+      "description": "Whether the container requires host access (e.g., for Docker-in-Docker).",
+      "title": "Host Access",
+      "type": "boolean"
+    },
     "input_systems": {
       "description": "Systems required as input. Should minimally include a system_under_test",
       "items": {

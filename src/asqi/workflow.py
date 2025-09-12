@@ -260,8 +260,11 @@ def execute_single_test(
         container_env["API_KEY"] = sut_params["api_key"]
         DBOS.logger.info("Using direct API key for authentication")
 
-    # Configure Docker-in-Docker for inspect
-    if "inspect" in image:
+    # Extract manifest to check for host access requirements
+    manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
+    
+    # Configure Docker-in-Docker for containers that require host access
+    if manifest and manifest.host_access:
         container_config.run_params.update({
             "privileged": True,
             "volumes": {
