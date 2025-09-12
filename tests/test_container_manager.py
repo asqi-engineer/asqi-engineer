@@ -622,6 +622,24 @@ class TestRunContainerWithArgs:
         # And a warning was logged about skipping due to shutdown
         mock_logger.warning.assert_called()
 
+    def test_run_container_with_name(self, mock_container_setup):
+        """Test that container name is passed to Docker when provided."""
+        mock_client, mock_container, _ = mock_container_setup
+        container_config = ContainerConfig()
+
+        test_name = "test_container_name"
+        result = run_container_with_args(
+            image="test:latest",
+            args=["--test"],
+            container_config=container_config,
+            name=test_name,
+        )
+
+        # Verify the name was passed to containers.run
+        call_kwargs = mock_client.containers.run.call_args[1]
+        assert call_kwargs["name"] == test_name
+        assert result["success"] is True
+
 
 class TestDecommissionContainer:
     """Test decommissioning of containers."""

@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import uuid
 from datetime import datetime
 from difflib import get_close_matches
 from typing import Any, Dict, List, Optional
@@ -263,11 +264,17 @@ def execute_single_test(
     # Execute container
     result.start_time = time.time()
 
+    # Generate container name: {test}_{sut}_{short_uuid}
+    container_name = f"{sut_name}-{test_name}-{str(uuid.uuid4())[:8]}".lower().replace(
+        " ", "_"
+    )
+
     container_result = run_container_with_args(
         image=image,
         args=command_args,
         environment=container_env,
         container_config=container_config,
+        name=container_name,
     )
 
     result.end_time = time.time()
