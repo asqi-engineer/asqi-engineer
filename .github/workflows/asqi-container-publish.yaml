@@ -13,16 +13,13 @@ env:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: write
       id-token: write
 
     steps:
-      - name: Free disk space
-        run: rm -rf /opt/hostedtoolcache
-
       - name: Checkout repository
         uses: actions/checkout@v5
 
@@ -81,7 +78,7 @@ jobs:
   publish:
     if: github.event_name != 'pull_request'
     needs: build-and-test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment:
       name: publish-docker-registry
     permissions:
@@ -90,9 +87,6 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - name: Free disk space
-        run: rm -rf /opt/hostedtoolcache
-
       - name: Download Docker image artifact
         uses: actions/download-artifact@v5
         with:

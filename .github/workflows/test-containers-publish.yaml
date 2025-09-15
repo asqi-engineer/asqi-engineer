@@ -16,7 +16,7 @@ jobs:
   determine-changed:
     name: Determine changed containers
     if: startsWith(github.ref, 'refs/heads/') || github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -73,7 +73,7 @@ jobs:
     name: Build and test changed containers
     needs: determine-changed
     if: startsWith(github.ref, 'refs/heads/') || github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: write
@@ -82,18 +82,6 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
     steps:
-      - name: Free Disk Space
-        if: ${{ matrix.skip != true }}
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: false
-          docker-images: true
-          swap-storage: false
-
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -137,7 +125,7 @@ jobs:
     name: Publish changed containers
     needs: [determine-changed, build-and-test-changed]
     if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment:
       name: publish-docker-registry
     permissions:
@@ -182,7 +170,7 @@ jobs:
   build-and-test-tag:
     name: Build and test tagged container
     if: startsWith(github.ref, 'refs/tags/test_containers/')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: write
@@ -193,17 +181,6 @@ jobs:
       name: ${{ steps.parse.outputs.name }}
       version: ${{ steps.parse.outputs.version }}
     steps:
-      - name: Free Disk Space
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: false
-          docker-images: true
-          swap-storage: false
-
       - name: Parse tag
         id: parse
         run: |
@@ -259,7 +236,7 @@ jobs:
     name: Publish tagged container
     needs: build-and-test-tag
     if: startsWith(github.ref, 'refs/tags/test_containers/')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment:
       name: publish-docker-registry
     permissions:
