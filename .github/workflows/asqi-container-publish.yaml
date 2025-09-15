@@ -152,23 +152,27 @@ jobs:
       - name: Import and push multi-platform images
         id: push
         run: |
-          # Process tags
-          TAGS=$(echo '${{ steps.meta.outputs.json }}' | jq -r '.tags[] | "-t " + .')
+          # Load OCI archives and capture loaded image IDs
+          AMD64_IMAGE_ID=$(docker load -i /tmp/image-linux-amd64.tar | grep -o '[a-f0-9]\{64\}')
+          ARM64_IMAGE_ID=$(docker load -i /tmp/image-linux-arm64.tar | grep -o '[a-f0-9]\{64\}')
 
-          # Import platform images (dry run)
+          # Use docker inspect to get image references by architecture
+          AMD64_IMAGE=$(docker inspect ${AMD64_IMAGE_ID} --format '{{index .RepoTags 0}}')
+          ARM64_IMAGE=$(docker inspect ${ARM64_IMAGE_ID} --format '{{index .RepoTags 0}}')
+
+          # Push images and get digests reliably
+          docker push --quiet "${AMD64_IMAGE}"
+          docker push --quiet "${ARM64_IMAGE}"
+          AMD64_DIGEST=$(docker buildx imagetools inspect ${AMD64_IMAGE} --format '{{.Manifest.Digest}}')
+          ARM64_DIGEST=$(docker buildx imagetools inspect ${ARM64_IMAGE} --format '{{.Manifest.Digest}}')
+
+          # Create manifest list with final tags pointing to digests
           docker buildx imagetools create \
-            --dry-run \
-            ${TAGS} \
-            oci-archive:/tmp/image-linux-amd64.tar \
-            oci-archive:/tmp/image-linux-arm64.tar
+            $(echo '${{ steps.meta.outputs.json }}' | jq -cr '.tags | map("-t " + .) | join(" ")') \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${AMD64_DIGEST} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${ARM64_DIGEST}
 
-          # Actually push the images
-          docker buildx imagetools create \
-            ${TAGS} \
-            oci-archive:/tmp/image-linux-amd64.tar \
-            oci-archive:/tmp/image-linux-arm64.tar
-
-          # Get digest for attestation
+          # Get final manifest digest for attestation
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             DIGEST=$(docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} --format '{{.Manifest.Digest}}')
             echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
