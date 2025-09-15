@@ -264,10 +264,11 @@ def execute_single_test(
     # Execute container
     result.start_time = time.time()
 
-    # Generate container name: {test}_{sut}_{short_uuid}
-    container_name = f"{sut_name}-{test_name}-{str(uuid.uuid4())[:8]}".lower().replace(
-        " ", "_"
-    )
+    # Generate container name: {test}-{sut}-{short_uuid}
+    truncated_sut = sut_name.lower().replace(" ", "_")[:25]
+    truncated_test = test_name.lower().replace(" ", "_")[:25]
+    prefix = f"{truncated_sut}-{truncated_test}"
+    container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
 
     container_result = run_container_with_args(
         image=image,
