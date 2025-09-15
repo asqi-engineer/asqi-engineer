@@ -152,16 +152,19 @@ jobs:
       - name: Import and push multi-platform images
         id: push
         run: |
-          # Import platform images
+          # Process tags
+          TAGS=$(echo '${{ steps.meta.outputs.json }}' | jq -r '.tags[] | "-t " + .')
+
+          # Import platform images (dry run)
           docker buildx imagetools create \
             --dry-run \
-            $(echo '${{ steps.meta.outputs.tags }}' | tr '\n' ' ' | sed 's/^/-t /' | sed 's/ / -t /g') \
+            ${TAGS} \
             oci-archive:/tmp/image-linux-amd64.tar \
             oci-archive:/tmp/image-linux-arm64.tar
 
           # Actually push the images
           docker buildx imagetools create \
-            $(echo '${{ steps.meta.outputs.tags }}' | tr '\n' ' ' | sed 's/^/-t /' | sed 's/ / -t /g') \
+            ${TAGS} \
             oci-archive:/tmp/image-linux-amd64.tar \
             oci-archive:/tmp/image-linux-arm64.tar
 
