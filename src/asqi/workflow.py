@@ -264,7 +264,7 @@ def execute_single_test(
     # Execute container
     result.start_time = time.time()
 
-    # Generate container name: {test}-{sut}-{short_uuid}
+    # Generate container name: {sut}-{test}-{short_uuid}
     truncated_sut = sut_name.lower().replace(" ", "_")[:25]
     truncated_test = test_name.lower().replace(" ", "_")[:25]
     prefix = f"{truncated_sut}-{truncated_test}"
