@@ -7,24 +7,32 @@ on:
         required: false
       DOCKERHUB_TOKEN:
         required: false
+
 env:
   REGISTRY: docker.io
   IMAGE_NAME: asqiengineer/asqi-engineer
 
 jobs:
-  build-and-test:
+  build:
     runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
     permissions:
       contents: read
       packages: write
       id-token: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Prepare platform variables
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
 
       - name: Extract Docker metadata
         id: meta
@@ -41,23 +49,57 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build Docker image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build platform image
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-${{ env.PLATFORM_PAIR }}-${{ github.run_id }}
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ env.PLATFORM_PAIR }}
+            type=gha
+          cache-to: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ env.PLATFORM_PAIR }},mode=max
+            type=gha,mode=max
+          outputs: type=docker,dest=/tmp/image-${{ env.PLATFORM_PAIR }}.tar
+
+      - name: Upload platform image
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ env.PLATFORM_PAIR }}
+          path: /tmp/image-${{ env.PLATFORM_PAIR }}.tar
+          retention-days: 1
+
+  test:
+    runs-on: self-hosted
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image (local architecture)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
           load: true
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          outputs: type=docker,dest=/tmp/image.tar
+          tags: test-image:latest
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-test
+            type=gha
 
       - name: Smoke test
         run: |
-          # Load the image and run smoke test
-          docker load -i /tmp/image.tar
           echo "Running smoke test with --help command..."
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${GITHUB_SHA::7} --help
+          docker run --rm test-image:latest --help
 
           # Verify exit code
           if [ $? -eq 0 ]; then
@@ -67,18 +109,10 @@ jobs:
             exit 1
           fi
 
-      - name: Upload Docker image as artifact
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: /tmp/image.tar
-          retention-days: 1
-
   publish:
     if: github.event_name != 'pull_request'
-    needs: build-and-test
     runs-on: self-hosted
+    needs: [build, test]
     environment:
       name: publish-docker-registry
     permissions:
@@ -87,11 +121,18 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - name: Download Docker image artifact
-        uses: actions/download-artifact@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Download all platform images
+        uses: actions/download-artifact@v4
         with:
-          name: docker-image
           path: /tmp
+          pattern: image-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log into Docker Hub
         uses: docker/login-action@v3
@@ -100,18 +141,51 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push ASQI Docker image
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Import and push multi-platform images
         id: push
         run: |
-          docker load -i /tmp/image.tar
-          if [[ $GITHUB_REF == refs/heads/main ]]; then
-            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          fi
+          # Load docker archives with proper tags
+          docker load -i /tmp/image-linux-amd64.tar
+          docker load -i /tmp/image-linux-arm64.tar
+          AMD64_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-linux-amd64-${{ github.run_id }}
+          ARM64_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-linux-arm64-${{ github.run_id }}
+
+          # Push images and get digests 
+          docker push --quiet "${AMD64_IMAGE}"
+          docker push --quiet "${ARM64_IMAGE}"
+          AMD64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${AMD64_IMAGE}" | cut -d'@' -f2)
+          ARM64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${ARM64_IMAGE}" | cut -d'@' -f2)
+
+          # Create manifest list with final tags pointing to digests
+          docker buildx imagetools create \
+            $(echo '${{ steps.meta.outputs.json }}' | jq -cr '.tags | map("-t " + .) | join(" ")') \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${AMD64_DIGEST} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${ARM64_DIGEST}
+
+          # Get final manifest digest for attestation
           if [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-            DIGEST=$(docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION} | grep digest: | cut -d' ' -f3)
+            DIGEST=$(docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} --format '{{.Manifest.Digest}}')
             echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
 
       - name: Attest
         if: startsWith(github.ref, 'refs/tags/')
