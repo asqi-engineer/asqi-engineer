@@ -59,6 +59,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-${{ env.PLATFORM_PAIR }}-${{ github.run_id }}
           cache-from: |
             type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ env.PLATFORM_PAIR }}
             type=gha
@@ -158,13 +159,11 @@ jobs:
       - name: Import and push multi-platform images
         id: push
         run: |
-          # Load docker archives and capture loaded image IDs
-          AMD64_IMAGE_ID=$(docker load -i /tmp/image-linux-amd64.tar | grep -o '[a-f0-9]\{64\}')
-          ARM64_IMAGE_ID=$(docker load -i /tmp/image-linux-arm64.tar | grep -o '[a-f0-9]\{64\}')
-
-          # Use docker inspect to get image references by architecture
-          AMD64_IMAGE=$(docker inspect ${AMD64_IMAGE_ID} --format '{{index .RepoTags 0}}')
-          ARM64_IMAGE=$(docker inspect ${ARM64_IMAGE_ID} --format '{{index .RepoTags 0}}')
+          # Load docker archives with proper tags
+          docker load -i /tmp/image-linux-amd64.tar
+          docker load -i /tmp/image-linux-arm64.tar
+          AMD64_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-linux-amd64-${{ github.run_id }}
+          ARM64_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-linux-arm64-${{ github.run_id }}
 
           # Push images and get digests reliably
           docker push --quiet "${AMD64_IMAGE}"
