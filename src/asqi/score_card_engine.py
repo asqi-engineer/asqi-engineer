@@ -245,6 +245,30 @@ class ScoreCardEngine:
         )
         return filtered
 
+    def validate_scorecard_test_names(
+        self,
+        test_results: List[TestExecutionResult],
+        score_card: ScoreCard,
+    ) -> None:
+        """
+        Check that the score card indicators are applicable to the available test results.
+
+        Args:
+            test_results: List of test execution results
+            score_card: Score card to be evaluated against
+
+        Raises:
+            ValueError: If no indicators match any test names in the test results
+        """
+        results_test_names = {result.test_name for result in test_results}
+        score_card_test_names = {
+            indicator.apply_to.test_name for indicator in score_card.indicators
+        }
+        if not results_test_names & score_card_test_names:
+            raise ValueError(
+                "Score card indicators don't match any test names in the test results"
+            )
+
     def extract_metric_values(
         self, test_results: List[TestExecutionResult], metric_path: str
     ) -> List[Any]:
@@ -491,7 +515,12 @@ class ScoreCardEngine:
 
         Returns:
             List of evaluation result dictionaries
+
+        Raises:
+            ValueError: If no indicators match any test names in the test results
         """
+        self.validate_scorecard_test_names(test_results, score_card)
+
         all_test_evaluations = []
 
         for indicator in score_card.indicators:

@@ -1,3 +1,5 @@
+import pytest
+
 from asqi.schemas import AssessmentRule, ScoreCard, ScoreCardFilter, ScoreCardIndicator
 from asqi.score_card_engine import ScoreCardEngine, get_nested_value, parse_metric_path
 from asqi.workflow import TestExecutionResult
@@ -237,6 +239,60 @@ class TestscorecardEngine:
             assert "sut_name" in evaluation
             assert "outcome" in evaluation
 
+    def test_evaluate_scorecard_with_some_matching_results(self):
+        """Test score_card evaluation when some test results match the filter."""
+        # Create test results with only one matching name
+        results = [
+            self.create_test_result("test2", "image1", {"success": True, "score": 0.9}),
+        ]
+
+        # Create score_card looking for several different test names
+        score_card = ScoreCard(
+            score_card_name="Test score_card",
+            indicators=[
+                ScoreCardIndicator(
+                    name="Individual test success",
+                    apply_to=ScoreCardFilter(test_name="test1"),
+                    metric="success",
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="equal_to", threshold=True
+                        ),
+                        AssessmentRule(
+                            outcome="FAIL", condition="equal_to", threshold=False
+                        ),
+                    ],
+                ),
+                ScoreCardIndicator(
+                    name="Individual score quality",
+                    apply_to=ScoreCardFilter(test_name="test2"),
+                    metric="score",
+                    assessment=[
+                        AssessmentRule(
+                            outcome="EXCELLENT",
+                            condition="greater_equal",
+                            threshold=0.9,
+                        ),
+                        AssessmentRule(
+                            outcome="GOOD", condition="greater_equal", threshold=0.8
+                        ),
+                        AssessmentRule(
+                            outcome="NEEDS_IMPROVEMENT",
+                            condition="less_than",
+                            threshold=0.8,
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        result = self.engine.evaluate_scorecard(results, score_card)
+
+        # Should return a list with one good result and one error result
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert "No test results found for test_name" in result[0]["error"]
+
     def test_evaluate_scorecard_with_no_matching_results(self):
         """Test score_card evaluation when no test results match the filter."""
         # Create test results with different test name
@@ -264,12 +320,8 @@ class TestscorecardEngine:
             ],
         )
 
-        result = self.engine.evaluate_scorecard(results, score_card)
-
-        # Should return a list with one error result
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert "No test results found for test_name" in result[0]["error"]
+        with pytest.raises(ValueError, match="Score card indicators don't match"):
+            self.engine.evaluate_scorecard(results, score_card)
 
 
 class TestNestedMetricAccess:
