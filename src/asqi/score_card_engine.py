@@ -260,11 +260,11 @@ class ScoreCardEngine:
         Raises:
             ValueError: If no indicators match any test names in the test results
         """
-        results_test_names = [result.test_name for result in test_results]
-        score_card_indicators_test_names = [
+        results_test_names = {result.test_name for result in test_results}
+        score_card_test_names = {
             indicator.apply_to.test_name for indicator in score_card.indicators
-        ]
-        if not list(set(results_test_names) & set(score_card_indicators_test_names)):
+        }
+        if not results_test_names & score_card_test_names:
             raise ValueError(
                 "Score card indicators don't match any test names in the test results"
             )
