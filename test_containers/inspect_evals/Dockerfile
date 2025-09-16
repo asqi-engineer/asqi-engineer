@@ -19,9 +19,10 @@ ENV HF_DATASETS_TRUST_REMOTE_CODE=1
 # Clone inspect_evals and install with uv sync
 RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
     cd inspect_evals && \
-    git checkout 72a9fe6 && \
+    git checkout 0d37467 && \
     uv venv && \
-    uv sync --all-extras
+    uv sync --all-extras && \
+    uv add tf-keras
 
 # Stage 2: Runtime
 FROM python:3.11-slim
