@@ -352,7 +352,7 @@ def evaluate_score_card(
             }
             all_evaluations.append(error_result)
             DBOS.logger.error(f"Score card validation failed: {e}")
-        except (KeyError, AttributeError, TypeError) as e:
+        except (KeyError, AttributeError, TypeError, ValueError) as e:
             error_result = {
                 "score_card_name": score_card_config.get("score_card_name", "unknown"),
                 "error": f"Score card evaluation error: {e}",
