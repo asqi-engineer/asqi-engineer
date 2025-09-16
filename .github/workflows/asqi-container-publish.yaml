@@ -59,9 +59,13 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          outputs: type=oci,dest=/tmp/image-${{ env.PLATFORM_PAIR }}.tar
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ env.PLATFORM_PAIR }}
+            type=gha
+          cache-to: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ env.PLATFORM_PAIR }},mode=max
+            type=gha,mode=max
+          outputs: type=docker,dest=/tmp/image-${{ env.PLATFORM_PAIR }}.tar
 
       - name: Upload platform image
         uses: actions/upload-artifact@v4
@@ -87,7 +91,9 @@ jobs:
           context: .
           load: true
           tags: test-image:latest
-          cache-from: type=gha
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-test
+            type=gha
 
       - name: Smoke test
         run: |
@@ -152,7 +158,7 @@ jobs:
       - name: Import and push multi-platform images
         id: push
         run: |
-          # Load OCI archives and capture loaded image IDs
+          # Load docker archives and capture loaded image IDs
           AMD64_IMAGE_ID=$(docker load -i /tmp/image-linux-amd64.tar | grep -o '[a-f0-9]\{64\}')
           ARM64_IMAGE_ID=$(docker load -i /tmp/image-linux-arm64.tar | grep -o '[a-f0-9]\{64\}')
 
