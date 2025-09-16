@@ -165,11 +165,11 @@ jobs:
           AMD64_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-linux-amd64-${{ github.run_id }}
           ARM64_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-linux-arm64-${{ github.run_id }}
 
-          # Push images and get digests reliably
+          # Push images and get digests 
           docker push --quiet "${AMD64_IMAGE}"
           docker push --quiet "${ARM64_IMAGE}"
-          AMD64_DIGEST=$(docker buildx imagetools inspect ${AMD64_IMAGE} --format '{{.Manifest.Digest}}')
-          ARM64_DIGEST=$(docker buildx imagetools inspect ${ARM64_IMAGE} --format '{{.Manifest.Digest}}')
+          AMD64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${AMD64_IMAGE}" | cut -d'@' -f2)
+          ARM64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${ARM64_IMAGE}" | cut -d'@' -f2)
 
           # Create manifest list with final tags pointing to digests
           docker buildx imagetools create \
