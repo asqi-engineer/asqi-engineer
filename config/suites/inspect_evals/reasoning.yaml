@@ -1,190 +1,194 @@
 suite_name: "Inspect Reasoning Evaluation Suite"
 test_suite:
 
-  # ARC
-  - name: "inspect_arc"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "arc"
-      evaluation_params: {}
-      limit: 2
+  # # ARC
+  # - name: "inspect_arc"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "arc"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_arc_challenge"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "arc_challenge"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_arc_challenge"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "arc_challenge"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_arc_easy"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "arc_easy"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_arc_easy"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "arc_easy"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # BBH
-  - name: "inspect_bbh"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "bbh"
-      evaluation_params: {}
-      limit: 2
+  # # BBH
+  # - name: "inspect_bbh"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "bbh"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # BIG-Bench Extra Hard
-  - name: "inspect_bbeh"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "bbeh"
-      evaluation_params: {}
-      limit: 2
+  # # BIG-Bench Extra Hard
+  # - name: "inspect_bbeh"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "bbeh"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_bbeh_mini"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "bbeh_mini"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_bbeh_mini"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "bbeh_mini"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # BoolQ
-  - name: "inspect_boolq"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "boolq"
-      evaluation_params: {}
-      limit: 2
+  # # BoolQ
+  # - name: "inspect_boolq"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "boolq"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # DROP
-  - name: "inspect_drop"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "drop"
-      evaluation_params: {}
-      limit: 2
+  # # DROP
+  # - name: "inspect_drop"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "drop"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # HellaSwag
-  - name: "inspect_hellaswag"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "hellaswag"
-      evaluation_params: {}
-      limit: 2
+  # # HellaSwag
+  # - name: "inspect_hellaswag"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "hellaswag"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # IFEval
-  - name: "inspect_ifeval"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "ifeval"
-      evaluation_params: {}
-      limit: 2
+  # # IFEval
+  # - name: "inspect_ifeval"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "ifeval"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # LingOly
-  - name: "inspect_lingoly"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "openai_gpt4o_mini"
-    params:
-      evaluation: "lingoly"
-      evaluation_params: {}
-      limit: 2
+  # # LingOly
+  # - name: "inspect_lingoly"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "openai_gpt4o_mini"
+  #   params:
+  #     evaluation: "lingoly"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_lingoly_too"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "lingoly_too"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_lingoly_too"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "lingoly_too"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # MMMU
-  - name: "inspect_mmmu_multiple_choice"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "mmmu_multiple_choice"
-      evaluation_params: {}
-      limit: 2
+  # # MMMU
+  # - name: "inspect_mmmu_multiple_choice"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmmu_multiple_choice"
+  #     evaluation_params:
+  #       subjects:
+  #         - Computer_Science
+  #     limit: 2
 
-  - name: "inspect_mmmu_open"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "mmmu_open"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_mmmu_open"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "mmmu_open"
+  #     evaluation_params:
+  #       subjects:
+  #         - Computer_Science
+  #     limit: 2
 
-  # MuSR
-  - name: "inspect_musr"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "musr"
-      evaluation_params: {}
-      limit: 2
+  # # MuSR
+  # - name: "inspect_musr"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "musr"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # Needle in a Haystack (NIAH)
-  - name: "inspect_niah"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "niah"
-      evaluation_params: {}
-      limit: 2
+  # # Needle in a Haystack (NIAH)
+  # - name: "inspect_niah"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "niah"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # PAWS
-  - name: "inspect_paws"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "paws"
-      evaluation_params: {}
-      limit: 2
+  # # PAWS
+  # - name: "inspect_paws"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "paws"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # PIQA
-  - name: "inspect_piqa"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "piqa"
-      evaluation_params: {}
-      limit: 2
+  # # PIQA
+  # - name: "inspect_piqa"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "piqa"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # RACE-H
-  - name: "inspect_race_h"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "race_h"
-      evaluation_params: {}
-      limit: 2
+  # # RACE-H
+  # - name: "inspect_race_h"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "race_h"
+  #     evaluation_params: {}
+  #     limit: 2
 
   # SQuAD
   - name: "inspect_squad"
@@ -196,104 +200,104 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  # WINOGRANDE
-  - name: "inspect_winogrande"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "winogrande"
-      evaluation_params: {}
-      limit: 2
+  # # WINOGRANDE
+  # - name: "inspect_winogrande"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "winogrande"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # WorldSense
-  - name: "inspect_worldsense"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "worldsense"
-      evaluation_params: {}
-      limit: 2
+  # # WorldSense
+  # - name: "inspect_worldsense"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "worldsense"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  # ∞Bench
-  - name: "inspect_infinite_bench_code_debug"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "infinite_bench_code_debug"
-      evaluation_params: {}
-      limit: 2
+  # # ∞Bench
+  # - name: "inspect_infinite_bench_code_debug"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_code_debug"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_infinite_bench_code_run"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "infinite_bench_code_run"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_infinite_bench_code_run"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_code_run"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_infinite_bench_kv_retrieval"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "infinite_bench_kv_retrieval"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_infinite_bench_kv_retrieval"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_kv_retrieval"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_infinite_bench_longbook_choice_eng"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "infinite_bench_longbook_choice_eng"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_infinite_bench_longbook_choice_eng"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_longbook_choice_eng"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_infinite_bench_longdialogue_qa_eng"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "infinite_bench_longdialogue_qa_eng"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_infinite_bench_longdialogue_qa_eng"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_longdialogue_qa_eng"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_infinite_bench_math_calc"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "infinite_bench_math_calc"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_infinite_bench_math_calc"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_math_calc"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_infinite_bench_math_find"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "infinite_bench_math_find"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_infinite_bench_math_find"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_math_find"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_infinite_bench_number_string"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "infinite_bench_number_string"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_infinite_bench_number_string"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_number_string"
+  #     evaluation_params: {}
+  #     limit: 2
 
-  - name: "inspect_infinite_bench_passkey"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "infinite_bench_passkey"
-      evaluation_params: {}
-      limit: 2
+  # - name: "inspect_infinite_bench_passkey"
+  #   image: "asqiengineer/test-container:inspect_evals-latest"
+  #   systems_under_test:
+  #     - "nova_lite"
+  #   params:
+  #     evaluation: "infinite_bench_passkey"
+  #     evaluation_params: {}
+  #     limit: 2

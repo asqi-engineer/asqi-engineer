@@ -1,6 +1,36 @@
 suite_name: "Inspect Cybersecurity Evaluation Suite"
 test_suite:
 
+  # CyberSecurityEval 3
+  - name: "inspect_cyberseceval_3"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "cyberseceval_3"
+      evaluation_params: {}
+      limit: 2
+
+  # Catastrophic Cyber Capabilities Benchmark (3CB)
+  - name: "inspect_threecb"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "threecb"
+      evaluation_params: {}
+      limit: 2
+  
+  # Cybench
+  - name: "inspect_cybench"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "cybench"
+      evaluation_params: {}
+      limit: 2   
+
   # CyberMetric
   - name: "inspect_cybermetric_80"
     image: "asqiengineer/test-container:inspect_evals-latest"

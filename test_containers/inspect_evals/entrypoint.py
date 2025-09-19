@@ -11,8 +11,8 @@ from urllib.parse import urlparse
 from inspect_ai import eval
 from inspect_ai.log import read_eval_log
 
-# fine: safeguards, mathematics, bias, personality, writing, knowledge
-# todo: coding, assistants, cybersecurity, reasoning, scheming, multimodal
+# fine: safeguards, mathematics, bias, personality, writing, knowledge, reasoning
+# todo: assistants, cybersecurity, scheming, coding, multimodal 
 
 
 EVALUATION_REGISTRY = {
@@ -68,11 +68,11 @@ EVALUATION_REGISTRY = {
 
     ## Cybersecurity
     # ❌ CYBERSECEVAL 3
-    "visual_prompt_injection": ("inspect_evals.cyberseceval_3", False), # TODO
+    "visual_prompt_injection": ("inspect_evals.cyberseceval_3", True), # TODO
     # ❌ Catastrophic Cyber Capabilities Benchmark (3CB)
-    "threecb": ("inspect_evals.threecb", False), # TODO
+    "threecb": ("inspect_evals.threecb", True), # TODO
     # ❌ Cybench
-    "cybench": ("inspect_evals.cybench", False), # TODO simple
+    "cybench": ("inspect_evals.cybench", True), # TODO simple
     # ✅ CyberMetric
     "cybermetric_80": ("inspect_evals.cybermetric", True), 
     "cybermetric_500": ("inspect_evals.cybermetric", True), 
@@ -123,47 +123,28 @@ EVALUATION_REGISTRY = {
     "mgsm": ("inspect_evals.mgsm", True), 
     "mathvista": ("inspect_evals.mathvista", True), 
 
-    ## Reasoning
-    # ✅ ARC
-    "arc": ("inspect_evals.arc", True),  
+    ## ✅ Reasoning
     "arc_challenge": ("inspect_evals.arc", True), 
     "arc_easy": ("inspect_evals.arc", True), 
-    # ✅ BBH
     "bbh": ("inspect_evals.bbh", True), 
-    # ✅ BIG-Bench Extra Hard
     "bbeh": ("inspect_evals.bbeh", True), 
     "bbeh_mini": ("inspect_evals.bbeh", True), 
-    # ✅ BoolQ
     "boolq": ("inspect_evals.boolq", True), 
-    # ✅ DROP
     "drop": ("inspect_evals.drop", True),  
-    # ✅ HellaSwag
     "hellaswag": ("inspect_evals.hellaswag", True),  
-    # ✅ IFEval
     "ifeval": ("inspect_evals.ifeval", True), 
-    # ❌ LingOly
-    "lingoly": ("inspect_evals.lingoly", False), # TODO: Dataset 'ambean/lingOly' is a gated dataset on the Hub. You must be authenticated to access it.
+    "lingoly": ("inspect_evals.lingoly", True), # Info: Dataset 'ambean/lingOly' is a gated dataset on the Hub. You must be authenticated to access it.
     "lingoly_too": ("inspect_evals.lingoly", True), 
-    # ✅ MMMU
     "mmmu_multiple_choice": ("inspect_evals.mmmu", True), 
     "mmmu_open": ("inspect_evals.mmmu", True), 
-    # ✅ MuSR
     "musr": ("inspect_evals.musr", True), 
-    # ✅ Needle in a Haystack (NIAH)
     "niah": ("inspect_evals.niah", True), 
-    # ✅ PAWS
     "paws": ("inspect_evals.paws", True), 
-    # ✅ PIQA
     "piqa": ("inspect_evals.piqa", True),  
-    # ✅ RACE-H
     "race_h": ("inspect_evals.race_h", True), 
-    # ❌ SQuAD
     "squad": ("inspect_evals.squad", False), # TODO: ValueError: Feature type 'List' not found. Available feature types: ['Value', 'ClassLabel', 'Translation', ...
-    # ✅ WINOGRANDE
     "winogrande": ("inspect_evals.winogrande", True), 
-    # ✅ WorldSense
     "worldsense": ("inspect_evals.worldsense", True), 
-    # ✅ ∞Bench
     "infinite_bench_code_debug": ("inspect_evals.infinite_bench", True), 
     "infinite_bench_code_run": ("inspect_evals.infinite_bench", True), 
     "infinite_bench_kv_retrieval": ("inspect_evals.infinite_bench", True), 
