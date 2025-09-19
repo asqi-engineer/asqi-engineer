@@ -11,6 +11,10 @@ from urllib.parse import urlparse
 from inspect_ai import eval
 from inspect_ai.log import read_eval_log
 
+# fine: safeguards, mathematics, bias, personality, writing, knowledge
+# todo: coding, assistants, cybersecurity, reasoning, scheming, multimodal
+
+
 EVALUATION_REGISTRY = {
     ## Coding
     # ❌ APPS
@@ -93,42 +97,30 @@ EVALUATION_REGISTRY = {
     "sec_qa_v2": ("inspect_evals.sec_qa", True), 
     "sec_qa_v2_5_shot": ("inspect_evals.sec_qa", True), 
 
-    ## Safeguards
-    # ✅ AbstentionBench
+    ## ✅ Safeguards
     "abstention_bench": ("inspect_evals.abstention_bench", True), # Info: #1 Dataset 'Idavidrein/gpqa' on HuggingFace is a gated dataset. You must be authenticated to access it. #2 Use openai scorer model as the default requires openrouter
-    # ✅ AgentDojo
     "agentdojo": ("inspect_evals.agentdojo", True), 
-    # ✅ AgentHarm
     "agentharm": ("inspect_evals.agentharm", True), 
     "agentharm_benign": ("inspect_evals.agentharm", True), 
-    # ✅ LAB-Bench
     "lab_bench_cloning_scenarios": ("inspect_evals.lab_bench", True), 
     "lab_bench_dbqa": ("inspect_evals.lab_bench", True),  
     "lab_bench_figqa": ("inspect_evals.lab_bench", True), 
     "lab_bench_litqa": ("inspect_evals.lab_bench", True), 
     "lab_bench_protocolqa": ("inspect_evals.lab_bench", True), 
     "lab_bench_seqqa": ("inspect_evals.lab_bench", True), 
-    # ✅ MASK
     "mask": ("inspect_evals.mask", True), # Info: Dataset 'cais/MASK' on HuggingFace is a gated dataset. You must be authenticated to access it.
-    # ✅ StereoSet
+    "make_me_pay": ("inspect_evals.make_me_pay", True),
     "stereoset": ("inspect_evals.stereoset", True), 
-    # ✅ StrongREJECT
     "strong_reject": ("inspect_evals.strong_reject", True),  
-    # ✅ WMDP
     "wmdp_bio": ("inspect_evals.wmdp", True), 
     "wmdp_chem": ("inspect_evals.wmdp", True), 
     "wmdp_cyber": ("inspect_evals.wmdp", True), 
 
-    ## ✅✅ Mathematics
-    # ✅ AIME 2024
+    ## ✅ Mathematics
     "aime2024": ("inspect_evals.aime2024", True), 
-    # ✅ GSM8K
     "gsm8k": ("inspect_evals.gsm8k", True),  
-    # ✅ MATH
     "math": ("inspect_evals.math", True),  
-    # ✅ MGSM
     "mgsm": ("inspect_evals.mgsm", True), 
-    # ✅ MathVista
     "mathvista": ("inspect_evals.mathvista", True), 
 
     ## Reasoning
@@ -182,8 +174,7 @@ EVALUATION_REGISTRY = {
     "infinite_bench_number_string": ("inspect_evals.infinite_bench", True), 
     "infinite_bench_passkey": ("inspect_evals.infinite_bench", True), 
 
-    ## Knowledge
-    # ✅ AGIEval
+    ## ✅ Knowledge
     "agie_aqua_rat": ("inspect_evals.agieval", True), 
     "agie_logiqa_en": ("inspect_evals.agieval", True), 
     "agie_lsat_ar": ("inspect_evals.agieval", True), 
@@ -193,43 +184,24 @@ EVALUATION_REGISTRY = {
     "agie_sat_en": ("inspect_evals.agieval", True), 
     "agie_sat_en_without_passage": ("inspect_evals.agieval", True), 
     "agie_sat_math": ("inspect_evals.agieval", True), 
-    # ✅ AIR Bench
     "air_bench": ("inspect_evals.air_bench", True), 
-    # ✅ ChemBench
     "chembench": ("inspect_evals.chembench", True), 
-    # ✅ CommonsenseQA
     "commonsense_qa": ("inspect_evals.commonsense_qa", True),  
-    # ✅ GPQA
     "gpqa_diamond": ("inspect_evals.gpqa", True),  
-    # ✅ HealthBench
     "healthbench": ("inspect_evals.healthbench", True), 
-    # ✅ Humanity's Last Exam
     "hle": ("inspect_evals.hle", True), # Info: Gated Dataset (cais/hle on HuggingFace)
-    # ✅ LiveBench
     "livebench": ("inspect_evals.livebench", True), 
-    # ✅ MMLU-Pro
     "mmlu_pro": ("inspect_evals.mmlu_pro", True),  
-    # ✅ MMLU
-    "mmlu": ("inspect_evals.mmlu", True), 
     "mmlu_0_shot": ("inspect_evals.mmlu", True), 
     "mmlu_5_shot": ("inspect_evals.mmlu", True), 
-    # ✅ MedQA
     "medqa": ("inspect_evals.medqa", True),  
-    # ✅ O-NET
     "onet_m6": ("inspect_evals.onet", True), 
-    # ✅ Pre-Flight
     "pre_flight": ("inspect_evals.pre_flight", True), 
-    # ✅ PubMedQA
     "pubmedqa": ("inspect_evals.pubmedqa", True), 
-    # ✅ SOS BENCH
     "sosbench": ("inspect_evals.sosbench", True), # Info: Fails with bedrock: "The model returned the\nfollowing errors: Malformed input request: #: extraneous key [thinking] is not  \npermitted, please reformat your input and try again.
-    # ❌ SciKnowEval
-    "sciq": ("inspect_evals.sciknoweval", False), # TODO: No such file or directory: './src/inspect_evals/sciknoweval/evaluator_prompt.yaml'
-    # ✅ SimpleQA
+    "sciknoweval": ("inspect_evals.sciknoweval", True), # TODO: No such file or directory: './src/inspect_evals/sciknoweval/evaluator_prompt.yaml'
     "simpleqa": ("inspect_evals.simpleqa", True), 
-    # ✅ TruthfulQA
     "truthfulqa": ("inspect_evals.truthfulqa", True),  
-    # ✅ XSTest
     "xstest": ("inspect_evals.xstest", True), # Info: gated dataset (walledai/XSTest on HuggingFace)
 
     ## Scheming
@@ -264,20 +236,16 @@ EVALUATION_REGISTRY = {
     # ✅ ZeroBench
     "zerobench": ("inspect_evals.zerobench", True), 
     "zerobench_subquestions": ("inspect_evals.zerobench", True), 
-
-    ## Bias
-    # ✅ BBQ
+    
+    ## ✅ Bias
     "bbq": ("inspect_evals.bbq", True),  
-    # ❌ BOLD
-    "bold": ("inspect_evals.bold", True), # TODO: Your currently installed version of Keras is Keras 3, but this is not yet supported in Transformers.
+    "bold": ("inspect_evals.bold", True),
 
-    ## ✅✅ Personality
-    # ✅ Personality
+    ## ✅ Personality
     "personality_BFI": ("inspect_evals.personality", True), 
     "personality_TRAIT": ("inspect_evals.personality", True), # Info: Gated Dataset (mirlab/TRAIT on HuggingFace)
 
-    ## ✅✅ Writing
-    # ✅ WritingBench
+    ## ✅ Writing
     "writingbench": ("inspect_evals.writingbench", True), # Info: Set judge_model to "openai/{model}"
 }
 
@@ -444,65 +412,51 @@ def main():
                     os.makedirs(persistent_log_dir, exist_ok=True)
                     shutil.copy2(log.location, os.path.join(persistent_log_dir, os.path.basename(log.location)))
 
-            metrics = {}
+            # ---  metrics + sample extraction ---------------------------------
+            # We already have the in-memory log; only fall back to disk if results missing.
             try:
-                eval_log = read_eval_log(log.location)
-                
-                # Get metrics from the log's results
-                if (hasattr(eval_log, 'results') and eval_log.results and 
-                    hasattr(eval_log.results, 'scores') and eval_log.results.scores):
-                    eval_score = eval_log.results.scores[0]
-                    if hasattr(eval_score, 'metrics') and eval_score.metrics:
-                        for metric_name, metric_obj in eval_score.metrics.items():
-                            if hasattr(metric_obj, 'value'):
-                                metrics[metric_name] = metric_obj.value
-            except (ImportError, Exception) as e:
-                # Fallback to the old method if reading the log file fails
-                print(f"DEBUG: Failed to read eval log: {e}", file=sys.stderr)
-                pass
+                results = getattr(log, "results", None)
+                if results is None:
+                    try:
+                        disk_log = read_eval_log(log.location)
+                        results = getattr(disk_log, "results", None)
+                        print("DEBUG: Used disk log fallback for results", file=sys.stderr)
+                    except Exception as e:
+                        print(f"DEBUG: Failed disk log fallback: {e}", file=sys.stderr)
 
-            # Extract results from the log
-            results = log.results
-            if results is None:
-                # Try to read from the eval log file even if results is None
-                try:
-                    eval_log = read_eval_log(log.location)
-                    if hasattr(eval_log, 'results') and eval_log.results:
-                        results = eval_log.results
-                except:
-                    pass
-                
                 if results is None:
                     raise ValueError("Evaluation failed - no results available")
 
-            # Handle different result structures
-            if hasattr(results, 'scores') and results.scores is not None:
-                scores = results.scores
-            elif isinstance(results, list) and len(results) > 0:
-                # If results is a list, get the first result
-                scores = results[0].scores if hasattr(results[0], 'scores') else None
-            else:
-                scores = None
-                print("DEBUG: No scores found", file=sys.stderr)
+                # Normalize to first score group
+                score_group = None
+                if hasattr(results, "scores") and getattr(results, "scores"):
+                    score_group = results.scores[0]
+                elif isinstance(results, list) and results and hasattr(results[0], "scores") and results[0].scores:
+                    score_group = results[0].scores[0]
 
-            # Count response types from individual sample scores if available
-            total_samples = 0
+                metrics = {}
+                if score_group and getattr(score_group, "metrics", None):
+                    for name, metric_obj in score_group.metrics.items():
+                        value = getattr(metric_obj, "value", None)
+                        if value is not None:
+                            metrics[name] = value
 
-            if scores is not None and hasattr(scores, 'samples') and scores.samples:
-                for sample_score in scores.samples:
-                    if hasattr(sample_score, 'score'):
-                        total_samples += 1
-
-            # If we don't have sample-level scores, try to get total_samples from other sources
-            if total_samples == 0:
-                # Try to get sample count from the log or results
-                if hasattr(log, 'samples') and log.samples:
+                # Determine sample count
+                if score_group and getattr(score_group, "samples", None):
+                    total_samples = len(score_group.samples)
+                elif getattr(log, "samples", None):
                     total_samples = len(log.samples)
-                elif not isinstance(results, list) and hasattr(results, 'samples') and results.samples:
-                    total_samples = len(results.samples)
                 else:
-                    # Default to the limit if we can't determine the actual count
+                    total_samples = 0
+
+                # Preserve previous behavior: default to limit if still unknown
+                if total_samples == 0:
                     total_samples = limit
+            except Exception as e:
+                print(f"DEBUG: Metric extraction failed: {e}", file=sys.stderr)
+                metrics = {}
+                total_samples = limit
+            # ---------------------------------------------------------------------------
 
             result = {
                 "success": True,

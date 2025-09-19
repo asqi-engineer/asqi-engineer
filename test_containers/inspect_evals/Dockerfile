@@ -51,6 +51,11 @@ ENV CYBENCH_ACKNOWLEDGE_RISKS=1
 COPY manifest.yaml .
 COPY entrypoint.py .
 
+# TODO: Find a better solution for this
+# Create symlink for evaluator_prompt.yaml to fix sciknoweval path issue
+RUN mkdir -p /app/src/inspect_evals/sciknoweval && \
+    ln -sf /app/inspect_evals/src/inspect_evals/sciknoweval/evaluator_prompt.yaml /app/src/inspect_evals/sciknoweval/evaluator_prompt.yaml
+
 RUN chmod +x entrypoint.py
 
 ENTRYPOINT ["python", "./entrypoint.py"]

@@ -242,13 +242,15 @@ test_suite:
       limit: 2
 
   # SciKnowEval
-  - name: "inspect_sciq"
+  - name: "inspect_sciknoweval"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
     params:
-      evaluation: "sciq"
-      evaluation_params: {}
+      evaluation: "sciknoweval"
+      evaluation_params:
+        domain: biology
+        level: l4
       limit: 2
 
   # SimpleQA
