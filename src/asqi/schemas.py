@@ -55,7 +55,8 @@ class Manifest(BaseModel):
     version: str
     description: Optional[str] = None
     host_access: bool = Field(
-        False, description="Whether the container requires host access (e.g., for Docker-in-Docker)."
+        False,
+        description="Whether the container requires host access (e.g., for Docker-in-Docker).",
     )
     input_systems: List[SystemInput] = Field(
         ...,

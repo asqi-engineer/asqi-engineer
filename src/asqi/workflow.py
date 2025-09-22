@@ -263,19 +263,23 @@ def execute_single_test(
 
     # Extract manifest to check for host access requirements
     manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
-    
+
     # Configure Docker-in-Docker for containers that require host access
     if manifest and manifest.host_access:
-        container_config.run_params.update({
-            "privileged": True,
-            "volumes": {
-                "/var/run/docker.sock": {
-                    "bind": "/var/run/docker.sock",
-                    "mode": "rw"
-                }
+        container_config.run_params.update(
+            {
+                "privileged": True,
+                "volumes": {
+                    "/var/run/docker.sock": {
+                        "bind": "/var/run/docker.sock",
+                        "mode": "rw",
+                    }
+                },
             }
-        })
-        DBOS.logger.info(f"Configured Docker-in-Docker for test: {test_name} (image: {image})")
+        )
+        DBOS.logger.info(
+            f"Configured Docker-in-Docker for test: {test_name} (image: {image})"
+        )
 
     # Execute container
     result.start_time = time.time()
