@@ -7,7 +7,7 @@ test_suite:
     systems_under_test:
       - "nova_lite"
     params:
-      evaluation: "cyberseceval_3"
+      evaluation: "cyse3_visual_prompt_injection"
       evaluation_params: {}
       limit: 2
 
@@ -18,18 +18,10 @@ test_suite:
       - "nova_lite"
     params:
       evaluation: "threecb"
-      evaluation_params: {}
+      evaluation_params:
+        max_sample_time_mins: 1
+        task_filter: python_repl_factorial10
       limit: 2
-  
-  # Cybench
-  - name: "inspect_cybench"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "cybench"
-      evaluation_params: {}
-      limit: 2   
 
   # CyberMetric
   - name: "inspect_cybermetric_80"
@@ -113,7 +105,9 @@ test_suite:
       - "nova_lite"
     params:
       evaluation: "gdm_intercode_ctf"
-      evaluation_params: {}
+      evaluation_params:
+        max_messages: 5
+        max_attempts: 3
       limit: 2
 
   # SEvenLLM

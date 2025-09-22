@@ -11,28 +11,25 @@ from urllib.parse import urlparse
 from inspect_ai import eval
 from inspect_ai.log import read_eval_log
 
-# fine: safeguards, mathematics, bias, personality, writing, knowledge, reasoning
-# todo: assistants, cybersecurity, scheming, coding, multimodal 
-
 
 EVALUATION_REGISTRY = {
     ## Coding
     # ❌ APPS
-    "apps": ("inspect_evals.apps", False), # TODO
+    "apps": ("inspect_evals.apps", False),
     # ✅ AgentBench
-    "agent_bench_os": ("inspect_evals.agent_bench", True), 
+    "agent_bench_os": ("inspect_evals.agent_bench", False), 
     # ❌ BigCodeBench
     "bigcodebench": ("inspect_evals.bigcodebench", False), # TODO: very large
     # ❌ CORE-Bench
     "core_bench": ("inspect_evals.core_bench", False), # TODO
     # ✅ ClassEval
-    "class_eval": ("inspect_evals.class_eval", True), 
+    "class_eval": ("inspect_evals.class_eval", False), 
     # ✅ DS-1000
-    "ds1000": ("inspect_evals.ds1000", True), 
+    "ds1000": ("inspect_evals.ds1000", False), 
     # ✅ HumanEval
-    "humaneval": ("inspect_evals.humaneval", True), 
+    "humaneval": ("inspect_evals.humaneval", False), 
     # ✅ MBPP
-    "mbpp": ("inspect_evals.mbpp", True), 
+    "mbpp": ("inspect_evals.mbpp", False), 
     # ❌ MLE-bench
     "mle_bench": ("inspect_evals.mle_bench", False), # TODO: Kaggle Auth required
     "mle_bench_full": ("inspect_evals.mle_bench", False), # TODO: Kaggle Auth required
@@ -41,57 +38,48 @@ EVALUATION_REGISTRY = {
     "swe_bench": ("inspect_evals.swe_bench", False), # TODO extra deps
     "swe_bench_verified_mini": ("inspect_evals.swe_bench", False), # TODO extra deps
     # ❌ SciCode
-    "scicode": ("inspect_evals.scicode", False), # TODO
+    "scicode": ("inspect_evals.scicode", False),
     # ✅ USACO
-    "usaco": ("inspect_evals.usaco", True), # TODO
+    "usaco": ("inspect_evals.usaco", False),
 
     ## Assistants
     # ❌ AssistantBench
-    "assistant_bench_closed_book_one_shot": ("inspect_evals.assistant_bench", True), 
-    "assistant_bench_closed_book_zero_shot": ("inspect_evals.assistant_bench", True), 
+    "assistant_bench_closed_book_one_shot": ("inspect_evals.assistant_bench", False), 
+    "assistant_bench_closed_book_zero_shot": ("inspect_evals.assistant_bench", False), 
     "assistant_bench_web_browser": ("inspect_evals.assistant_bench", False), # TODO: Requires GOOGLE_CSE_API_KEY
     "assistant_bench_web_search_one_shot": ("inspect_evals.assistant_bench", False), # TODO: Requires GOOGLE_CSE_API_KEY
     "assistant_bench_web_search_zero_shot": ("inspect_evals.assistant_bench", False), # TODO: Requires GOOGLE_CSE_API_KEY
     # ✅ BrowseComp
-    "browse_comp": ("inspect_evals.browse_comp", True), 
+    "browse_comp": ("inspect_evals.browse_comp", False), 
     # ❌ GAIA
-    "gaia": ("inspect_evals.gaia", True), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
-    "gaia_level1": ("inspect_evals.gaia", True), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
-    "gaia_level2": ("inspect_evals.gaia", True), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
-    "gaia_level3": ("inspect_evals.gaia", True), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+    "gaia": ("inspect_evals.gaia", False), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+    "gaia_level1": ("inspect_evals.gaia", False), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+    "gaia_level2": ("inspect_evals.gaia", False), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+    "gaia_level3": ("inspect_evals.gaia", False), # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
     # ❌ Mind2Web
-    "mind2web": ("inspect_evals.mind2web", False), # TODO
+    "mind2web": ("inspect_evals.mind2web", False),
     # ❌ OSWorld
-    "osworld": ("inspect_evals.osworld", False), # TODO
+    "osworld": ("inspect_evals.osworld", False),
     # ✅ Sycophancy
-    "sycophancy": ("inspect_evals.sycophancy", True), 
+    "sycophancy": ("inspect_evals.sycophancy", False), 
 
-    ## Cybersecurity
-    # ❌ CYBERSECEVAL 3
-    "visual_prompt_injection": ("inspect_evals.cyberseceval_3", True), # TODO
-    # ❌ Catastrophic Cyber Capabilities Benchmark (3CB)
-    "threecb": ("inspect_evals.threecb", True), # TODO
-    # ❌ Cybench
-    "cybench": ("inspect_evals.cybench", True), # TODO simple
-    # ✅ CyberMetric
+    ## ✅ Cybersecurity
+    "cyse3_visual_prompt_injection": ("inspect_evals.cyberseceval_3", True),
+    "threecb": ("inspect_evals.threecb", True),
+    "cybench": ("inspect_evals.cybench", False),
     "cybermetric_80": ("inspect_evals.cybermetric", True), 
     "cybermetric_500": ("inspect_evals.cybermetric", True), 
     "cybermetric_2000": ("inspect_evals.cybermetric", True),
     "cybermetric_10000": ("inspect_evals.cybermetric", True), 
-    # ✅ CyberSecEval_2
     "cyse2_interpreter_abuse": ("inspect_evals.cyberseceval_2", True), 
     "cyse2_prompt_injection": ("inspect_evals.cyberseceval_2", True), 
     "cyse2_vulnerability_exploit": ("inspect_evals.cyberseceval_2", True), 
-    # ✅ GDM Dangerous Capabilities: Capture the Flag
-    "gdm_in_house_ctf": ("inspect_evals.gdm_capabilities", True), 
-    # ✅ InterCode: Security and Coding Capture-the-Flag Challenges
-    "gdm_intercode_ctf": ("inspect_evals.gdm_capabilities", True), # TODO
-    # ❌ SEvenLLM
+    "gdm_in_house_ctf": ("inspect_evals.gdm_capabilities", False), 
+    "gdm_intercode_ctf": ("inspect_evals.gdm_capabilities", True),
     "sevenllm_mcq_en": ("inspect_evals.sevenllm", True), 
     "sevenllm_mcq_zh": ("inspect_evals.sevenllm", True), 
     "sevenllm_qa_en": ("inspect_evals.sevenllm", True), 
-    "sevenllm_qa_zh": ("inspect_evals.sevenllm", False), # TODO: keras 3 issue
-    # ✅ SecQA
+    "sevenllm_qa_zh": ("inspect_evals.sevenllm", True),
     "sec_qa_v1": ("inspect_evals.sec_qa", True), 
     "sec_qa_v1_5_shot": ("inspect_evals.sec_qa", True), 
     "sec_qa_v2": ("inspect_evals.sec_qa", True), 
@@ -180,43 +168,43 @@ EVALUATION_REGISTRY = {
     "pre_flight": ("inspect_evals.pre_flight", True), 
     "pubmedqa": ("inspect_evals.pubmedqa", True), 
     "sosbench": ("inspect_evals.sosbench", True), # Info: Fails with bedrock: "The model returned the\nfollowing errors: Malformed input request: #: extraneous key [thinking] is not  \npermitted, please reformat your input and try again.
-    "sciknoweval": ("inspect_evals.sciknoweval", True), # TODO: No such file or directory: './src/inspect_evals/sciknoweval/evaluator_prompt.yaml'
+    "sciknoweval": ("inspect_evals.sciknoweval", True),
     "simpleqa": ("inspect_evals.simpleqa", True), 
     "truthfulqa": ("inspect_evals.truthfulqa", True),  
     "xstest": ("inspect_evals.xstest", True), # Info: gated dataset (walledai/XSTest on HuggingFace)
 
     ## Scheming
     # ✅ Agentic Misalignment
-    "agentic_misalignment": ("inspect_evals.agentic_misalignment", True), 
+    "agentic_misalignment": ("inspect_evals.agentic_misalignment", False), 
     # ❌ GDM Dangerous Capabilities: Self-reasoning
-    "gdm_approved_directories": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_calculator_improvement": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_context_length_mod_instrumental_only": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_context_length_mod_irreversibility_only": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_database_tool": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_latency_calculator": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_max_messages_calculator": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_max_tokens": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_oversight_frequency": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_read_logs": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_turn_off_filters": ("inspect_evals.gdm_capabilities", False), # TODO
+    "gdm_approved_directories": ("inspect_evals.gdm_capabilities", False),
+    "gdm_calculator_improvement": ("inspect_evals.gdm_capabilities", False),
+    "gdm_context_length_mod_instrumental_only": ("inspect_evals.gdm_capabilities", False),
+    "gdm_context_length_mod_irreversibility_only": ("inspect_evals.gdm_capabilities", False),
+    "gdm_database_tool": ("inspect_evals.gdm_capabilities", False),
+    "gdm_latency_calculator": ("inspect_evals.gdm_capabilities", False),
+    "gdm_max_messages_calculator": ("inspect_evals.gdm_capabilities", False),
+    "gdm_max_tokens": ("inspect_evals.gdm_capabilities", False),
+    "gdm_oversight_frequency": ("inspect_evals.gdm_capabilities", False),
+    "gdm_read_logs": ("inspect_evals.gdm_capabilities", False),
+    "gdm_turn_off_filters": ("inspect_evals.gdm_capabilities", False),
     # ❌ GDM Dangerous Capabilities: Stealth
-    "gdm_classifier_evasion": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_cover_your_tracks": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_oversight_pattern": ("inspect_evals.gdm_capabilities", False), # TODO
-    "gdm_strategic_rule_breaking": ("inspect_evals.gdm_capabilities", False), # TODO
+    "gdm_classifier_evasion": ("inspect_evals.gdm_capabilities", False),
+    "gdm_cover_your_tracks": ("inspect_evals.gdm_capabilities", False),
+    "gdm_oversight_pattern": ("inspect_evals.gdm_capabilities", False),
+    "gdm_strategic_rule_breaking": ("inspect_evals.gdm_capabilities", False),
 
     ## Multimodal
     # ❌ DocVQA
-    "docvqa": ("inspect_evals.docvqa", False), # TODO
+    "docvqa": ("inspect_evals.docvqa", False),
     # ❌ MMIU
-    "mmiu": ("inspect_evals.mmiu", False), # TODO
+    "mmiu": ("inspect_evals.mmiu", False),
     # ❌ V*Bench
-    "vstar_bench_attribute_recognition": ("inspect_evals.vstar_bench", False), # TODO
-    "vstar_bench_spatial_relationship_reasoning": ("inspect_evals.vstar_bench", False), # TODO
+    "vstar_bench_attribute_recognition": ("inspect_evals.vstar_bench", False),
+    "vstar_bench_spatial_relationship_reasoning": ("inspect_evals.vstar_bench", False),
     # ✅ ZeroBench
-    "zerobench": ("inspect_evals.zerobench", True), 
-    "zerobench_subquestions": ("inspect_evals.zerobench", True), 
+    "zerobench": ("inspect_evals.zerobench", False), 
+    "zerobench_subquestions": ("inspect_evals.zerobench", False), 
     
     ## ✅ Bias
     "bbq": ("inspect_evals.bbq", True),  
@@ -394,7 +382,6 @@ def main():
                     shutil.copy2(log.location, os.path.join(persistent_log_dir, os.path.basename(log.location)))
 
             # ---  metrics + sample extraction ---------------------------------
-            # We already have the in-memory log; only fall back to disk if results missing.
             try:
                 results = getattr(log, "results", None)
                 if results is None:
@@ -437,7 +424,6 @@ def main():
                 print(f"DEBUG: Metric extraction failed: {e}", file=sys.stderr)
                 metrics = {}
                 total_samples = limit
-            # ---------------------------------------------------------------------------
 
             result = {
                 "success": True,
