@@ -22,7 +22,8 @@ RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
     git checkout 0d37467 && \
     uv venv && \
     uv sync --all-extras && \
-    uv add tf-keras
+    uv add tf-keras && \
+    uv add google-genai
 
 # Stage 2: Runtime
 FROM python:3.11-slim

@@ -42,45 +42,43 @@ EVALUATION_REGISTRY = {
     "usaco": ("inspect_evals.usaco", False),
     ## Assistants
     # ❌ AssistantBench
-    "assistant_bench_closed_book_one_shot": ("inspect_evals.assistant_bench", False),
-    "assistant_bench_closed_book_zero_shot": ("inspect_evals.assistant_bench", False),
+    "assistant_bench_closed_book_one_shot": ("inspect_evals.assistant_bench", True),
+    "assistant_bench_closed_book_zero_shot": ("inspect_evals.assistant_bench", True),
     "assistant_bench_web_browser": (
         "inspect_evals.assistant_bench",
         False,
-    ),  # TODO: Requires GOOGLE_CSE_API_KEY
+    ),
     "assistant_bench_web_search_one_shot": (
         "inspect_evals.assistant_bench",
         False,
-    ),  # TODO: Requires GOOGLE_CSE_API_KEY
+    ),
     "assistant_bench_web_search_zero_shot": (
         "inspect_evals.assistant_bench",
         False,
-    ),  # TODO: Requires GOOGLE_CSE_API_KEY
-    # ✅ BrowseComp
-    "browse_comp": ("inspect_evals.browse_comp", False),
-    # ❌ GAIA
+    ),
+    "browse_comp": ("inspect_evals.browse_comp", True),
     "gaia": (
         "inspect_evals.gaia",
-        False,
-    ),  # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+        True,
+    ),  # Info: Requires HF_TOKEN and access to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
     "gaia_level1": (
         "inspect_evals.gaia",
-        False,
-    ),  # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+        True,
+    ),  # Info: Requires HF_TOKEN and access to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
     "gaia_level2": (
         "inspect_evals.gaia",
-        False,
-    ),  # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+        True,
+    ),  # Info: Requires HF_TOKEN and access to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
     "gaia_level3": (
         "inspect_evals.gaia",
-        False,
-    ),  # TODO: Requires HF_TOKEN and acces to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
+        True,
+    ),  # Info: Requires HF_TOKEN and access to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
     # ❌ Mind2Web
-    "mind2web": ("inspect_evals.mind2web", False),
+    "mind2web": ("inspect_evals.mind2web", True),
     # ❌ OSWorld
-    "osworld": ("inspect_evals.osworld", False),
-    # ✅ Sycophancy
-    "sycophancy": ("inspect_evals.sycophancy", False),
+    "osworld": ("inspect_evals.osworld", True),
+    # ❌ Sycophancy
+    "sycophancy": ("inspect_evals.sycophancy", True),
     ## ✅ Cybersecurity
     "cyse3_visual_prompt_injection": ("inspect_evals.cyberseceval_3", True),
     "threecb": ("inspect_evals.threecb", True),
@@ -144,7 +142,7 @@ EVALUATION_REGISTRY = {
     "ifeval": ("inspect_evals.ifeval", True),
     "lingoly": (
         "inspect_evals.lingoly",
-        True,
+        True, 
     ),  # Info: Dataset 'ambean/lingOly' is a gated dataset on the Hub. You must be authenticated to access it.
     "lingoly_too": ("inspect_evals.lingoly", True),
     "mmmu_multiple_choice": ("inspect_evals.mmmu", True),
@@ -204,32 +202,29 @@ EVALUATION_REGISTRY = {
         "inspect_evals.xstest",
         True,
     ),  # Info: gated dataset (walledai/XSTest on HuggingFace)
-    ## Scheming
-    # ✅ Agentic Misalignment
-    "agentic_misalignment": ("inspect_evals.agentic_misalignment", False),
-    # ❌ GDM Dangerous Capabilities: Self-reasoning
-    "gdm_approved_directories": ("inspect_evals.gdm_capabilities", False),
-    "gdm_calculator_improvement": ("inspect_evals.gdm_capabilities", False),
+    ## ✅ Scheming
+    "agentic_misalignment": ("inspect_evals.agentic_misalignment", True),
+    "gdm_approved_directories": ("inspect_evals.gdm_capabilities", True),
+    "gdm_calculator_improvement": ("inspect_evals.gdm_capabilities", True),
     "gdm_context_length_mod_instrumental_only": (
         "inspect_evals.gdm_capabilities",
-        False,
+        True,
     ),
     "gdm_context_length_mod_irreversibility_only": (
         "inspect_evals.gdm_capabilities",
-        False,
+        True,
     ),
-    "gdm_database_tool": ("inspect_evals.gdm_capabilities", False),
-    "gdm_latency_calculator": ("inspect_evals.gdm_capabilities", False),
-    "gdm_max_messages_calculator": ("inspect_evals.gdm_capabilities", False),
-    "gdm_max_tokens": ("inspect_evals.gdm_capabilities", False),
-    "gdm_oversight_frequency": ("inspect_evals.gdm_capabilities", False),
-    "gdm_read_logs": ("inspect_evals.gdm_capabilities", False),
-    "gdm_turn_off_filters": ("inspect_evals.gdm_capabilities", False),
-    # ❌ GDM Dangerous Capabilities: Stealth
-    "gdm_classifier_evasion": ("inspect_evals.gdm_capabilities", False),
-    "gdm_cover_your_tracks": ("inspect_evals.gdm_capabilities", False),
-    "gdm_oversight_pattern": ("inspect_evals.gdm_capabilities", False),
-    "gdm_strategic_rule_breaking": ("inspect_evals.gdm_capabilities", False),
+    "gdm_database_tool": ("inspect_evals.gdm_capabilities", True),
+    "gdm_latency_calculator": ("inspect_evals.gdm_capabilities", True),
+    "gdm_max_messages_calculator": ("inspect_evals.gdm_capabilities", True),
+    "gdm_max_tokens": ("inspect_evals.gdm_capabilities", True),
+    "gdm_oversight_frequency": ("inspect_evals.gdm_capabilities", True),
+    "gdm_read_logs": ("inspect_evals.gdm_capabilities", True),
+    "gdm_turn_off_filters": ("inspect_evals.gdm_capabilities", True),
+    "gdm_classifier_evasion": ("inspect_evals.gdm_capabilities", True),
+    "gdm_cover_your_tracks": ("inspect_evals.gdm_capabilities", True),
+    "gdm_oversight_pattern": ("inspect_evals.gdm_capabilities", True),
+    "gdm_strategic_rule_breaking": ("inspect_evals.gdm_capabilities", True),
     ## Multimodal
     # ❌ DocVQA
     "docvqa": ("inspect_evals.docvqa", False),
