@@ -142,7 +142,7 @@ EVALUATION_REGISTRY = {
     "ifeval": ("inspect_evals.ifeval", True),
     "lingoly": (
         "inspect_evals.lingoly",
-        True, 
+        True,
     ),  # Info: Dataset 'ambean/lingOly' is a gated dataset on the Hub. You must be authenticated to access it.
     "lingoly_too": ("inspect_evals.lingoly", True),
     "mmmu_multiple_choice": ("inspect_evals.mmmu", True),
