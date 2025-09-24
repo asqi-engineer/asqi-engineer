@@ -25,6 +25,7 @@ from asqi.container_manager import (
     pull_images,
     run_container_with_args,
 )
+from asqi.dind_manager import dind_manager
 from asqi.output import (
     create_test_execution_progress,
     create_workflow_summary,
@@ -269,31 +270,43 @@ def execute_single_test(
         # Log warning but continue - manifest extraction failure shouldn't stop test execution
         DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
 
-    # Configure Docker-in-Docker for containers that require host access
-    if manifest and manifest.host_access:
-        container_config.run_params.update(
-            {
-                "privileged": True,
-                "volumes": {
-                    "/var/run/docker.sock": {
-                        "bind": "/var/run/docker.sock",
-                        "mode": "rw",
-                    }
-                },
-            }
-        )
-        DBOS.logger.info(
-            f"Configured Docker-in-Docker for test: {test_name} (image: {image})"
-        )
-
-    # Execute container
-    result.start_time = time.time()
-
-    # Generate container name: {sut}-{test}-{short_uuid}
+    # Generate container name: {sut}-{test}-{short_uuid} (needed for DinD service naming)
     truncated_sut = sut_name.lower().replace(" ", "_")[:25]
     truncated_test = test_name.lower().replace(" ", "_")[:25]
     prefix = f"{truncated_sut}-{truncated_test}"
     container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
+
+    # Configure secure Docker-in-Docker for containers that require host access
+    if manifest and manifest.host_access:
+        try:
+            # Start isolated DinD service instead of exposing host Docker socket
+            # Use the same meaningful name as the test container but with 'dind-' prefix
+            dind_service_name = f"dind-{container_name}"
+            service_info = dind_manager.start_dind_service(
+                service_name=dind_service_name
+            )
+
+            # Get secure container configuration for DinD connection (includes capability restrictions)
+            dind_config = dind_manager.get_container_config_for_dind(service_info)
+            container_config.run_params.update(dind_config)
+
+            DBOS.logger.info(
+                f"Configured secure Docker-in-Docker for test: {test_name} "
+                f"(service: {service_info['container_name']}, image: {image}) "
+                f"with capability restrictions (cap_drop=ALL, cap_add=SYS_ADMIN)"
+            )
+
+        except Exception as e:
+            DBOS.logger.error(
+                f"Failed to configure secure Docker-in-Docker for {test_name}: {e}"
+            )
+            result.error_message = f"Docker-in-Docker setup failed: {e}"
+            result.success = False
+            return result
+    # Note: Standard containers (non-host-access) already have secure defaults from ContainerConfig
+
+    # Execute container
+    result.start_time = time.time()
 
     container_result = run_container_with_args(
         image=image,
@@ -308,6 +321,32 @@ def execute_single_test(
     result.exit_code = container_result["exit_code"]
     result.container_output = container_result["output"]
     result.error_message = container_result["error"]
+
+    # For DinD tests, also collect logs from nested containers
+    if manifest and manifest.host_access:
+        try:
+            dind_service_name = f"dind-{container_name}"
+            nested_logs = dind_manager.get_nested_container_logs(dind_service_name)
+
+            if nested_logs:
+                # Append nested container logs to main output
+                nested_log_section = "\n\n=== NESTED CONTAINER LOGS ===\n"
+                for container_name_nested, logs in nested_logs.items():
+                    nested_log_section += (
+                        f"\n--- Container: {container_name_nested} ---\n"
+                    )
+                    nested_log_section += logs
+                    nested_log_section += f"\n--- End: {container_name_nested} ---\n"
+
+                result.container_output += nested_log_section
+                DBOS.logger.info(
+                    f"Collected logs from {len(nested_logs)} nested containers for test {test_name}"
+                )
+
+        except Exception as e:
+            DBOS.logger.warning(
+                f"Failed to collect nested container logs for {test_name}: {e}"
+            )
 
     # Parse JSON output from container
     if container_result["success"]:
@@ -391,6 +430,16 @@ def evaluate_score_card(
             DBOS.logger.error(f"Score card evaluation error: {e}")
 
     return all_evaluations
+
+
+@DBOS.step()
+def cleanup_dind_services():
+    """Clean up any active Docker-in-Docker services."""
+    try:
+        dind_manager.cleanup_all_services()
+        DBOS.logger.info("Cleaned up Docker-in-Docker services")
+    except Exception as e:
+        DBOS.logger.warning(f"Failed to cleanup DinD services: {e}")
 
 
 @DBOS.workflow()
@@ -665,6 +714,9 @@ def run_test_suite_workflow(
     DBOS.logger.info(
         f"Workflow completed: {successful_tests}/{total_tests} tests passed"
     )
+
+    # Clean up any Docker-in-Docker services
+    cleanup_dind_services()
 
     return {
         "summary": summary,
