@@ -52,7 +52,7 @@ Key Features
 LLM Testing
 ------------
 
-For our first release, we have introduced the ``llm_api`` system type and contributed 4 test packages for comprehensive LLM system testing. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
+For our first release, we have introduced the ``llm_api`` system type and contributed five test packages for comprehensive LLM system testing. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
 
 LLM Test Containers
 ^^^^^^^^^^^^^^^^^^^
@@ -60,6 +60,7 @@ LLM Test Containers
 - **Garak**: Security vulnerability assessment with 40+ attack vectors and probes
 - **DeepTeam**: Red teaming library for adversarial robustness testing  
 - **TrustLLM**: Comprehensive framework and benchmarks to evaluate trustworthiness of LLM systems
+- **Inspect Evals**: Comprehensive evaluation suite with 80+ tasks across cybersecurity, mathematics, reasoning, knowledge, bias, and safety domains
 - **Resaro Chatbot Simulator**: Persona and scenario based conversational testing with multi-turn dialogue simulation
 
 The ``llm_api`` system type uses OpenAI-compatible API interfaces. Through `LiteLLM <https://github.com/BerriAI/litellm>`_ integration, ASQI Engineer provides unified access to 100+ LLM providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints.

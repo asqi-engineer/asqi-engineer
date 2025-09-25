@@ -6,6 +6,7 @@ ASQI provides several pre-built test containers for different testing scenarios.
 
 - **Mock Tester** (`asqiengineer/test-container:mock_tester-latest`): Basic test container for development and validation
 - **Garak Security Tester** (`asqiengineer/test-container:garak-latest`): LLM security vulnerability assessment with 40+ attack vectors  
+- **Inspect Evals** (`asqiengineer/test-container:inspect_evals-latest`): Comprehensive evaluation suite with 80+ tasks across cybersecurity, mathematics, reasoning, knowledge, bias, and safety domains
 - **Chatbot Simulator** (`asqiengineer/test-container:chatbot_simulator-latest`): Persona-based conversational testing with multi-turn dialogue
 - **TrustLLM** (`asqiengineer/test-container:trustllm-latest`): Comprehensive trustworthiness evaluation framework
 - **DeepTeam** (`asqiengineer/test-container:deepteam-latest`): Red teaming library for adversarial robustness testing
@@ -41,6 +42,22 @@ asqi execute-tests -t garak_test.yaml -s demo_systems.yaml -o security_results.j
 ```
 
 **Note**: Certain tests requires a `OPENAI_API_KEY` so it is recommended to pass it in via the `env_file` field as part of the system config.
+
+### Inspect Evals Example
+
+Comprehensive evaluation suite with 80+ academic benchmarks:
+
+```bash
+# Download inspect evals configuration (cybersecurity focus)
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/inspect_evals/cybersecurity.yaml
+
+# Run cybersecurity evaluation
+asqi execute-tests -t cybersecurity.yaml -s demo_systems.yaml -o inspect_results.json
+
+# Or run knowledge evaluation
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/inspect_evals/knowledge.yaml
+asqi execute-tests -t knowledge.yaml -s demo_systems.yaml -o knowledge_results.json
+```
 
 ### Chatbot Simulator Example
 

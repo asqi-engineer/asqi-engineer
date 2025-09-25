@@ -62,6 +62,7 @@ To configure the AI systems you want to test:
     # Core test containers
     docker pull asqiengineer/test-container:mock_tester-latest
     docker pull asqiengineer/test-container:garak-latest
+    docker pull asqiengineer/test-container:inspect_evals-latest
     docker pull asqiengineer/test-container:chatbot_simulator-latest
     docker pull asqiengineer/test-container:trustllm-latest
     docker pull asqiengineer/test-container:deepteam-latest
@@ -115,6 +116,9 @@ With all configurations downloaded, you can immediately try different testing sc
 
   # TrustLLM evaluation
   asqi execute-tests -t config/suites/trustllm_test.yaml -s config/systems/demo_systems.yaml
+
+  # Inspect evaluation
+  asqi execute-tests -t config/suites/inspect_evals/reasoning.yaml -s config/systems/demo_systems.yaml
 
   # Red team testing
   asqi execute-tests -t config/suites/deepteam_test.yaml -s config/systems/demo_systems.yaml

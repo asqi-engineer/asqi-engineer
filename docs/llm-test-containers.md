@@ -267,6 +267,117 @@ docker build -t my-registry/chatbot_simulator:latest .
 
 ---
 
+## Inspect Evals Tester
+
+**Purpose**: Comprehensive evaluation suite with 100+ tasks across multiple domains including cybersecurity, mathematics, reasoning, knowledge, bias, and safety.
+
+**Framework**: [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_evals) - UK Government BEIS evaluation framework  
+**Location**: `test_containers/inspect_evals/`
+
+### System Requirements
+- **System Under Test**: `llm_api` (required) - The LLM system being evaluated
+
+### Input Parameters
+- `evaluation` (string, required): Name of the Inspect Evals task to run
+  - **Cybersecurity**: `cyse3_visual_prompt_injection`, `threecb`, `cybermetric_80/500/2000/10000`, `cyse2_*`, `sevenllm_*`, `sec_qa_*`, `gdm_intercode_ctf`
+  - **Safeguards**: `abstention_bench`, `agentdojo`, `agentharm`, `lab_bench_*`, `mask`, `make_me_pay`, `stereoset`, `strong_reject`, `wmdp_*`
+  - **Mathematics**: `aime2024`, `gsm8k`, `math`, `mgsm`, `mathvista`
+  - **Reasoning**: `arc_challenge`, `arc_easy`, `bbh`, `bbeh`, `boolq`, `drop`, `hellaswag`, `ifeval`, `lingoly`, `mmmu_*`, `musr`, `niah`, `paws`, `piqa`, `race_h`, `winogrande`, `worldsense`, `infinite_bench_*`
+  - **Knowledge**: `agie_*`, `air_bench`, `chembench`, `commonsense_qa`, `gpqa_diamond`, `healthbench`, `hle`, `livebench`, `mmlu_*`, `mmlu_pro`, `medqa`, `onet_m6`, `pre_flight`, `pubmedqa`, `sosbench`, `sciknoweval`, `simpleqa`, `truthfulqa`, `xstest`
+  - **Scheming**: `agentic_misalignment`, `gdm_*`
+  - **Multimodal**: `zerobench`, `zerobench_subquestions`
+  - **Bias**: `bbq`, `bold`
+  - **Personality**: `personality_BFI`, `personality_TRAIT`
+  - **Writing**: `writingbench`
+- `limit` (integer, optional): Maximum number of samples to evaluate (default: 10)
+- `evaluation_params` (object, optional): Task-specific parameter map passed to the underlying evaluation function
+  - **How to specify**: Provide as a JSON object, e.g., `{"fewshot": 5}` or `{"subjects": ["anatomy","astronomy"], "cot": true}`
+  - **Available parameters**: Vary by task - see detailed documentation at https://ukgovernmentbeis.github.io/inspect_evals
+
+### Output Metrics
+- `success` (boolean): Whether test execution completed successfully
+- `evaluation` (string): The evaluation task that was run
+- `evaluation_params` (object): Parameters used for the evaluation
+- `total_samples` (integer): Total number of samples evaluated
+- `metrics` (object): Task-specific evaluation metrics and scores
+- `log_dir` (string): Path to stored evaluation logs (when output volume configured)
+
+### Example Configuration
+```yaml
+test_suite:
+  - name: "mathematics_evaluation"
+    image: "my-registry/inspect_evals:latest"
+    systems_under_test: ["math_tutor_model"]
+    params:
+      evaluation: "gsm8k"
+      limit: 50
+      evaluation_params:
+        fewshot: 5
+        fewshot_seed: 42
+
+  - name: "cybersecurity_assessment"
+    image: "my-registry/inspect_evals:latest"
+    systems_under_test: ["secure_assistant"]
+    params:
+      evaluation: "cyse2_prompt_injection"
+      limit: 100
+
+  - name: "knowledge_benchmark"
+    image: "my-registry/inspect_evals:latest"
+    systems_under_test: ["knowledge_bot"]
+    params:
+      evaluation: "mmlu_5_shot"
+      limit: 200
+      evaluation_params:
+        subjects: ["anatomy", "astronomy", "business_ethics"]
+        cot: true
+
+  - name: "bias_detection"
+    image: "my-registry/inspect_evals:latest"
+    systems_under_test: ["chatbot"]
+    params:
+      evaluation: "bbq"
+      limit: 150
+      evaluation_params:
+        use_fast_sampling: true
+```
+
+### Build Instructions
+```bash
+cd test_containers/inspect_evals
+docker build -t my-registry/inspect_evals:latest .
+```
+
+### Environment Requirements
+```bash
+
+# For gated datasets (required by specific evaluations)
+export HF_TOKEN="your-huggingface-token"
+```
+
+**Gated Dataset Requirements**: Some evaluations require access to gated HuggingFace datasets and need a valid `HF_TOKEN`:
+
+- **GAIA Benchmarks**: `gaia`, `gaia_level1`, `gaia_level2`, `gaia_level3`
+  - Requires access to: `gaia-benchmark/GAIA`
+- **Abstention Bench**: `abstention_bench` 
+  - Requires access to: `Idavidrein/gpqa`
+- **MASK**: `mask`
+  - Requires access to: `cais/MASK`
+- **Lingoly**: `lingoly`
+  - Requires access to: `ambean/lingOly`  
+- **HLE**: `hle`
+  - Requires access to: `cais/hle`
+- **XSTest**: `xstest`
+  - Requires access to: `walledai/XSTest`
+- **TRAIT Personality**: `personality_TRAIT`
+  - Requires access to: `mirlab/TRAIT`
+
+To use these evaluations, you must:
+1. Request access to the respective gated datasets on HuggingFace
+2. Set your HuggingFace token: `export HF_TOKEN="hf_your_token_here"`
+
+---
+
 ## TrustLLM Tester
 
 **Purpose**: Comprehensive trustworthiness evaluation across 6 dimensions using academic-grade benchmarks.
@@ -385,6 +496,14 @@ test_suite:
       attacks: ["prompt_injection", "jailbreaking", "roleplay"]
       attacks_per_vulnerability_type: 5
 
+  # Cybersecurity benchmark evaluation
+  - name: "cybersecurity_benchmark"
+    image: "my-registry/inspect_evals:latest"
+    systems_under_test: ["target_model"]
+    params:
+      evaluation: "cyse2_prompt_injection"
+      limit: 100
+
   # Trustworthiness evaluation
   - name: "trustworthiness_assessment"
     image: "my-registry/trustllm:latest"
@@ -414,6 +533,17 @@ test_suite:
       sycophancy_levels: ["low", "high"]
       success_threshold: 0.8
 
+  # Knowledge and reasoning assessment
+  - name: "knowledge_evaluation"
+    image: "my-registry/inspect_evals:latest"
+    systems_under_test: ["customer_bot"]
+    params:
+      evaluation: "mmlu_5_shot"
+      limit: 100
+      evaluation_params:
+        subjects: ["business_ethics", "professional_psychology"]
+        cot: true
+
   # Performance and reliability
   - name: "performance_baseline"
     image: "my-registry/mock_tester:latest"
@@ -429,17 +559,23 @@ test_suite:
 **For Security Assessment**:
 - **Garak**: Comprehensive vulnerability scanning with 40+ probes
 - **DeepTeam**: Advanced red teaming with multi-system orchestration
-- **Combined**: Use both for complete security coverage
+- **Inspect Evals**: Cybersecurity benchmarks and safety evaluations
+- **Combined**: Use multiple containers for complete security coverage
+
+**For Knowledge and Reasoning**:
+- **Inspect Evals**: 100+ academic benchmarks across multiple domains
+- **TrustLLM**: Specialized trustworthiness evaluation
 
 **For Conversational Quality**:
 - **Chatbot Simulator**: Multi-turn dialogue testing with persona-based evaluation
-- **TrustLLM**: Academic-grade trustworthiness assessment
+- **Inspect Evals**: Bias and personality assessments
 
 **For Development and Validation**:
 - **Mock Tester**: Quick compatibility and configuration validation
 
 **For Research and Benchmarking**:
-- **TrustLLM**: Standardized academic benchmarks
+- **Inspect Evals**: Industry-standard evaluation suite with 100+ tasks
+- **TrustLLM**: Specialized trustworthiness benchmarks
 - **DeepTeam**: Research-grade adversarial evaluation
 
 ### Performance Considerations
@@ -447,14 +583,16 @@ test_suite:
 **Container Resource Requirements**:
 - **Mock Tester**: Minimal resources, fast execution
 - **Garak**: Medium resources, depends on probe selection and generations
+- **Inspect Evals**: Medium resources, varies by evaluation task and sample limit
 - **Chatbot Simulator**: Medium-high resources, depends on conversation complexity
 - **DeepTeam**: High resources, requires multiple LLM API calls
 - **TrustLLM**: High resources, comprehensive benchmark evaluation
 
 **Optimization Tips**:
-- Start with smaller `generations` and `num_scenarios` for development
+- Start with smaller `generations`, `num_scenarios`, and `limit` for development
 - Use `parallel_attempts` and `max_concurrent` to balance speed vs. resource usage
 - Test with Mock Tester first to validate configuration before expensive tests
+- For Inspect Evals, start with `limit: 10` and increase gradually
 - Use `--concurrent-tests` CLI option to run multiple containers in parallel
 
 ## Environment and API Key Management
@@ -473,6 +611,15 @@ export ANTHROPIC_API_KEY="sk-ant-your-key" # For Anthropic systems
 # Requires API keys for all three systems (target, simulator, evaluator)
 export OPENAI_API_KEY="sk-your-openai-key"
 export ANTHROPIC_API_KEY="sk-ant-your-anthropic-key"
+```
+
+**Inspect Evals**:
+```bash
+# Requires API key for target system
+export OPENAI_API_KEY="sk-your-key"        # For OpenAI systems
+export ANTHROPIC_API_KEY="sk-ant-your-key" # For Anthropic systems
+# For gated datasets (optional, only needed for specific evaluations)
+export HF_TOKEN="hf_your_token_here"       # Required for GAIA, MASK, HLE, XSTest, etc.
 ```
 
 **Chatbot Simulator**:
