@@ -1,6 +1,6 @@
 name: "inspect_evals"
 version: "1.0"
-description: "Generic Inspect evaluation container for running various LLM evaluations"
+description: "Run an Inspect Evals task (e.g. gsm8k, mmlu_0_shot, truthfulqa). Provide: evaluation (task name), optional evaluation_params (task args), and limit (sample cap). See https://ukgovernmentbeis.github.io/inspect_evals/ for task docs."
 host_access: true
 
 input_systems:
@@ -13,11 +13,31 @@ input_schema:
   - name: "evaluation"
     type: "string"
     required: true
-    description: "The evaluation to run (e.g., 'xstest', 'truthfulqa', 'mmlu'). Default: 'medqa'"
+    description: |
+      Name of the Inspect Evals task to run. Categories (enabled tasks only):
+        Cybersecurity: cyse3_visual_prompt_injection, threecb, cybermetric_* (80/500/2000/10000), cyse2_*, sevenllm_*, sec_qa_*, gdm_intercode_ctf
+        Safeguards: abstention_bench, agentdojo, agentharm (+_benign), lab_bench_*, mask, make_me_pay, stereoset, strong_reject, wmdp_*
+        Mathematics: aime2024, gsm8k, math, mgsm, mathvista
+        Reasoning: arc_challenge, arc_easy, bbh, bbeh (+_mini), boolq, drop, hellaswag, ifeval, lingoly (+_too), mmmu_*, musr, niah, paws, piqa, race_h, winogrande, worldsense, infinite_bench_*
+        Knowledge: agie_*, air_bench, chembench, commonsense_qa, gpqa_diamond, healthbench, hle, livebench, mmlu_* , mmlu_pro, medqa, onet_m6, pre_flight, pubmedqa, sosbench, sciknoweval, simpleqa, truthfulqa, xstest
+        Scheming: agentic_misalignment, gdm_*
+        Multimodal: zerobench, zerobench_subquestions (others currently disabled in this container)
+        Bias: bbq, bold
+        Personality: personality_BFI, personality_TRAIT
+        Writing: writingbench
+  - name: "limit"
+    type: "integer"
+    required: false
+    description: "Limit samples to evaluate e.g. 10 or 10-20. Default: 10"
+    default: 10
   - name: "evaluation_params"
     type: "object"
     required: false
-    description: "Parameters to pass to the evaluation function. Default: {}"
+    description: |
+      Task-specific parameter map passed to the underlying @task function.
+      Common keys include: fewshot (gsm8k), fewshot_seed (gsm8k), cot (mmlu_*), subjects (mmlu_*, agie_*), language (mmlu_*), use_fast_sampling (abstention_bench), dataset_name (abstention_bench subset), token_limit (some code tasks), seed (many tasks).
+      Provide an object, e.g.: {"fewshot": 5} or {"subjects": ["anatomy","astronomy"], "cot": true}.
+      Omit or use {} for defaults. See task source or docs site for full parameter context: https://ukgovernmentbeis.github.io/inspect_evals/
     default: {}
   - name: "limit"
     type: "integer"
