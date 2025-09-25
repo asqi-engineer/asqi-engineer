@@ -42,8 +42,8 @@ EVALUATION_REGISTRY = {
     "usaco": ("inspect_evals.usaco", False),
     ## Assistants
     # ❌ AssistantBench
-    "assistant_bench_closed_book_one_shot": ("inspect_evals.assistant_bench", True),
-    "assistant_bench_closed_book_zero_shot": ("inspect_evals.assistant_bench", True),
+    "assistant_bench_closed_book_one_shot": ("inspect_evals.assistant_bench", False),
+    "assistant_bench_closed_book_zero_shot": ("inspect_evals.assistant_bench", False),
     "assistant_bench_web_browser": (
         "inspect_evals.assistant_bench",
         False,
@@ -56,10 +56,10 @@ EVALUATION_REGISTRY = {
         "inspect_evals.assistant_bench",
         False,
     ),
-    "browse_comp": ("inspect_evals.browse_comp", True),
+    "browse_comp": ("inspect_evals.browse_comp", False),
     "gaia": (
         "inspect_evals.gaia",
-        True,
+        False,
     ),  # Info: Requires HF_TOKEN and access to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
     "gaia_level1": (
         "inspect_evals.gaia",

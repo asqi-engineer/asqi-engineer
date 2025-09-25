@@ -1,16 +1,6 @@
 suite_name: "Inspect Reasoning Evaluation Suite"
 test_suite:
 
-  # ARC
-  - name: "inspect_arc"
-    image: "asqiengineer/test-container:inspect_evals-latest"
-    systems_under_test:
-      - "nova_lite"
-    params:
-      evaluation: "arc"
-      evaluation_params: {}
-      limit: 2
-
   - name: "inspect_arc_challenge"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
