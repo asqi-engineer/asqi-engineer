@@ -273,7 +273,8 @@ def execute_single_test(
     if manifest and manifest.host_access:
         container_config.run_params.update(
             {
-                "privileged": True,
+                "cap_drop": ["ALL"],
+                "cap_add": ["SYS_ADMIN"],
                 "volumes": {
                     "/var/run/docker.sock": {
                         "bind": "/var/run/docker.sock",
