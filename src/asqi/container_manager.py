@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
+from requests import exceptions as requests_exceptions
 
 import docker
 from asqi.config import ContainerConfig
@@ -21,6 +22,11 @@ logger = logging.getLogger(__name__)
 # === Constants ===
 INPUT_MOUNT_PATH = Path("/input")
 OUTPUT_MOUNT_PATH = Path("/output")
+TIMEOUT_EXCEPTIONS = (
+    requests_exceptions.Timeout,
+    requests_exceptions.ReadTimeout,
+    requests_exceptions.ConnectionError,
+)
 
 # === Active container tracking and shutdown handling ===
 _active_lock = threading.Lock()
@@ -514,7 +520,11 @@ def run_container_with_args(
                         if line:  # Only process non-empty lines
                             output_lines.append(line)
                             container_logger.info(line)
-                except (UnicodeDecodeError, docker_errors.APIError) as e:
+                except (
+                    UnicodeDecodeError,
+                    docker_errors.APIError,
+                    *TIMEOUT_EXCEPTIONS,
+                ) as e:
                     logger.warning(f"Failed to stream container logs: {e}")
 
             # Wait for completion
@@ -522,6 +532,7 @@ def run_container_with_args(
                 exit_status = container.wait(timeout=container_config.timeout_seconds)
                 result["exit_code"] = exit_status["StatusCode"]
             except docker_errors.APIError as api_error:
+                # Docker API error during wait; attempt to kill and report
                 try:
                     container.kill()
                 except (docker_errors.APIError, docker_errors.NotFound) as e:
@@ -530,6 +541,22 @@ def run_container_with_args(
                     f"Container execution failed with API error: {api_error}"
                 )
                 return result
+            except TIMEOUT_EXCEPTIONS as e:
+                # HTTP/socket timeout while waiting for the container to finish.
+                # Treat as container timeout, terminate container and report gracefully.
+                try:
+                    container.kill()
+                except (docker_errors.APIError, docker_errors.NotFound) as ke:
+                    logger.warning(
+                        f"Failed to kill container {getattr(container, 'id', '<unknown>')}: {ke}"
+                    )
+                # Use 137 (SIGKILL) to indicate timeout/forced termination
+                result["exit_code"] = 137
+                result["error"] = (
+                    f"Container execution timed out after {container_config.timeout_seconds}s for image '{image}': {e}"
+                )
+                # Fall through to collect any logs gathered so far and return
+                # Do not re-raise; ensure workflow can continue
 
             # Get output (use streamed output if available, otherwise get all logs)
             try:
@@ -540,7 +567,11 @@ def run_container_with_args(
                     result["output"] = container.logs().decode(
                         "utf-8", errors="replace"
                     )
-            except (UnicodeDecodeError, docker_errors.APIError) as e:
+            except (
+                UnicodeDecodeError,
+                docker_errors.APIError,
+                *TIMEOUT_EXCEPTIONS,
+            ) as e:
                 result["output"] = "\n".join(output_lines) if output_lines else ""
                 logger.warning(f"Failed to retrieve container logs: {e}")
 
@@ -553,6 +584,15 @@ def run_container_with_args(
         except docker_errors.APIError as e:
             result["error"] = f"Docker API error running image '{image}': {e}"
         except TimeoutError as e:
+            # Built-in TimeoutError during container start
+            result["exit_code"] = 137
+            result["error"] = (
+                f"Container execution timed out after {container_config.timeout_seconds}s for image '{image}': {e}"
+            )
+        except TIMEOUT_EXCEPTIONS as e:
+            # Network/HTTP timeout or connection error to Docker daemon.
+            # Report gracefully without crashing the workflow.
+            result["exit_code"] = 137
             result["error"] = (
                 f"Container execution timed out after {container_config.timeout_seconds}s for image '{image}': {e}"
             )

@@ -590,12 +590,30 @@ def run_test_suite_workflow(
                     test_plan["test_params"],
                     container_config,
                 )
-                test_handles.append(handle)
+                test_handles.append((handle, test_plan))
 
             # Collect results as they complete
             all_results = []
-            for handle in test_handles:
-                result = handle.get_result()
+            for handle, test_plan in test_handles:
+                try:
+                    result = handle.get_result()
+                except Exception as e:  # Gracefully handle DBOS/HTTP timeouts per test
+                    DBOS.logger.error(
+                        f"Test execution handle failed for {test_plan['test_name']} (image: {test_plan['image']}): {e}"
+                    )
+                    # Synthesize a failed TestExecutionResult with timeout semantics
+                    result = TestExecutionResult(
+                        test_plan["test_name"],
+                        test_plan["sut_name"],
+                        test_plan["image"],
+                    )
+                    now = time.time()
+                    result.start_time = now
+                    result.end_time = now
+                    result.exit_code = 137  # convention for forced termination/timeout
+                    result.success = False
+                    result.error_message = f"Test execution failed: {e}"
+                    result.container_output = ""
                 all_results.append(result)
                 try:
                     progress.advance(task)
@@ -621,13 +639,28 @@ def run_test_suite_workflow(
                 test_plan["test_params"],
                 container_config,
             )
-            test_handles.append(handle)
+            test_handles.append((handle, test_plan))
 
         # Collect results as they complete
         all_results = []
         progress_interval = max(1, test_count // executor_config["progress_interval"])
-        for i, handle in enumerate(test_handles, 1):
-            result = handle.get_result()
+        for i, (handle, test_plan) in enumerate(test_handles, 1):
+            try:
+                result = handle.get_result()
+            except Exception as e:
+                DBOS.logger.error(
+                    f"Test execution handle failed for {test_plan['test_name']} (image: {test_plan['image']}): {e}"
+                )
+                result = TestExecutionResult(
+                    test_plan["test_name"], test_plan["sut_name"], test_plan["image"]
+                )
+                now = time.time()
+                result.start_time = now
+                result.end_time = now
+                result.exit_code = 137
+                result.success = False
+                result.error_message = f"Test execution failed: {e}"
+                result.container_output = ""
             all_results.append(result)
             if i % progress_interval == 0 or i == test_count:
                 console.print(f"[dim]Completed {i}/{test_count} tests[/dim]")

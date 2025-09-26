@@ -115,11 +115,11 @@ We keep contributor-facing documentation split into two focused documents so eac
 
 Quick actions:
 
-- To see how to contribute (PR process, templates, commit guidance), open [CONTRIBUTION.md].
+- To see how to contribute (PR process, templates, commit guidance), open [CONTRIBUTING.md].
 - To get your dev environment ready and run tests locally (venv, `uv` commands, and devcontainer), open [DEVELOPMENT.md].
 - Example configs and test containers live under `config/` and `test_containers/` respectively.
 
-If you're unsure where to start, read [CONTRIBUTION.md] first for the workflow and then follow the setup steps in [DEVELOPMENT.md] to run the test suite locally.
+If you're unsure where to start, read [CONTRIBUTING.md] first for the workflow and then follow the setup steps in [DEVELOPMENT.md] to run the test suite locally.
 
 ## License
 
@@ -132,5 +132,5 @@ If you're unsure where to start, read [CONTRIBUTION.md] first for the workflow a
 [DeepTeam]: https://github.com/confident-ai/deepteam
 [TrustLLM]: https://github.com/HowieHwong/TrustLLM
 [Inspect Evals]: https://github.com/UKGovernmentBEIS/inspect_evals
-[CONTRIBUTION.md]: ./CONTRIBUTION.md
+[CONTRIBUTING.md]: ./CONTRIBUTING.md
 [DEVELOPMENT.md]: ./DEVELOPMENT.md
