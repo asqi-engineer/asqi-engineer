@@ -130,7 +130,7 @@ jobs:
         run: |
           docker load -i /tmp/image-${{ matrix.name }}-${{ matrix.platform_pair }}.tar
           echo "Running smoke test for ${{ matrix.name }} (${{ matrix.platform }}) with --help command..."
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA}-${{ matrix.platform_pair }} --help
+          docker run --rm --platform ${{ matrix.platform }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA}-${{ matrix.platform_pair }} --help
 
       - name: Upload Docker image as artifact (${{ matrix.name }}-${{ matrix.platform_pair }})
         if: ${{ matrix.skip != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository) }}
@@ -276,7 +276,7 @@ jobs:
         run: |
           docker load -i /tmp/image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}.tar
           echo "Running smoke test for ${{ steps.parse.outputs.name }} (${{ matrix.platform }}) with --help command..."
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${GITHUB_SHA}-${{ env.PLATFORM_PAIR }} --help
+          docker run --rm --platform ${{ matrix.platform }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${GITHUB_SHA}-${{ env.PLATFORM_PAIR }} --help
 
       - name: Upload Docker image as artifact
         uses: actions/upload-artifact@v4
