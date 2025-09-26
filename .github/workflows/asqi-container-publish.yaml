@@ -60,12 +60,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-${{ env.PLATFORM_PAIR }}-${{ github.run_id }}
-          cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ env.PLATFORM_PAIR }}
-            type=gha
-          cache-to: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ env.PLATFORM_PAIR }},mode=max
-            type=gha,mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ env.PLATFORM_PAIR }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ env.PLATFORM_PAIR }},mode=max
           outputs: type=docker,dest=/tmp/image-${{ env.PLATFORM_PAIR }}.tar
 
       - name: Upload platform image
@@ -92,9 +88,7 @@ jobs:
           context: .
           load: true
           tags: test-image:latest
-          cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-test
-            type=gha
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-test
 
       - name: Smoke test
         run: |
