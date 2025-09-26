@@ -9,10 +9,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -rf /var/lib/apt/lists/*
 
 RUN --mount=type=cache,target=/root/.cache \
-    curl https://sh.rustup.rs -sSf | sh -s -- -y
-
-RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cargo,sharing=locked \
+    curl https://sh.rustup.rs -sSf | sh -s -- -y && \
     . "$HOME/.cargo/env" && \
     pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir --prefix=/install deepteam==0.2.4 litellm==1.76.0
