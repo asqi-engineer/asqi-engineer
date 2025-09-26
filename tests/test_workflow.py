@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 import pytest
 
@@ -631,3 +631,92 @@ def test_image_pulled_but_manifest_not_extracted_bug():
         )
 
         assert result["summary"]["status"] == "COMPLETED"
+
+
+def test_run_test_suite_workflow_handle_exception():
+    """Test that exceptions from test execution handles are caught and handled gracefully."""
+    suite_config = {
+        "suite_name": "demo",
+        "test_suite": [
+            {
+                "name": "t1",
+                "image": "test/image:latest",
+                "systems_under_test": ["systemA"],
+                "params": {"p": "v"},
+            }
+        ],
+    }
+
+    systems_config = {
+        "systems": {"systemA": {"type": "llm_api", "params": {"endpoint": "http://x"}}}
+    }
+
+    container_config: ContainerConfig = ContainerConfig()
+
+    # Build a minimal manifest
+    manifest = Manifest(
+        name="mock",
+        version="1",
+        description="",
+        input_systems=[
+            SystemInput(
+                name="system_under_test", type="llm_api", required=True, description=""
+            )
+        ],
+        input_schema=[],
+        output_metrics=[],
+        output_artifacts=None,
+    )
+
+    with (
+        patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
+        patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
+        patch("asqi.workflow.validate_test_plan") as mock_validate,
+        patch("asqi.workflow.create_test_execution_plan") as mock_plan,
+        patch("asqi.workflow.Queue") as mock_queue_class,
+    ):
+        mock_avail.return_value = {"test/image:latest": True}
+        mock_extract.return_value = manifest
+        mock_validate.return_value = []
+        mock_plan.return_value = [
+            {
+                "test_name": "t1_systemA",
+                "image": "test/image:latest",
+                "sut_name": "systemA",
+                "systems_params": {
+                    "system_under_test": {"type": "llm_api", "endpoint": "http://x"}
+                },
+                "test_params": {"p": "v"},
+            }
+        ]
+
+        # Create a handle that raises an exception
+        failing_handle = DummyHandle(None)  # get_result will raise AttributeError
+        failing_handle.get_result = Mock(side_effect=Exception("Network timeout"))
+
+        mock_queue = mock_queue_class.return_value
+        mock_queue.enqueue.side_effect = lambda *args, **kwargs: failing_handle
+
+        out = _call_inner_workflow(
+            suite_config,
+            systems_config,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            container_config,
+        )
+
+    assert out["summary"]["status"] == "COMPLETED"
+    assert out["summary"]["total_tests"] == 1
+    assert out["summary"]["successful_tests"] == 0
+    assert out["summary"]["failed_tests"] == 1
+    assert len(out["results"]) == 1
+
+    result = out["results"][0]
+    assert result["metadata"]["success"] is False
+    assert result["metadata"]["exit_code"] == 137
+    assert "Test execution failed: Network timeout" in result["error_message"]
+    assert result["metadata"]["test_name"] == "t1_systemA"
+    assert result["metadata"]["image"] == "test/image:latest"
