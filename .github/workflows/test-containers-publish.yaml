@@ -19,6 +19,7 @@ jobs:
     runs-on: self-hosted
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      unique_matrix: ${{ steps.set-matrix.outputs.unique_matrix }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -56,18 +57,36 @@ jobs:
           json='{"include":['
           first=1
           for d in "${!dirs[@]}"; do
-            entry='{"name":"'"$d"'"}'
-            if [ $first -eq 1 ]; then
-              json+="$entry"
-              first=0
-            else
-              json+=",$entry"
-            fi
+            for platform in "linux/amd64" "linux/arm64"; do
+              platform_pair="${platform//\//-}"
+              entry='{"name":"'"$d"'","platform":"'"$platform"'","platform_pair":"'"$platform_pair"'"}'
+              if [ $first -eq 1 ]; then
+                json+="$entry"
+                first=0
+              else
+                json+=",$entry"
+              fi
+            done
           done
           json+=']}'
 
           echo "Detected changed containers matrix: $json"
           echo "matrix=$json" >> "$GITHUB_OUTPUT"
+          
+          # Create unique names matrix for publishing
+          unique_json='{"include":['
+          first=1
+          for d in "${!dirs[@]}"; do
+            entry='{"name":"'"$d"'"}'
+            if [ $first -eq 1 ]; then
+              unique_json+="$entry"
+              first=0
+            else
+              unique_json+=",$entry"
+            fi
+          done
+          unique_json+=']}'
+          echo "unique_matrix=$unique_json" >> "$GITHUB_OUTPUT"
 
   build-and-test-changed:
     name: Build and test changed containers
@@ -93,32 +112,32 @@ jobs:
         if: ${{ matrix.skip != true }}
         uses: docker/setup-buildx-action@v3
 
-      - name: Build image for ${{ matrix.name }}
+      - name: Build image for ${{ matrix.name }} (${{ matrix.platform }})
         if: ${{ matrix.skip != true }}
         id: build
         uses: docker/build-push-action@v6
         with:
           context: ./test_containers/${{ matrix.name }}
-          load: true
+          platforms: ${{ matrix.platform }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ matrix.name }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ matrix.name }},mode=max
-          outputs: type=docker,dest=/tmp/image-${{ matrix.name }}.tar
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${{ github.sha }}-${{ matrix.platform_pair }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ matrix.name }}-${{ matrix.platform_pair }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ matrix.name }}-${{ matrix.platform_pair }},mode=max
+          outputs: type=docker,dest=/tmp/image-${{ matrix.name }}-${{ matrix.platform_pair }}.tar
 
-      - name: Smoke test ${{ matrix.name }}
+      - name: Smoke test ${{ matrix.name }} (${{ matrix.platform }})
         if: ${{ matrix.skip != true }}
         run: |
-          docker load -i /tmp/image-${{ matrix.name }}.tar
-          echo "Running smoke test for ${{ matrix.name }} with --help command..."
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA} --help
+          docker load -i /tmp/image-${{ matrix.name }}-${{ matrix.platform_pair }}.tar
+          echo "Running smoke test for ${{ matrix.name }} (${{ matrix.platform }}) with --help command..."
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA}-${{ matrix.platform_pair }} --help
 
-      - name: Upload Docker image as artifact (${{ matrix.name }})
+      - name: Upload Docker image as artifact (${{ matrix.name }}-${{ matrix.platform_pair }})
         if: ${{ matrix.skip != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository) }}
         uses: actions/upload-artifact@v4
         with:
-          name: docker-image-${{ matrix.name }}
-          path: /tmp/image-${{ matrix.name }}.tar
+          name: docker-image-${{ matrix.name }}-${{ matrix.platform_pair }}
+          path: /tmp/image-${{ matrix.name }}-${{ matrix.platform_pair }}.tar
           retention-days: 1
 
   publish-changed:
@@ -134,18 +153,23 @@ jobs:
       id-token: write
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.determine-changed.outputs.unique_matrix) }}
     steps:
       - name: No changes to publish (noop)
         if: ${{ matrix.skip == true }}
         run: echo "No changed test containers to publish."
 
-      - name: Download Docker image artifact (${{ matrix.name }})
+      - name: Download Docker image artifacts (${{ matrix.name }})
         if: ${{ matrix.skip != true }}
         uses: actions/download-artifact@v5
         with:
-          name: docker-image-${{ matrix.name }}
           path: /tmp
+          pattern: docker-image-${{ matrix.name }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        if: ${{ matrix.skip != true }}
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
         if: ${{ matrix.skip != true }}
@@ -155,16 +179,34 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push image for ${{ matrix.name }}
+      - name: Push multi-platform image for ${{ matrix.name }}
         if: ${{ matrix.skip != true }}
         run: |
           set -euo pipefail
-          docker load -i /tmp/image-${{ matrix.name }}.tar
-          SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA}
+          
+          # Load both platform images and push them
+          docker load -i /tmp/image-${{ matrix.name }}-linux-amd64.tar
+          docker load -i /tmp/image-${{ matrix.name }}-linux-arm64.tar
+          
+          AMD64_SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA}-linux-amd64
+          ARM64_SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA}-linux-arm64
+          
+          # Push individual platform images
+          docker push --quiet "${AMD64_SRC}"
+          docker push --quiet "${ARM64_SRC}"
+          
+          # Get digests for manifest creation
+          AMD64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${AMD64_SRC}" | cut -d'@' -f2)
+          ARM64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${ARM64_SRC}" | cut -d'@' -f2)
+          
           if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
             LATEST=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-latest
-            docker tag "$SRC" "$LATEST"
-            docker push "$LATEST"
+            
+            # Create manifest list for latest tag
+            docker buildx imagetools create \
+              -t "${LATEST}" \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${AMD64_DIGEST} \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${ARM64_DIGEST}
           fi
 
   build-and-test-tag:
@@ -177,10 +219,21 @@ jobs:
       id-token: write
     env:
       FULL_REF: ${{ github.ref_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
     outputs:
       name: ${{ steps.parse.outputs.name }}
       version: ${{ steps.parse.outputs.version }}
     steps:
+      - name: Prepare platform variables
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+
       - name: Parse tag
         id: parse
         run: |
@@ -207,29 +260,29 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build image for ${{ steps.parse.outputs.name }}
+      - name: Build image for ${{ steps.parse.outputs.name }} (${{ matrix.platform }})
         id: build_tag
         uses: docker/build-push-action@v6
         with:
           context: ./test_containers/${{ steps.parse.outputs.name }}
-          load: true
+          platforms: ${{ matrix.platform }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ steps.parse.outputs.name }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ steps.parse.outputs.name }},mode=max
-          outputs: type=docker,dest=/tmp/image-${{ steps.parse.outputs.name }}.tar
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${{ github.sha }}-${{ env.PLATFORM_PAIR }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }},mode=max
+          outputs: type=docker,dest=/tmp/image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}.tar
 
-      - name: Smoke test ${{ steps.parse.outputs.name }}
+      - name: Smoke test ${{ steps.parse.outputs.name }} (${{ matrix.platform }})
         run: |
-          docker load -i /tmp/image-${{ steps.parse.outputs.name }}.tar
-          echo "Running smoke test for ${{ steps.parse.outputs.name }} with --help command..."
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${GITHUB_SHA} --help
+          docker load -i /tmp/image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}.tar
+          echo "Running smoke test for ${{ steps.parse.outputs.name }} (${{ matrix.platform }}) with --help command..."
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${GITHUB_SHA}-${{ env.PLATFORM_PAIR }} --help
 
       - name: Upload Docker image as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: docker-image-${{ steps.parse.outputs.name }}
-          path: /tmp/image-${{ steps.parse.outputs.name }}.tar
+          name: docker-image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}
+          path: /tmp/image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}.tar
           retention-days: 1
 
   publish-tag:
@@ -245,11 +298,15 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - name: Download Docker image artifact
+      - name: Download Docker image artifacts
         uses: actions/download-artifact@v5
         with:
-          name: docker-image-${{ needs.build-and-test-tag.outputs.name }}
           path: /tmp
+          pattern: docker-image-${{ needs.build-and-test-tag.outputs.name }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -258,17 +315,38 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push image ${{ needs.build-and-test-tag.outputs.name }}:${{ needs.build-and-test-tag.outputs.version }}
+      - name: Push multi-platform image ${{ needs.build-and-test-tag.outputs.name }}:${{ needs.build-and-test-tag.outputs.version }}
         id: push
         run: |
           set -euo pipefail
           NAME='${{ needs.build-and-test-tag.outputs.name }}'
           VERSION='${{ needs.build-and-test-tag.outputs.version }}'
-          docker load -i "/tmp/image-${NAME}.tar"
-          SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${NAME}-sha-${GITHUB_SHA}
+          
+          # Load both platform images and push them
+          docker load -i "/tmp/image-${NAME}-linux-amd64.tar"
+          docker load -i "/tmp/image-${NAME}-linux-arm64.tar"
+          
+          AMD64_SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${NAME}-sha-${GITHUB_SHA}-linux-amd64
+          ARM64_SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${NAME}-sha-${GITHUB_SHA}-linux-arm64
+          
+          # Push individual platform images
+          docker push --quiet "${AMD64_SRC}"
+          docker push --quiet "${ARM64_SRC}"
+          
+          # Get digests for manifest creation
+          AMD64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${AMD64_SRC}" | cut -d'@' -f2)
+          ARM64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${ARM64_SRC}" | cut -d'@' -f2)
+          
           DEST=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${NAME}-${VERSION}
-          docker tag "$SRC" "$DEST"
-          DIGEST=$(docker push "$DEST" | grep digest: | cut -d' ' -f3)
+          
+          # Create manifest list for versioned tag
+          docker buildx imagetools create \
+            -t "${DEST}" \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${AMD64_DIGEST} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${ARM64_DIGEST}
+          
+          # Get final manifest digest for attestation
+          DIGEST=$(docker buildx imagetools inspect "${DEST}" --format '{{.Manifest.Digest}}')
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
 # activate when public GH repo
