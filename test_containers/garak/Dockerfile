@@ -3,15 +3,20 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     apt-get install -y --no-install-recommends curl build-essential && \
-    curl https://sh.rustup.rs -sSf | sh -s -- -y && \
-    . "$HOME/.cargo/env" && \
     rm -rf /var/lib/apt/lists/*
+
+RUN --mount=type=cache,target=/root/.cache \
+    curl https://sh.rustup.rs -sSf | sh -s -- -y && \
+    . "$HOME/.cargo/env"
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-RUN pip install --no-cache-dir --user garak==0.12.0
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --user garak==0.12.0
 
 FROM python:3.11-slim
 

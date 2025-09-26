@@ -4,11 +4,14 @@ FROM python:3.11-slim AS builder
 WORKDIR /app
 
 # Install build tools (only in builder)
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies into a temporary /install directory
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir --prefix=/install openevals==0.1.0 rich
 
 # Stage 2: Runtime (minimal, no build tools)
