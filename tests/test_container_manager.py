@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import yaml
 from docker import errors as docker_errors
+from requests import exceptions as requests_exceptions
 
 from asqi.config import ContainerConfig
 from asqi.container_manager import (
@@ -532,6 +533,27 @@ class TestRunContainerWithArgs:
         assert result["success"] is False
         assert expected_error_message in result["error"]
 
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            requests_exceptions.Timeout("Request timeout"),
+            requests_exceptions.ReadTimeout("Read timeout"),
+            requests_exceptions.ConnectionError("Connection failed"),
+        ],
+    )
+    def test_run_container_timeout_exceptions(self, mock_container_setup, exception):
+        """Test handling of requests timeout and connection errors."""
+        mock_client, _, _ = mock_container_setup
+        mock_client.containers.run.side_effect = exception
+        container_config: ContainerConfig = ContainerConfig()
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
+        assert result["success"] is False
+        assert result["exit_code"] == 137
+        assert "timed out" in result["error"]
+        assert "test:latest" in result["error"]
+
     def test_run_container_connection_error_propagated(self, mock_container_setup):
         """Test that ConnectionError is propagated."""
         mock_client, _, _ = mock_container_setup
@@ -541,6 +563,32 @@ class TestRunContainerWithArgs:
             run_container_with_args(
                 image="test:latest", args=["--test"], container_config=container_config
             )
+
+    def test_run_container_wait_timeout_exceptions(self, mock_container_setup):
+        """Test handling of timeout exceptions during container.wait()."""
+        mock_client, mock_container, _ = mock_container_setup
+        mock_container.wait.side_effect = requests_exceptions.Timeout("Wait timeout")
+        container_config: ContainerConfig = ContainerConfig()
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
+        assert result["success"] is False
+        assert result["exit_code"] == 137
+        assert "timed out" in result["error"]
+        mock_container.kill.assert_called_once()
+
+    def test_run_container_log_retrieval_timeout_exceptions(self, mock_container_setup):
+        """Test handling of timeout exceptions during log retrieval."""
+        mock_client, mock_container, _ = mock_container_setup
+        mock_container.wait.return_value = {"StatusCode": 0}
+        mock_container.logs.side_effect = requests_exceptions.Timeout("Log timeout")
+        container_config: ContainerConfig = ContainerConfig()
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
+        assert result["success"] is True  # Success despite log retrieval failure
+        assert result["exit_code"] == 0
+        assert result["output"] == ""  # Fallback to empty output
 
     def test_run_container_execution_edge_cases(self, mock_container_setup):
         """Test edge cases in container execution."""
