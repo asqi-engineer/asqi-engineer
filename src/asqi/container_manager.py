@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 # === Constants ===
 INPUT_MOUNT_PATH = Path("/input")
 OUTPUT_MOUNT_PATH = Path("/output")
+TIMEOUT_EXCEPTIONS = (
+    requests_exceptions.Timeout,
+    requests_exceptions.ReadTimeout,
+    requests_exceptions.ConnectionError,
+)
 
 # === Active container tracking and shutdown handling ===
 _active_lock = threading.Lock()
@@ -518,9 +523,7 @@ def run_container_with_args(
                 except (
                     UnicodeDecodeError,
                     docker_errors.APIError,
-                    requests_exceptions.Timeout,
-                    requests_exceptions.ReadTimeout,
-                    requests_exceptions.ConnectionError,
+                    *TIMEOUT_EXCEPTIONS,
                 ) as e:
                     logger.warning(f"Failed to stream container logs: {e}")
 
@@ -538,11 +541,7 @@ def run_container_with_args(
                     f"Container execution failed with API error: {api_error}"
                 )
                 return result
-            except (
-                requests_exceptions.Timeout,
-                requests_exceptions.ReadTimeout,
-                requests_exceptions.ConnectionError,
-            ) as e:
+            except TIMEOUT_EXCEPTIONS as e:
                 # HTTP/socket timeout while waiting for the container to finish.
                 # Treat as container timeout, terminate container and report gracefully.
                 try:
@@ -571,9 +570,7 @@ def run_container_with_args(
             except (
                 UnicodeDecodeError,
                 docker_errors.APIError,
-                requests_exceptions.Timeout,
-                requests_exceptions.ReadTimeout,
-                requests_exceptions.ConnectionError,
+                *TIMEOUT_EXCEPTIONS,
             ) as e:
                 result["output"] = "\n".join(output_lines) if output_lines else ""
                 logger.warning(f"Failed to retrieve container logs: {e}")
@@ -592,11 +589,7 @@ def run_container_with_args(
             result["error"] = (
                 f"Container execution timed out after {container_config.timeout_seconds}s for image '{image}': {e}"
             )
-        except (
-            requests_exceptions.Timeout,
-            requests_exceptions.ReadTimeout,
-            requests_exceptions.ConnectionError,
-        ) as e:
+        except TIMEOUT_EXCEPTIONS as e:
             # Network/HTTP timeout or connection error to Docker daemon.
             # Report gracefully without crashing the workflow.
             result["exit_code"] = 137
