@@ -3,24 +3,33 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies with cache mount
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
     git \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install uv with cache mount for faster repeated builds
+RUN --mount=type=cache,target=/root/.cache \
+    curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
 
 # Set environment variable to allow remote code execution for datasets
 ENV HF_DATASETS_TRUST_REMOTE_CODE=1
 
-# Clone inspect_evals and install with uv sync
+# Clone inspect_evals 
 RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
     cd inspect_evals && \
-    git checkout 0d37467 && \
-    uv venv && \
+    git checkout 0d37467
+
+# Create virtual environment
+RUN cd inspect_evals && uv venv
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.cache/pip \
+    cd inspect_evals && \
     uv sync --all-extras && \
     uv add tf-keras && \
     uv add google-genai
@@ -30,8 +39,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Docker
-RUN apt-get update && apt-get install -y \
+# Install Docker with cache mounts
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    --mount=type=cache,target=/tmp/docker-cache \
+    apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/* && \
     curl -fsSL https://get.docker.com -o get-docker.sh && \
