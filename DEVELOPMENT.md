@@ -1,6 +1,6 @@
 ## Developer guide (authoritative setup & commands)
 
-This document is the canonical developer setup reference: devcontainer, environment variables, how to install dev deps, run tests, and build test containers. For contribution workflow (PRs, issue templates), see `CONTRIBUTION.md`. For a high-level project overview and quickstart, see `README.md`.
+This document is the canonical developer setup reference: devcontainer, environment variables, how to install dev deps, run tests, and build test containers. For contribution workflow (PRs, issue templates), see [CONTRIBUTING.md]. For a high-level project overview and quickstart, see [README.md].
 
 ### Prerequisites
 
@@ -69,7 +69,7 @@ Run with coverage:
 uv run pytest --cov=src
 ```
 
-If tests fail after your changes, iterate locally until green before opening a PR (see `CONTRIBUTION.md` for PR expectations).
+If tests fail after your changes, iterate locally until green before opening a PR (see [CONTRIBUTING.md] for PR expectations).
 
 ### CLI usage examples
 
@@ -142,7 +142,10 @@ uv build --wheel
 
 ### Next steps
 
-- For PR and contribution process details, see `CONTRIBUTION.md`.
-- For a project overview and quickstart, see `README.md`.
+- For PR and contribution process details, see [CONTRIBUTING.md].
+- For a project overview and quickstart, see [README.md].
 
 Thank you for improving ASQI Engineer — open a PR when ready and link the relevant issue.
+
+[CONTRIBUTING.md]: ./CONTRIBUTING.md
+[README.md]: ./README.md
