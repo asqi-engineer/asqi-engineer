@@ -76,6 +76,7 @@ class ContainerConfig(BaseModel):
         "mem_limit": "2g",
         "cpu_period": 100000,
         "cpu_quota": 200000,
+        "cap_drop": ["ALL"],
     }
 
     timeout_seconds: int = Field(

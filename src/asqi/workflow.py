@@ -261,6 +261,32 @@ def execute_single_test(
         container_env["API_KEY"] = sut_params["api_key"]
         DBOS.logger.info("Using direct API key for authentication")
 
+    # Extract manifest to check for host access requirements
+    manifest = None
+    try:
+        manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
+    except Exception as e:
+        # Log warning but continue - manifest extraction failure shouldn't stop test execution
+        DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
+
+    # Configure Docker-in-Docker for containers that require host access
+    if manifest and manifest.host_access:
+        container_config.run_params.update(
+            {
+                "cap_drop": ["ALL"],
+                "cap_add": ["SYS_ADMIN"],
+                "volumes": {
+                    "/var/run/docker.sock": {
+                        "bind": "/var/run/docker.sock",
+                        "mode": "rw",
+                    }
+                },
+            }
+        )
+        DBOS.logger.info(
+            f"Configured Docker-in-Docker for test: {test_name} (image: {image})"
+        )
+
     # Execute container
     result.start_time = time.time()
 

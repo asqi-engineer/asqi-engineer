@@ -1,0 +1,185 @@
+suite_name: "Inspect Cybersecurity Evaluation Suite"
+test_suite:
+
+  # CyberSecurityEval 3
+  - name: "inspect_cyberseceval_3"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "cyse3_visual_prompt_injection"
+      evaluation_params: {}
+      limit: 2
+
+  # Catastrophic Cyber Capabilities Benchmark (3CB)
+  - name: "inspect_threecb"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "threecb"
+      evaluation_params:
+        max_sample_time_mins: 1
+        task_filter: python_repl_factorial10
+      limit: 2
+
+  # CyberMetric
+  - name: "inspect_cybermetric_80"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "cybermetric_80"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_cybermetric_500"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "cybermetric_500"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_cybermetric_2000"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "cybermetric_2000"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_cybermetric_10000"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "cybermetric_10000"
+      evaluation_params: {}
+      limit: 2
+
+  # CyberSecEval_2
+  - name: "inspect_cyse2_interpreter_abuse"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "cyse2_interpreter_abuse"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_cyse2_prompt_injection"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "cyse2_prompt_injection"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_cyse2_vulnerability_exploit"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "cyse2_vulnerability_exploit"
+      evaluation_params: {}
+      limit: 2
+
+  # GDM Dangerous Capabilities: Capture the Flag
+  - name: "inspect_gdm_in_house_ctf"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "gdm_in_house_ctf"
+      evaluation_params: {}
+      limit: 2
+
+  # InterCode: Security and Coding Capture-the-Flag Challenges
+  - name: "inspect_gdm_intercode_ctf"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "gdm_intercode_ctf"
+      evaluation_params:
+        max_messages: 5
+        max_attempts: 3
+      limit: 2
+
+  # SEvenLLM
+  - name: "inspect_sevenllm_mcq_en"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "sevenllm_mcq_en"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_sevenllm_mcq_zh"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "sevenllm_mcq_zh"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_sevenllm_qa_en"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "sevenllm_qa_en"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_sevenllm_qa_zh"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "sevenllm_qa_zh"
+      evaluation_params: {}
+      limit: 2
+
+  # SecQA
+  - name: "inspect_sec_qa_v1"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "sec_qa_v1"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_sec_qa_v1_5_shot"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "sec_qa_v1_5_shot"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_sec_qa_v2"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "sec_qa_v2"
+      evaluation_params: {}
+      limit: 2
+
+  - name: "inspect_sec_qa_v2_5_shot"
+    image: "asqiengineer/test-container:inspect_evals-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:
+      evaluation: "sec_qa_v2_5_shot"
+      evaluation_params: {}
+      limit: 2
