@@ -1,7 +1,8 @@
-FROM python:3.11-slim AS builder
+FROM ghcr.io/astral-sh/uv:bookworm-slim AS builder
 
 WORKDIR /tmp
 
+# Install system dependencies
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
@@ -9,12 +10,25 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     git \
     build-essential \
     unzip \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN --mount=type=cache,target=/root/.cache/pip \
+# Configure uv for faster builds
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+ENV UV_PYTHON_INSTALL_DIR=/python
+ENV UV_PYTHON_PREFERENCE=only-managed
+
+# Install Python
+RUN uv python install 3.12
+
+# Create virtual environment
+RUN uv venv
+
+# Clone and install TrustLLM using uv
+RUN --mount=type=cache,target=/root/.cache/uv \
     git clone https://github.com/timlrx/TrustLLM.git && \
     cd TrustLLM/trustllm_pkg && \
-    pip install --no-cache-dir --user . && \
+    uv pip install . && \
     cd /tmp/TrustLLM && \
     if [ -f "dataset/dataset.zip" ]; then \
         unzip dataset/dataset.zip -d /tmp/dataset/; \
@@ -22,14 +36,16 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         mkdir -p /tmp/dataset/dataset; \
     fi
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY --from=builder /root/.local /root/.local
+# Copy virtual environment from builder
+COPY --from=builder /tmp/.venv /app/.venv
 COPY --from=builder /tmp/dataset /app/dataset
 
-ENV PATH=/root/.local/bin:$PATH
+# Add venv to PATH
+ENV PATH="/app/.venv/bin:$PATH"
 
 RUN python -c "\
 import os; \
