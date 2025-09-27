@@ -2,14 +2,17 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /tmp
 
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     git \
     build-essential \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN git clone https://github.com/timlrx/TrustLLM.git && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    git clone https://github.com/timlrx/TrustLLM.git && \
     cd TrustLLM/trustllm_pkg && \
     pip install --no-cache-dir --user . && \
     cd /tmp/TrustLLM && \
