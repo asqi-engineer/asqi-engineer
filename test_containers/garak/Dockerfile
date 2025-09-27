@@ -1,29 +1,44 @@
 
-FROM python:3.11-slim AS builder
+FROM ghcr.io/astral-sh/uv:bookworm-slim AS builder
 
 WORKDIR /app
 
+# Install build tools and Rust
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
-    apt-get install -y --no-install-recommends curl build-essential && \
+    apt-get install -y --no-install-recommends curl build-essential ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
+# Configure uv for faster builds
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+ENV UV_PYTHON_INSTALL_DIR=/python
+ENV UV_PYTHON_PREFERENCE=only-managed
+
+# Install Python
+RUN uv python install 3.12
+
+# Create virtual environment
+RUN uv venv
+
+# Install Rust and garak in one step
 RUN --mount=type=cache,target=/root/.cache \
-    --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cargo,sharing=locked \
+    --mount=type=cache,target=/root/.cache/uv \
     curl https://sh.rustup.rs -sSf | sh -s -- -y && \
     . "$HOME/.cargo/env" && \
-    pip install --no-cache-dir --user garak==0.12.0
+    rustup default stable && \
+    uv pip install garak==0.12.0
 
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY --from=builder /root/.local /root/.local
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
 
-ENV PATH="/root/.local/bin:${PATH}"
+# Add venv to PATH
+ENV PATH="/app/.venv/bin:$PATH"
 
 COPY manifest.yaml .
 COPY entrypoint.py .
