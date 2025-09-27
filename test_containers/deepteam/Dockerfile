@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/root/.cache \
     curl https://sh.rustup.rs -sSf | sh -s -- -y && \
     . "$HOME/.cargo/env" && \
     pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir --prefix=/install deepteam==0.2.4 litellm==1.76.0
+    pip install --no-cache-dir --prefix=/install deepteam==0.2.4 deepeval==3.3.9 litellm==1.76.0
 
 # Stage 2: Runtime (Python 3.11 slim)
 FROM python:3.11-slim
