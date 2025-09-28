@@ -38,7 +38,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv add google-genai
 
 # Stage 2: Runtime
-FROM python:3.11-slim
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
@@ -53,11 +53,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     sh get-docker.sh && \
     rm get-docker.sh
 
-# Copy installed packages and venv from builder
-COPY --from=builder /root/.local /root/.local
+# Copy venv, Python installation and set path
+COPY --from=builder /app/inspect_evals/.venv /app/.venv
+COPY --from=builder /python /python
+ENV PATH="/app/.venv/bin:$PATH"
 COPY --from=builder /app/inspect_evals /app/inspect_evals
-
-ENV PATH="/app/inspect_evals/.venv/bin:/root/.local/bin:$PATH"
 
 # Set environment variables
 ENV HF_DATASETS_TRUST_REMOTE_CODE=1

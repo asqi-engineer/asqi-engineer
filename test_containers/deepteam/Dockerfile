@@ -29,14 +29,13 @@ RUN --mount=type=cache,target=/root/.cache \
     rustup default stable && \
     uv pip install deepteam==0.2.4 deepeval==3.3.9 litellm==1.76.0
 
-# Stage 2: Runtime (Python 3.12 slim)
-FROM python:3.12-slim
+# Stage 2: Runtime
+FROM debian:bookworm-slim
 WORKDIR /app
 
-# Copy virtual environment from builder
+# Copy venv, Python installation and set path
 COPY --from=builder /app/.venv /app/.venv
-
-# Add venv to PATH
+COPY --from=builder /python /python
 ENV PATH="/app/.venv/bin:$PATH"
 COPY manifest.yaml .
 COPY entrypoint.py .

@@ -36,16 +36,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         mkdir -p /tmp/dataset/dataset; \
     fi
 
-FROM python:3.12-slim
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Copy virtual environment from builder
+# Copy venv, Python installation and set path
 COPY --from=builder /tmp/.venv /app/.venv
-COPY --from=builder /tmp/dataset /app/dataset
-
-# Add venv to PATH
+COPY --from=builder /python /python
 ENV PATH="/app/.venv/bin:$PATH"
+COPY --from=builder /tmp/dataset /app/dataset
 
 RUN python -c "\
 import os; \

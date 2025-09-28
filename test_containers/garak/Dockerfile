@@ -21,7 +21,7 @@ RUN uv python install 3.12
 # Create virtual environment
 RUN uv venv
 
-# Install Rust and garak in one step
+# Install Rust and garak
 RUN --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/root/.cargo,sharing=locked \
     --mount=type=cache,target=/root/.cache/uv \
@@ -30,14 +30,13 @@ RUN --mount=type=cache,target=/root/.cache \
     rustup default stable && \
     uv pip install garak==0.12.0
 
-FROM python:3.12-slim
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Copy virtual environment from builder
+# Copy venv, Python installation and set path
 COPY --from=builder /app/.venv /app/.venv
-
-# Add venv to PATH
+COPY --from=builder /python /python
 ENV PATH="/app/.venv/bin:$PATH"
 
 COPY manifest.yaml .

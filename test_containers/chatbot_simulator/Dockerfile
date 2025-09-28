@@ -20,17 +20,16 @@ RUN uv python install 3.12
 # Create virtual environment and install dependencies
 RUN uv venv
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install openevals==0.1.0 rich
+    uv pip install openevals==0.1.0 rich openai langchain-openai langchain-core pydantic
 
-# Stage 2: Runtime (minimal, no build tools)
-FROM python:3.12-slim
+# Stage 2: Runtime
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Copy virtual environment from builder
+# Copy venv, Python installation and set path
 COPY --from=builder /app/.venv /app/.venv
-
-# Add venv to PATH
+COPY --from=builder /python /python
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy your app code
