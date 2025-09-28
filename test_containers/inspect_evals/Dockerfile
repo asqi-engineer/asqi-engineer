@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM python:3.11-slim AS builder
+FROM ghcr.io/astral-sh/uv:bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -9,12 +9,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y \
     git \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv with cache mount for faster repeated builds
-RUN --mount=type=cache,target=/root/.cache \
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
+# Configure uv for faster builds
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+ENV UV_PYTHON_INSTALL_DIR=/python
+ENV UV_PYTHON_PREFERENCE=only-managed
+
+# Install Python
+RUN uv python install 3.11
 
 # Set environment variable to allow remote code execution for datasets
 ENV HF_DATASETS_TRUST_REMOTE_CODE=1
@@ -28,14 +32,13 @@ RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
 RUN cd inspect_evals && uv venv
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=cache,target=/root/.cache/pip \
     cd inspect_evals && \
-    uv sync --all-extras && \
+    uv sync --extra test --extra math --extra mle_bench --extra worldsense --extra scicode --extra ifeval --extra personality --extra stealth --extra bbq && \
     uv add tf-keras && \
     uv add google-genai
 
 # Stage 2: Runtime
-FROM python:3.11-slim
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
@@ -50,11 +53,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     sh get-docker.sh && \
     rm get-docker.sh
 
-# Copy installed packages and venv from builder
-COPY --from=builder /root/.local /root/.local
+# Copy venv, Python installation and set path
+COPY --from=builder /app/inspect_evals/.venv /app/.venv
+COPY --from=builder /python /python
+ENV PATH="/app/.venv/bin:$PATH"
 COPY --from=builder /app/inspect_evals /app/inspect_evals
-
-ENV PATH="/app/inspect_evals/.venv/bin:/root/.local/bin:$PATH"
 
 # Set environment variables
 ENV HF_DATASETS_TRUST_REMOTE_CODE=1
