@@ -307,56 +307,6 @@ output_metrics:
     description: "Percentage of successful attacks (0.0 to 1.0)"
 ```
 
-## Score Card Configuration
-
-Score cards define automated assessment criteria for test results. They evaluate individual test executions (not aggregated results).
-
-### Basic Score Card Structure
-
-```yaml
-score_card_name: "Production Readiness Assessment"
-indicators:
-  - name: "Test Success Requirement"
-    apply_to:
-      test_name: "security_scan"
-    metric: "success"
-    assessment:
-      - { outcome: "PASS", condition: "equal_to", threshold: true }
-      - { outcome: "FAIL", condition: "equal_to", threshold: false }
-```
-
-### Assessment Conditions
-
-Score cards support various comparison operators:
-
-```yaml
-indicators:
-  - name: "Performance Score Assessment"
-    apply_to:
-      test_name: "benchmark_test"
-    metric: "score"
-    assessment:
-      - { outcome: "EXCELLENT", condition: "greater_equal", threshold: 0.9 }
-      - { outcome: "GOOD", condition: "greater_equal", threshold: 0.8 }
-      - { outcome: "ACCEPTABLE", condition: "greater_equal", threshold: 0.7 }
-      - { outcome: "NEEDS_IMPROVEMENT", condition: "less_than", threshold: 0.7 }
-
-  - name: "Security Threshold"
-    apply_to:
-      test_name: "vulnerability_scan"
-    metric: "vulnerabilities_found"
-    assessment:
-      - { outcome: "SECURE", condition: "equal_to", threshold: 0 }
-      - { outcome: "LOW_RISK", condition: "less_equal", threshold: 2 }
-      - { outcome: "HIGH_RISK", condition: "greater_than", threshold: 2 }
-```
-
-### Available Conditions
-
-- `equal_to`: Exact value matching (supports boolean and numeric)
-- `greater_than` / `less_than`: Strict numeric comparisons
-- `greater_equal` / `less_equal`: Inclusive numeric comparisons
-
 ## Validation and Error Handling
 
 ### Fail-Fast Validation
