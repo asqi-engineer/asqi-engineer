@@ -77,8 +77,8 @@ Validation only:
 
 ```bash
 asqi validate \
-  --test-suite-config config/suites/demo_test.yaml \
-  --systems-config config/systems/demo_systems.yaml \
+  -t config/suites/demo_test.yaml \
+  -s config/systems/demo_systems.yaml \
   --manifests-dir test_containers/
 ```
 
@@ -86,19 +86,19 @@ Run tests (execution only):
 
 ```bash
 asqi execute-tests \
-  --test-suite-config config/suites/demo_test.yaml \
-  --systems-config config/systems/demo_systems.yaml \
-  --output-file results.json
+  -t config/suites/demo_test.yaml \
+  -s config/systems/demo_systems.yaml \
+  -o output.json
 ```
 
 End-to-end (tests + score card evaluation):
 
 ```bash
 asqi execute \
-  --test-suite-config config/suites/demo_test.yaml \
-  --systems-config config/systems/demo_systems.yaml \
-  --score-card-config config/score_cards/example_score_card.yaml \
-  --output-file results_with_score_card.json
+  -t config/suites/demo_test.yaml \
+  -s config/systems/demo_systems.yaml \
+  -r config/score_cards/example_score_card.yaml \
+  -o results_with_score_card.json
 ```
 
 ### Building test containers locally
