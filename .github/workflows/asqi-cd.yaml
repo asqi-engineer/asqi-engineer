@@ -62,15 +62,12 @@ jobs:
       - name: 🔨 Build package
         run: uv build --wheel
 
-      - name: 🧪 Test wheel
+      - name: 🧪 Test wheel installation
         run: |
-          # Create isolated environment to test the wheel
-          python -m venv /tmp/test-wheel-env
+          uv venv /tmp/test-wheel-env --python ${{ matrix.python-version }}
           source /tmp/test-wheel-env/bin/activate
-          pip install dist/*.whl
-          # Basic test
-          asqi --help
-          # Cleanup
+          uv add dist/*.whl
+          uv run asqi --help
           deactivate
           rm -rf /tmp/test-wheel-env
 
