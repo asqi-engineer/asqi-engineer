@@ -65,7 +65,7 @@ jobs:
       - name: 🧪 Test wheel installation
         run: |
           uv venv /tmp/test-wheel-env --python ${{ matrix.python-version }}
-          source /tmp/test-wheel-env/bin/activate
+          . /tmp/test-wheel-env/bin/activate
           # pip install forces use of temp environment
           uv pip install dist/*.whl
           asqi --help
