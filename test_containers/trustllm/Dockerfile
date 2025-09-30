@@ -28,6 +28,7 @@ RUN uv venv
 RUN --mount=type=cache,target=/root/.cache/uv \
     git clone https://github.com/timlrx/TrustLLM.git && \
     cd TrustLLM/trustllm_pkg && \
+    uv pip install torch --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match && \
     uv pip install . && \
     cd /tmp/TrustLLM && \
     if [ -f "dataset/dataset.zip" ]; then \
