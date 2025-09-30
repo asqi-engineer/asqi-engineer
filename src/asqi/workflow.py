@@ -44,15 +44,16 @@ from asqi.validation import (
 
 load_dotenv()
 oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-database_url = os.environ.get("DBOS_DATABASE_URL")
-if not database_url:
+system_database_url = os.environ.get("DBOS_DATABASE_URL")
+if not system_database_url:
     raise ValueError(
         "Database URL must be provided through DBOS_DATABASE_URL environment variable"
     )
 
 config: DBOSConfig = {
     "name": "asqi-test-executor",
-    "database_url": database_url,
+    "system_database_url": system_database_url,
+    "enable_otlp": True,
 }
 if oltp_endpoint:
     config["otlp_traces_endpoints"] = [oltp_endpoint]
