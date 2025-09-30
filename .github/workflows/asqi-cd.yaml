@@ -62,6 +62,18 @@ jobs:
       - name: 🔨 Build package
         run: uv build --wheel
 
+      - name: 🧪 Test wheel
+        run: |
+          # Create isolated environment to test the wheel
+          python -m venv /tmp/test-wheel-env
+          source /tmp/test-wheel-env/bin/activate
+          pip install dist/*.whl
+          # Basic test
+          asqi --help
+          # Cleanup
+          deactivate
+          rm -rf /tmp/test-wheel-env
+
       - name: 🚀 Publish to PyPI
         # This action uses OIDC to securely authenticate with PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
