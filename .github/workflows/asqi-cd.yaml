@@ -66,8 +66,9 @@ jobs:
         run: |
           uv venv /tmp/test-wheel-env --python ${{ matrix.python-version }}
           source /tmp/test-wheel-env/bin/activate
-          uv add dist/*.whl
-          uv run asqi --help
+          # pip install forces use of temp environment
+          uv pip install dist/*.whl
+          asqi --help
           deactivate
           rm -rf /tmp/test-wheel-env
 
