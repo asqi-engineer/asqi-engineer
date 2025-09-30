@@ -62,6 +62,14 @@ jobs:
       - name: 🔨 Build package
         run: uv build --wheel
 
+      - name: 🧪 Test wheel installation
+        run: |
+          set -e
+          uv venv /tmp/test-wheel-env --python ${{ matrix.python-version }}
+          . /tmp/test-wheel-env/bin/activate
+          uv pip install dist/*.whl
+          asqi --help
+
       - name: 🚀 Publish to PyPI
         # This action uses OIDC to securely authenticate with PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
