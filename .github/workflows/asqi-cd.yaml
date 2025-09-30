@@ -66,7 +66,8 @@ jobs:
         run: |
           uv venv /tmp/test-wheel-env --python ${{ matrix.python-version }}
           . /tmp/test-wheel-env/bin/activate
-          # pip install forces use of temp environment
+          # `uv pip install` forces use of just activated temp environment as opposed to `uv add` (which uses env in local folder). 
+          # See https://docs.astral.sh/uv/pip/environments/#using-arbitrary-python-environments
           uv pip install dist/*.whl
           asqi --help
           deactivate
