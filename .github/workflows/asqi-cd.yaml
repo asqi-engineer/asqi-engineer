@@ -62,6 +62,17 @@ jobs:
       - name: 🔨 Build package
         run: uv build --wheel
 
+      - name: 🧪 Test wheel installation
+        run: |
+          uv venv /tmp/test-wheel-env --python ${{ matrix.python-version }}
+          . /tmp/test-wheel-env/bin/activate
+          # `uv pip install` forces use of just activated temp environment as opposed to `uv add` (which uses env in local folder). 
+          # See https://docs.astral.sh/uv/pip/environments/#using-arbitrary-python-environments
+          uv pip install dist/*.whl
+          asqi --help
+          deactivate
+          rm -rf /tmp/test-wheel-env
+
       - name: 🚀 Publish to PyPI
         # This action uses OIDC to securely authenticate with PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
