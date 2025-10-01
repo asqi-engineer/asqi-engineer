@@ -33,6 +33,7 @@ RUN cd inspect_evals && uv venv
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd inspect_evals && \
+    uv pip install torch --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match && \
     uv sync --extra test --extra math --extra mle_bench --extra worldsense --extra scicode --extra ifeval --extra personality --extra stealth --extra bbq && \
     uv add tf-keras && \
     uv add google-genai
@@ -53,11 +54,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     sh get-docker.sh && \
     rm get-docker.sh
 
-# Copy venv, Python installation and set path
-COPY --from=builder /app/inspect_evals/.venv /app/.venv
-COPY --from=builder /python /python
-ENV PATH="/app/.venv/bin:$PATH"
+# Copy inspect_evals (includes .venv), Python installation and set path
 COPY --from=builder /app/inspect_evals /app/inspect_evals
+COPY --from=builder /python /python
+ENV PATH="/app/inspect_evals/.venv/bin:$PATH"
 
 # Set environment variables
 ENV HF_DATASETS_TRUST_REMOTE_CODE=1
