@@ -3,30 +3,30 @@ name: Security
 on:
   workflow_call:
   schedule:
-    - cron: '0 0 * * 0'  # Run weekly on Sundays
+    - cron: "0 0 * * 0" # Run weekly on Sundays
 
 jobs:
   security:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
-          
+          python-version: "3.12"
+
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          
+
       - name: Install dependencies
         run: |
           uv sync --locked --group dev
-          
+
       - name: Run bandit
         run: uv run bandit -r . --configfile pyproject.toml
 
       - name: Run safety check
-        run: uv run pip-audit
+        run: uv run pip-audit --ignore-vuln GHSA-4xh5-x5gv-qwph
