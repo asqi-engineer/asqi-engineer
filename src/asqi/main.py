@@ -178,6 +178,10 @@ def _handle_shutdown(signum=None, frame=None):
     )
     shutdown_containers()
 
+    console.print(
+        "[yellow] Containers stopped. Waiting for workflows to complete...[/yellow]"
+    )
+
 
 @app.command("validate", help="Validate test plan configuration without execution.")
 def validate(
