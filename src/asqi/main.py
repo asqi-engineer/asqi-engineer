@@ -259,6 +259,11 @@ def execute(
         "--container-config",
         help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
     ),
+    pass_on_container_success: bool = typer.Option(
+        False,
+        "--pass-on-container-success/--strict-json-success",
+        help="If enabled, mark a test as passed whenever the container exits with code 0, ignoring the JSON 'success' field.",
+    ),
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
     console.print("[blue]--- 🚀 Executing End-to-End Workflow ---[/blue]")
@@ -276,6 +281,7 @@ def execute(
             "concurrent_tests": concurrent_tests,
             "max_failures": max_failures,
             "progress_interval": progress_interval,
+            "pass_on_container_success": pass_on_container_success,
         }
 
         # Launch DBOS if not already launched
@@ -368,6 +374,11 @@ def execute_tests(
         "--container-config",
         help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
     ),
+    pass_on_container_success: bool = typer.Option(
+        False,
+        "--pass-on-container-success/--strict-json-success",
+        help="If enabled, mark a test as passed whenever the container exits with code 0, ignoring the JSON 'success' field.",
+    ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
@@ -386,6 +397,7 @@ def execute_tests(
             "concurrent_tests": concurrent_tests,
             "max_failures": max_failures,
             "progress_interval": progress_interval,
+            "pass_on_container_success": pass_on_container_success,
         }
 
         # Launch DBOS if not already launched

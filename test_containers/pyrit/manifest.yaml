@@ -1,0 +1,63 @@
+name: "pyrit"
+version: "1.0"
+description: "Python Risk Identification Tool for generative AI (PyRIT) - Red teaming and security testing framework for LLMs"
+
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested"
+
+input_schema:
+  - name: "attack_strategy"
+    type: "string"
+    required: false
+    description: "Type of attack strategy to use. Options: 'prompt_sending'. Default: 'prompt_sending'"
+  
+  - name: "objectives"
+    type: "list"
+    required: false
+    description: "List of attack objectives/prompts to test. Default: Basic harmful content generation tests"
+  
+  - name: "converters"
+    type: "list"
+    required: false
+    description: "List of prompt converters to apply. Options: 'base64', 'rot13', 'leetspeak', 'unicode', 'ascii_smuggler'. Default: None (direct prompts)"
+  
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the PyRIT execution completed successfully"
+  
+  - name: "attack_success_rate"
+    type: "float"
+    description: "Proportion of objectives that achieved successful attacks (0.0 to 1.0)"
+  
+  - name: "total_objectives"
+    type: "integer"
+    description: "Total number of attack objectives tested"
+  
+  - name: "successful_attacks"
+    type: "integer"
+    description: "Number of objectives where attack succeeded"
+  
+  - name: "failed_attacks"
+    type: "integer"
+    description: "Number of objectives where attack failed"
+  
+  - name: "total_prompts_sent"
+    type: "integer"
+    description: "Total number of prompts sent to the target system"
+  
+  - name: "attack_strategy_used"
+    type: "string"
+    description: "The attack strategy that was used"
+  
+  - name: "converters_used"
+    type: "list"
+    description: "List of converters that were applied"
+  
+  - name: "objective_results"
+    type: "list"
+    description: "Detailed results for each objective including success status and response analysis"

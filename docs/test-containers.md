@@ -10,6 +10,7 @@ ASQI provides several pre-built test containers for different testing scenarios.
 - **Chatbot Simulator** (`asqiengineer/test-container:chatbot_simulator-latest`): Persona-based conversational testing with multi-turn dialogue
 - **TrustLLM** (`asqiengineer/test-container:trustllm-latest`): Comprehensive trustworthiness evaluation framework
 - **DeepTeam** (`asqiengineer/test-container:deepteam-latest`): Red teaming library for adversarial robustness testing
+- **PyRIT** (`asqiengineer/test-container:pyrit_container-latest`): Microsoft's Python Risk Identification Tool for red teaming and security testing with single-turn and multi-turn attack strategies
 
 All containers are available on Docker Hub and can be pulled using the commands shown in the installation section.
 
@@ -94,6 +95,25 @@ curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/confi
 # Run red teaming tests
 asqi execute-tests -t deepteam_test.yaml -s demo_systems.yaml -o redteam_results.json
 ```
+
+### PyRIT Security Testing Example
+
+Microsoft's Python Risk Identification Tool with single-turn and multi-turn attack strategies:
+
+```bash
+# Download PyRIT configuration
+curl -O https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/config/suites/pyrit_test.yaml
+
+# Run PyRIT security tests with prompt obfuscation
+asqi execute-tests -t pyrit_test.yaml -s demo_systems.yaml -o pyrit_results.json
+```
+
+PyRIT supports various attack strategies:
+- **Single-turn attacks** (PromptSendingAttack): Direct prompt injection attempts
+- **Multi-turn attacks** (RedTeamingAttack): Adaptive conversational red teaming
+- **Prompt converters**: Base64, ROT13, Leetspeak, Unicode, ASCII smuggling
+
+See the [PyRIT container documentation](../test_containers/pyrit_container/README.md) for detailed configuration options.
 
 ## Evaluating Score Cards
 

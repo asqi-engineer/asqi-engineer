@@ -47,7 +47,7 @@ def parse_container_json_output(output: str) -> Dict[str, Any]:
 
     for line in lines:
         line = line.strip()
-        if line.startswith("{"):
+        if not capturing and line.startswith("{"):
             capturing = True
             json_lines = [line]
         elif capturing:
