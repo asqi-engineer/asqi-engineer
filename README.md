@@ -62,6 +62,7 @@ Get started with ASQI Engineer in 3 simple steps:
 
 - **Python 3.12+** is required
 - Docker for running test containers
+    > **Note:** If you are facing issues detecting your Docker daemon, you might need to set the `DOCKER_HOST` environment variable in your `.env` file. See `.env` for details.
 
 **1. Install the package:**
 
@@ -87,7 +88,7 @@ asqi execute-tests -t config/suites/demo_test.yaml -s config/systems/demo_system
 
 This short flow should download a demo test container and generate the test results in `output.json`. Now, to actually test your AI system, configure the `.env` file and try out the other test packages in: https://www.asqi.ai/quickstart.html
 
-> **Note:** If you are facing issues detecting your Docker daemon, you might need to set the `DOCKER_HOST` environment variable in your `.env` file. See .env for details.
+
 ## Documentation
 
 Detailed documentation lives on the project docs site — use the links below to jump to the full guides and examples:
