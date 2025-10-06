@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
+from docker.types import Mount
 from requests import exceptions as requests_exceptions
 
 import docker
@@ -15,7 +16,6 @@ from asqi.config import ContainerConfig
 from asqi.logging_config import create_container_logger
 from asqi.schemas import Manifest
 from docker import errors as docker_errors
-from docker.types import Mount
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +28,10 @@ TIMEOUT_EXCEPTIONS = (
     requests_exceptions.ConnectionError,
 )
 
-# === Active container tracking and shutdown handling ===
 _active_lock = threading.Lock()
 _active_containers: set[str] = set()
 _shutdown_in_progress = False
+_shutdown_event = threading.Event()
 
 
 class ManifestExtractionError(Exception):
@@ -529,8 +529,44 @@ def run_container_with_args(
 
             # Wait for completion
             try:
-                exit_status = container.wait(timeout=container_config.timeout_seconds)
-                result["exit_code"] = exit_status["StatusCode"]
+                check_interval = 2
+                max_execution_time = container_config.timeout_seconds
+                elapsed = 0
+
+                while elapsed < max_execution_time:
+                    # Wait on shutdown event - wakes immediately if shutdown signaled
+                    # Otherwise timeout after check_interval to poll container status
+                    if _shutdown_event.wait(timeout=check_interval):
+                        logger.info(
+                            f"Shutdown detected, stopping container {container.id}"
+                        )
+                        try:
+                            container.kill()
+                        except (docker_errors.APIError, docker_errors.NotFound):
+                            pass
+                        result["exit_code"] = 130  # 128 + SIGINT
+                        result["error"] = "Container stopped due to shutdown signal"
+                        break
+
+                    # Event timeout expired - check if container has finished
+                    try:
+                        exit_status = container.wait(timeout=check_interval)
+                        result["exit_code"] = exit_status["StatusCode"]
+                        break  # Container finished successfully
+                    except TIMEOUT_EXCEPTIONS:
+                        # Container still running (Docker API timed out), continue waiting
+                        elapsed += check_interval
+                        continue
+                else:
+                    # Overall execution time exceeded - kill container immediately
+                    try:
+                        container.kill()
+                    except (docker_errors.APIError, docker_errors.NotFound) as e:
+                        logger.warning(f"Failed to kill container {container.id}: {e}")
+                    raise TimeoutError(
+                        f"Container exceeded timeout of {max_execution_time}s"
+                    )
+
             except docker_errors.APIError as api_error:
                 # Docker API error during wait; attempt to kill and report
                 try:
@@ -541,22 +577,6 @@ def run_container_with_args(
                     f"Container execution failed with API error: {api_error}"
                 )
                 return result
-            except TIMEOUT_EXCEPTIONS as e:
-                # HTTP/socket timeout while waiting for the container to finish.
-                # Treat as container timeout, terminate container and report gracefully.
-                try:
-                    container.kill()
-                except (docker_errors.APIError, docker_errors.NotFound) as ke:
-                    logger.warning(
-                        f"Failed to kill container {getattr(container, 'id', '<unknown>')}: {ke}"
-                    )
-                # Use 137 (SIGKILL) to indicate timeout/forced termination
-                result["exit_code"] = 137
-                result["error"] = (
-                    f"Container execution timed out after {container_config.timeout_seconds}s for image '{image}': {e}"
-                )
-                # Fall through to collect any logs gathered so far and return
-                # Do not re-raise; ensure workflow can continue
 
             # Get output (use streamed output if available, otherwise get all logs)
             try:
@@ -615,6 +635,7 @@ def shutdown_containers() -> None:
     with _active_lock:
         global _shutdown_in_progress
         _shutdown_in_progress = True
+        _shutdown_event.set()  # signal all waiting threads
         active_ids = list(_active_containers)
     if not active_ids:
         return

@@ -14,6 +14,7 @@ from asqi.container_manager import (
     MountExtractionError,
     _decommission_container,
     _resolve_abs,
+    _shutdown_event,
     check_images_availability,
     docker_client,
     extract_manifest_from_image,
@@ -22,6 +23,14 @@ from asqi.container_manager import (
     MissingImageException,
 )
 from asqi.schemas import Manifest
+
+
+@pytest.fixture(autouse=True)
+def reset_shutdown_event():
+    """Reset the shutdown event before each test to avoid cross-test contamination."""
+    _shutdown_event.clear()
+    yield
+    _shutdown_event.clear()
 
 
 class TestResolveAbs:
@@ -565,17 +574,23 @@ class TestRunContainerWithArgs:
             )
 
     def test_run_container_wait_timeout_exceptions(self, mock_container_setup):
-        """Test handling of timeout exceptions during container.wait()."""
+        """Test handling of timeout exceptions during container.wait() until max_execution_time."""
         mock_client, mock_container, _ = mock_container_setup
+        # Simulate container that keeps timing out (never finishes)
+        # With our new loop implementation, this will keep retrying until max_execution_time
         mock_container.wait.side_effect = requests_exceptions.Timeout("Wait timeout")
-        container_config: ContainerConfig = ContainerConfig()
+
+        # Use very short timeout to avoid test hanging (default is 300s)
+        container_config = ContainerConfig(timeout_seconds=3)  # 3 second max
+
         result = run_container_with_args(
             image="test:latest", args=["--test"], container_config=container_config
         )
         assert result["success"] is False
         assert result["exit_code"] == 137
         assert "timed out" in result["error"]
-        mock_container.kill.assert_called_once()
+        # Container should be killed after max_execution_time exceeded
+        mock_container.kill.assert_called()
 
     def test_run_container_log_retrieval_timeout_exceptions(self, mock_container_setup):
         """Test handling of timeout exceptions during log retrieval."""

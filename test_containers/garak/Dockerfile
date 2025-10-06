@@ -28,6 +28,7 @@ RUN --mount=type=cache,target=/root/.cache \
     curl https://sh.rustup.rs -sSf | sh -s -- -y && \
     . "$HOME/.cargo/env" && \
     rustup default stable && \
+    uv pip install torch --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match && \
     uv pip install garak==0.12.0
 
 FROM debian:bookworm-slim
