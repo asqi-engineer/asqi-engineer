@@ -63,6 +63,24 @@ DBOS(config=config)
 console = Console()
 
 
+def _get_docker_socket_path(env_vars: dict[str, str]) -> str:
+    """
+    Get the local Docker socket path from the environment.
+
+    Extracts the socket path from DOCKER_HOST environment variable if set,
+    otherwise defaults to the standard Linux path.
+
+    Returns:
+        Path to the Docker socket on the host system
+    """
+    docker_host = env_vars.get("DOCKER_HOST", "")
+    if docker_host:
+        # Remove 'unix://' prefix in Unix socket format: unix:///path/to/socket
+        return docker_host.removeprefix("unix://")
+    # else, default to standard Linux path
+    return "/var/run/docker.sock"
+
+
 class TestExecutionResult:
     """Represents the result of a single test execution."""
 
@@ -272,20 +290,23 @@ def execute_single_test(
 
     # Configure Docker-in-Docker for containers that require host access
     if manifest and manifest.host_access:
+        docker_socket_path = _get_docker_socket_path(env_vars=container_env)
         container_config.run_params.update(
             {
                 "cap_drop": ["ALL"],
                 "cap_add": ["SYS_ADMIN"],
                 "volumes": {
-                    "/var/run/docker.sock": {
+                    docker_socket_path: {
                         "bind": "/var/run/docker.sock",
                         "mode": "rw",
                     }
                 },
             }
         )
+        # Remove env variable DOCKER_HOST to avoid container looking for host path inside container
+        del container_env["DOCKER_HOST"]
         DBOS.logger.info(
-            f"Configured Docker-in-Docker for test: {test_name} (image: {image})"
+            f"Configured Docker-in-Docker for test: {test_name} (image: {image}) using host socket: {docker_socket_path}"
         )
 
     # Execute container
