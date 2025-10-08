@@ -131,7 +131,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
 # DB
 DBOS_DATABASE_URL=postgres://postgres:asqi@localhost:5432/asqi_starter
 # Docker host URL might need to be configured if not at default location (e.g. if using macOS)
-# If so, uncomment below. The default location for macOS is shown  please replace with actual username) 
+# If so, uncomment below. The default location for macOS is shown below
 # but you might need to change it for your use case.
 # DOCKER_HOST=unix:///Users/username/.docker/run/docker.sock
 EOF
