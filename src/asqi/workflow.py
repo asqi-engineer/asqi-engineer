@@ -4,7 +4,8 @@ import time
 import uuid
 from datetime import datetime
 from difflib import get_close_matches
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from dbos import DBOS, DBOSConfig, Queue
 from dotenv import dotenv_values, load_dotenv
@@ -15,6 +16,7 @@ from asqi.config import (
     ContainerConfig,
     load_config_file,
     merge_defaults_into_suite,
+    save_container_results_to_file,
     save_results_to_file,
 )
 from asqi.container_manager import (
@@ -104,7 +106,7 @@ class TestExecutionResult:
             return self.end_time - self.start_time
         return 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def metadata_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for storage/reporting."""
         return {
             "metadata": {
@@ -119,6 +121,11 @@ class TestExecutionResult:
                 "timestamp": datetime.now().isoformat(),
                 "success": self.success,
             },
+        }
+
+    def container_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for storage/reporting."""
+        return {
             "test_results": self.test_results,
             "error_message": self.error_message,
             "container_output": self.container_output,
@@ -422,7 +429,7 @@ def run_test_suite_workflow(
     systems_config: Dict[str, Any],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
-) -> Dict[str, Any]:
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
 
@@ -439,7 +446,7 @@ def run_test_suite_workflow(
         container_config: Container execution configurations
 
     Returns:
-        Execution summary with metadata and individual test results (no score cards)
+        Execution summary with metadata and individual test results (no score cards) and container results
     """
     workflow_start_time = time.time()
 
@@ -467,7 +474,7 @@ def run_test_suite_workflow(
                 error=error_msg,
             ),
             "results": [],
-        }
+        }, []
     except (TypeError, AttributeError) as e:
         error_msg = f"Configuration structure error: {e}"
         DBOS.logger.error(error_msg)
@@ -483,7 +490,7 @@ def run_test_suite_workflow(
                 error=error_msg,
             ),
             "results": [],
-        }
+        }, []
 
     try:
         validate_test_volumes(suite)
@@ -503,7 +510,7 @@ def run_test_suite_workflow(
                 error=error_msg,
             ),
             "results": [],
-        }
+        }, []
 
     console.print(f"\n[bold blue]Executing Test Suite:[/bold blue] {suite.suite_name}")
 
@@ -573,7 +580,7 @@ def run_test_suite_workflow(
                 validation_errors=validation_errors,
             ),
             "results": [],
-        }
+        }, []
 
     # Prepare test execution plan
     test_execution_plan = create_test_execution_plan(suite, systems, image_availability)
@@ -592,7 +599,7 @@ def run_test_suite_workflow(
                 execution_time=time.time() - workflow_start_time,
             ),
             "results": [],
-        }
+        }, []
 
     # Execute tests concurrently
     console.print(f"\n[bold]Running {test_count} tests...[/bold]")
@@ -724,8 +731,8 @@ def run_test_suite_workflow(
 
     return {
         "summary": summary,
-        "results": [result.to_dict() for result in all_results],
-    }
+        "results": [result.metadata_dict() for result in all_results],
+    }, [result.container_dict() for result in all_results]
 
 
 @DBOS.step()
@@ -744,9 +751,6 @@ def convert_test_results_to_objects(
         result.success = metadata["success"]
         result.container_id = metadata["container_id"]
         result.exit_code = metadata["exit_code"]
-        result.container_output = result_dict["container_output"]
-        result.test_results = result_dict["test_results"]
-        result.error_message = result_dict["error_message"]
         test_results.append(result)
     return test_results
 
@@ -828,7 +832,7 @@ def run_end_to_end_workflow(
     score_card_configs: List[Dict[str, Any]],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
-) -> Dict[str, Any]:
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a complete end-to-end workflow: test execution + score card evaluation.
 
@@ -840,14 +844,14 @@ def run_end_to_end_workflow(
         container_config: Container execution configurations
 
     Returns:
-        Complete execution results with test results and score card evaluations
+        Complete execution results with test results, score card evaluations and container results
     """
-    test_results = run_test_suite_workflow(
+    test_results, container_results = run_test_suite_workflow(
         suite_config, systems_config, executor_config, container_config
     )
     final_results = evaluate_score_cards_workflow(test_results, score_card_configs)
 
-    return final_results
+    return final_results, container_results
 
 
 @DBOS.step()
@@ -863,6 +867,31 @@ def save_results_to_file_step(results: Dict[str, Any], output_path: str) -> None
     except (TypeError, ValueError) as e:
         console.print(f"[red]Invalid results data for saving:[/red] {e}")
         DBOS.logger.error(f"Invalid results data cannot be saved to {output_path}: {e}")
+
+
+@DBOS.step()
+def save_container_results_to_file_step(
+    container_results: List[Dict[str, Any]], output_path: str
+) -> None:
+    """Save container results to a JSON file."""
+    logs_path = os.getenv("LOGS_PATH", "logs")
+    try:
+        Path(logs_path).mkdir(exist_ok=True)
+        logs_filename = output_path.split("/")[-1]
+
+        output_path = save_container_results_to_file(
+            container_results, logs_filename, logs_path
+        )
+        console.print(f"Container results saved to [bold]{output_path}[/bold]")
+        DBOS.logger.info(f"Conatiner results saved to {output_path}")
+    except (IOError, OSError, PermissionError) as e:
+        console.print(f"[red]Failed to save container results:[/red] {e}")
+        DBOS.logger.error(f"Failed to save container results to {logs_path}: {e}")
+    except (TypeError, ValueError) as e:
+        console.print(f"[red]Invalid container results data for saving:[/red] {e}")
+        DBOS.logger.error(
+            f"Invalid container results data cannot be saved to {logs_path}: {e}"
+        )
 
 
 def start_test_execution(
@@ -981,8 +1010,9 @@ def start_test_execution(
             raise ValueError(f"Invalid execution mode: {execution_mode}")
 
         if output_path:
-            results = handle.get_result()
+            results, container_results = handle.get_result()
             save_results_to_file_step(results, output_path)
+            save_container_results_to_file_step(container_results, output_path)
         else:
             handle.get_result()
 
