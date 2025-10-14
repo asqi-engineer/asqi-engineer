@@ -8,6 +8,16 @@
           "title": "Type",
           "type": "string"
         },
+        "description": {
+          "description": "Description of the system.",
+          "title": "Description",
+          "type": "string"
+        },
+        "provider": {
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-debrock...' for external systems.",
+          "title": "Provider",
+          "type": "string"
+        },
         "params": {
           "additionalProperties": true,
           "description": "Parameters specific to the system type (e.g., base_url, model name, API key).",
