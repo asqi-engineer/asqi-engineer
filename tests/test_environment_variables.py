@@ -22,9 +22,11 @@ class TestEnvironmentVariables:
 
         return SuiteConfig(
             suite_name="Environment Test Suite",
+            description="Suite description",
             test_suite=[
                 TestDefinition(
                     name="test_with_api_key",
+                    description="Test description",
                     image="my-registry/test:latest",
                     systems_under_test=["test_system"],
                     systems=None,
@@ -44,6 +46,8 @@ class TestEnvironmentVariables:
             systems={
                 "test_system": SystemDefinition(
                     type="llm_api",
+                    description="System description",
+                    provider="openai",
                     params={
                         "model": "gpt-4o-mini",
                         "api_key": "sk-123",
@@ -68,6 +72,8 @@ class TestEnvironmentVariables:
 
         # Verify the system params are flattened correctly
         assert system_params["type"] == "llm_api"
+        assert system_params["description"] == "System description"
+        assert system_params["provider"] == "openai"
         assert system_params["model"] == "gpt-4o-mini"
         assert system_params["api_key"] == "sk-123"
 
@@ -87,6 +93,8 @@ class TestEnvironmentVariables:
         # System params with explicit env_file
         system_params_with_env_file = {
             "type": "llm_api",
+            "description": "System description",
+            "provider": "openai",
             "model": "gpt-4o-mini",
             "env_file": "custom.env",
         }
@@ -132,6 +140,8 @@ class TestEnvironmentVariables:
 
         system_params = {
             "type": "llm_api",
+            "description": "System description",
+            "provider": "openai",
             "model": "gpt-4",
             "api_key": "sk-123",
         }

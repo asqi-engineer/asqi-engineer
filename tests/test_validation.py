@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from asqi.main import load_and_validate_plan
 from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
@@ -23,8 +24,10 @@ from asqi.validation import (
 # Test data
 DEMO_SUITE_YAML = """
 suite_name: "Mock Tester Sanity Check"
+description: "Suite description"
 test_suite:
   - name: "run_mock_on_compatible_system"
+    description: "Test description"
     image: "my-registry/mock_tester:latest"
     systems_under_test:
       - "my_backend_api"  # This should fail since mock_tester doesn't support this in your demo
@@ -156,9 +159,11 @@ class TestCrossFileValidation:
         # Create a suite with only compatible systems
         compatible_suite_data = {
             "suite_name": "Compatible Test",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "test_llm_service",
+                    "description": "Test description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {"delay_seconds": 1},
@@ -183,9 +188,11 @@ class TestCrossFileValidation:
         """Test validation fails when system is not defined."""
         suite_data = {
             "suite_name": "Test with Missing system",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "test_missing_system",
+                    "description": "Test description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["nonexistent_system"],
                     "params": {},
@@ -203,9 +210,11 @@ class TestCrossFileValidation:
         # Use garak which has required parameters
         suite_data = {
             "suite_name": "Test Missing Required Param",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "garak_without_probes",
+                    "description": "Test description",
                     "image": "my-registry/garak:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {},  # Missing required 'probes' parameter
@@ -224,9 +233,11 @@ class TestCrossFileValidation:
         """Test validation fails when unknown parameters are provided."""
         suite_data = {
             "suite_name": "Test Unknown Param",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "test_unknown_param",
+                    "description": "Test description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {"delay_seconds": 1, "unknown_param": "should_fail"},
@@ -238,6 +249,42 @@ class TestCrossFileValidation:
         errors = validate_test_plan(suite, demo_systems, manifests)
         assert len(errors) > 0
         assert any("Unknown parameter 'unknown_param'" in error for error in errors)
+
+    def test_invalid_suite_description(self, demo_systems, manifests):
+        """Test validation fails when description suite field is not a string."""
+        suite_data = {
+            "suite_name": "Test Unknown Param",
+            "description": "Suite description",
+            "test_suite": [
+                {
+                    "name": "test_unknown_param",
+                    "description": 33,
+                    "image": "my-registry/mock_tester:latest",
+                    "systems_under_test": ["my_llm_service"],
+                    "params": {"delay_seconds": 1, "unknown_param": "should_fail"},
+                }
+            ],
+        }
+        with pytest.raises(ValidationError):
+            SuiteConfig(**suite_data)
+
+    def test_invalid_test_description(self, demo_systems, manifests):
+        """Test validation fails when description test field is not a string."""
+        suite_data = {
+            "suite_name": "Test Unknown Param",
+            "description": 33,
+            "test_suite": [
+                {
+                    "name": "test_unknown_param",
+                    "description": "Test description",
+                    "image": "my-registry/mock_tester:latest",
+                    "systems_under_test": ["my_llm_service"],
+                    "params": {"delay_seconds": 1, "unknown_param": "should_fail"},
+                }
+            ],
+        }
+        with pytest.raises(ValidationError):
+            SuiteConfig(**suite_data)
 
 
 class TestFileLoading:
@@ -293,9 +340,11 @@ class TestEdgeCases:
         """Test validation with multiple target systems."""
         multi_system_data = {
             "suite_name": "Multi system Test",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "test_multiple_systems",
+                    "description": "Test description",
                     "image": "my-registry/garak:latest",
                     "systems_under_test": ["my_llm_service", "my_backend_api"],
                     "params": {
@@ -314,9 +363,11 @@ class TestEdgeCases:
         """Test validation with no parameters (should be fine for mock_tester)."""
         no_params_data = {
             "suite_name": "No Params Test",
+            "description": "No Param Description",
             "test_suite": [
                 {
                     "name": "test_no_params",
+                    "description": "No Param Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {},
@@ -427,9 +478,11 @@ class TestValidationFunctions:
     def test_validate_manifests_against_tests(self, demo_systems, manifests):
         suite_data = {
             "suite_name": "Valid",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "t1",
+                    "description": "Test description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {},
@@ -449,15 +502,18 @@ class TestValidationFunctions:
     def test_create_test_execution_plan(self, demo_systems, manifests):
         suite_data = {
             "suite_name": "ExecPlan",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "t1",
+                    "description": "T1 description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {"delay_seconds": 1},
                 },
                 {
                     "name": "t2",
+                    "description": "T2 description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service", "my_backend_api"],
                     "params": {},
@@ -637,9 +693,11 @@ class TestWorkflowValidation:
         """Test validation with manifests provided."""
         suite_data = {
             "suite_name": "Compatible Test",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "test_llm",
+                    "description": "Test description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {},
@@ -669,9 +727,11 @@ class TestCreateExecutionPlanEdgeCases:
         """Test with empty systems."""
         suite_data = {
             "suite_name": "Test",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "test1",
+                    "description": "Test description",
                     "image": "image:latest",
                     "systems_under_test": ["sys1"],
                     "params": {},
@@ -689,9 +749,11 @@ class TestCreateExecutionPlanEdgeCases:
         """Test execution plan with volumes."""
         suite_data = {
             "suite_name": "Volume Test",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "test_with_volumes",
+                    "description": "Test description",
                     "image": "image:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {"param1": "value1"},
@@ -711,9 +773,11 @@ class TestCreateExecutionPlanEdgeCases:
         """Test with empty systems_under_test."""
         suite_data = {
             "suite_name": "No SUT Test",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "test_no_sut",
+                    "description": "Test description",
                     "image": "image:latest",
                     "systems_under_test": [],
                     "params": {},
@@ -729,9 +793,11 @@ class TestCreateExecutionPlanEdgeCases:
         """Test execution plan includes additional systems."""
         suite_data = {
             "suite_name": "Multi System Test",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "test_multi_system",
+                    "description": "Test description",
                     "image": "image:latest",
                     "systems_under_test": ["my_llm_service"],
                     "systems": {"simulator_system": "my_backend_api"},
@@ -755,9 +821,11 @@ class TestCreateExecutionPlanEdgeCases:
         """Test case where test image is not in image_availability."""
         suite_data = {
             "suite_name": "Missing Image Test",
+            "description": "Suite description",
             "test_suite": [
                 {
                     "name": "test_missing_image",
+                    "description": "Test description",
                     "image": "missing:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {},
@@ -803,9 +871,11 @@ class TestVolumeValidation:
         return SuiteConfig(
             **{
                 "suite_name": "test volumes test",
+                "description": "Suite description",
                 "test_suite": [
                     {
                         "name": "t",
+                        "description": "Tests description",
                         "image": "img:latest",
                         "systems_under_test": ["my_llm_service"],
                         "params": {},
