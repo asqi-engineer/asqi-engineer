@@ -26,6 +26,7 @@ ASQI Engineer provides several pre-built test containers specifically designed f
 ```yaml
 test_suite:
   - name: "basic_compatibility_check"
+    description: "System Basic Compatibility Test"
     image: "my-registry/mock_tester:latest"
     systems_under_test: ["my_llm_service"]
     params:
@@ -94,6 +95,7 @@ docker build -t my-registry/mock_tester:latest .
 ```yaml
 test_suite:
   - name: "comprehensive_security_scan"
+    description: "Scans the Model For Security Risk and Vulnerabilities"
     image: "my-registry/garak:latest"
     systems_under_test: ["production_model"]
     params:
@@ -164,6 +166,7 @@ export OPENAI_API_KEY="your-api-key"
 ```yaml
 test_suite:
   - name: "advanced_red_team_assessment"
+    description: "Runs Attacks to Test Agains Red Team Assesssments"
     image: "my-registry/deepteam:latest"
     systems_under_test: ["target_chatbot"]
     systems:
@@ -234,6 +237,7 @@ docker build -t my-registry/deepteam:latest .
 ```yaml
 test_suite:
   - name: "customer_service_conversation_test"
+    description: "Tests How the Chatbot Handles Real Customer Conversations"
     image: "my-registry/chatbot_simulator:latest"
     systems_under_test: ["customer_service_bot"]
     systems:
@@ -306,6 +310,7 @@ docker build -t my-registry/chatbot_simulator:latest .
 ```yaml
 test_suite:
   - name: "mathematics_evaluation"
+    description: "Check the Models Ability to Solve Math Problems"
     image: "my-registry/inspect_evals:latest"
     systems_under_test: ["math_tutor_model"]
     params:
@@ -316,6 +321,7 @@ test_suite:
         fewshot_seed: 42
 
   - name: "cybersecurity_assessment"
+    description: "Check the Models Ability to Handle Cybersecurity Problems"
     image: "my-registry/inspect_evals:latest"
     systems_under_test: ["secure_assistant"]
     params:
@@ -323,6 +329,7 @@ test_suite:
       limit: 100
 
   - name: "knowledge_benchmark"
+    description: "Measures the Model Knowledge"
     image: "my-registry/inspect_evals:latest"
     systems_under_test: ["knowledge_bot"]
     params:
@@ -333,6 +340,7 @@ test_suite:
         cot: true
 
   - name: "bias_detection"
+    description: "Evaluates Bias in the Chatbot Response"
     image: "my-registry/inspect_evals:latest"
     systems_under_test: ["chatbot"]
     params:
@@ -411,6 +419,7 @@ To use these evaluations, you must:
 ```yaml
 test_suite:
   - name: "ethics_evaluation"
+    description: "Test How Ethical the Responses Are"
     image: "my-registry/trustllm:latest"
     systems_under_test: ["target_model"]
     params:
@@ -420,6 +429,7 @@ test_suite:
       max_rows: 50
 
   - name: "safety_assessment"
+    description: "Check if the Model Avoids Unsafe Content"
     image: "my-registry/trustllm:latest"
     systems_under_test: ["target_model"]
     params:
@@ -428,6 +438,7 @@ test_suite:
       max_rows: 30
 
   - name: "fairness_evaluation"
+    description: "Assesses Fairness Across Diferent Sets"
     image: "my-registry/trustllm:latest"
     systems_under_test: ["target_model"]
     params:
@@ -470,9 +481,11 @@ Combine multiple security testing frameworks for comprehensive coverage:
 
 ```yaml
 suite_name: "Complete Security Assessment"
+description: "Evaluate Model Security, Reliability and Trustworthiness"
 test_suite:
   # Fast baseline security scan
   - name: "baseline_security"
+    description: "Scan for Common Vulnerabilities"
     image: "my-registry/garak:latest"
     systems_under_test: ["target_model"]
     params:
@@ -482,6 +495,7 @@ test_suite:
 
   # Comprehensive adversarial testing
   - name: "advanced_red_team"
+    description: "Runs Advanced Tests to Expose Weaknesses"
     image: "my-registry/deepteam:latest"
     systems_under_test: ["target_model"]
     systems:
@@ -498,6 +512,7 @@ test_suite:
 
   # Cybersecurity benchmark evaluation
   - name: "cybersecurity_benchmark"
+    description: "Benchmarks Security Performance"
     image: "my-registry/inspect_evals:latest"
     systems_under_test: ["target_model"]
     params:
@@ -506,6 +521,7 @@ test_suite:
 
   # Trustworthiness evaluation
   - name: "trustworthiness_assessment"
+    description: "Check Model Trustworthiness"
     image: "my-registry/trustllm:latest"
     systems_under_test: ["target_model"]
     params:
@@ -518,9 +534,11 @@ Evaluate conversational quality and system performance:
 
 ```yaml
 suite_name: "Chatbot Quality and Performance"
+description: "Evaluates how well the Chatbot does across Quality and Performance"
 test_suite:
   # Conversation quality assessment
   - name: "conversation_quality"
+    description: "Checks how Naturally the Chatbot Handles Conversation"
     image: "my-registry/chatbot_simulator:latest"
     systems_under_test: ["customer_bot"]
     systems:
@@ -535,6 +553,7 @@ test_suite:
 
   # Knowledge and reasoning assessment
   - name: "knowledge_evaluation"
+    description: "Measures how well the Chatbot Reasons"
     image: "my-registry/inspect_evals:latest"
     systems_under_test: ["customer_bot"]
     params:
@@ -546,6 +565,7 @@ test_suite:
 
   # Performance and reliability
   - name: "performance_baseline"
+    description: "Measures the Chatbot Response Speed"
     image: "my-registry/mock_tester:latest"
     systems_under_test: ["customer_bot"]
     params:
