@@ -165,7 +165,7 @@ class TestDefinition(TestDefinitionBase):
     )
     description: Optional[str] = Field(
         None,
-        description="A short sumamary of the purpose of the test and what it aims to validate.",
+        description="A short summary of the purpose of the test and what it aims to validate.",
     )
     image: str = Field(
         ...,
