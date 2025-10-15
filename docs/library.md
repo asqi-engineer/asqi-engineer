@@ -47,6 +47,8 @@ from asqi.workflow import (
 import os
 from pathlib import Path
 
+from dbos import DBOS
+
 from asqi.config import (
     ContainerConfig,
     ExecutorConfig,
@@ -58,6 +60,7 @@ from asqi.workflow import start_test_execution
 os.environ.setdefault(
     "DBOS_DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/asqi"
 )
+DBOS.launch()
 
 executor_config = {
     "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
@@ -69,7 +72,7 @@ container_config = ContainerConfig()
 suite_path = Path("config/suites/demo_test.yaml")
 systems_path = Path("config/systems/demo_systems.yaml")
 score_cards = [
-    load_config_file("config/score_cards/asqi_chatbot_score_card.yaml"),
+    load_config_file("config/score_cards/example_score_card.yaml"),
 ]
 
 workflow_id = start_test_execution(
@@ -78,7 +81,7 @@ workflow_id = start_test_execution(
     executor_config=executor_config,
     container_config=container_config,
     score_card_configs=score_cards,
-    output_path="artifacts/demo_results.json",
+    output_path="demo_results.json",
 )
 
 print(f"Workflow completed: {workflow_id}")
@@ -102,7 +105,7 @@ from asqi.workflow import run_end_to_end_workflow
 
 suite_cfg = merge_defaults_into_suite(load_config_file("config/suites/demo_test.yaml"))
 systems_cfg = load_config_file("config/systems/demo_systems.yaml")
-score_cards = [load_config_file("config/score_cards/asqi_chatbot_score_card.yaml")]
+score_cards = [load_config_file("config/score_cards/example_score_card.yaml")]
 
 executor_cfg = {
     "concurrent_tests": 2,
@@ -110,6 +113,8 @@ executor_cfg = {
     "progress_interval": 4,
 }
 container_cfg = ContainerConfig.with_streaming(True)
+
+DBOS.launch()
 
 handle = DBOS.start_workflow(
     run_end_to_end_workflow,
@@ -131,14 +136,19 @@ score_card_report = results.get("score_card")
 ### Score card only runs
 
 ```python
+from dbos import DBOS
+
 from asqi.config import load_config_file
 from asqi.workflow import start_score_card_evaluation
 
-score_cards = [load_config_file("config/score_cards/asqi_chatbot_score_card.yaml")]
+score_cards = [load_config_file("config/score_cards/example_score_card.yaml")]
+
+DBOS.launch()
+
 workflow_id = start_score_card_evaluation(
-    input_path="artifacts/demo_results.json",
+    input_path="demo_results.json",
     score_card_configs=score_cards,
-    output_path="artifacts/demo_results_with_scores.json",
+    output_path="demo_results_with_scores.json",
 )
 print(f"Score card evaluation workflow: {workflow_id}")
 ```
@@ -233,4 +243,3 @@ The score card evaluation pipeline is modular:
 3. `add_score_cards_to_results` merges the evaluation output back into the workflow results.
 
 Reuse any of these steps in your own workflow to add bespoke analytics (for example, pushing metrics to a dashboard or enriching results with organisation-specific grading logic).
-
