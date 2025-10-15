@@ -14,7 +14,7 @@
           "type": "string"
         },
         "provider": {
-          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-debrock...' for external systems.",
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
           "title": "Provider",
           "type": "string"
         },

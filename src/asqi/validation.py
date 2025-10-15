@@ -323,10 +323,14 @@ def create_test_execution_plan(
             # Build unified systems_params with system_under_test and additional systems
             systems_params = {
                 "system_under_test": {
-                    "type": system_def.type,
-                    "description": system_def.description,
-                    "provider": system_def.provider,
-                    **system_def.params,
+                    k: v
+                    for k, v in {
+                        "type": system_def.type,
+                        "description": system_def.description,
+                        "provider": system_def.provider,
+                        **system_def.params,
+                    }.items()
+                    if v is not None
                 }
             }
 
@@ -339,6 +343,8 @@ def create_test_execution_plan(
                     if referenced_system_def:
                         systems_params[system_role] = {
                             "type": referenced_system_def.type,
+                            "description": referenced_system_def.description,
+                            "provider": referenced_system_def.provider,
                             **referenced_system_def.params,
                         }
 

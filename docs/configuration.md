@@ -158,7 +158,7 @@ test_suite:
 ### Multiple Tests in One Suite
 
 ```yaml
-suite_name: "Comprehensive Security Testing"\
+suite_name: "Comprehensive Security Testing"
 description: "Spot Vulnerabilities in the Target Model"
 test_suite:
   - name: "prompt_injection_test"

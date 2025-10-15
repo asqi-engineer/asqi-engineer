@@ -80,11 +80,11 @@ class Manifest(BaseModel):
 class LLMAPIConfig(BaseModel):
     """Configuration for LLM API systems."""
 
-    base_url: Optional[str] = Field(
+    base_url: str = Field(
         ...,
         description="Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
     )
-    model: Optional[str] = Field(
+    model: str = Field(
         ...,
         description="Model name to use with the API",
     )
@@ -108,15 +108,15 @@ class SystemDefinition(BaseModel):
 
     description: Optional[str] = Field(
         None,
-        description="Description of the system being eveluated.",
+        description="Description of the system being evaluated.",
     )
 
     provider: Optional[str] = Field(
         None,
-        description="Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-debrock...' for external systems.",
+        description="Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
     )
 
-    params: Any = Field(
+    params: Dict[str, Any] = Field(
         ...,
         description="Parameters specific to the system type (e.g., base_url, model name, API key).",
     )

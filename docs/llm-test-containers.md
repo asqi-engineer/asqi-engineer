@@ -166,7 +166,7 @@ export OPENAI_API_KEY="your-api-key"
 ```yaml
 test_suite:
   - name: "advanced_red_team_assessment"
-    description: "Runs Attacks to Test Agains Red Team Assesssments"
+    description: "Runs Attacks to Test Against Red Team Assessments"
     image: "my-registry/deepteam:latest"
     systems_under_test: ["target_chatbot"]
     systems:
@@ -438,7 +438,7 @@ test_suite:
       max_rows: 30
 
   - name: "fairness_evaluation"
-    description: "Assesses Fairness Across Diferent Sets"
+    description: "Assesses Fairness Across Different Sets"
     image: "my-registry/trustllm:latest"
     systems_under_test: ["target_model"]
     params:
