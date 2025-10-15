@@ -88,6 +88,11 @@
           "description": "The Docker image to run for this test, e.g., 'my-registry/garak:latest'.",
           "title": "Image",
           "type": "string"
+        },
+        "description": {
+          "description": "A more comprehensive description of the purpose of the test and what it aims to validate.",
+          "title": "Description",
+          "type": "string"
         }
       },
       "required": [
@@ -184,7 +189,13 @@
   "description": "Schema for the top-level Test Suite configuration file.",
   "properties": {
     "suite_name": {
+      "description": "Name of this test suite.",
       "title": "Suite Name",
+      "type": "string"
+    },
+    "description": {
+      "description": "A short summary of the test suite and what it aims to evaluate.",
+      "title": "Description",
       "type": "string"
     },
     "test_suite_default": {
@@ -197,9 +208,10 @@
         }
       ],
       "default": null,
-      "description": "Default values that apply to all tests in the suite unless overridden"
+      "description": "Default values that apply to all tests in the suite unless overridden."
     },
     "test_suite": {
+      "description": "List of individual focused tests.",
       "items": {
         "$ref": "#/$defs/TestDefinition"
       },

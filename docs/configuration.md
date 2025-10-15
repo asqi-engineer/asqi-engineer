@@ -35,6 +35,8 @@ systems:
   # Direct provider configuration
   openai_gpt4o_mini:
     type: "llm_api"
+    description: "Fast and General Purpose Model from OpenAI"
+    provider: "openai"
     params:
       base_url: "https://api.openai.com/v1"
       model: "gpt-4o-mini"
@@ -43,6 +45,8 @@ systems:
   # LiteLLM proxy configuration
   proxy_llm:
     type: "llm_api"
+    description: "Fast and General Purpose Model from OpenAI"
+    provider: "openai"
     params:
       base_url: "http://localhost:4000/v1"
       model: "gpt-4o-mini"
@@ -51,6 +55,8 @@ systems:
   # Using environment variable fallbacks
   fallback_llm:
     type: "llm_api"
+    description: "Custom Model"
+    provider: "custom"
     params:
       model: "my-model"
       # base_url and api_key will use fallbacks from .env
@@ -126,6 +132,8 @@ Systems can specify a custom environment file:
 systems:
   production_system:
     type: "llm_api"
+    description: "High Performance Model from OpenAI with Reasoning Capabilities"
+    provider: "openai"
     params:
       base_url: "https://api.openai.com/v1"
       model: "gpt-4o"
@@ -151,8 +159,10 @@ image: ${REGISTRY-docker.io}/my-app:latest
 
 ```yaml
 suite_name: "Dynamic Testing Suite"
+description: "Runs Security Tests"
 test_suite:
   - name: "registry_test"
+    description: "Test for Security Vulnerabilities using Garak"
     image: ${REGISTRY:-my-registry}/garak:latest
     systems_under_test: ["${TARGET_SYSTEM:-openai_gpt4o}"]
     params:
@@ -168,8 +178,10 @@ Test suites define collections of tests to execute against your systems.
 
 ```yaml
 suite_name: "Basic Mock Testing"
+description: "Simple Compatibility Checks"
 test_suite:
   - name: "compatibility_check"
+    description: "Verifies Basic Compatibility"
     image: "my-registry/mock_tester:latest"
     systems_under_test: ["my_llm_service"]
     params:
@@ -182,8 +194,10 @@ Tests can coordinate multiple AI systems for complex scenarios:
 
 ```yaml
 suite_name: "Advanced Chatbot Testing"
+description: "Evaluates Chatbot Performance, Safety..."
 test_suite:
   - name: "chatbot_simulation"
+    description: "Simulates Realistic Conversations with the Chatbot"
     image: "my-registry/chatbot_simulator:latest"
     systems_under_test: ["my_chatbot"]
     systems:
@@ -199,8 +213,10 @@ test_suite:
 
 ```yaml
 suite_name: "Comprehensive Security Testing"
+description: "Spot Vulnerabilities in the Target Model"
 test_suite:
   - name: "prompt_injection_test"
+    description: "Checks if the Model Can be Tricked by Malicious Prompts"
     image: "my-registry/garak:latest"
     systems_under_test: ["target_model"]
     params:
@@ -208,6 +224,7 @@ test_suite:
       generations: 10
 
   - name: "encoding_attack_test"
+    description: "Tests the Model Against Attacks Using Encoded Inputs"
     image: "my-registry/garak:latest" 
     systems_under_test: ["target_model"]
     params:
@@ -215,6 +232,7 @@ test_suite:
       generations: 5
 
   - name: "red_team_assessment"
+    description: "Simulates Attacks to Find Jailbreaks or Injections"
     image: "my-registry/deepteam:latest"
     systems_under_test: ["target_model"]
     params:

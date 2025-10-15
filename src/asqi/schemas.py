@@ -88,13 +88,13 @@ class LLMAPIConfig(BaseModel):
         ...,
         description="Model name to use with the API",
     )
-    env_file: Optional[str] = Field(
-        None,
-        description="Path to .env file containing environment variables for authentication",
-    )
     api_key: Optional[str] = Field(
         None,
         description="Direct API key for authentication (alternative to env_file)",
+    )
+    env_file: Optional[str] = Field(
+        None,
+        description="Path to .env file containing environment variables for authentication",
     )
 
 
@@ -105,6 +105,17 @@ class SystemDefinition(BaseModel):
         ...,
         description="e.g., 'llm_api', 'rest_api'. Used to match with test container capabilities.",
     )
+
+    description: Optional[str] = Field(
+        None,
+        description="Description of the system being evaluated.",
+    )
+
+    provider: Optional[str] = Field(
+        None,
+        description="Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+    )
+
     params: Dict[str, Any] = Field(
         ...,
         description="Parameters specific to the system type (e.g., base_url, model name, API key).",
@@ -152,6 +163,10 @@ class TestDefinition(TestDefinitionBase):
     name: str = Field(
         ..., description="A unique, human-readable name for this test instance."
     )
+    description: Optional[str] = Field(
+        None,
+        description="A short summary of the purpose of the test and what it aims to validate.",
+    )
     image: str = Field(
         ...,
         description="The Docker image to run for this test, e.g., 'my-registry/garak:latest'.",
@@ -171,6 +186,10 @@ class SuiteConfig(BaseModel):
     test_suite_default: Optional[TestSuiteDefault] = Field(
         None,
         description="Default values that apply to all tests in the suite unless overridden",
+    )
+    description: Optional[str] = Field(
+        None,
+        description="A short summary of the test suite and what it aims to evaluate.",
     )
     test_suite: List[TestDefinition]
 
