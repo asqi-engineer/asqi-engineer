@@ -86,6 +86,12 @@ ASQI supports a three-level configuration hierarchy:
       OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
       ```
 
+      - LiteLLM Configuration
+      ```yaml
+      # Master key for LiteLLM 
+      LITELLM_MASTER_KEY="sk-1234"
+      ```
+
     - Optional
 
       - HuggingFace Token
@@ -98,7 +104,17 @@ ASQI supports a three-level configuration hierarchy:
       ```yaml
       # Path for the container logs (default: logs)
       LOGS_FOLDER=asqi/logs
-      ```    
+      ``` 
+     
+      - API Keys
+      ```yaml
+      # OpenAI
+      OPENAI_API_KEY=api-key-openai
+      # Anthropic
+      ANTHROPIC_API_KEY=api-key-anthropic
+      # Amazon Bedrock
+      AWS_BEARER_TOKEN_BEDROCK=api-key-bedrock
+      ```       
 
 3. **Validation Error**: If required fields are missing
 

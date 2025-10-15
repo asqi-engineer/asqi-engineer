@@ -854,44 +854,37 @@ def run_end_to_end_workflow(
     return final_results, container_results
 
 
-@DBOS.step()
 def save_results_to_file_step(results: Dict[str, Any], output_path: str) -> None:
     """Save execution results to a JSON file."""
     try:
         save_results_to_file(results, output_path)
         console.print(f"Results saved to [bold]{output_path}[/bold]")
-        DBOS.logger.info(f"Results saved to {output_path}")
     except (IOError, OSError, PermissionError) as e:
         console.print(f"[red]Failed to save results:[/red] {e}")
-        DBOS.logger.error(f"Failed to save results to {output_path}: {e}")
     except (TypeError, ValueError) as e:
         console.print(f"[red]Invalid results data for saving:[/red] {e}")
-        DBOS.logger.error(f"Invalid results data cannot be saved to {output_path}: {e}")
 
 
-@DBOS.step()
 def save_container_results_to_file_step(
     container_results: List[Dict[str, Any]], output_path: str
 ) -> None:
     """Save container results to a JSON file."""
-    logs_path = os.getenv("LOGS_PATH", "logs")
+    logs_dir = os.getenv("LOGS_PATH", "logs")
     try:
-        Path(logs_path).mkdir(exist_ok=True)
-        logs_filename = output_path.split("/")[-1]
+        logs_filename = Path(output_path).name
+        if not logs_filename:
+            raise ValueError(f"Invalid logs file name: {output_path}")
 
-        output_path = save_container_results_to_file(
-            container_results, logs_filename, logs_path
+        Path(logs_dir).mkdir(exist_ok=True)
+
+        logs_path = save_container_results_to_file(
+            container_results, logs_dir, logs_filename
         )
-        console.print(f"Container results saved to [bold]{output_path}[/bold]")
-        DBOS.logger.info(f"Conatiner results saved to {output_path}")
+        console.print(f"Container results saved to [bold]{logs_path}[/bold]")
     except (IOError, OSError, PermissionError) as e:
         console.print(f"[red]Failed to save container results:[/red] {e}")
-        DBOS.logger.error(f"Failed to save container results to {logs_path}: {e}")
     except (TypeError, ValueError) as e:
         console.print(f"[red]Invalid container results data for saving:[/red] {e}")
-        DBOS.logger.error(
-            f"Invalid container results data cannot be saved to {logs_path}: {e}"
-        )
 
 
 def start_test_execution(

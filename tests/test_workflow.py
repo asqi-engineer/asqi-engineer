@@ -229,9 +229,10 @@ def test_save_results_to_file_step_calls_impl(tmp_path):
         save_mock.assert_called_once_with(data, str(out))
 
 
-def save_container_results_to_file(tmp_path):
+def test_save_container_results_to_file(tmp_path):
     data = [{"test_results": {"success": "true"}}]
-    out = tmp_path / "container_res.json"
+    logsFile, logsFolder = "container_res.json", "logs"
+    out = tmp_path / logsFile
     with patch("asqi.workflow.save_container_results_to_file") as save_mock:
         inner_step = getattr(
             save_container_results_to_file_step,
@@ -239,7 +240,7 @@ def save_container_results_to_file(tmp_path):
             save_container_results_to_file_step,
         )
         inner_step(data, str(out))
-        save_mock.assert_called_once_with(data, str(out))
+        save_mock.assert_called_once_with(data, logsFolder, logsFile)
 
 
 def test_execute_single_test_container_failure():

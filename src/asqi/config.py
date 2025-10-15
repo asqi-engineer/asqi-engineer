@@ -245,22 +245,20 @@ def save_results_to_file(results: Dict[str, Any], output_path: str) -> None:
 
 
 def save_container_results_to_file(
-    container_results: List[Dict[str, Any]], logs_filename: str, logs_path: str
+    container_results: List[Dict[str, Any]], logs_dir: str, logs_filename: str
 ) -> str:
     """
     Save container results to a JSON file.
 
     Args:
         container_results: Container results dictionary to save
-        logs_filename: Name of the file to store the container results
         logs_path: Path to the logs directory
+        logs_filename: Name of the file to store the container results
     """
     import json
-    from datetime import datetime
 
-    timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    output_file = f"{logs_path}/{timestamp}_{logs_filename}"
+    logs_path = f"{logs_dir}/{logs_filename}"
 
-    with open(output_file, "w") as f:
+    with open(logs_path, "w") as f:
         json.dump(container_results, f, indent=2)
-    return output_file
+    return logs_path
