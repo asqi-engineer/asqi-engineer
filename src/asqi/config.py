@@ -252,7 +252,7 @@ def save_container_results_to_file(
 
     Args:
         container_results: Container results dictionary to save
-        logs_path: Path to the logs directory
+        logs_dir: Path to the logs directory
         logs_filename: Name of the file to store the container results
     """
     import json
