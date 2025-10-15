@@ -62,6 +62,60 @@ ASQI supports a three-level configuration hierarchy:
 
 1. **Explicit Parameters** (highest priority): Directly specified in system configuration
 2. **Environment File Fallbacks**: Values from `.env` file or custom `env_file`
+   
+    Configure your environment file with the following variables
+
+    - Required
+
+      - API Configuration
+      ```yaml
+      # Environment variables to pass into test containers that specifies an env_file
+      BASE_URL=http://localhost:4000
+      API_KEY=sk-1234 
+      ```
+    
+      - Database
+      ```yaml
+      # Database connection string
+      DBOS_DATABASE_URL=postgres://postgres:asqi@db:5432/asqi_starter
+      ```
+      
+      - Observability
+      ```yaml
+      # Otel
+      OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      ```
+
+      - LiteLLM Configuration
+      ```yaml
+      # Master key for LiteLLM 
+      LITELLM_MASTER_KEY="sk-1234"
+      ```
+
+    - Optional
+
+      - HuggingFace Token
+      ```yaml
+      # HuggingFace Token - Required for some gated datasets
+      HF_TOKEN=hf_api_V9oSu3L1onGE0Yz2s2swlT8ZtJ
+      ``` 
+
+      - Container logs
+      ```yaml
+      # Path for the container logs (default: logs)
+      LOGS_FOLDER=asqi/logs
+      ``` 
+     
+      - API Keys
+      ```yaml
+      # OpenAI
+      OPENAI_API_KEY=api-key-openai
+      # Anthropic
+      ANTHROPIC_API_KEY=api-key-anthropic
+      # Amazon Bedrock
+      AWS_BEARER_TOKEN_BEDROCK=api-key-bedrock
+      ```       
+
 3. **Validation Error**: If required fields are missing
 
 #### Environment File Reference

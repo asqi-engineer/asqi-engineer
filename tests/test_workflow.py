@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -12,6 +12,7 @@ from asqi.workflow import (
     evaluate_score_cards_workflow,
     execute_single_test,
     run_end_to_end_workflow,
+    save_container_results_to_file_step,
     save_results_to_file_step,
     start_score_card_evaluation,
     start_test_execution,
@@ -30,11 +31,14 @@ def _call_inner_workflow(
 
 
 class DummyHandle:
-    def __init__(self, result, workflow_id="test-workflow-123"):
+    def __init__(self, result, workflow_id="test-workflow-123", return_tuple=False):
         self._result = result
         self._workflow_id = workflow_id
+        self._return_tuple = return_tuple
 
     def get_result(self):
+        if self._return_tuple:
+            return self._result, []
         return self._result
 
     def get_workflow_id(self):
@@ -117,7 +121,7 @@ def test_run_test_suite_workflow_success():
             success_result
         )
 
-        out = _call_inner_workflow(
+        results, container_results = _call_inner_workflow(
             suite_config,
             systems_config,
             {
@@ -128,12 +132,15 @@ def test_run_test_suite_workflow_success():
             container_config,
         )
 
-    assert out["summary"]["status"] == "COMPLETED"
-    assert out["summary"]["total_tests"] == 1
-    assert out["summary"]["successful_tests"] == 1
-    assert out["summary"]["failed_tests"] == 0
-    assert len(out["results"]) == 1
-    assert out["results"][0]["metadata"]["success"] is True
+    assert results["summary"]["status"] == "COMPLETED"
+    assert results["summary"]["total_tests"] == 1
+    assert results["summary"]["successful_tests"] == 1
+    assert results["summary"]["failed_tests"] == 0
+    assert len(results["results"]) == 1
+    assert results["results"][0]["metadata"]["success"] is True
+
+    assert len(container_results) == 1
+    assert container_results[0]["test_results"]["success"] is True
 
 
 def test_run_test_suite_workflow_validation_failure():
@@ -164,7 +171,7 @@ def test_run_test_suite_workflow_validation_failure():
             "Test 'bad_test': No manifest available for image 'missing/image:latest'"
         ]
 
-        out = _call_inner_workflow(
+        results, container_results = _call_inner_workflow(
             suite_config,
             systems_config,
             {
@@ -175,11 +182,13 @@ def test_run_test_suite_workflow_validation_failure():
             container_config,
         )
 
-    assert out["summary"]["status"] == "VALIDATION_FAILED"
-    assert out["summary"]["total_tests"] == 0
-    assert out["summary"]["successful_tests"] == 0
-    assert out["summary"]["failed_tests"] == 0
-    assert out["results"] == []
+    assert results["summary"]["status"] == "VALIDATION_FAILED"
+    assert results["summary"]["total_tests"] == 0
+    assert results["summary"]["successful_tests"] == 0
+    assert results["summary"]["failed_tests"] == 0
+    assert results["results"] == []
+
+    assert len(container_results) == 0
 
 
 def test_execute_single_test_success():
@@ -218,6 +227,20 @@ def test_save_results_to_file_step_calls_impl(tmp_path):
         )
         inner_step(data, str(out))
         save_mock.assert_called_once_with(data, str(out))
+
+
+def test_save_container_results_to_file(tmp_path):
+    data = [{"test_results": {"success": "true"}}]
+    logsFile, logsFolder = "container_res.json", "logs"
+    out = tmp_path / logsFile
+    with patch("asqi.workflow.save_container_results_to_file") as save_mock:
+        inner_step = getattr(
+            save_container_results_to_file_step,
+            "__wrapped__",
+            save_container_results_to_file_step,
+        )
+        inner_step(data, str(out))
+        save_mock.assert_called_once_with(data, logsFolder, logsFile)
 
 
 def test_execute_single_test_container_failure():
@@ -287,9 +310,6 @@ def test_convert_test_results_to_objects():
                     "container_id": "abc123",
                     "exit_code": 0,
                 },
-                "test_results": {"success": True, "score": 0.9},
-                "error_message": "",
-                "container_output": '{"success": true}',
             }
         ]
     }
@@ -309,7 +329,6 @@ def test_convert_test_results_to_objects():
     assert result.success is True
     assert result.container_id == "abc123"
     assert result.exit_code == 0
-    assert result.test_results == {"success": True, "score": 0.9}
 
 
 def test_add_score_cards_to_results():
@@ -435,13 +454,13 @@ def test_run_end_to_end_workflow():
         patch("asqi.workflow.run_test_suite_workflow") as mock_test_workflow,
         patch("asqi.workflow.evaluate_score_cards_workflow") as mock_score_workflow,
     ):
-        mock_test_workflow.return_value = test_results
+        mock_test_workflow.return_value = test_results, []
         mock_score_workflow.return_value = final_results
 
         inner_workflow = getattr(
             run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow
         )
-        result = inner_workflow(
+        result, _ = inner_workflow(
             suite_config,
             systems_config,
             score_card_configs,
@@ -470,7 +489,7 @@ def test_run_end_to_end_workflow():
 def test_start_test_execution_tests_only_mode():
     """Test start_test_execution with tests_only mode."""
 
-    mock_handle = DummyHandle({"summary": {"status": "COMPLETED"}})
+    mock_handle = DummyHandle({"summary": {"status": "COMPLETED"}}, return_tuple=True)
 
     with (
         patch("asqi.workflow.load_config_file") as mock_load,
@@ -503,7 +522,7 @@ def test_start_test_execution_tests_only_mode():
 def test_start_test_execution_end_to_end_mode():
     """Test start_test_execution with end_to_end mode."""
 
-    mock_handle = DummyHandle({"summary": {"status": "COMPLETED"}})
+    mock_handle = DummyHandle({"summary": {"status": "COMPLETED"}}, return_tuple=True)
     score_card_configs = [{"score_card_name": "test"}]
 
     with (
@@ -623,14 +642,14 @@ def test_image_pulled_but_manifest_not_extracted_bug():
         success_result.success = True
         mock_queue.return_value.enqueue.return_value = DummyHandle(success_result)
 
-        result = _call_inner_workflow(
+        results, _ = _call_inner_workflow(
             suite_config,
             systems_config,
             {"concurrent_tests": 1, "max_failures": 10, "progress_interval": 10},
             ContainerConfig(),
         )
 
-        assert result["summary"]["status"] == "COMPLETED"
+        assert results["summary"]["status"] == "COMPLETED"
 
 
 def test_run_test_suite_workflow_handle_exception():
@@ -697,7 +716,7 @@ def test_run_test_suite_workflow_handle_exception():
         mock_queue = mock_queue_class.return_value
         mock_queue.enqueue.side_effect = lambda *args, **kwargs: failing_handle
 
-        out = _call_inner_workflow(
+        results, container_results = _call_inner_workflow(
             suite_config,
             systems_config,
             {
@@ -708,15 +727,18 @@ def test_run_test_suite_workflow_handle_exception():
             container_config,
         )
 
-    assert out["summary"]["status"] == "COMPLETED"
-    assert out["summary"]["total_tests"] == 1
-    assert out["summary"]["successful_tests"] == 0
-    assert out["summary"]["failed_tests"] == 1
-    assert len(out["results"]) == 1
+    assert results["summary"]["status"] == "COMPLETED"
+    assert results["summary"]["total_tests"] == 1
+    assert results["summary"]["successful_tests"] == 0
+    assert results["summary"]["failed_tests"] == 1
+    assert len(results["results"]) == 1
+    assert (
+        "Test execution failed: Network timeout"
+        in container_results[0]["error_message"]
+    )
 
-    result = out["results"][0]
+    result = results["results"][0]
     assert result["metadata"]["success"] is False
     assert result["metadata"]["exit_code"] == 137
-    assert "Test execution failed: Network timeout" in result["error_message"]
     assert result["metadata"]["test_name"] == "t1_systemA"
     assert result["metadata"]["image"] == "test/image:latest"

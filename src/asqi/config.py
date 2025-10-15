@@ -2,7 +2,7 @@ import copy
 import os
 import re
 from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel, Field
@@ -242,3 +242,23 @@ def save_results_to_file(results: Dict[str, Any], output_path: str) -> None:
 
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
+
+
+def save_container_results_to_file(
+    container_results: List[Dict[str, Any]], logs_dir: str, logs_filename: str
+) -> str:
+    """
+    Save container results to a JSON file.
+
+    Args:
+        container_results: Container results dictionary to save
+        logs_dir: Path to the logs directory
+        logs_filename: Name of the file to store the container results
+    """
+    import json
+
+    logs_path = f"{logs_dir}/{logs_filename}"
+
+    with open(logs_path, "w") as f:
+        json.dump(container_results, f, indent=2)
+    return logs_path
