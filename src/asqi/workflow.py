@@ -126,6 +126,7 @@ class TestExecutionResult:
     def container_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for storage/reporting."""
         return {
+            "test_name": self.test_name,
             "test_results": self.test_results,
             "error_message": self.error_message,
             "container_output": self.container_output,

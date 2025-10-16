@@ -45,9 +45,10 @@ coverage.xml
 .DS_Store
 
 # Logs
+logs/*
+!logs/chatbot_asqi_assessment.json
 *.logconfig.yaml
 *.log
-logs/
 output.json
 
 # Docs

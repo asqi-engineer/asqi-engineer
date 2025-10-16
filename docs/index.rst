@@ -167,6 +167,11 @@ The complete evaluation combines multiple test containers and provides comprehen
      -r asqi_chatbot_score_card.yaml \
      -o chatbot_asqi_assessment.json
 
+**Output Files Generated:**
+
+- ``chatbot_asqi_assessment.json`` - Assessment results
+- ``./logs/chatbot_asqi_assessment.json`` - Test container execution results and logs
+
 Beta Status and Collaboration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
