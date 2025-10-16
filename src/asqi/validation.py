@@ -328,7 +328,7 @@ def create_test_execution_plan(
                         "type": system_def.type,
                         "description": system_def.description,
                         "provider": system_def.provider,
-                        **system_def.params,
+                        **system_def.params.model_dump(),
                     }.items()
                     if v is not None
                 }
@@ -345,7 +345,7 @@ def create_test_execution_plan(
                             "type": referenced_system_def.type,
                             "description": referenced_system_def.description,
                             "provider": referenced_system_def.provider,
-                            **referenced_system_def.params,
+                            **referenced_system_def.params.model_dump(),
                         }
 
             plan.append(

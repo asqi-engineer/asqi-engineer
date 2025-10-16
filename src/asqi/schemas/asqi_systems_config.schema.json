@@ -1,43 +1,105 @@
 {
   "$defs": {
-    "SystemDefinition": {
-      "description": "A single system definition.",
+    "LLMAPIConfig": {
+      "description": "Configuration for LLM API systems.",
       "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+          "title": "Provider"
+        },
         "type": {
-          "description": "e.g., 'llm_api', 'rest_api'. Used to match with test container capabilities.",
+          "const": "llm_api",
+          "description": "LLM API system: llm_api",
           "title": "Type",
           "type": "string"
         },
-        "description": {
-          "description": "Description of the system.",
-          "title": "Description",
-          "type": "string"
-        },
-        "provider": {
-          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
-          "title": "Provider",
-          "type": "string"
-        },
         "params": {
-          "additionalProperties": true,
-          "description": "Parameters specific to the system type (e.g., base_url, model name, API key).",
-          "title": "Params",
-          "type": "object"
+          "$ref": "#/$defs/LLMAPIParams",
+          "description": "Parameters specific to the LLM API system (e.g., base url, model name, API key and env file)."
         }
       },
       "required": [
         "type",
         "params"
       ],
-      "title": "SystemDefinition",
+      "title": "LLMAPIConfig",
+      "type": "object"
+    },
+    "LLMAPIParams": {
+      "description": "Parameters for the LLM API systems.",
+      "properties": {
+        "base_url": {
+          "description": "Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "model": {
+          "description": "Model name to use with the API",
+          "title": "Model",
+          "type": "string"
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to .env file containing environment variables for authentication",
+          "title": "Env File"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Direct API key for authentication (alternative to env_file)",
+          "title": "Api Key"
+        }
+      },
+      "required": [
+        "base_url",
+        "model"
+      ],
+      "title": "LLMAPIParams",
       "type": "object"
     }
   },
-  "description": "Schema for the top-level systems configuration file.",
+  "description": "Schema for the top-level systems configuration file.\n\nExtension Guide:\n    1. Create a new XXXConfig class inheriting from SystemDefinition. e.g, RESTAPIConfig\n    2. Create a new XXXParam class for the parameters of the system. e.g. RESTAPIParams\n    2. Add the system definition (XXXConfig) to this system Dict.\n        e.g. Dict[str, Dict[str, LLMAPIConfig | RESTAPIConfig | XXXConfig ]",
   "properties": {
     "systems": {
       "additionalProperties": {
-        "$ref": "#/$defs/SystemDefinition"
+        "$ref": "#/$defs/LLMAPIConfig"
       },
       "description": "Dictionary of system definitions.",
       "title": "Systems",
