@@ -351,7 +351,9 @@ def find_manifest_for_image(
     for key, manifest in manifests.items():
         aliases = getattr(manifest, "aliases", []) or []
 
-        _register_values(candidate_index, display_lookup, manifest, _exact_variations(key), 0)
+        _register_values(
+            candidate_index, display_lookup, manifest, _exact_variations(key), 0
+        )
         for alias in aliases:
             _register_values(
                 candidate_index, display_lookup, manifest, _exact_variations(alias), 0
@@ -598,9 +600,7 @@ def validate_test_plan(
         match = find_manifest_for_image(test.image, manifests)
         manifest = match.manifest
         if manifest is None:
-            message = (
-                f"Test '{test.name}': Image '{test.image}' does not have a loaded manifest."
-            )
+            message = f"Test '{test.name}': Image '{test.image}' does not have a loaded manifest."
             if match.suggestions:
                 message += f" Did you mean: {', '.join(match.suggestions)}?"
             errors.append(message)

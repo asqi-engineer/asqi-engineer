@@ -196,7 +196,9 @@ class TestCrossFileValidation:
 
         errors = validate_test_plan(suite, demo_systems, manifests)
         assert len(errors) > 0
-        assert any("Did you mean: my-registry/mock_tester:latest" in error for error in errors)
+        assert any(
+            "Did you mean: my-registry/mock_tester:latest" in error for error in errors
+        )
 
     def test_missing_system_definition(self, demo_systems, manifests):
         """Test validation fails when system is not defined."""
