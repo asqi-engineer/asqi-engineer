@@ -209,6 +209,7 @@ Contributors
    :hidden:
 
    cli
+   library
    examples
    autoapi/index
 
@@ -219,4 +220,3 @@ Contributors
 
    GitHub Repository <https://github.com/asqi-engineer/asqi-engineer>
    Discussions <https://github.com/asqi-engineer/asqi-engineer/discussions>
-

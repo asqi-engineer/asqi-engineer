@@ -94,6 +94,7 @@ This short flow should download a demo test container and generate the test resu
 Detailed documentation lives on the project docs site — use the links below to jump to the full guides and examples:
 
 - Quickstart (installation & environment): https://www.asqi.ai/quickstart.html
+- Library usage & workflow customization: [docs/library.md](./docs/library.md)
 - CLI & usage reference: https://www.asqi.ai/cli.html
 - Configuration & environment variables: https://www.asqi.ai/configuration.html
 - Test container examples & how-to: https://www.asqi.ai/examples.html
