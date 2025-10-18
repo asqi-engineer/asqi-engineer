@@ -77,34 +77,8 @@ class Manifest(BaseModel):
 # ----------------------------------------------------------------------------
 
 
-class LLMAPIConfig(BaseModel):
-    """Configuration for LLM API systems."""
-
-    base_url: str = Field(
-        ...,
-        description="Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
-    )
-    model: str = Field(
-        ...,
-        description="Model name to use with the API",
-    )
-    api_key: Optional[str] = Field(
-        None,
-        description="Direct API key for authentication (alternative to env_file)",
-    )
-    env_file: Optional[str] = Field(
-        None,
-        description="Path to .env file containing environment variables for authentication",
-    )
-
-
 class SystemDefinition(BaseModel):
-    """A single system definition."""
-
-    type: str = Field(
-        ...,
-        description="e.g., 'llm_api', 'rest_api'. Used to match with test container capabilities.",
-    )
+    """Base system definition."""
 
     description: Optional[str] = Field(
         None,
@@ -116,16 +90,53 @@ class SystemDefinition(BaseModel):
         description="Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
     )
 
-    params: Dict[str, Any] = Field(
+
+class LLMAPIParams(BaseModel):
+    """Parameters for the LLM API systems."""
+
+    base_url: str = Field(
         ...,
-        description="Parameters specific to the system type (e.g., base_url, model name, API key).",
+        description="Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
+    )
+    model: str = Field(
+        ...,
+        description="Model name to use with the API",
+    )
+    env_file: Optional[str] = Field(
+        None,
+        description="Path to .env file containing environment variables for authentication",
+    )
+    api_key: Optional[str] = Field(
+        None,
+        description="Direct API key for authentication (alternative to env_file)",
+    )
+
+
+class LLMAPIConfig(SystemDefinition):
+    """Configuration for LLM API systems."""
+
+    type: Literal["llm_api"] = Field(
+        ...,
+        description="LLM API system: llm_api",
+    )
+    params: LLMAPIParams = Field(
+        ...,
+        description="Parameters specific to the LLM API system (e.g., base url, model name, API key and env file).",
     )
 
 
 class SystemsConfig(BaseModel):
-    """Schema for the top-level systems configuration file."""
+    """Schema for the top-level systems configuration file.
 
-    systems: Dict[str, SystemDefinition] = Field(
+    Extension Guide:
+        1. Create a new XXXConfig class inheriting from SystemDefinition. e.g, RESTAPIConfig
+        2. Create a new XXXParam class for the parameters of the system. e.g. RESTAPIParams
+        2. Add the system definition (XXXConfig) to this system Dict.
+            e.g. Dict[str, Dict[str, LLMAPIConfig | RESTAPIConfig | XXXConfig ]
+
+    """
+
+    systems: Dict[str, LLMAPIConfig] = Field(
         ..., description="Dictionary of system definitions."
     )
 
@@ -182,7 +193,7 @@ class TestSuiteDefault(TestDefinitionBase):
 class SuiteConfig(BaseModel):
     """Schema for the top-level Test Suite configuration file."""
 
-    suite_name: str
+    suite_name: str = Field(..., description="Name of this test suite.")
     test_suite_default: Optional[TestSuiteDefault] = Field(
         None,
         description="Default values that apply to all tests in the suite unless overridden",
@@ -191,7 +202,9 @@ class SuiteConfig(BaseModel):
         None,
         description="A short summary of the test suite and what it aims to evaluate.",
     )
-    test_suite: List[TestDefinition]
+    test_suite: List[TestDefinition] = Field(
+        ..., description="List of individual focused tests."
+    )
 
 
 # ----------------------------------------------------------------------------

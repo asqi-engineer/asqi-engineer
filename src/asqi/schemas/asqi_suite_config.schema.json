@@ -84,14 +84,22 @@
           "title": "Name",
           "type": "string"
         },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A short summary of the purpose of the test and what it aims to validate.",
+          "title": "Description"
+        },
         "image": {
           "description": "The Docker image to run for this test, e.g., 'my-registry/garak:latest'.",
           "title": "Image",
-          "type": "string"
-        },
-        "description": {
-          "description": "A more comprehensive description of the purpose of the test and what it aims to validate.",
-          "title": "Description",
           "type": "string"
         }
       },
@@ -193,11 +201,6 @@
       "title": "Suite Name",
       "type": "string"
     },
-    "description": {
-      "description": "A short summary of the test suite and what it aims to evaluate.",
-      "title": "Description",
-      "type": "string"
-    },
     "test_suite_default": {
       "anyOf": [
         {
@@ -208,7 +211,20 @@
         }
       ],
       "default": null,
-      "description": "Default values that apply to all tests in the suite unless overridden."
+      "description": "Default values that apply to all tests in the suite unless overridden"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "A short summary of the test suite and what it aims to evaluate.",
+      "title": "Description"
     },
     "test_suite": {
       "description": "List of individual focused tests.",

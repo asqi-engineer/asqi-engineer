@@ -6,7 +6,13 @@ import yaml
 from pydantic import ValidationError
 
 from asqi.main import load_and_validate_plan
-from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
+from asqi.schemas import (
+    LLMAPIConfig,
+    LLMAPIParams,
+    Manifest,
+    SuiteConfig,
+    SystemsConfig,
+)
 from asqi.validation import (
     create_test_execution_plan,
     find_manifest_for_image,
@@ -30,7 +36,7 @@ test_suite:
     description: "Test description"
     image: "my-registry/mock_tester:latest"
     systems_under_test:
-      - "my_backend_api"  # This should fail since mock_tester doesn't support this in your demo
+      - "my_llm_api" 
     params:
       delay_seconds: 1
 """
@@ -40,16 +46,23 @@ systems:
   # This system is compatible with our mock_tester
   my_llm_service:
     type: "llm_api"
+    provider: "some_provider"
+    description: "Some Description"
     params:
-      provider: "some_provider"
+      base_url: "http://URL"
       model: "model-x"
-      api_key_env: "MY_LLM_API_KEY"
-
-  # This system is *not* compatible, for demonstrating validation failure
-  my_backend_api:
-    type: "rest_api"
+      env_file: "MY_ENV_FILE"
+      api_key: "MY_LLM_API_KEY"
+  # This system is compatible with our mock_tester, for testing multiple systems
+  another_llm_service:
+    type: "llm_api"
+    provider: "some_provider"
+    description: "Some Description"
     params:
-      uri: "https://api.example.com/v1/data"
+      base_url: "http://URL"
+      model: "model-y"
+      env_file: "MY_ENV_FILE"
+      api_key: "MY_LLM_API_KEY"
 """
 
 MOCK_TESTER_MANIFEST = {
@@ -125,23 +138,105 @@ class TestSchemaValidation:
         test1 = demo_suite.test_suite[0]
         assert test1.name == "run_mock_on_compatible_system"
         assert test1.image == "my-registry/mock_tester:latest"
-        assert test1.systems_under_test == ["my_backend_api"]
+        assert test1.systems_under_test == ["my_llm_api"]
         assert test1.params["delay_seconds"] == 1
 
-    def test_systems_schema_validation(self, demo_systems):
-        """Test that demo systems YAML parses correctly."""
+    def test_systems_schema_llm_validation(self, demo_systems):
+        """Test that the LLMs systems YAML parses correctly."""
         systems = demo_systems.systems
         assert len(systems) == 2
 
         # Check LLM service
         llm_system = systems["my_llm_service"]
         assert llm_system.type == "llm_api"
-        assert llm_system.params["provider"] == "some_provider"
+        assert llm_system.params.base_url == "http://URL"
+        assert llm_system.params.model == "model-x"
+        assert llm_system.params.env_file == "MY_ENV_FILE"
+        assert llm_system.params.api_key == "MY_LLM_API_KEY"
 
-        # Check backend API
-        api_system = systems["my_backend_api"]
-        assert api_system.type == "rest_api"
-        assert api_system.params["uri"] == "https://api.example.com/v1/data"
+        llm_another_system = systems["another_llm_service"]
+        assert llm_another_system.type == "llm_api"
+        assert llm_another_system.params.base_url == "http://URL"
+        assert llm_another_system.params.model == "model-y"
+        assert llm_another_system.params.env_file == "MY_ENV_FILE"
+        assert llm_another_system.params.api_key == "MY_LLM_API_KEY"
+
+    def test_not_compatible_systems_schema(self):
+        """Test that fails when systems type is not valid."""
+
+        # This system type is *not* compatible, for demonstrating validation failure
+        not_compatible_system = {
+            "systems": {
+                "my_llm_service": {
+                    "type": "not_existing_system_type",
+                    "provider": "some_provider",
+                    "description": "Some Description",
+                    "params": {
+                        "base_url": "http://URL",
+                        "model": "model-x",
+                        "env_file": "MY_ENV_FILE",
+                        "api_key": "MY_LLM_API_KEY",
+                    },
+                },
+            }
+        }
+        with pytest.raises(ValidationError, match="not_existing_system_type"):
+            SystemsConfig(**not_compatible_system).systems  # type: ignore invalid system
+
+    def test_missing_params_llm_api_systems_schema(self):
+        """Test that validates required LLM API system parameters."""
+
+        # This system base_url param is missing
+        with pytest.raises(ValidationError, match="missing"):
+            SystemsConfig(
+                systems={
+                    "test_system": LLMAPIConfig(
+                        type="llm_api",
+                        description="System description",
+                        provider="openai",
+                        params=LLMAPIParams(
+                            env_file="ENV_FILE",
+                            model="gpt-4o-mini",
+                            api_key="sk-123",
+                        ),  # type: ignore base_url missing
+                    )
+                }
+            )
+        # This system model param is missing
+        with pytest.raises(ValidationError, match="missing"):
+            SystemsConfig(
+                systems={
+                    "test_system": LLMAPIConfig(
+                        type="llm_api",
+                        description="System description",
+                        provider="openai",
+                        params=LLMAPIParams(
+                            base_url="http://URL",
+                            api_key="sk-123",
+                        ),  # type: ignore model missing
+                    )
+                }
+            )
+
+    def test_optional_params_llm_api_systems_schema(self, demo_suite, manifests):
+        """Test that validates optional LLM API system parameters."""
+
+        system = SystemsConfig(
+            systems={
+                "my_llm_api": LLMAPIConfig(
+                    type="llm_api",
+                    description="System description",
+                    provider="openai",
+                    params=LLMAPIParams(
+                        base_url="http://URL",
+                        model="x-model",
+                    ),  # type: ignore optional params
+                )
+            }
+        )
+
+        errors = validate_test_plan(demo_suite, system, manifests)
+        assert errors == [], f"Expected no errors, but got: {errors}"
 
     def test_manifest_schema_validation(self, manifests):
         """Test that manifests parse correctly."""
@@ -367,7 +462,7 @@ class TestEdgeCases:
                     "name": "test_multiple_systems",
                     "description": "Test Description",
                     "image": "my-registry/garak:latest",
-                    "systems_under_test": ["my_llm_service", "my_backend_api"],
+                    "systems_under_test": ["my_llm_service", "another_llm_service"],
                     "params": {
                         "probes": ["probe1", "probe2"]
                     },  # Provide required param for garak
@@ -440,8 +535,7 @@ class TestValidationFunctions:
 
         test = DummyTest()
         errors = validate_system_compatibility(test, demo_systems.systems, manifest)
-        # my_llm_service is supported, my_backend_api is not
-        assert any("does not support system type 'rest_api'" in e for e in errors)
+
         # Check that there's no error for the supported llm_api system type
         assert not any("does not support system type 'llm_api'" in e for e in errors)
 
@@ -450,9 +544,7 @@ class TestValidationFunctions:
         errors = validate_system_compatibility(test, demo_systems.systems, manifest)
         assert any("Unknown system 'not_a_system'" in e for e in errors)
 
-    def test_validate_system_compatibility_with_additional_systems(
-        self, demo_systems, manifests
-    ):
+    def test_validate_system_compatibility_with_additional_systems(self, demo_systems):
         """Test validation of additional systems from test.systems field."""
         # Create a manifest with optional systems
         manifest_data = {
@@ -490,11 +582,9 @@ class TestValidationFunctions:
         errors = validate_system_compatibility(test, demo_systems.systems, manifest)
         assert any("Unknown simulator_system 'unknown_system'" in e for e in errors)
 
-        test.systems = {
-            "simulator_system": "my_backend_api"
-        }  # rest_api instead of llm_api
+        test.systems = {"simulator_system": "another_llm_service"}
         errors = validate_system_compatibility(test, demo_systems.systems, manifest)
-        assert any("Expected type 'llm_api', got 'rest_api'" in e for e in errors)
+        assert errors == []
 
     def test_validate_manifests_against_tests(self, demo_systems, manifests):
         suite_data = {
@@ -536,7 +626,7 @@ class TestValidationFunctions:
                     "name": "t2",
                     "description": "T2 Description",
                     "image": "my-registry/mock_tester:latest",
-                    "systems_under_test": ["my_llm_service", "my_backend_api"],
+                    "systems_under_test": ["my_llm_service", "another_llm_service"],
                     "params": {},
                 },
             ],
@@ -553,7 +643,7 @@ class TestValidationFunctions:
         # Check that different systems are included
         system_names = [p["sut_name"] for p in plan]
         assert "my_llm_service" in system_names
-        assert "my_backend_api" in system_names
+        assert "another_llm_service" in system_names
 
         # If image not available, plan is empty
         image_availability = {"my-registry/mock_tester:latest": False}
@@ -738,7 +828,14 @@ class TestCreateExecutionPlanEdgeCases:
         """Test with empty suite."""
         suite_data = {"suite_name": "Empty", "test_suite": []}
         suite = SuiteConfig(**suite_data)
-        systems_data = {"systems": {"sys1": {"type": "llm_api", "params": {}}}}
+        systems_data = {
+            "systems": {
+                "sys1": {
+                    "type": "llm_api",
+                    "params": {"base_url": "http://x", "model": "x-model"},
+                }
+            }
+        }
         systems = SystemsConfig(**systems_data)  # type: ignore
 
         plan = create_test_execution_plan(suite, systems, {})
@@ -821,7 +918,7 @@ class TestCreateExecutionPlanEdgeCases:
                     "description": "Test Description",
                     "image": "image:latest",
                     "systems_under_test": ["my_llm_service"],
-                    "systems": {"simulator_system": "my_backend_api"},
+                    "systems": {"simulator_system": "another_llm_service"},
                     "params": {"param1": "value1"},
                 }
             ],
@@ -836,7 +933,7 @@ class TestCreateExecutionPlanEdgeCases:
         assert "system_under_test" in systems_params
         assert "simulator_system" in systems_params
         assert systems_params["system_under_test"]["type"] == "llm_api"
-        assert systems_params["simulator_system"]["type"] == "rest_api"
+        assert systems_params["simulator_system"]["type"] == "llm_api"
 
     def test_system_with_missing_image(self, demo_systems):
         """Test case where test image is not in image_availability."""

@@ -3,7 +3,13 @@ from unittest.mock import patch
 import pytest
 
 from asqi.config import ContainerConfig
-from asqi.schemas import SuiteConfig, SystemDefinition, SystemsConfig, TestDefinition
+from asqi.schemas import (
+    LLMAPIConfig,
+    LLMAPIParams,
+    SuiteConfig,
+    SystemsConfig,
+    TestDefinition,
+)
 from asqi.validation import create_test_execution_plan
 from asqi.workflow import execute_single_test
 
@@ -39,31 +45,33 @@ class TestEnvironmentVariables:
         )
 
     @pytest.fixture
-    def sample_systems_config(self):
-        """Sample systems configuration with API key."""
+    def sample_llm_api_systems_config(self):
+        """Sample llm api systems configuration with API key."""
 
         return SystemsConfig(
             systems={
-                "test_system": SystemDefinition(
+                "test_system": LLMAPIConfig(
                     type="llm_api",
                     description="System description",
                     provider="openai",
-                    params={
-                        "model": "gpt-4o-mini",
-                        "api_key": "sk-123",
-                    },
+                    params=LLMAPIParams(
+                        base_url="http://URL",
+                        env_file="ENV_FILE",
+                        model="gpt-4o-mini",
+                        api_key="sk-123",
+                    ),
                 )
             }
         )
 
-    def test_create_test_execution_plan_flattens_system_params(
-        self, sample_suite_config, sample_systems_config
+    def test_create_test_execution_plan_flattens_llm_api_system_params(
+        self, sample_suite_config, sample_llm_api_systems_config
     ):
         """Test that create_test_execution_plan correctly flattens system parameters."""
         image_availability = {"my-registry/test:latest": True}
 
         execution_plan = create_test_execution_plan(
-            sample_suite_config, sample_systems_config, image_availability
+            sample_suite_config, sample_llm_api_systems_config, image_availability
         )
 
         assert len(execution_plan) == 1
@@ -74,6 +82,8 @@ class TestEnvironmentVariables:
         assert system_params["type"] == "llm_api"
         assert system_params["description"] == "System description"
         assert system_params["provider"] == "openai"
+        assert system_params["base_url"] == "http://URL"
+        assert system_params["env_file"] == "ENV_FILE"
         assert system_params["model"] == "gpt-4o-mini"
         assert system_params["api_key"] == "sk-123"
 
@@ -94,6 +104,7 @@ class TestEnvironmentVariables:
         system_params_with_env_file = {
             "type": "llm_api",
             "description": "System description",
+            "base_url": "http://x",
             "provider": "openai",
             "model": "gpt-4o-mini",
             "env_file": "custom.env",
@@ -142,6 +153,7 @@ class TestEnvironmentVariables:
             "type": "llm_api",
             "description": "System description",
             "provider": "openai",
+            "base_url": "http://x",
             "model": "gpt-4",
             "api_key": "sk-123",
         }
