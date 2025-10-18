@@ -31,6 +31,9 @@ Create `manifest.yaml` to declare what your container can do:
 name: "my_custom_tester"
 version: "1.0.0"
 description: "Custom testing framework for specific AI system evaluation"
+aliases:
+  - "registry.example.com/asqi/my_custom_tester:1.0.0"
+  - "my-custom-tester:stable"
 
 input_systems:
   - name: "system_under_test"
@@ -70,6 +73,8 @@ output_metrics:
     type: "object"
     description: "Comprehensive test results and analysis"
 ```
+
+`aliases` is optional but recommended when your container is published to remote registries or must respond to multiple image references. The validator uses these aliases to resolve typos (for example, `garak` vs `garak-ai`), multi-level registries (`registry.example.com/org/team/image`), and tag variations without duplicating manifests.
 
 ### 3. Implement Test Logic
 
