@@ -71,7 +71,7 @@ MOCK_TESTER_MANIFEST = {
     "version": "1.0.0",
     "description": "A minimal mock container for testing the executor interface.",
     "input_systems": [
-        {"name": "system_under_test", "type": "llm_api", "required": True}
+        {"name": "system_under_test", "type": "llm_api", "required": True},
     ],
     "input_schema": [
         {
@@ -83,6 +83,16 @@ MOCK_TESTER_MANIFEST = {
     ],
     "output_metrics": ["success", "score", "delay_used"],
 }
+
+MOCK_GENERIC_MANIFEST = {
+    "name": "generic",
+    "version": "0.1.0",
+    "description": "A minimal mock container for testing a generic systems.",
+    "input_systems": [
+        {"name": "system_under_test", "type": "new_system", "required": True},
+    ],
+}
+
 
 MOCK_MULTIPLE_MANIFEST = {
     "name": "garak",
@@ -123,6 +133,7 @@ def manifests():
     """Fixture providing test manifests."""
     return {
         "my-registry/mock_tester:latest": Manifest(**MOCK_TESTER_MANIFEST),
+        "my-registry/generic:latest": Manifest(**MOCK_GENERIC_MANIFEST),
         "my-registry/garak:latest": Manifest(**MOCK_MULTIPLE_MANIFEST),
     }
 
@@ -162,14 +173,14 @@ class TestSchemaValidation:
         assert llm_another_system.params.env_file == "MY_ENV_FILE"
         assert llm_another_system.params.api_key == "MY_LLM_API_KEY"
 
-    def test_backward_compatibility_systems_schema(self):
+    def test_generic_systems_schema(self, manifests):
         """Test a generic system used for system types that don't have their own config classes."""
 
         # This system type is not yet implemented. It’s just to check backward compatibility
         system = SystemsConfig(
             systems={
                 "new_system": GenericSystemConfig(
-                    type="new_system_api",
+                    type="new_system",
                     description="New System description",
                     provider="openai",
                     params={
@@ -180,12 +191,28 @@ class TestSchemaValidation:
                 )
             }
         )
+
         new_system = system.systems["new_system"]
-        assert new_system.type == "new_system_api"
+        assert new_system.type == "new_system"
         assert new_system.description == "New System description"
         assert new_system.params["random_param"] == "aexcea"
         assert new_system.params["base_url"] == "http://URL"
         assert new_system.params["model"] == "y-model"
+
+        suite_data = {
+            "suite_name": "Compatible Test",
+            "description": "Suite description",
+            "test_suite": [
+                {
+                    "name": "test_llm_service",
+                    "description": "Test description",
+                    "image": "my-registry/generic:latest",
+                    "systems_under_test": ["new_system"],
+                }
+            ],
+        }
+        errors = validate_test_plan(SuiteConfig(**suite_data), system, manifests)
+        assert errors == [], f"Expected no errors, but got: {errors}"
 
     def test_missing_params_llm_api_systems_schema(self):
         """Test that validates required LLM API system parameters."""
