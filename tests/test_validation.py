@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from asqi.main import load_and_validate_plan
 from asqi.schemas import (
+    GenericSystemConfig,
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
@@ -161,27 +162,30 @@ class TestSchemaValidation:
         assert llm_another_system.params.env_file == "MY_ENV_FILE"
         assert llm_another_system.params.api_key == "MY_LLM_API_KEY"
 
-    def test_not_compatible_systems_schema(self):
-        """Test that fails when systems type is not valid."""
+    def test_backward_compatibility_systems_schema(self):
+        """Test a generic system used for system types that don't have their own config classes."""
 
-        # This system type is *not* compatible, for demonstrating validation failure
-        not_compatible_system = {
-            "systems": {
-                "my_llm_service": {
-                    "type": "not_existing_system_type",
-                    "provider": "some_provider",
-                    "description": "Some Description",
-                    "params": {
+        # This system type is not yet implemented. It’s just to check backward compatibility
+        system = SystemsConfig(
+            systems={
+                "new_system": GenericSystemConfig(
+                    type="new_system_api",
+                    description="New System description",
+                    provider="openai",
+                    params={
+                        "random_param": "aexcea",
                         "base_url": "http://URL",
-                        "model": "model-x",
-                        "env_file": "MY_ENV_FILE",
-                        "api_key": "MY_LLM_API_KEY",
+                        "model": "y-model",
                     },
-                },
+                )
             }
-        }
-        with pytest.raises(ValidationError, match="not_existing_system_type"):
-            SystemsConfig(**not_compatible_system).systems  # type: ignore invalid system
+        )
+        new_system = system.systems["new_system"]
+        assert new_system.type == "new_system_api"
+        assert new_system.description == "New System description"
+        assert new_system.params["random_param"] == "aexcea"
+        assert new_system.params["base_url"] == "http://URL"
+        assert new_system.params["model"] == "y-model"
 
     def test_missing_params_llm_api_systems_schema(self):
         """Test that validates required LLM API system parameters."""

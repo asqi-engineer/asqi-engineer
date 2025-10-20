@@ -91,6 +91,9 @@ class SystemDefinition(BaseModel):
     )
 
 
+# LLM API system
+
+
 class LLMAPIParams(BaseModel):
     """Parameters for the LLM API systems."""
 
@@ -125,18 +128,40 @@ class LLMAPIConfig(SystemDefinition):
     )
 
 
+# Generic system
+
+
+class GenericSystemConfig(SystemDefinition):
+    """Generic system configuration for system types without specific validation.
+
+    This allows backward compatibility and support for system types that don't have dedicated config classes yet.
+    """
+
+    type: str = Field(
+        ...,
+        description="System type, e.g., 'rest_api', 'custom_api', etc.",
+    )
+    params: Dict[str, Any] = Field(
+        ...,
+        description="Parameters specific to the system type.",
+    )
+
+
+SystemConfig = Union[LLMAPIConfig, GenericSystemConfig]
+
+
 class SystemsConfig(BaseModel):
     """Schema for the top-level systems configuration file.
 
     Extension Guide:
         1. Create a new XXXConfig class inheriting from SystemDefinition. e.g, RESTAPIConfig
         2. Create a new XXXParam class for the parameters of the system. e.g. RESTAPIParams
-        2. Add the system definition (XXXConfig) to this system Dict.
-            e.g. Dict[str, Dict[str, LLMAPIConfig | RESTAPIConfig | XXXConfig ]
+        2. Add the new system definition (XXXConfig) to the SystemConfig union type
+            e.g. SystemConfig = Union[LLMAPIConfig, XXXConfig, ..., GenericSystemConfig]
 
     """
 
-    systems: Dict[str, LLMAPIConfig] = Field(
+    systems: Dict[str, SystemConfig] = Field(
         ..., description="Dictionary of system definitions."
     )
 

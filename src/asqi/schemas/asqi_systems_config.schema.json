@@ -1,5 +1,53 @@
 {
   "$defs": {
+    "GenericSystemConfig": {
+      "description": "Generic system configuration for system types without specific validation.\n\nThis allows backward compatibility and support for system types that don't have dedicated config classes yet.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+          "title": "Provider"
+        },
+        "type": {
+          "description": "System type, e.g., 'rest_api', 'custom_api', etc.",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "description": "Parameters specific to the system type.",
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "params"
+      ],
+      "title": "GenericSystemConfig",
+      "type": "object"
+    },
     "LLMAPIConfig": {
       "description": "Configuration for LLM API systems.",
       "properties": {
@@ -95,11 +143,18 @@
       "type": "object"
     }
   },
-  "description": "Schema for the top-level systems configuration file.\n\nExtension Guide:\n    1. Create a new XXXConfig class inheriting from SystemDefinition. e.g, RESTAPIConfig\n    2. Create a new XXXParam class for the parameters of the system. e.g. RESTAPIParams\n    2. Add the system definition (XXXConfig) to this system Dict.\n        e.g. Dict[str, Dict[str, LLMAPIConfig | RESTAPIConfig | XXXConfig ]",
+  "description": "Schema for the top-level systems configuration file.\n\nExtension Guide:\n    1. Create a new XXXConfig class inheriting from SystemDefinition. e.g, RESTAPIConfig\n    2. Create a new XXXParam class for the parameters of the system. e.g. RESTAPIParams\n    2. Add the new system definition (XXXConfig) to the SystemConfig union type\n        e.g. SystemConfig = Union[LLMAPIConfig, XXXConfig, ..., GenericSystemConfig]",
   "properties": {
     "systems": {
       "additionalProperties": {
-        "$ref": "#/$defs/LLMAPIConfig"
+        "anyOf": [
+          {
+            "$ref": "#/$defs/LLMAPIConfig"
+          },
+          {
+            "$ref": "#/$defs/GenericSystemConfig"
+          }
+        ]
       },
       "description": "Dictionary of system definitions.",
       "title": "Systems",
