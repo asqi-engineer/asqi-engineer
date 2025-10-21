@@ -1,26 +1,42 @@
 {
   "$defs": {
-    "SystemDefinition": {
-      "description": "A single system definition.",
+    "GenericSystemConfig": {
+      "description": "Generic system configuration for system types without specific validation.\n\nThis allows backward compatibility and support for system types that don't have dedicated config classes yet.",
       "properties": {
-        "type": {
-          "description": "e.g., 'llm_api', 'rest_api'. Used to match with test container capabilities.",
-          "title": "Type",
-          "type": "string"
-        },
         "description": {
-          "description": "Description of the system.",
-          "title": "Description",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
         },
         "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
           "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
-          "title": "Provider",
+          "title": "Provider"
+        },
+        "type": {
+          "description": "System type, e.g., 'rest_api', 'custom_api', etc.",
+          "title": "Type",
           "type": "string"
         },
         "params": {
           "additionalProperties": true,
-          "description": "Parameters specific to the system type (e.g., base_url, model name, API key).",
+          "description": "Parameters specific to the system type.",
           "title": "Params",
           "type": "object"
         }
@@ -29,15 +45,116 @@
         "type",
         "params"
       ],
-      "title": "SystemDefinition",
+      "title": "GenericSystemConfig",
+      "type": "object"
+    },
+    "LLMAPIConfig": {
+      "description": "Configuration for LLM API systems.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+          "title": "Provider"
+        },
+        "type": {
+          "const": "llm_api",
+          "description": "LLM API system: llm_api",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/LLMAPIParams",
+          "description": "Parameters specific to the LLM API system (e.g., base url, model name, API key and env file)."
+        }
+      },
+      "required": [
+        "type",
+        "params"
+      ],
+      "title": "LLMAPIConfig",
+      "type": "object"
+    },
+    "LLMAPIParams": {
+      "description": "Parameters for the LLM API systems.",
+      "properties": {
+        "base_url": {
+          "description": "Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "model": {
+          "description": "Model name to use with the API",
+          "title": "Model",
+          "type": "string"
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to .env file containing environment variables for authentication",
+          "title": "Env File"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Direct API key for authentication (alternative to env_file)",
+          "title": "Api Key"
+        }
+      },
+      "required": [
+        "base_url",
+        "model"
+      ],
+      "title": "LLMAPIParams",
       "type": "object"
     }
   },
-  "description": "Schema for the top-level systems configuration file.",
+  "description": "Schema for the top-level systems configuration file.\n\nExtension Guide:\n    1. Create a new XXXConfig class inheriting from SystemDefinition. e.g, RESTAPIConfig\n    2. Create a new XXXParam class for the parameters of the system. e.g. RESTAPIParams\n    2. Add the new system definition (XXXConfig) to the SystemConfig union type\n        e.g. SystemConfig = Union[LLMAPIConfig, XXXConfig, ..., GenericSystemConfig]",
   "properties": {
     "systems": {
       "additionalProperties": {
-        "$ref": "#/$defs/SystemDefinition"
+        "anyOf": [
+          {
+            "$ref": "#/$defs/LLMAPIConfig"
+          },
+          {
+            "$ref": "#/$defs/GenericSystemConfig"
+          }
+        ]
       },
       "description": "Dictionary of system definitions.",
       "title": "Systems",

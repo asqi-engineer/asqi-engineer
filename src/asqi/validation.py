@@ -2,6 +2,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel
+
 from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
 
 logger = logging.getLogger()
@@ -275,6 +277,22 @@ def create_test_execution_plan(
     Returns:
         List of test execution plans
     """
+
+    def get_system_params_dict(params):
+        """
+        Returns a dict of a system's params
+        Handles GenericSystemConfig and Pydantic models
+
+        Args:
+            params: System params
+
+        Returns:
+             Dict with the system params
+        """
+        if isinstance(params, BaseModel):
+            return params.model_dump()
+        return params
+
     if not suite or not suite.test_suite:
         return []
 
@@ -328,7 +346,7 @@ def create_test_execution_plan(
                         "type": system_def.type,
                         "description": system_def.description,
                         "provider": system_def.provider,
-                        **system_def.params,
+                        **get_system_params_dict(system_def.params),
                     }.items()
                     if v is not None
                 }
@@ -345,7 +363,7 @@ def create_test_execution_plan(
                             "type": referenced_system_def.type,
                             "description": referenced_system_def.description,
                             "provider": referenced_system_def.provider,
-                            **referenced_system_def.params,
+                            **get_system_params_dict(referenced_system_def.params),
                         }
 
             plan.append(

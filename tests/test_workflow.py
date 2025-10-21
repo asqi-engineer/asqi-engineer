@@ -68,7 +68,12 @@ def test_run_test_suite_workflow_success():
     }
 
     systems_config = {
-        "systems": {"systemA": {"type": "llm_api", "params": {"endpoint": "http://x"}}}
+        "systems": {
+            "systemA": {
+                "type": "llm_api",
+                "params": {"base_url": "http://x", "model": "x-model"},
+            }
+        }
     }
 
     container_config: ContainerConfig = ContainerConfig()
@@ -120,7 +125,6 @@ def test_run_test_suite_workflow_success():
         mock_queue.enqueue.side_effect = lambda *args, **kwargs: DummyHandle(
             success_result
         )
-
         results, container_results = _call_inner_workflow(
             suite_config,
             systems_config,
@@ -156,7 +160,14 @@ def test_run_test_suite_workflow_validation_failure():
         ],
     }
 
-    systems_config = {"systems": {"systemA": {"type": "llm_api", "params": {}}}}
+    systems_config = {
+        "systems": {
+            "systemA": {
+                "type": "llm_api",
+                "params": {"base_url": "http://x", "model": "x-model"},
+            }
+        }
+    }
 
     container_config: ContainerConfig = ContainerConfig()
 
@@ -596,7 +607,14 @@ def test_image_pulled_but_manifest_not_extracted_bug():
         ],
     }
 
-    systems_config = {"systems": {"sys1": {"type": "llm_api", "params": {}}}}
+    systems_config = {
+        "systems": {
+            "sys1": {
+                "type": "llm_api",
+                "params": {"base_url": "http://x", "model": "x-model"},
+            }
+        }
+    }
 
     manifest = Manifest(
         name="test",
@@ -667,7 +685,12 @@ def test_run_test_suite_workflow_handle_exception():
     }
 
     systems_config = {
-        "systems": {"systemA": {"type": "llm_api", "params": {"endpoint": "http://x"}}}
+        "systems": {
+            "systemA": {
+                "type": "llm_api",
+                "params": {"base_url": "http://x", "model": "x-model"},
+            }
+        }
     }
 
     container_config: ContainerConfig = ContainerConfig()
@@ -703,7 +726,10 @@ def test_run_test_suite_workflow_handle_exception():
                 "image": "test/image:latest",
                 "sut_name": "systemA",
                 "systems_params": {
-                    "system_under_test": {"type": "llm_api", "endpoint": "http://x"}
+                    "system_under_test": {
+                        "type": "llm_api",
+                        "params": {"base_url": "http://x", "endpoint": "http://x"},
+                    }
                 },
                 "test_params": {"p": "v"},
             }
