@@ -325,10 +325,18 @@ def test_convert_test_results_to_objects():
         ]
     }
 
+    test_container_data = [
+        {
+            "test_results": {"success": True, "score": 0.9},
+            "error_message": "",
+            "container_output": '{"success": true}',
+        }
+    ]
+
     inner_step = getattr(
         convert_test_results_to_objects, "__wrapped__", convert_test_results_to_objects
     )
-    results = inner_step(test_results_data)
+    results = inner_step(test_results_data, test_container_data)
 
     assert len(results) == 1
     result = results[0]
@@ -340,6 +348,7 @@ def test_convert_test_results_to_objects():
     assert result.success is True
     assert result.container_id == "abc123"
     assert result.exit_code == 0
+    assert result.test_results == {"success": True, "score": 0.9}
 
 
 def test_add_score_cards_to_results():
@@ -416,12 +425,17 @@ def test_evaluate_score_cards_workflow():
                     "container_id": "abc123",
                     "exit_code": 0,
                 },
-                "test_results": {"success": True},
-                "error_message": "",
-                "container_output": "",
             }
         ],
     }
+
+    test_container_data = [
+        {
+            "test_results": {"success": True},
+            "error_message": "",
+            "container_output": "",
+        }
+    ]
 
     score_card_configs = [{"score_card_name": "Test scorecard", "indicators": []}]
 
@@ -438,9 +452,11 @@ def test_evaluate_score_cards_workflow():
         inner_workflow = getattr(
             evaluate_score_cards_workflow, "__wrapped__", evaluate_score_cards_workflow
         )
-        _result = inner_workflow(test_results_data, score_card_configs)
+        _result = inner_workflow(
+            test_results_data, test_container_data, score_card_configs
+        )
 
-        mock_convert.assert_called_once_with(test_results_data)
+        mock_convert.assert_called_once_with(test_results_data, test_container_data)
         mock_evaluate.assert_called_once()
         mock_add.assert_called_once()
         mock_console.print.assert_called_once()
@@ -455,6 +471,7 @@ def test_run_end_to_end_workflow():
     container_config: ContainerConfig = ContainerConfig()
 
     test_results = {"summary": {"status": "COMPLETED"}, "results": []}
+    test_container = []
     final_results = {
         "summary": {"status": "COMPLETED"},
         "results": [],
@@ -493,7 +510,9 @@ def test_run_end_to_end_workflow():
             },
             container_config,
         )
-        mock_score_workflow.assert_called_once_with(test_results, score_card_configs)
+        mock_score_workflow.assert_called_once_with(
+            test_results, test_container, score_card_configs
+        )
         assert result == final_results
 
 
