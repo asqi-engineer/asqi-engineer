@@ -739,10 +739,22 @@ def run_test_suite_workflow(
 @DBOS.step()
 def convert_test_results_to_objects(
     test_results_data: Dict[str, Any],
+    test_container_data: List[Dict[str, Any]],
 ) -> List[TestExecutionResult]:
-    """Convert test results data back to TestExecutionResult objects."""
+    """
+    Convert test results data back to TestExecutionResult objects.
+
+    Args:
+        test_results_data: Test execution results
+        test_container_data: Test container results containing 'results' field
+
+    Returns:
+        List of TestExecutionResult objects
+    """
     test_results = []
-    for result_dict in test_results_data.get("results", []):
+    test_results_list = test_results_data.get("results", [])
+
+    for id, result_dict in enumerate(test_results_list):
         metadata = result_dict["metadata"]
         result = TestExecutionResult(
             metadata["test_name"], metadata["sut_name"], metadata["image"]
@@ -752,6 +764,11 @@ def convert_test_results_to_objects(
         result.success = metadata["success"]
         result.container_id = metadata["container_id"]
         result.exit_code = metadata["exit_code"]
+        # case where the logs file was moved and test_container_data is empty
+        if id < len(test_container_data):
+            result.container_output = test_container_data[id]["container_output"]
+            result.test_results = test_container_data[id]["test_results"]
+            result.error_message = test_container_data[id]["error_message"]
         test_results.append(result)
     return test_results
 
@@ -803,20 +820,24 @@ def add_score_cards_to_results(
 @DBOS.workflow()
 def evaluate_score_cards_workflow(
     test_results_data: Dict[str, Any],
+    test_container_data: List[Dict[str, Any]],
     score_card_configs: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """
     Evaluate score cards against existing test results.
 
     Args:
-        test_results_data: Test execution results containing 'results' field
+        test_results_data: Test execution results
+        test_container_data: Test container results containing 'results' field
         score_card_configs: List of score card configurations to evaluate
 
     Returns:
         Updated results with score card evaluation data
     """
     # 1. Convert test results back to TestExecutionResult objects
-    test_results = convert_test_results_to_objects(test_results_data)
+    test_results = convert_test_results_to_objects(
+        test_results_data, test_container_data
+    )
 
     # 2. Evaluate score cards using existing step
     console.print("\n[bold blue]Evaluating score cards...[/bold blue]")
@@ -850,7 +871,10 @@ def run_end_to_end_workflow(
     test_results, container_results = run_test_suite_workflow(
         suite_config, systems_config, executor_config, container_config
     )
-    final_results = evaluate_score_cards_workflow(test_results, score_card_configs)
+
+    final_results = evaluate_score_cards_workflow(
+        test_results, container_results, score_card_configs
+    )
 
     return final_results, container_results
 
@@ -1048,8 +1072,19 @@ def start_score_card_evaluation(
         with open(input_path, "r") as f:
             test_results_data = json.load(f)
 
+        logs_dir = Path(os.getenv("LOGS_PATH", "logs"))
+        container_path = logs_dir / input_path
+        if container_path.exists():
+            with open(container_path, "r") as f:
+                test_container_data = json.load(f)
+        else:
+            test_container_data = []
+
         handle = DBOS.start_workflow(
-            evaluate_score_cards_workflow, test_results_data, score_card_configs
+            evaluate_score_cards_workflow,
+            test_results_data,
+            test_container_data,
+            score_card_configs,
         )
 
         # Wait for completion and optionally save results
