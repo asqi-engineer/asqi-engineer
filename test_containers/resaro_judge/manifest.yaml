@@ -1,0 +1,37 @@
+name: "resaro_judge"
+version: "1.1"
+description: "Judge generated answers against gold answers with optional LLM-as-judge; reports per-question correctness and overall average accuracy."
+
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested (used to generate answers)"
+  - name: "evaluator_system"
+    type: "llm_api"
+    required: false
+    description: "Optional LLM used as a judge; if omitted, a simple heuristic judge is used"
+
+input_schema:
+  - name: "test_type"
+    type: "string"
+    required: true
+    description: "Type of evaluation; currently only 'accuracy' is supported"
+  - name: "dataset"
+    type: "list"
+    required: true
+    description: "List of objects: {question: str, answer: str}"
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the test execution completed successfully"
+  - name: "test_type"
+    type: "string"
+    description: "Echoes the requested test type"
+  - name: "per_question"
+    type: "list"
+    description: "Per-question results including generated answer, judge reasoning, and a numeric 'correct' score (0..1)"
+  - name: "overall_average_accuracy"
+    type: "float"
+    description: "Overall average accuracy across all questions"
