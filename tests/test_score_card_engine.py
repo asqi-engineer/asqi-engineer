@@ -302,7 +302,7 @@ class TestscorecardEngine:
         # Should return a list with one good result and one error result
         assert isinstance(result, list)
         assert len(result) == 2
-        assert "No test results found for test_name" in result[0]["error"]
+        assert "No test results found for test_id" in result[0]["error"]
 
     def test_evaluate_scorecard_with_no_matching_results(self):
         """Test score_card evaluation when no test results match the filter."""

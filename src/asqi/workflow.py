@@ -351,18 +351,18 @@ def execute_single_test(
             result.success = result.test_results.get("success", False)
         except ValueError as e:
             result.error_message = (
-                f"Failed to parse JSON output from test '{test_name}': {e}"
+                f"Failed to parse JSON output from test id '{test_id}': {e}"
             )
             result.success = False
             DBOS.logger.error(
-                f"JSON parsing failed for test {test_name}: {result.container_output[:200]}..."
+                f"JSON parsing failed for test id {test_id}: {result.container_output[:200]}..."
             )
     else:
         result.success = False
 
     # Log failures for debugging
     if not result.success:
-        DBOS.logger.error(f"Test failed: {test_name} - {result.error_message}")
+        DBOS.logger.error(f"Test failed, id: {test_id} - {result.error_message}")
 
     return result
 
@@ -406,6 +406,7 @@ def evaluate_score_card(
                 "error": f"Score card validation failed: {e}",
                 "indicator_name": "SCORE_CARD_VALIDATION_ERROR",
                 "test_name": "N/A",
+                "test_id": "N/A",
                 "sut_name": "N/A",
                 "outcome": None,
                 "metric_value": None,
@@ -418,6 +419,7 @@ def evaluate_score_card(
                 "error": f"Score card evaluation error: {e}",
                 "indicator_name": "SCORE_CARD_EVALUATION_ERROR",
                 "test_name": "N/A",
+                "test_id": "N/A",
                 "sut_name": "N/A",
                 "outcome": None,
                 "metric_value": None,

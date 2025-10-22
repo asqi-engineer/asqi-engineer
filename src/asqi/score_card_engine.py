@@ -238,7 +238,7 @@ class ScoreCardEngine:
             Filtered list of test results matching the target test id
         """
         filtered = [
-            result for result in test_results if result.test_name == target_test_id
+            result for result in test_results if result.test_id == target_test_id
         ]
         logger.debug(
             f"Filtered {len(test_results)} results to {len(filtered)} for test_id '{target_test_id}'"
@@ -292,7 +292,7 @@ class ScoreCardEngine:
             try:
                 if not result.test_results:
                     logger.warning(
-                        f"No test_results data available for {result.test_name}"
+                        f"No test_results data available for {result.test_id}"
                     )
                     continue
 
@@ -303,12 +303,12 @@ class ScoreCardEngine:
                     values.append(value)
                 else:
                     logger.warning(
-                        f"Failed to extract metric '{metric_path}' from test result for {result.test_name}: {error}"
+                        f"Failed to extract metric '{metric_path}' from test result for {result.test_id}: {error}"
                     )
 
             except Exception as e:
                 logger.warning(
-                    f"Unexpected error extracting metric '{metric_path}' from test result for {result.test_name}: {e}"
+                    f"Unexpected error extracting metric '{metric_path}' from test result for {result.test_id}: {e}"
                 )
 
         return values
@@ -420,11 +420,11 @@ class ScoreCardEngine:
                     indicator.name, indicator.apply_to.test_id
                 )
                 available_tests = (
-                    ", ".join(set(r.test_name for r in test_results))
+                    ", ".join(set(r.test_id for r in test_results))
                     if test_results
                     else "none"
                 )
-                error_result.error = f"No test results found for test_name '{indicator.apply_to.test_id}'. Available tests: {available_tests}"
+                error_result.error = f"No test results found for test_id '{indicator.apply_to.test_id}'. Available tests: {available_tests}"
                 return [error_result]
 
             # Evaluate each individual test result
@@ -434,7 +434,7 @@ class ScoreCardEngine:
                 )
                 eval_result.sut_name = test_result.sut_name
                 eval_result.test_result_id = (
-                    f"{test_result.test_name}_{test_result.sut_name}"
+                    f"{test_result.test_id}_{test_result.sut_name}"
                 )
 
                 try:
@@ -466,7 +466,7 @@ class ScoreCardEngine:
                                         assessment_rule.description
                                     )
                                     logger.debug(
-                                        f"score_card indicator '{indicator.name}' for test '{test_result.test_name}' (system under test: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
+                                        f"score_card indicator '{indicator.name}' for test id '{test_result.test_id}' (system under test: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
                                     )
                                     break
 
@@ -484,7 +484,7 @@ class ScoreCardEngine:
                             )
 
                     else:
-                        eval_result.error = f"Failed to extract metric '{indicator.metric}' from test result for '{test_result.test_name}': {error}"
+                        eval_result.error = f"Failed to extract metric '{indicator.metric}' from test result for '{test_result.test_id}': {error}"
 
                 except Exception as e:
                     logger.error(
