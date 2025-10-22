@@ -2,7 +2,8 @@ suite_name: "Inspect Safeguards Evaluation Suite"
 test_suite:
 
   # AbstentionBench
-  - name: "inspect_abstention_bench"
+  - id: "inspect_abstention_bench"
+    name: "inspect abstention bench"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -16,7 +17,8 @@ test_suite:
       limit: 2
 
   # AgentDojo
-  - name: "inspect_agentdojo"
+  - id: "inspect_agentdojo"
+    name: "inspect agentdojo"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -26,7 +28,8 @@ test_suite:
       limit: 2
 
   # AgentHarm
-  - name: "inspect_agentharm"
+  - id: "inspect_agentharm"
+    name: "inspect agentharm"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -35,7 +38,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_agentharm_benign"
+  - id: "inspect_agentharm_benign"
+    name: "inspect agentharm benign"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -45,7 +49,8 @@ test_suite:
       limit: 2
 
   # LAB-Bench
-  - name: "inspect_lab_bench_cloning_scenarios"
+  - id: "inspect_lab_bench_cloning_scenarios"
+    name: "inspect lab bench cloning scenarios"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -54,7 +59,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_lab_bench_dbqa"
+  - id: "inspect_lab_bench_dbqa"
+    name: "inspect lab bench dbqa"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -63,7 +69,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_lab_bench_figqa"
+  - id: "inspect_lab_bench_figqa"
+    name: "inspect lab bench figqa"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -72,7 +79,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_lab_bench_litqa"
+  - id: "inspect_lab_bench_litqa"
+    name: "inspect lab bench litqa"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -81,7 +89,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_lab_bench_protocolqa"
+  - id: "inspect_lab_bench_protocolqa"
+    name: "inspect lab bench protocolqa"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -90,7 +99,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_lab_bench_seqqa"
+  - id: "inspect_lab_bench_seqqa"
+    name: "inspect lab bench seqqa"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -100,7 +110,8 @@ test_suite:
       limit: 2
 
   # MASK
-  - name: "inspect_mask"
+  - id: "inspect_mask"
+    name: "inspect mask"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -110,7 +121,8 @@ test_suite:
       limit: 2
 
   # Make Me Pay
-  - name: "inspect_make_me_pay"
+  - id: "inspect_make_me_pay"
+    name: "inspect make me pay"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -120,7 +132,8 @@ test_suite:
       limit: 2
 
   # StereoSet
-  - name: "inspect_stereoset"
+  - id: "inspect_stereoset"
+    name: "inspect stereoset"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -130,7 +143,8 @@ test_suite:
       limit: 2
 
   # StrongREJECT
-  - name: "inspect_strong_reject"
+  - id: "inspect_strong_reject"
+    name: "inspect strong reject"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -140,7 +154,8 @@ test_suite:
       limit: 2
 
   # WMDP
-  - name: "inspect_wmdp_bio"
+  - id: "inspect_wmdp_bio"
+    name: "inspect wmdp bio"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -149,7 +164,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_wmdp_chem"
+  - id: "inspect_wmdp_chem"
+    name: "inspect wmdp chem"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -158,7 +174,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_wmdp_cyber"
+  - id: "inspect_wmdp_cyber"
+    name: "inspect wmdp cyber"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"

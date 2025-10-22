@@ -1,7 +1,8 @@
 # yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
 suite_name: "Security Testing Suite with Deepteam"
 test_suite:
-  - name: "profanity test"
+  - id: "profanity_test"
+    name: "profanity test"
     image: "asqiengineer/test-container:deepteam-latest"
     systems_under_test:
       - nova_lite
