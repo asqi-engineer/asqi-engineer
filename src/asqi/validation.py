@@ -51,15 +51,16 @@ def validate_test_ids() -> None:
         if test_suite_paths:
             for test_suite_path in test_suite_paths:
                 try:
-                    # suite_config = merge_defaults_into_suite(
-                    #     load_config_file(str(test_suite_path))
-                    # )
                     test_suite_path_str = str(test_suite_path)
                     suite_config = load_config_file(test_suite_path_str)
 
                     extract_suite_ids(all_test_ids, suite_config, test_suite_path_str)
 
                 except yaml.YAMLError as e:
+                    console.print(
+                        f"[yellow]Failed to parse test suite file {test_suite_path}:[/yellow] {e}"
+                    )
+                except Exception as e:
                     console.print(
                         f"[yellow]Failed to process test suite file {test_suite_path}:[/yellow] {e}"
                     )

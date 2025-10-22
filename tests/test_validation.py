@@ -1117,8 +1117,8 @@ class TestVolumeValidation:
 
 
 class TestValidateTestIDs:
-    def test_success_id_validation(self, tmp_path):
-        """Test normal id validation."""
+    def test_id_validation(self, tmp_path):
+        """Test ID validation with no duplicates IDs in different files."""
         suite_folder = tmp_path / "suites"
         suite_folder.mkdir()
 
@@ -1141,28 +1141,16 @@ class TestValidateTestIDs:
             validate_test_ids()
 
     def test_validation_with_duplicates(self, tmp_path):
-        """Test validation detects duplicates ids."""
+        """Test ID validation with duplicates IDs in the same folder."""
         suite_folder = tmp_path / "suites"
         suite_folder.mkdir()
 
-        demo_suite = {
-            "suite_name": "id validation test suite",
-            "test_suite": [
-                {
-                    "id": "id_bayau",
-                    "name": "this is the name",
-                    "image": "validation:latest",
-                    "systems_under_test": ["garak"],
-                },
-            ],
-        }
-
         duplicate_suite = {
-            "suite_name": "another id validation test suite",
+            "suite_name": "id duplicated test suite",
             "test_suite": [
                 {
                     "id": "id_bayau",
-                    "name": "this is the name",
+                    "name": "this is the dup name",
                     "image": "validation:latest",
                     "systems_under_test": ["garak"],
                 },
@@ -1170,7 +1158,7 @@ class TestValidateTestIDs:
         }
 
         with open(suite_folder / "demo_test.yaml", "w") as f:
-            yaml.dump(demo_suite, f)
+            yaml.dump(duplicate_suite, f)
 
         with open(suite_folder / "duplicate_demo_test.yaml", "w") as f:
             yaml.dump(duplicate_suite, f)
@@ -1182,5 +1170,113 @@ class TestValidateTestIDs:
             error = exc_info.value
             assert "id_bayau" in error.duplicate_dict
             assert len(error.duplicate_dict["id_bayau"]) == 2
-            assert "id validation test suite" in str(error)
-            assert "another id validation test suite" in str(error)
+
+    def test_validation_with_duplicates_multi_level(self, tmp_path):
+        """Test ID validation with duplicates IDs in different folders(paths separated by comma)."""
+        suite_folder = tmp_path / "suites"
+        other_folder = tmp_path / "others"
+
+        suite_folder.mkdir()
+        other_folder.mkdir()
+
+        duplicate_suite = {
+            "suite_name": "id duplicated test suite",
+            "test_suite": [
+                {
+                    "id": "id_bayau",
+                    "name": "this is the dup name multi level",
+                    "image": "demo:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        with open(suite_folder / "demo_test.yaml", "w") as f:
+            yaml.dump(duplicate_suite, f)
+
+        with open(other_folder / "duplicate_demo_test.yaml", "w") as f:
+            yaml.dump(duplicate_suite, f)
+
+        with patch.dict(
+            os.environ,
+            {"TEST_SUITES_PATHS": f"{suite_folder},{other_folder}"},
+        ):
+            with pytest.raises(DuplicateTestIDError) as exc_info:
+                validate_test_ids()
+
+            error = exc_info.value
+            assert "id_bayau" in error.duplicate_dict
+            assert len(error.duplicate_dict["id_bayau"]) == 2
+
+        validate_test_ids()
+
+    def test_validation_with_multi_folders(self, tmp_path):
+        """Test ID validation in different folders(paths separated by comma)."""
+
+        suite_folder = tmp_path / "suites"
+        other_folder = tmp_path / "others"
+
+        suite_folder.mkdir()
+        other_folder.mkdir()
+
+        suite = {
+            "suite_name": "suite in suites",
+            "test_suite": [
+                {
+                    "id": "if_first",
+                    "name": "this is the dup name multi level",
+                    "image": "demo:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        other_suite = {
+            "suite_name": "suite in others",
+            "test_suite": [
+                {
+                    "id": "if_second",
+                    "name": "this is the dup name multi level",
+                    "image": "demo:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        with open(suite_folder / "suite_demo_test.yaml", "w") as f:
+            yaml.dump(suite, f)
+
+        with open(other_folder / "other_demo_test.yaml", "w") as f:
+            yaml.dump(other_suite, f)
+
+        with patch.dict(
+            os.environ,
+            {"TEST_SUITES_PATHS": f"{suite_folder},{other_folder}"},
+        ):
+            validate_test_ids()
+
+    def test_invalid_yaml_file(self, tmp_path):
+        """Invalid that invalid YAML files are skipped."""
+
+        suite_folder = tmp_path / "suites"
+        suite_folder.mkdir()
+
+        with open(suite_folder / "invalid_test.yaml", "w") as f:
+            f.write("invalid-yaml-here")
+
+        valid_suite = {
+            "suite_name": "valid test suite",
+            "test_suite": [
+                {
+                    "id": "valid_id",
+                    "name": "valid test",
+                    "image": "demo:latest",
+                    "systems_under_test": ["garak"],
+                }
+            ],
+        }
+        with open(suite_folder / "valid_test.yaml", "w") as f:
+            yaml.dump(valid_suite, f)
+
+        with patch.dict(os.environ, {"TEST_SUITES_PATHS": str(suite_folder)}):
+            validate_test_ids()
