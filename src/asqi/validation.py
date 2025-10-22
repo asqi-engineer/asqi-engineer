@@ -1,6 +1,5 @@
 import logging
 import os
-import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -123,8 +122,7 @@ def extract_suite_ids(
         suite_name = suite_config["suite_name"]
         if isinstance(suite, list):
             for test in suite:
-                # test_id = test["id"]
-                test_id = test.get("id", str(random.randint(1, 109990)))
+                test_id = test["id"]
                 test_name = test["name"]
                 all_test_ids.setdefault(test_id, []).append(
                     f"location: '{test_suite_path}', suite name: '{suite_name}', test name: '{test_name}'"
