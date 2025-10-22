@@ -19,7 +19,7 @@ from asqi.config import (
 from asqi.container_manager import shutdown_containers
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
-from asqi.validation import validate_test_plan
+from asqi.validation import DuplicateTestIDError, validate_test_ids, validate_test_plan
 
 load_dotenv()
 configure_logging()
@@ -150,6 +150,7 @@ def _cli_startup_callback():
     Registers shutdown handlers for container cleanup once per process.
     Using a callback keeps registration in the CLI layer and avoids
     side-effects at import time in libraries or tests.
+    Verifies uniqueness of test IDs
     """
     # Ensure cleanup on normal interpreter exit
     atexit.register(_handle_shutdown)
@@ -160,6 +161,14 @@ def _cli_startup_callback():
             signal.signal(sig, _handle_shutdown)
         except Exception as e:
             console.print(f"\n[red]❌Could not register handler for {sig}: {e}[/red]")
+
+    console.print("\n[blue]Verifying uniqueness of test IDs...[/blue]")
+    try:
+        validate_test_ids()
+    except DuplicateTestIDError as e:
+        console.print(f"\n[red]❌ Found Duplicated Test IDs: {e}[/red]")
+        raise
+    console.print("\n[green]✅ Test IDs verified[/green]")
 
 
 def _handle_shutdown(signum=None, frame=None):
@@ -337,11 +346,11 @@ def execute_tests(
         "-o",
         help="Path to save execution results JSON file.",
     ),
-    test_names: Optional[List[str]] = typer.Option(
+    test_ids: Optional[List[str]] = typer.Option(
         None,
-        "--test-names",
-        "-tn",
-        help="Comma-separated list of test names to run (matches suite test names).",
+        "--test-ids",
+        "-tids",
+        help="Comma-separated list of test idsß to run (matches suite test idsß).",
     ),
     concurrent_tests: int = typer.Option(
         ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
@@ -404,7 +413,7 @@ def execute_tests(
             output_path=output_file,
             score_card_configs=None,
             execution_mode="tests_only",
-            test_names=test_names,
+            test_ids=test_ids,
             executor_config=executor_config,
             container_config=container_config,
         )
