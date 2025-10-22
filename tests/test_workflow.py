@@ -113,8 +113,8 @@ def test_run_test_suite_workflow_success():
         mock_validate.return_value = []
         mock_plan.return_value = [
             {
+                "test_id": "t1 systemA",
                 "test_name": "t1_systemA",
-                "test_id": "t1_systemA",
                 "image": "test/image:latest",
                 "sut_name": "sutA",
                 "systems_params": {
@@ -220,8 +220,8 @@ def test_execute_single_test_success():
 
         inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
         result = inner_step(
+            test_id="t1 systemA",
             test_name="t1_systemA",
-            test_id="t1_systemA",
             image="test/image:latest",
             sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
@@ -273,8 +273,8 @@ def test_execute_single_test_container_failure():
 
         inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
         result = inner_step(
-            test_name="failing_test",
             test_id="failing_test",
+            test_name="failing test",
             image="test/image:latest",
             sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
@@ -300,8 +300,8 @@ def test_execute_single_test_invalid_json():
 
         inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
         result = inner_step(
-            test_name="json_test",
             test_id="json_test",
+            test_name="json test",
             image="test/image:latest",
             sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
@@ -320,8 +320,8 @@ def test_convert_test_results_to_objects():
         "results": [
             {
                 "metadata": {
-                    "test_name": "test1",
                     "test_id": "test1",
+                    "test_name": "test1",
                     "sut_name": "system1",
                     "image": "test/image:latest",
                     "start_time": 1.0,
@@ -427,8 +427,8 @@ def test_evaluate_score_cards_workflow():
         "results": [
             {
                 "metadata": {
-                    "test_name": "test1",
                     "test_id": "test1",
+                    "test_name": "test1",
                     "sut_name": "system1",
                     "image": "test/image:latest",
                     "start_time": 1.0,
@@ -681,8 +681,8 @@ def test_image_pulled_but_manifest_not_extracted_bug():
         )
         mock_plan.return_value = [
             {
-                "test_name": "test1",
                 "test_id": "test1",
+                "test_name": "test1",
                 "image": "test/image:latest",
                 "sut_name": "sys1",
                 "systems_params": {"system_under_test": {"type": "llm_api"}},
@@ -759,8 +759,8 @@ def test_run_test_suite_workflow_handle_exception():
         mock_validate.return_value = []
         mock_plan.return_value = [
             {
-                "test_name": "t1_systemA",
                 "test_id": "t1_systemA",
+                "test_name": "t1 systemA",
                 "image": "test/image:latest",
                 "sut_name": "systemA",
                 "systems_params": {
@@ -804,6 +804,6 @@ def test_run_test_suite_workflow_handle_exception():
     result = results["results"][0]
     assert result["metadata"]["success"] is False
     assert result["metadata"]["exit_code"] == 137
-    assert result["metadata"]["test_name"] == "t1_systemA"
+    assert result["metadata"]["test_name"] == "t1 systemA"
     assert result["metadata"]["test_id"] == "t1_systemA"
     assert result["metadata"]["image"] == "test/image:latest"

@@ -22,30 +22,31 @@ class TestscorecardEngine:
         return result
 
     def test_filter_results_by_test_id(self):
-        """Test filtering test results by test name."""
+        """Test filtering test results by test ids."""
+
         results = [
-            self.create_test_result("test1", "test1", "image1", {"success": True}),
-            self.create_test_result("test2", "test2", "image2", {"success": True}),
-            self.create_test_result("test1", "test1", "image2", {"success": False}),
+            self.create_test_result("test1", "test_id_1", "image1", {"success": True}),
+            self.create_test_result("test2", "test_id_2", "image2", {"success": True}),
+            self.create_test_result("test1", "test_id_1", "image2", {"success": False}),
         ]
 
-        filtered = self.engine.filter_results_by_test_id(results, "test1")
+        filtered = self.engine.filter_results_by_test_id(results, "test_id_1")
 
         assert len(filtered) == 2
-        assert filtered[0].test_name == "test1"
-        assert filtered[1].test_name == "test1"
+        assert filtered[0].test_id == "test_id_1"
+        assert filtered[1].test_id == "test_id_1"
 
     def test_extract_metric_values(self):
         """Test extracting metric values from test results."""
         results = [
             self.create_test_result(
-                "test1", "test1", "image1", {"success": True, "score": 0.9}
+                "test1", "test_id_1", "image1", {"success": True, "score": 0.9}
             ),
             self.create_test_result(
-                "test2", "test2", "image1", {"success": False, "score": 0.5}
+                "test2", "test_id_2", "image1", {"success": False, "score": 0.5}
             ),
             self.create_test_result(
-                "test3", "test3", "image1", {"success": True, "score": 0.8}
+                "test3", "test_id_3", "image1", {"success": True, "score": 0.8}
             ),
         ]
 
@@ -306,14 +307,14 @@ class TestscorecardEngine:
 
     def test_evaluate_scorecard_with_no_matching_results(self):
         """Test score_card evaluation when no test results match the filter."""
-        # Create test results with different test name
+        # Create test results with different test ids
         results = [
             self.create_test_result(
                 "test2", "test2", "image1", {"success": True, "score": 0.9}
             ),
         ]
 
-        # Create score_card looking for different test name
+        # Create score_card looking for different test id
         score_card = ScoreCard(
             score_card_name="Test score_card",
             indicators=[

@@ -318,16 +318,16 @@ def execute_single_test(
         # Remove env variable DOCKER_HOST to avoid container looking for host path inside container
         del container_env["DOCKER_HOST"]
         DBOS.logger.info(
-            f"Configured Docker-in-Docker for test: {test_name} (image: {image}) using host socket: {docker_socket_path}"
+            f"Configured Docker-in-Docker for test id: {test_id} (image: {image}) using host socket: {docker_socket_path}"
         )
 
     # Execute container
     result.start_time = time.time()
 
-    # Generate container name: {sut}-{test}-{short_uuid}
+    # Generate container name: {sut}-{test_id}-{short_uuid}
     truncated_sut = sut_name.lower().replace(" ", "_")[:25]
-    truncated_test = test_name.lower().replace(" ", "_")[:25]
-    prefix = f"{truncated_sut}-{truncated_test}"
+    truncated_test_id = test_id.lower()[:25]
+    prefix = f"{truncated_sut}-{truncated_test_id}"
     container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
 
     container_result = run_container_with_args(
@@ -635,7 +635,7 @@ def run_test_suite_workflow(
                     result = handle.get_result()
                 except Exception as e:  # Gracefully handle DBOS/HTTP timeouts per test
                     DBOS.logger.error(
-                        f"Test execution handle failed for {test_plan['test_name']} (image: {test_plan['image']}): {e}"
+                        f"Test execution handle failed for {test_plan['test_id']} (image: {test_plan['image']}): {e}"
                     )
                     # Synthesize a failed TestExecutionResult with timeout semantics
                     result = TestExecutionResult(
@@ -687,7 +687,7 @@ def run_test_suite_workflow(
                 result = handle.get_result()
             except Exception as e:
                 DBOS.logger.error(
-                    f"Test execution handle failed for {test_plan['test_name']} (image: {test_plan['image']}): {e}"
+                    f"Test execution handle failed for {test_plan['test_id']} (image: {test_plan['image']}): {e}"
                 )
                 result = TestExecutionResult(
                     test_plan["test_name"],

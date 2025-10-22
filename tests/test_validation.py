@@ -797,8 +797,8 @@ class TestValidationInputFunctions:
     def test_validate_test_execution_inputs_valid(self):
         """Test valid test execution inputs."""
         validate_test_execution_inputs(
-            test_name="test1",
             test_id="test1",
+            test_name="test1",
             image="image:latest",
             system_name="system1",
             system_params={"key": "value"},
