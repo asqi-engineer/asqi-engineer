@@ -86,7 +86,8 @@ def _get_docker_socket_path(env_vars: dict[str, str]) -> str:
 class TestExecutionResult:
     """Represents the result of a single test execution."""
 
-    def __init__(self, test_name: str, sut_name: str, image: str):
+    def __init__(self, test_name: str, test_id: str, sut_name: str, image: str):
+        self.test_id = test_id
         self.test_name = test_name
         self.sut_name = sut_name
         self.image = image
@@ -110,6 +111,7 @@ class TestExecutionResult:
         """Convert to dictionary for storage/reporting."""
         return {
             "metadata": {
+                "test_id": self.test_id,
                 "test_name": self.test_name,
                 "sut_name": self.sut_name,
                 "image": self.image,
@@ -126,7 +128,7 @@ class TestExecutionResult:
     def container_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for storage/reporting."""
         return {
-            "test_name": self.test_name,
+            "test_id": self.test_id,
             "test_results": self.test_results,
             "error_message": self.error_message,
             "container_output": self.container_output,
@@ -181,6 +183,7 @@ def validate_test_plan(
 @DBOS.step()
 def execute_single_test(
     test_name: str,
+    test_id: str,
     image: str,
     sut_name: str,
     systems_params: Dict[str, Any],
@@ -194,6 +197,7 @@ def execute_single_test(
 
     Args:
         test_name: Name of the test to execute (pre-validated)
+        test_id: Unique ID of the test to execute (pre-validated)
         image: Docker image to run (pre-validated)
         sut_name: Name of the system under test (pre-validated)
         systems_params: Dictionary containing system_under_test and other systems (pre-validated)
@@ -207,14 +211,14 @@ def execute_single_test(
         ValueError: If inputs fail validation or JSON output cannot be parsed
         RuntimeError: If container execution fails
     """
-    result = TestExecutionResult(test_name, sut_name, image)
+    result = TestExecutionResult(test_name, test_id, sut_name, image)
 
     # Extract system_under_test for validation and environment handling
     sut_params = systems_params.get("system_under_test", {})
 
     try:
         validate_test_execution_inputs(
-            test_name, image, sut_name, sut_params, test_params
+            test_name, test_id, image, sut_name, sut_params, test_params
         )
     except ValueError as e:
         result.error_message = str(e)
@@ -604,7 +608,6 @@ def run_test_suite_workflow(
 
     # Execute tests concurrently
     console.print(f"\n[bold]Running {test_count} tests...[/bold]")
-
     try:
         with create_test_execution_progress(console) as progress:
             task = progress.add_task("Executing tests", total=test_count)
@@ -614,6 +617,7 @@ def run_test_suite_workflow(
                 handle = test_queue.enqueue(
                     execute_single_test,
                     test_plan["test_name"],
+                    test_plan["test_id"],
                     test_plan["image"],
                     test_plan["sut_name"],
                     test_plan["systems_params"],
@@ -634,6 +638,7 @@ def run_test_suite_workflow(
                     # Synthesize a failed TestExecutionResult with timeout semantics
                     result = TestExecutionResult(
                         test_plan["test_name"],
+                        test_plan["test_id"],
                         test_plan["sut_name"],
                         test_plan["image"],
                     )
@@ -663,6 +668,7 @@ def run_test_suite_workflow(
             handle = test_queue.enqueue(
                 execute_single_test,
                 test_plan["test_name"],
+                test_plan["test_id"],
                 test_plan["image"],
                 test_plan["sut_name"],
                 test_plan["systems_params"],
@@ -682,7 +688,10 @@ def run_test_suite_workflow(
                     f"Test execution handle failed for {test_plan['test_name']} (image: {test_plan['image']}): {e}"
                 )
                 result = TestExecutionResult(
-                    test_plan["test_name"], test_plan["sut_name"], test_plan["image"]
+                    test_plan["test_name"],
+                    test_plan["test_id"],
+                    test_plan["sut_name"],
+                    test_plan["image"],
                 )
                 now = time.time()
                 result.start_time = now
@@ -757,7 +766,10 @@ def convert_test_results_to_objects(
     for id, result_dict in enumerate(test_results_list):
         metadata = result_dict["metadata"]
         result = TestExecutionResult(
-            metadata["test_name"], metadata["sut_name"], metadata["image"]
+            metadata["test_name"],
+            metadata["test_id"],
+            metadata["sut_name"],
+            metadata["image"],
         )
         result.start_time = metadata["start_time"]
         result.end_time = metadata["end_time"]
@@ -920,7 +932,7 @@ def start_test_execution(
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
     execution_mode: str = "end_to_end",
-    test_names: Optional[List[str]] = None,
+    test_ids: Optional[List[str]] = None,
 ) -> str:
     """
     Orchestrate test suite execution workflow.
@@ -939,7 +951,7 @@ def start_test_execution(
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
         execution_mode: "tests_only" or "end_to_end"
-        test_names: Optional list of test names to filter from suite
+        test_ids: Optional list of test ids to filter from suite
 
     Returns:
         Workflow ID for tracking execution
@@ -956,12 +968,12 @@ def start_test_execution(
         suite_config = merge_defaults_into_suite(load_config_file(suite_path))
         systems_config = load_config_file(systems_path)
 
-        # if test_names provided, filter suite_config
-        if test_names:
-            # Parse test names: handle both repeated flags and comma-separated values
-            parsed_test_names = []
-            for item in test_names:
-                parsed_test_names.extend(
+        # if test_ids provided, filter suite_config
+        if test_ids:
+            # Parse test ids: handle both repeated flags and comma-separated values
+            parsed_test_ids = []
+            for item in test_ids:
+                parsed_test_ids.extend(
                     [name.strip() for name in item.split(",") if name.strip()]
                 )
 
@@ -971,16 +983,14 @@ def start_test_execution(
             # map lowercase → original name
             available_map = {name.lower(): name for name in available_tests}
             # set of normalized requested names
-            requested_set = {name.lower() for name in parsed_test_names}
+            requested_set = {name.lower() for name in parsed_test_ids}
 
             missing = requested_set - set(available_map.keys())
             if missing:
                 msg_lines = []
                 for m in missing:
                     # use original user input instead of lowercase
-                    user_input = next(
-                        (n for n in parsed_test_names if n.lower() == m), m
-                    )
+                    user_input = next((n for n in parsed_test_ids if n.lower() == m), m)
                     suggestions = get_close_matches(m, available_map.keys(), n=1)
                     if suggestions:
                         suggestion = available_map[suggestions[0]]
