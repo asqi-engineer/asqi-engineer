@@ -69,16 +69,16 @@ async def run_judge(
     if sut_type not in ["llm_api"]:
         raise ValueError(f"Unsupported system_under_test type: {sut_type}")
 
-    test_type = test_params.get("test_type", "accuracy")
+    test_type = test_params.get("test_type", "facts")
 
     dataset: List[Dict[str, str]] = test_params.get("dataset") or []
     if not isinstance(dataset, list):
         raise ValueError("test_params.dataset must be a list")
 
-    if test_type == "accuracy":
+    if test_type == "facts":
         if not dataset:
             raise ValueError(
-                "test_params.dataset must be a non-empty list for accuracy tests"
+                "test_params.dataset must be a non-empty list for facts tests"
             )
 
     # Thresholding removed; we use the judge's numeric score directly as correctness
@@ -115,7 +115,7 @@ async def run_judge(
     else:
         judge = Judge(None)
 
-    if test_type == "accuracy":
+    if test_type == "facts":
         per_question = []
         for item in dataset:
             question = item.get("question") or item.get("prompt") or ""
@@ -181,9 +181,7 @@ async def run_judge(
             or (sut_model if judge and getattr(judge, "client", None) else None),
         }
     else:
-        raise ValueError(
-            "Unsupported test_type. Supported types: 'accuracy', 'summary'"
-        )
+        raise ValueError("Unsupported test_type. Supported types: 'facts', 'summary'")
 
 
 def main():

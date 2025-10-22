@@ -1,6 +1,6 @@
 name: "resaro_judge"
 version: "1.1"
-description: "Judge generated answers against gold answers with optional LLM-as-judge; reports per-question correctness and overall average accuracy for accuracy tests, or summary evaluation metrics for summary tests."
+description: "Judge generated answers against gold answers with optional LLM-as-judge; reports per-question correctness and overall average accuracy for facts tests, or summary evaluation metrics for summary tests."
 
 input_systems:
   - name: "system_under_test"
@@ -16,11 +16,11 @@ input_schema:
   - name: "test_type"
     type: "string"
     required: true
-    description: "Type of evaluation; 'accuracy' for question-answer pairs, 'summary' for text summarization evaluation"
+    description: "Type of evaluation; 'facts' for question-answer pairs, 'summary' for text summarization evaluation"
   - name: "dataset"
     type: "list"
     required: true
-    description: "List of evaluation items. For 'accuracy': objects with {question: str, answer: str}. For 'summary': single object with {prompt: str, reference: str}"
+    description: "List of evaluation items. For 'facts': objects with {question: str, answer: str}. For 'summary': single object with {prompt: str, reference: str}"
 
 output_metrics:
   - name: "success"
@@ -31,10 +31,10 @@ output_metrics:
     description: "Echoes the requested test type"
   - name: "per_question"
     type: "list"
-    description: "For accuracy tests: Per-question results including question, reference answer, generated answer, judge reasoning, and a boolean 'correct' field"
+    description: "For facts tests: Per-question results including question, reference answer, generated answer, judge reasoning, and a boolean 'correct' field"
   - name: "overall_average_accuracy"
     type: "float"
-    description: "For accuracy tests: Overall average accuracy across all questions"
+    description: "For facts tests: Overall average accuracy across all questions"
   - name: "dataset_item"
     type: "object"
     description: "For summary tests: The single dataset item used"
