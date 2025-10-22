@@ -13,23 +13,23 @@ class TestscorecardEngine:
         self.engine = ScoreCardEngine()
 
     def create_test_result(
-        self, test_name: str, image: str, test_results: dict
+        self, test_name: str, test_id: str, image: str, test_results: dict
     ) -> TestExecutionResult:
         """Helper to create a TestExecutionResult for testing."""
-        result = TestExecutionResult(test_name, "test_sut", image)
+        result = TestExecutionResult(test_name, test_id, "test_sut", image)
         result.test_results = test_results
         result.success = test_results.get("success", True)
         return result
 
-    def test_filter_results_by_test_name(self):
+    def test_filter_results_by_test_id(self):
         """Test filtering test results by test name."""
         results = [
-            self.create_test_result("test1", "image1", {"success": True}),
-            self.create_test_result("test2", "image2", {"success": True}),
-            self.create_test_result("test1", "image2", {"success": False}),
+            self.create_test_result("test1", "test1", "image1", {"success": True}),
+            self.create_test_result("test2", "test2", "image2", {"success": True}),
+            self.create_test_result("test1", "test1", "image2", {"success": False}),
         ]
 
-        filtered = self.engine.filter_results_by_test_name(results, "test1")
+        filtered = self.engine.filter_results_by_test_id(results, "test1")
 
         assert len(filtered) == 2
         assert filtered[0].test_name == "test1"
@@ -38,11 +38,15 @@ class TestscorecardEngine:
     def test_extract_metric_values(self):
         """Test extracting metric values from test results."""
         results = [
-            self.create_test_result("test1", "image1", {"success": True, "score": 0.9}),
             self.create_test_result(
-                "test2", "image1", {"success": False, "score": 0.5}
+                "test1", "test1", "image1", {"success": True, "score": 0.9}
             ),
-            self.create_test_result("test3", "image1", {"success": True, "score": 0.8}),
+            self.create_test_result(
+                "test2", "test2", "image1", {"success": False, "score": 0.5}
+            ),
+            self.create_test_result(
+                "test3", "test3", "image1", {"success": True, "score": 0.8}
+            ),
         ]
 
         # Test extracting boolean values
@@ -97,23 +101,25 @@ class TestscorecardEngine:
         results = [
             self.create_test_result(
                 "test1",
+                "test1",
                 "image1",
                 {"success": True, "score": 0.9},
             ),
             self.create_test_result(
                 "test1",
+                "test1",
                 "image2",
                 {"success": True, "score": 0.8},
             ),
             self.create_test_result(
-                "test2", "image1", {"success": False, "score": 0.3}
+                "test2", "test2", "image1", {"success": False, "score": 0.3}
             ),
         ]
 
         # Create indicator
         indicator = ScoreCardIndicator(
             name="Test individual success",
-            apply_to=ScoreCardFilter(test_name="test1"),
+            apply_to=ScoreCardFilter(test_id="test1"),
             metric="success",
             assessment=[
                 AssessmentRule(outcome="PASS", condition="equal_to", threshold=True),
@@ -128,7 +134,7 @@ class TestscorecardEngine:
         # Check first result
         result1 = evaluation_results[0]
         assert result1.indicator_name == "Test individual success"
-        assert result1.test_name == "test1"
+        assert result1.test_id == "test1"
         assert result1.outcome == "PASS"
         assert result1.metric_value is True
         assert result1.error is None
@@ -136,7 +142,7 @@ class TestscorecardEngine:
         # Check second result
         result2 = evaluation_results[1]
         assert result2.indicator_name == "Test individual success"
-        assert result2.test_name == "test1"
+        assert result2.test_id == "test1"
         assert result2.outcome == "PASS"
         assert result2.metric_value is True
         assert result2.error is None
@@ -147,6 +153,7 @@ class TestscorecardEngine:
         results = [
             self.create_test_result(
                 "test1",
+                "test1",
                 "image1",
                 {"success": False, "score": 0.5},
             ),
@@ -155,7 +162,7 @@ class TestscorecardEngine:
         # Create indicator
         indicator = ScoreCardIndicator(
             name="Test individual success",
-            apply_to=ScoreCardFilter(test_name="test1"),
+            apply_to=ScoreCardFilter(test_id="test1"),
             metric="success",
             assessment=[
                 AssessmentRule(outcome="PASS", condition="equal_to", threshold=True),
@@ -176,10 +183,12 @@ class TestscorecardEngine:
         results = [
             self.create_test_result(
                 "test1",
+                "test1",
                 "image1",
                 {"success": True, "score": 0.9},
             ),
             self.create_test_result(
+                "test1",
                 "test1",
                 "image2",
                 {"success": True, "score": 0.8},
@@ -192,7 +201,7 @@ class TestscorecardEngine:
             indicators=[
                 ScoreCardIndicator(
                     name="Individual test success",
-                    apply_to=ScoreCardFilter(test_name="test1"),
+                    apply_to=ScoreCardFilter(test_id="test1"),
                     metric="success",
                     assessment=[
                         AssessmentRule(
@@ -205,7 +214,7 @@ class TestscorecardEngine:
                 ),
                 ScoreCardIndicator(
                     name="Individual score quality",
-                    apply_to=ScoreCardFilter(test_name="test1"),
+                    apply_to=ScoreCardFilter(test_id="test1"),
                     metric="score",
                     assessment=[
                         AssessmentRule(
@@ -235,7 +244,7 @@ class TestscorecardEngine:
         # Check that all evaluations have the required fields
         for evaluation in result:
             assert "indicator_name" in evaluation
-            assert "test_name" in evaluation
+            assert "test_id" in evaluation
             assert "sut_name" in evaluation
             assert "outcome" in evaluation
 
@@ -243,16 +252,18 @@ class TestscorecardEngine:
         """Test score_card evaluation when some test results match the filter."""
         # Create test results with only one matching name
         results = [
-            self.create_test_result("test2", "image1", {"success": True, "score": 0.9}),
+            self.create_test_result(
+                "test2", "test2", "image1", {"success": True, "score": 0.9}
+            ),
         ]
 
-        # Create score_card looking for several different test names
+        # Create score_card looking for several different test ids
         score_card = ScoreCard(
             score_card_name="Test score_card",
             indicators=[
                 ScoreCardIndicator(
                     name="Individual test success",
-                    apply_to=ScoreCardFilter(test_name="test1"),
+                    apply_to=ScoreCardFilter(test_id="test1"),
                     metric="success",
                     assessment=[
                         AssessmentRule(
@@ -265,7 +276,7 @@ class TestscorecardEngine:
                 ),
                 ScoreCardIndicator(
                     name="Individual score quality",
-                    apply_to=ScoreCardFilter(test_name="test2"),
+                    apply_to=ScoreCardFilter(test_id="test2"),
                     metric="score",
                     assessment=[
                         AssessmentRule(
@@ -297,7 +308,9 @@ class TestscorecardEngine:
         """Test score_card evaluation when no test results match the filter."""
         # Create test results with different test name
         results = [
-            self.create_test_result("test2", "image1", {"success": True, "score": 0.9}),
+            self.create_test_result(
+                "test2", "test2", "image1", {"success": True, "score": 0.9}
+            ),
         ]
 
         # Create score_card looking for different test name
@@ -306,7 +319,7 @@ class TestscorecardEngine:
             indicators=[
                 ScoreCardIndicator(
                     name="Individual test success",
-                    apply_to=ScoreCardFilter(test_name="test1"),
+                    apply_to=ScoreCardFilter(test_id="test1"),
                     metric="success",
                     assessment=[
                         AssessmentRule(
@@ -534,7 +547,9 @@ class TestNestedMetricAccess:
             },
         }
 
-        test_result = TestExecutionResult("garak_test", "test_sut", "garak:latest")
+        test_result = TestExecutionResult(
+            "garak_test", "garak_test", "test_sut", "garak:latest"
+        )
         test_result.test_results = nested_test_results
         test_result.success = True
 
@@ -544,7 +559,7 @@ class TestNestedMetricAccess:
             indicators=[
                 ScoreCardIndicator(
                     name="Garak DecodeMatch Score",
-                    apply_to=ScoreCardFilter(test_name="garak_test"),
+                    apply_to=ScoreCardFilter(test_id="garak_test"),
                     metric='probe_results["encoding.InjectHex"]["encoding.DecodeMatch"].score',
                     assessment=[
                         AssessmentRule(
@@ -557,7 +572,7 @@ class TestNestedMetricAccess:
                 ),
                 ScoreCardIndicator(
                     name="Overall Success Check",
-                    apply_to=ScoreCardFilter(test_name="garak_test"),
+                    apply_to=ScoreCardFilter(test_id="garak_test"),
                     metric="success",
                     assessment=[
                         AssessmentRule(

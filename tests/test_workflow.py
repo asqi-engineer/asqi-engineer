@@ -60,6 +60,7 @@ def test_run_test_suite_workflow_success():
         "test_suite": [
             {
                 "name": "t1",
+                "id": "t1",
                 "image": "test/image:latest",
                 "systems_under_test": ["systemA"],
                 "params": {"p": "v"},
@@ -91,7 +92,9 @@ def test_run_test_suite_workflow_success():
         output_artifacts=None,
     )
 
-    success_result = TestExecutionResult("t1_systemA", "systemA", "test/image:latest")
+    success_result = TestExecutionResult(
+        "t1_systemA", "t1_systemA", "systemA", "test/image:latest"
+    )
     success_result.start_time = 1.0
     success_result.end_time = 2.0
     success_result.exit_code = 0
@@ -111,6 +114,7 @@ def test_run_test_suite_workflow_success():
         mock_plan.return_value = [
             {
                 "test_name": "t1_systemA",
+                "test_id": "t1_systemA",
                 "image": "test/image:latest",
                 "sut_name": "sutA",
                 "systems_params": {
@@ -153,6 +157,7 @@ def test_run_test_suite_workflow_validation_failure():
         "test_suite": [
             {
                 "name": "bad_test",
+                "id": "bad_test",
                 "image": "missing/image:latest",
                 "systems_under_test": ["systemA"],
                 "params": {},
@@ -216,6 +221,7 @@ def test_execute_single_test_success():
         inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
         result = inner_step(
             test_name="t1_systemA",
+            test_id="t1_systemA",
             image="test/image:latest",
             sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
@@ -268,6 +274,7 @@ def test_execute_single_test_container_failure():
         inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
         result = inner_step(
             test_name="failing_test",
+            test_id="failing_test",
             image="test/image:latest",
             sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
@@ -294,6 +301,7 @@ def test_execute_single_test_invalid_json():
         inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
         result = inner_step(
             test_name="json_test",
+            test_id="json_test",
             image="test/image:latest",
             sut_name="systemA",
             systems_params={"system_under_test": {"type": "llm_api"}},
@@ -313,6 +321,7 @@ def test_convert_test_results_to_objects():
             {
                 "metadata": {
                     "test_name": "test1",
+                    "test_id": "test1",
                     "sut_name": "system1",
                     "image": "test/image:latest",
                     "start_time": 1.0,
@@ -341,6 +350,7 @@ def test_convert_test_results_to_objects():
     assert len(results) == 1
     result = results[0]
     assert result.test_name == "test1"
+    assert result.test_id == "test1"
     assert result.sut_name == "system1"
     assert result.image == "test/image:latest"
     assert result.start_time == 1.0
@@ -360,6 +370,7 @@ def test_add_score_cards_to_results():
         {
             "indicator_name": "Test success",
             "test_name": "test1",
+            "test_id": "test1",
             "sut_name": "system1",
             "outcome": "PASS",
             "score_card_name": "Test scorecard",
@@ -417,6 +428,7 @@ def test_evaluate_score_cards_workflow():
             {
                 "metadata": {
                     "test_name": "test1",
+                    "test_id": "test1",
                     "sut_name": "system1",
                     "image": "test/image:latest",
                     "start_time": 1.0,
@@ -431,6 +443,7 @@ def test_evaluate_score_cards_workflow():
 
     test_container_data = [
         {
+            "test_id": "test1",
             "test_results": {"success": True},
             "error_message": "",
             "container_output": "",
@@ -620,6 +633,7 @@ def test_image_pulled_but_manifest_not_extracted_bug():
         "test_suite": [
             {
                 "name": "test1",
+                "id": "test1",
                 "image": "test/image:latest",
                 "systems_under_test": ["sys1"],
             }
@@ -668,6 +682,7 @@ def test_image_pulled_but_manifest_not_extracted_bug():
         mock_plan.return_value = [
             {
                 "test_name": "test1",
+                "test_id": "test1",
                 "image": "test/image:latest",
                 "sut_name": "sys1",
                 "systems_params": {"system_under_test": {"type": "llm_api"}},
@@ -675,7 +690,9 @@ def test_image_pulled_but_manifest_not_extracted_bug():
             }
         ]
 
-        success_result = TestExecutionResult("test1", "sys1", "test/image:latest")
+        success_result = TestExecutionResult(
+            "test1", "test1", "sys1", "test/image:latest"
+        )
         success_result.success = True
         mock_queue.return_value.enqueue.return_value = DummyHandle(success_result)
 
@@ -696,6 +713,7 @@ def test_run_test_suite_workflow_handle_exception():
         "test_suite": [
             {
                 "name": "t1",
+                "id": "t1",
                 "image": "test/image:latest",
                 "systems_under_test": ["systemA"],
                 "params": {"p": "v"},
@@ -742,6 +760,7 @@ def test_run_test_suite_workflow_handle_exception():
         mock_plan.return_value = [
             {
                 "test_name": "t1_systemA",
+                "test_id": "t1_systemA",
                 "image": "test/image:latest",
                 "sut_name": "systemA",
                 "systems_params": {
@@ -786,4 +805,5 @@ def test_run_test_suite_workflow_handle_exception():
     assert result["metadata"]["success"] is False
     assert result["metadata"]["exit_code"] == 137
     assert result["metadata"]["test_name"] == "t1_systemA"
+    assert result["metadata"]["test_id"] == "t1_systemA"
     assert result["metadata"]["image"] == "test/image:latest"
