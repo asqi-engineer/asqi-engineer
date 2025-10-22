@@ -181,6 +181,14 @@ test_suite:
 
 Test suites define collections of tests to execute against your systems.
 
+- Tests ID field (id)
+    
+    This is the unique identifier for the tests across the project.
+    This approach is a slight modification of the standard RFC 9562
+    - Valid Characters: 0-9, a-z, _ 
+    - Max Length: 32
+    - All suites must be located in the directory specified by the TEST_SUITES_PATHS environment variable. See more here [Environment Variable Handling](#environment-variable-handling) 
+
 ### Basic Test Suite
 
 ```yaml
