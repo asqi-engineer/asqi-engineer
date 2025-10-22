@@ -1,174 +1,187 @@
 from __future__ import annotations
 
+import json
 import math
-from typing import Any, Dict, Optional, List, Set
 import re
+import string
+from typing import Any, Dict, Optional
 
-from langchain_core.language_models.chat_models import BaseChatModel
-from openevals.llm import create_async_llm_as_judge
 
-
-class SimpleOrLLMJudge:
+class Judge:
     """
-    Judge a candidate answer against a gold answer.
+    Judge whether a candidate answer is reasonably similar to a gold answer.
 
-    If an LLM judge is provided, we prompt it to score accuracy on a 0..1 scale
-    using a robust rubric. Otherwise, we fall back to a simple heuristic that
-    checks containment and normalized string equality.
+    If an OpenAI-compatible client is provided, we ask it with a simple system
+    prompt to return a JSON decision: {"match": true/false, "reasoning": "..."}.
+    Otherwise, we use a lightweight heuristic on strings and numbers.
     """
+
+    DEFAULT_MODEL = "gpt-4o-mini"
 
     def __init__(
-        self, judge_client: Optional[BaseChatModel] = None, retry_count: int = 1
-    ):
-        self.judge_client = judge_client
+        self,
+        judge_client: Optional[Any] = None,
+        *,
+        model: Optional[str] = None,
+        retry_count: int = 1,
+    ) -> None:
+        self.client = judge_client
+        self.model = model or self.DEFAULT_MODEL
         self.retry_count = retry_count
 
-        if judge_client is not None:
-            prompt = (
-                "You are an expert judge. Score how well the Candidate Answer matches the Gold Answer for the Question.\n"
-                "Return only a number in [0,1] where: 1 = exact and fully correct, 0.5 = partially correct, 0 = incorrect.\n"
-                "Consider semantic equivalence, numbers, units, and key facts.\n\n"
-                "Question: {question}\n\nGold Answer: {gold}\n\nCandidate Answer: {pred}\n\nScore:"
-            )
-            self.llm_as_judge = create_async_llm_as_judge(
-                prompt=prompt, choices=[0.0, 0.5, 1.0], judge=judge_client
-            )
+        self.system_prompt = (
+            "You are a careful evaluator. Decide if the Candidate Answer is reasonably similar to the Gold Answer for the Question.\n"
+            "Consider semantic equivalence, numbers (with small rounding differences allowed), units, and key facts.\n"
+            'Respond ONLY with valid JSON like: {"match": true|false, "reasoning": "1-2 short sentences"}.'
+        )
+
+    # ------------- Heuristic helpers -------------
+    @staticmethod
+    def _normalize(text: str) -> str:
+        if text is None:
+            return ""
+        text = text.strip().lower()
+        # Keep digits and basic punctuation relevant for numbers, drop others
+        allowed = set(string.ascii_lowercase + string.digits + " .,-+/:%")
+        text = "".join(ch if ch in allowed else " " for ch in text)
+        text = re.sub(r"\s+", " ", text)
+        return text.strip()
+
+    @staticmethod
+    def _tokenize(text: str) -> set[str]:
+        return set(Judge._normalize(text).split())
+
+    @staticmethod
+    def _numbers(text: str) -> list[float]:
+        nums = re.findall(r"-?\d+\.\d+|-?\d+", text or "")
+        out = []
+        for n in nums:
+            try:
+                out.append(float(n))
+            except Exception:
+                pass
+        return out
+
+    @staticmethod
+    def _jaccard(a: set[str], b: set[str]) -> float:
+        if not a and not b:
+            return 1.0
+        if not a or not b:
+            return 0.0
+        inter = len(a & b)
+        union = len(a | b)
+        return inter / union if union else 0.0
+
+    @classmethod
+    def _heuristic_match(cls, gold: str, pred: str) -> bool:
+        g_norm = cls._normalize(gold)
+        p_norm = cls._normalize(pred)
+
+        if not g_norm and not p_norm:
+            return True
+        if not g_norm or not p_norm:
+            return False
+
+        # Direct equality or containment
+        if g_norm == p_norm:
+            return True
+        if g_norm in p_norm or p_norm in g_norm:
+            return True
+
+        # Numbers: if gold has numbers, ensure pred has close matches
+        g_nums = cls._numbers(gold)
+        p_nums = cls._numbers(pred)
+        if g_nums:
+            matched = 0
+            for gx in g_nums:
+                if any(
+                    math.isclose(gx, py, rel_tol=0.02, abs_tol=1e-6) for py in p_nums
+                ):
+                    matched += 1
+            if matched / len(g_nums) >= 0.8:  # allow minor misses
+                return True
+
+        # Token overlap
+        g_tok = cls._tokenize(gold)
+        p_tok = cls._tokenize(pred)
+        j = cls._jaccard(g_tok, p_tok)
+        # Stricter threshold for short answers
+        if len(g_tok) <= 8 or len(p_tok) <= 8:
+            if j >= 0.6:
+                return True
         else:
-            self.llm_as_judge = None
+            if j >= 0.45:
+                return True
 
-    async def score(self, question: str, gold: str, pred: str) -> float:
-        """Backward-compatible numeric score API."""
-        result = await self.evaluate(question=question, gold=gold, pred=pred)
-        return float(result.get("score", 0.0))
+        return False
 
+    # ------------- Public API -------------
     async def evaluate(self, question: str, gold: str, pred: str) -> Dict[str, Any]:
-        """Return both score and short reasoning.
-
-        If an LLM judge is configured, it determines the score. We then try to
-        extract or generate a brief reasoning. Otherwise, use the heuristic
-        scorer with an explanatory note.
-        """
-        # Prefer LLM judge if available
-        if self.llm_as_judge is not None:
-            last_score = float("nan")
-            reasoning = ""
+        # Prefer LLM judgement if client is configured
+        if self.client is not None:
             for _ in range(self.retry_count):
                 try:
-                    res = await self.llm_as_judge(
-                        question=question, gold=gold, pred=pred, outputs={}
+                    resp = await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {"role": "system", "content": self.system_prompt},
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"Question: {question}\n\n"
+                                    f"Gold Answer: {gold}\n\n"
+                                    f"Candidate Answer: {pred}"
+                                ),
+                            },
+                        ],
+                        temperature=0,
                     )
-                    if isinstance(res, dict):
-                        s = res.get("score")
-                        if isinstance(s, (int, float)):
-                            last_score = float(s)
-                        elif isinstance(s, str):
-                            try:
-                                last_score = float(s.strip())
-                            except Exception:
-                                pass
-                        # Try to capture reasoning if available in response
-                        for key in ("reason", "reasoning", "explanation", "rationale"):
-                            if key in res and isinstance(res[key], str):
-                                reasoning = res[key]
-                                break
-                        if not math.isnan(last_score):
-                            break
-                    else:
-                        # fallback attempt: parse any numeric in string
-                        try:
-                            last_score = float(str(res).strip())
-                            break
-                        except Exception:
-                            pass
+                    content = (resp.choices[0].message.content or "").strip()
+                    # Try strict JSON parse
+                    try:
+                        data = json.loads(content)
+                        if isinstance(data, dict) and "match" in data:
+                            return {
+                                "match": bool(data.get("match", False)),
+                                "reasoning": str(data.get("reasoning", "")),
+                            }
+                    except json.JSONDecodeError:
+                        pass
+
+                    # Fallback: extract boolean-like token from text
+                    lowered = content.lower()
+                    match = None
+                    if '"match"' in lowered:
+                        # naive extraction
+                        m = re.search(r'"match"\s*:\s*(true|false)', lowered)
+                        if m:
+                            match = m.group(1) == "true"
+                    if match is None:
+                        if "match":
+                            if re.search(r"\btrue\b", lowered):
+                                match = True
+                            elif re.search(r"\bfalse\b", lowered):
+                                match = False
+                    if match is not None:
+                        # Try to grab reasoning after a reasoning key or after a newline
+                        reason = ""
+                        m2 = re.search(r'"reasoning"\s*:\s*"(.*?)"', content, re.S)
+                        if m2:
+                            reason = m2.group(1).strip()
+                        else:
+                            parts = content.split("\n", 1)
+                            if len(parts) > 1:
+                                reason = parts[1].strip()
+                        return {"match": match, "reasoning": reason}
                 except Exception:
-                    continue
+                    # On any error, try heuristic below
+                    break
 
-            # If no reasoning returned, optionally ask the judge model for a short explanation
-            if not reasoning and self.judge_client is not None:
-                try:
-                    explain_prompt = (
-                        "You are an expert judge. In 1-3 concise sentences, explain how well the Candidate Answer "
-                        "matches the Gold Answer for the Question. Focus on key facts, numbers, and correctness.\n\n"
-                        f"Question: {question}\n\nGold Answer: {gold}\n\nCandidate Answer: {pred}\n\nReasoning:"
-                    )
-                    # langchain BaseChatModel supports ainvoke on a string prompt
-                    msg = await self.judge_client.ainvoke(explain_prompt)
-                    # msg may be a BaseMessage; get content attribute when available
-                    reasoning = getattr(msg, "content", str(msg)) or ""
-                except Exception:
-                    reasoning = ""
-
-            score_val = (
-                0.0 if math.isnan(last_score) else max(0.0, min(1.0, last_score))
-            )
-            return {"score": score_val, "reasoning": reasoning}
-
-        # Heuristic judge: numeric-aware normalization and checks
-        gold_norm = normalize_text(gold)
-        pred_norm = normalize_text(pred)
-        # If both contain numbers and gold's numbers are included in pred, consider correct
-        gold_nums = extract_numbers(gold)
-        pred_nums = extract_numbers(pred)
-        if gold_nums and pred_nums and gold_nums.issubset(pred_nums):
-            return {
-                "score": 1.0,
-                "reasoning": f"Numeric match: gold numbers {sorted(gold_nums)} found in prediction {sorted(pred_nums)}.",
-            }
-        if not gold_norm and not pred_norm:
-            return {
-                "score": 1.0,
-                "reasoning": "Both gold and prediction are empty after normalization.",
-            }
-        if not pred_norm:
-            return {
-                "score": 0.0,
-                "reasoning": "Prediction is empty after normalization while gold is not.",
-            }
-        if gold_norm == pred_norm:
-            return {"score": 1.0, "reasoning": "Exact match after normalization."}
-        if gold_norm in pred_norm:
-            return {
-                "score": 1.0,
-                "reasoning": "Gold answer is contained within the prediction after normalization.",
-            }
-        # partial token overlap ratio
-        gold_tokens = set(gold_norm.split())
-        pred_tokens = set(pred_norm.split())
-        overlap = len(gold_tokens & pred_tokens)
-        ratio = overlap / max(1, len(gold_tokens))
-        return {
-            "score": ratio,
-            "reasoning": f"Token overlap: {overlap}/{len(gold_tokens)} tokens match after normalization.",
-        }
-
-
-def normalize_text(s: str) -> str:
-    # Lowercase, remove punctuation, collapse whitespace
-    s = s.lower().strip().replace("\n", " ")
-    s = re.sub(r"[^\w\s]", "", s)
-    return " ".join(s.split())
-
-
-def extract_numbers(s: str) -> Set[str]:
-    """Extract a set of normalized numeric strings from input.
-
-    Handles integers, decimals, and scientific notation in a basic way.
-    """
-    # Keep original case/format for numeric regex, then normalize by stripping leading zeros in integers
-    nums: List[str] = re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", s)
-    normalized: Set[str] = set()
-    for n in nums:
-        try:
-            # Normalize representation: use float for decimals/scientific, int when possible
-            if re.match(r"^[-+]?\d+$", n):
-                # integer
-                normalized.add(str(int(n)))
-            else:
-                # float/scientific -> round to reasonable precision to avoid 1.0 vs 1 artifacts
-                val = float(n)
-                normalized.add(
-                    str(val).rstrip("0").rstrip(".") if "." in str(val) else str(val)
-                )
-        except Exception:
-            continue
-    return normalized
+        # Heuristic fallback
+        match = self._heuristic_match(gold, pred)
+        reason = (
+            "Heuristic match: numbers and token overlap suggest similarity."
+            if match
+            else "Heuristic mismatch: insufficient token/number similarity."
+        )
+        return {"match": match, "reasoning": reason}

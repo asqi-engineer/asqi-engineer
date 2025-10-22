@@ -31,7 +31,7 @@ output_metrics:
     description: "Echoes the requested test type"
   - name: "per_question"
     type: "list"
-    description: "Per-question results including generated answer, judge reasoning, and a numeric 'correct' score (0..1)"
+    description: "Per-question results including generated answer, judge reasoning, and a boolean 'correct' field"
   - name: "overall_average_accuracy"
     type: "float"
     description: "Overall average accuracy across all questions"

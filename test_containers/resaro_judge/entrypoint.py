@@ -1,62 +1,28 @@
 import argparse
 import asyncio
 import json
-import os
 import sys
 from typing import Any, Dict, List
 
-import openai
-from langchain_openai import ChatOpenAI
-from pydantic import SecretStr
-
-from evaluator import SimpleOrLLMJudge
+from evaluator import Judge
 
 
-def setup_client(**system_params) -> openai.AsyncOpenAI:
+def setup_client(**system_params) -> Any:
     """Setup OpenAI-compatible async client with unified env handling."""
+    # Lazy import to avoid dev-time import issues if openai isn't installed
+    import openai  # type: ignore
+
     base_url = system_params.get("base_url")
     api_key = system_params.get("api_key")
-    if base_url and not api_key:
-        api_key = os.environ.get("API_KEY")
-    if not base_url and not api_key:
-        base_url = "https://api.openai.com/v1"
-        api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "No API key found. Provide base_url+api_key or OPENAI_API_KEY."
-        )
-
-    openai_params = {
-        k: v
-        for k, v in system_params.items()
-        if k not in ["base_url", "model", "api_key", "type", "env_file"]
-    }
-    return openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **openai_params)
+    return openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
 
 
-def setup_langchain_client(**system_params) -> ChatOpenAI:
-    base_url = system_params.get("base_url")
-    api_key = system_params.get("api_key")
-    model = system_params.get("model", "gpt-4o-mini")
-    if base_url and not api_key:
-        api_key = os.environ.get("API_KEY")
-    if not base_url and not api_key:
-        base_url = "https://api.openai.com/v1"
-        api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("No API key found for evaluator.")
-
-    extra = {
-        k: v
-        for k, v in system_params.items()
-        if k not in ["base_url", "model", "api_key", "type", "env_file"]
-    }
-    return ChatOpenAI(
-        model=model, api_key=SecretStr(api_key), base_url=base_url, **extra
-    )
+def setup_evaluator_client(**system_params) -> Any:
+    """Setup an OpenAI-compatible client for the evaluator as well."""
+    return setup_client(**system_params)
 
 
-async def call_model(client: openai.AsyncOpenAI, model: str, prompt: str) -> str:
+async def call_model(client: Any, model: str, prompt: str) -> str:
     try:
         resp = await client.chat.completions.create(
             model=model,
@@ -65,6 +31,20 @@ async def call_model(client: openai.AsyncOpenAI, model: str, prompt: str) -> str
         return resp.choices[0].message.content or ""
     except Exception as e:
         return f"Error: {e}"
+
+
+async def sanity_check_client(client: Any, model: str) -> None:
+    """Make a tiny request to validate the client+model works; raise if not."""
+    try:
+        resp = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": "Say OK"}],
+            temperature=0,
+            max_tokens=2,
+        )
+        _ = resp.choices[0].message.content  # Ensure shape is as expected
+    except Exception as e:
+        raise RuntimeError(f"Client/model sanity check failed: {e}")
 
 
 async def run_judge(
@@ -91,15 +71,29 @@ async def run_judge(
     # Setup SUT client
     sut_client = setup_client(**sut_params)
     sut_model = sut_params.get("model", "gpt-4o-mini")
+    # Preflight: ensure SUT model is reachable before running dataset
+    await sanity_check_client(sut_client, sut_model)
 
-    # Optional evaluator as judge
+    # Optional evaluator as judge (LLM-based boolean similarity)
     evaluator_system = systems_params.get("evaluator_system", {})
     judge = None
+    judge_model = None
     if evaluator_system:
-        judge_client = setup_langchain_client(**evaluator_system)
-        judge = SimpleOrLLMJudge(judge_client)
+        if isinstance(evaluator_system, list) and evaluator_system:
+            judge_model = str(evaluator_system[0])
+            # Use default env for credentials
+            judge_client = setup_evaluator_client()
+        elif isinstance(evaluator_system, dict):
+            judge_model = evaluator_system.get("model", "gpt-4o-mini")
+            judge_client = setup_evaluator_client(**evaluator_system)
+        else:
+            judge_model = str(evaluator_system)
+            judge_client = setup_evaluator_client()
+        # Preflight: ensure evaluator judge model is reachable
+        await sanity_check_client(judge_client, judge_model)
+        judge = Judge(judge_client, model=judge_model)
     else:
-        judge = SimpleOrLLMJudge(None)
+        judge = Judge(None)
 
     per_question = []
     for item in dataset:
@@ -111,7 +105,7 @@ async def run_judge(
         # Single evaluation
         pred = await call_model(sut_client, sut_model, question)
         judge_result = await judge.evaluate(question=question, gold=gold, pred=pred)
-        judge_score = float(judge_result.get("score", 0.0))
+        judge_match = bool(judge_result.get("match", False))
         judge_reasoning = judge_result.get("reasoning") or ""
 
         per_question.append(
@@ -120,21 +114,25 @@ async def run_judge(
                 "gold_answer": gold,
                 "generated_answer": pred,
                 "judge_reasoning": judge_reasoning,
-                "correct": round(float(judge_score), 3),
+                "correct": judge_match,
             }
         )
 
-    overall = (
-        round(sum(q["correct"] for q in per_question) / len(per_question), 3)
-        if per_question
-        else 0.0
-    )
+    overall = 0.0
+    if per_question:
+        total_correct = sum(1.0 for q in per_question if q.get("correct"))
+        overall = round(total_correct / len(per_question), 3)
 
     return {
         "success": True,
         "test_type": test_type,
         "per_question": per_question,
         "overall_average_accuracy": overall,
+        "judge_type": "llm"
+        if judge and getattr(judge, "client", None)
+        else "heuristic",
+        "judge_model": judge_model
+        or (sut_model if judge and getattr(judge, "client", None) else None),
     }
 
 

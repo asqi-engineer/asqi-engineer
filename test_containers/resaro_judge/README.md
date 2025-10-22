@@ -1,6 +1,6 @@
 # resaro_judge test container
 
-Judges generated answers against gold answers. For each dataset item, the question is asked once, we record the generated answer, compute a judge score (heuristic or LLM-as-judge), threshold it to correctness, and compute the overall average accuracy.
+Judges generated answers against gold answers. For each dataset item, the question is asked once, we record the generated answer, compute a judge decision (heuristic or LLM-as-judge), and compute the overall average accuracy.
 
 Inputs (manifest.yaml):
 - system_under_test (llm_api): the model used to generate answers
@@ -8,7 +8,7 @@ Inputs (manifest.yaml):
 - test_params:
   - test_type: "accuracy"
   - dataset: list of {question: str, answer: str}
-  # No thresholding is used; the judge's numeric score (0..1) is returned directly as 'correct'.
+  # The judge returns a boolean 'correct' flag per item.
 
 Output:
 - success, test_type
