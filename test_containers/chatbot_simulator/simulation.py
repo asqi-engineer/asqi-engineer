@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import openai
+from evaluator import ConversationEvaluator
 from langchain_openai import ChatOpenAI
 from openevals.simulators import (
     create_async_llm_simulated_user,
@@ -18,8 +19,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-
-from evaluator import ConversationEvaluator
 
 ConversationalTestCase = Dict[str, Any]
 
@@ -41,7 +40,7 @@ def setup_client(**system_params) -> openai.AsyncOpenAI:
     openai_params = {
         k: v
         for k, v in system_params.items()
-        if k not in ["base_url", "model", "api_key", "type", "env_file"]
+        if k not in ["base_url", "model", "api_key", "type", "env_file", "description", "provider"]
     }
     return openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **openai_params)
 
@@ -64,7 +63,7 @@ def setup_langchain_client(**system_params) -> ChatOpenAI:
     langchain_params = {
         k: v
         for k, v in system_params.items()
-        if k not in ["base_url", "model", "api_key", "type", "env_file"]
+        if k not in ["base_url", "model", "api_key", "type", "env_file", "description", "provider"]
     }
     return ChatOpenAI(
         model=model, api_key=SecretStr(api_key), base_url=base_url, **langchain_params
