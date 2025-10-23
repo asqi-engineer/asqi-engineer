@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 import string
@@ -56,10 +57,7 @@ class Judge:
         nums = re.findall(r"-?\d+\.\d+|-?\d+", text or "")
         out = []
         for n in nums:
-            try:
-                out.append(float(n))
-            except Exception:
-                pass
+            out.append(float(n))
         return out
 
     @staticmethod
@@ -271,8 +269,10 @@ class Judge:
                     "reasoning": str(data.get("reasoning", "")),
                 }
                 return out
-            except Exception:
-                # Fall through to heuristics
+            except Exception as e:
+                logging.warning(
+                    "LLM evaluation failed, falling back to heuristics", exc_info=e
+                )
                 pass
 
         # Heuristic fallback if no evaluator or LLM failed
