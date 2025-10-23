@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import openai
+from evaluator import ConversationEvaluator
+from j2_utils import render_prompt
 from langchain_openai import ChatOpenAI
 from openevals.simulators import (
     create_async_llm_simulated_user,
@@ -18,8 +20,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-
-from evaluator import ConversationEvaluator
 
 ConversationalTestCase = Dict[str, Any]
 
@@ -41,7 +41,16 @@ def setup_client(**system_params) -> openai.AsyncOpenAI:
     openai_params = {
         k: v
         for k, v in system_params.items()
-        if k not in ["base_url", "model", "api_key", "type", "env_file"]
+        if k
+        not in [
+            "base_url",
+            "model",
+            "api_key",
+            "type",
+            "env_file",
+            "description",
+            "provider",
+        ]
     }
     return openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **openai_params)
 
@@ -64,7 +73,16 @@ def setup_langchain_client(**system_params) -> ChatOpenAI:
     langchain_params = {
         k: v
         for k, v in system_params.items()
-        if k not in ["base_url", "model", "api_key", "type", "env_file"]
+        if k
+        not in [
+            "base_url",
+            "model",
+            "api_key",
+            "type",
+            "env_file",
+            "description",
+            "provider",
+        ]
     }
     return ChatOpenAI(
         model=model, api_key=SecretStr(api_key), base_url=base_url, **langchain_params
@@ -228,22 +246,16 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
         self, personas: List[Dict[str, Any]], num_scenarios: int = 10
     ) -> List[Dict[str, Any]]:
         """Generate conversation scenarios using LLM based on chatbot purpose"""
-        prompt = f"""Generate {num_scenarios} diverse conversation scenarios for a chatbot with this purpose: {self.chatbot_purpose}
-
-For each scenario, provide:
-1. A brief description of what the user wants to accomplish
-2. The type of interaction (e.g., product_inquiry, support_request, comparison, troubleshooting)
-3. A realistic expected outcome
-
-Format each scenario as:
-Scenario X: [user intent description]
-Expected outcome: [what should happen]
-
-Make the scenarios realistic and diverse, covering different use cases for this chatbot."""
+        system_prompt = render_prompt(
+            "generate_scenario.j2", {"num_scenarios": num_scenarios}
+        )
 
         response = await self.simulator_client.chat.completions.create(
             model=self.simulator_client_params.get("model", "gpt-4o-mini"),
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": self.chatbot_purpose},
+            ],
             temperature=self.simulator_client_params.get("temperature", 0.8),
         )
         response_content = response.choices[0].message.content or ""
