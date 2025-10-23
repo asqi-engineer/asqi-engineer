@@ -17,7 +17,7 @@ services:
       - asqi-network
 
   litellm:
-    image: ghcr.io/berriai/litellm:main-latest
+    image: ghcr.io/berriai/litellm:main-v1.78.0-nightly
     ports:
       - "4000:4000"
     volumes:
