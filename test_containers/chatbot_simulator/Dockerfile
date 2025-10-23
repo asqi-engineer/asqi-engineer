@@ -37,6 +37,8 @@ COPY manifest.yaml .
 COPY entrypoint.py .
 COPY simulation.py .
 COPY evaluator.py .
+COPY j2_utils.py .
+COPY prompts/ ./prompts
 
 
 RUN chmod +x entrypoint.py
