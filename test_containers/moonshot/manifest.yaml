@@ -1,0 +1,47 @@
+name: "moonshot"
+version: "0.1.0"
+description: "Moonshot evaluation container for running LLM benchmarks and red-teaming recipes."
+
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "LLM endpoint or service evaluated by Moonshot."
+
+input_schema:
+  - name: "recipe"
+    type: "string"
+    required: true
+    description: "Moonshot recipe to run for evaluation (e.g., 'bbq', 'singapore-facts-mcq')."
+  - name: "prompt_selection_percentage"
+    type: "integer"
+    required: false
+    description: "Percentage of prompts to run from the recipe (1-100). Default: 100."
+  - name: "random_seed"
+    type: "integer"
+    required: false
+    description: "Random seed for reproducibility. Default: 1."
+  - name: "system_prompt"
+    type: "string"
+    required: false
+    description: "Optional system prompt to use with the model. Default: empty string."
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the recipe execution completed successfully."
+  - name: "status"
+    type: "string"
+    description: "Execution status: 'completed', 'completed_with_errors', or 'failed'."
+  - name: "recipe"
+    type: "string"
+    description: "Name of the recipe that was executed."
+  - name: "recipes"
+    type: "list"
+    description: "Array of recipe results including details, metrics, and evaluation summaries."
+  - name: "metadata"
+    type: "object"
+    description: "Run metadata including duration, endpoints, prompts count, and execution details."
+  - name: "run_results"
+    type: "object"
+    description: "Results from running the Moonshot recipe."
