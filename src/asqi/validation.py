@@ -1,8 +1,9 @@
 import difflib
 import logging
 from dataclasses import dataclass, field
+from enum import IntEnum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
 
@@ -196,22 +197,38 @@ class ManifestMatchResult:
     suggestions: List[str] = field(default_factory=list)
 
 
+class MatchPriority(IntEnum):
+    """Relative priority for manifest match candidates."""
+
+    EXACT_REFERENCE = 0
+    WITHOUT_TAG = 1
+    WITHOUT_REGISTRY = 2
+    BASENAME = 3
+    MANIFEST_NAME = 4
+
+
 @dataclass
 class _Candidate:
     manifest: Manifest
     display: str
-    priority: int
+    priority: MatchPriority
 
 
 def _normalize_token(value: str) -> str:
+    """Normalize tokens for matching by trimming and lower-casing."""
+
     return value.strip().lower() if value else ""
 
 
 def _strip_digest(reference: str) -> str:
+    """Remove any digest component (everything after '@')."""
+
     return reference.split("@", 1)[0].strip() if reference else ""
 
 
 def _split_repo_and_tag(reference: str) -> tuple[str, Optional[str]]:
+    """Split an image reference into repository and optional tag."""
+
     cleaned = _strip_digest(reference)
     if not cleaned:
         return "", None
@@ -232,6 +249,8 @@ def _split_repo_and_tag(reference: str) -> tuple[str, Optional[str]]:
 
 
 def _strip_registry(repo: str) -> str:
+    """Remove registry prefix when present (e.g., 'gcr.io/foo/bar' -> 'foo/bar')."""
+
     if not repo:
         return ""
     if "/" not in repo:
@@ -243,6 +262,8 @@ def _strip_registry(repo: str) -> str:
 
 
 def _basename(repo: str) -> str:
+    """Return the trailing repository component."""
+
     if not repo:
         return ""
     if "/" not in repo:
@@ -251,6 +272,8 @@ def _basename(repo: str) -> str:
 
 
 def _deduplicate_preserve(items: List[str]) -> List[str]:
+    """Remove duplicates from a list while preserving the first occurrence."""
+
     seen: set[str] = set()
     result: List[str] = []
     for item in items:
@@ -263,12 +286,16 @@ def _deduplicate_preserve(items: List[str]) -> List[str]:
 
 
 def _exact_variations(reference: str) -> List[str]:
+    """Generate exact reference variations, including digest-free forms."""
+
     base = reference.strip() if reference else ""
     no_digest = _strip_digest(base)
     return _deduplicate_preserve([base, no_digest])
 
 
 def _without_tag_variations(reference: str) -> List[str]:
+    """Generate variations with tags removed."""
+
     base = _strip_digest(reference)
     repo, tag = _split_repo_and_tag(base)
     if not repo or tag is None:
@@ -277,6 +304,8 @@ def _without_tag_variations(reference: str) -> List[str]:
 
 
 def _without_registry_variations(reference: str) -> List[str]:
+    """Generate variations without registry prefixes."""
+
     base = _strip_digest(reference)
     repo, tag = _split_repo_and_tag(base)
     stripped = _strip_registry(repo)
@@ -291,6 +320,8 @@ def _without_registry_variations(reference: str) -> List[str]:
 
 
 def _basename_variations(reference: str) -> List[str]:
+    """Generate variations using only the repository basename with optional tag."""
+
     base = _strip_digest(reference)
     repo, tag = _split_repo_and_tag(base)
     name = _basename(repo)
@@ -306,11 +337,12 @@ def _basename_variations(reference: str) -> List[str]:
 
 def _register_values(
     index: Dict[str, _Candidate],
-    display_lookup: Dict[str, str],
     manifest: Manifest,
     values: List[str],
-    priority: int,
+    priority: MatchPriority,
 ) -> None:
+    """Register normalized values for a manifest at the provided priority."""
+
     for value in values:
         normalized = _normalize_token(value)
         if not normalized:
@@ -322,8 +354,18 @@ def _register_values(
                 manifest=manifest, display=value, priority=priority
             )
 
-        if normalized not in display_lookup:
-            display_lookup[normalized] = value
+
+def _register_variations_for_references(
+    index: Dict[str, _Candidate],
+    manifest: Manifest,
+    references: Iterable[str],
+    generator: Callable[[str], List[str]],
+    priority: MatchPriority,
+) -> None:
+    """Register generated variations for each reference."""
+
+    for reference in references:
+        _register_values(index, manifest, generator(reference), priority)
 
 
 def find_manifest_for_image(
@@ -346,62 +388,46 @@ def find_manifest_for_image(
         return ManifestMatchResult(manifest=None)
 
     candidate_index: Dict[str, _Candidate] = {}
-    display_lookup: Dict[str, str] = {}
 
     for key, manifest in manifests.items():
-        aliases = getattr(manifest, "aliases", []) or []
+        alias_list = list(getattr(manifest, "aliases", []) or [])
+        references = _deduplicate_preserve([key, *alias_list])
 
-        _register_values(
-            candidate_index, display_lookup, manifest, _exact_variations(key), 0
-        )
-        for alias in aliases:
-            _register_values(
-                candidate_index, display_lookup, manifest, _exact_variations(alias), 0
-            )
-
-        _register_values(
-            candidate_index, display_lookup, manifest, _without_tag_variations(key), 1
-        )
-        for alias in aliases:
-            _register_values(
-                candidate_index,
-                display_lookup,
-                manifest,
-                _without_tag_variations(alias),
-                1,
-            )
-
-        _register_values(
+        _register_variations_for_references(
             candidate_index,
-            display_lookup,
             manifest,
-            _without_registry_variations(key),
-            2,
+            references,
+            _exact_variations,
+            MatchPriority.EXACT_REFERENCE,
         )
-        for alias in aliases:
-            _register_values(
-                candidate_index,
-                display_lookup,
-                manifest,
-                _without_registry_variations(alias),
-                2,
-            )
-
-        _register_values(
-            candidate_index, display_lookup, manifest, _basename_variations(key), 3
+        _register_variations_for_references(
+            candidate_index,
+            manifest,
+            references,
+            _without_tag_variations,
+            MatchPriority.WITHOUT_TAG,
         )
-        for alias in aliases:
-            _register_values(
-                candidate_index,
-                display_lookup,
-                manifest,
-                _basename_variations(alias),
-                3,
-            )
+        _register_variations_for_references(
+            candidate_index,
+            manifest,
+            references,
+            _without_registry_variations,
+            MatchPriority.WITHOUT_REGISTRY,
+        )
+        _register_variations_for_references(
+            candidate_index,
+            manifest,
+            references,
+            _basename_variations,
+            MatchPriority.BASENAME,
+        )
 
         if manifest.name:
             _register_values(
-                candidate_index, display_lookup, manifest, [manifest.name], 4
+                candidate_index,
+                manifest,
+                [manifest.name],
+                MatchPriority.MANIFEST_NAME,
             )
 
     search_values = _deduplicate_preserve(
@@ -427,14 +453,23 @@ def find_manifest_for_image(
                 manifest=candidate.manifest, matched_by=candidate.display
             )
 
-    normalized_candidates = list(display_lookup.keys())
+    normalized_candidates = list(candidate_index.keys())
     search_key = _normalize_token(_strip_digest(image_name))
     suggestions = []
     if search_key and normalized_candidates:
+        # Restrict to the three closest suggestions to avoid overwhelming output;
+        # tightening the 0.6 cutoff yields fewer but higher-confidence matches,
+        # while lowering it broadens the pool at the risk of noisy recommendations.
         close_keys = difflib.get_close_matches(
             search_key, normalized_candidates, n=3, cutoff=0.6
         )
-        suggestions = [display_lookup[key] for key in close_keys]
+        suggestions = _deduplicate_preserve(
+            [
+                candidate_index[key].display
+                for key in close_keys
+                if key in candidate_index
+            ]
+        )
 
     logger.debug(
         "No manifest found for image '%s'. Suggestions: %s", image_name, suggestions
