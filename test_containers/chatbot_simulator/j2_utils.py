@@ -4,7 +4,9 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
 prompt_dir = Path("prompts/")
-env = Environment(loader=FileSystemLoader(str(prompt_dir)), autoescape=select_autoescape())
+env = Environment(
+    loader=FileSystemLoader(str(prompt_dir)), autoescape=select_autoescape()
+)
 
 
 def render_prompt(template_name: str, context: dict[str, Any] | None = None) -> str:
