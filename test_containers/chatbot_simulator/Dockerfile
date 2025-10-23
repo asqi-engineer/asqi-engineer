@@ -20,7 +20,7 @@ RUN uv python install 3.12
 # Create virtual environment and install dependencies
 RUN uv venv
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install openevals==0.1.0 rich openai langchain-openai langchain-core pydantic
+    uv pip install openevals==0.1.0 rich openai langchain-openai langchain-core pydantic jinja2
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim
