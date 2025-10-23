@@ -5,8 +5,9 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 prompt_dir = Path("prompts/")
 env = Environment(
-        loader=FileSystemLoader(str(prompt_dir)),
-    )
+    loader=FileSystemLoader(str(prompt_dir)),
+)
+
 
 def render_prompt(template_name: str, context: dict[str, Any] | None = None) -> str:
     if context is None:
@@ -14,5 +15,7 @@ def render_prompt(template_name: str, context: dict[str, Any] | None = None) -> 
     try:
         template = env.get_template(template_name)
     except TemplateNotFound as e:
-        raise TemplateNotFound(f"Template '{template_name}' not found in {prompt_dir}") from e
+        raise TemplateNotFound(
+            f"Template '{template_name}' not found in {prompt_dir}"
+        ) from e
     return template.render(context)

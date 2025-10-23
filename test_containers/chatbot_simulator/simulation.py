@@ -41,7 +41,16 @@ def setup_client(**system_params) -> openai.AsyncOpenAI:
     openai_params = {
         k: v
         for k, v in system_params.items()
-        if k not in ["base_url", "model", "api_key", "type", "env_file", "description", "provider"]
+        if k
+        not in [
+            "base_url",
+            "model",
+            "api_key",
+            "type",
+            "env_file",
+            "description",
+            "provider",
+        ]
     }
     return openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **openai_params)
 
@@ -64,7 +73,16 @@ def setup_langchain_client(**system_params) -> ChatOpenAI:
     langchain_params = {
         k: v
         for k, v in system_params.items()
-        if k not in ["base_url", "model", "api_key", "type", "env_file", "description", "provider"]
+        if k
+        not in [
+            "base_url",
+            "model",
+            "api_key",
+            "type",
+            "env_file",
+            "description",
+            "provider",
+        ]
     }
     return ChatOpenAI(
         model=model, api_key=SecretStr(api_key), base_url=base_url, **langchain_params
@@ -228,11 +246,16 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
         self, personas: List[Dict[str, Any]], num_scenarios: int = 10
     ) -> List[Dict[str, Any]]:
         """Generate conversation scenarios using LLM based on chatbot purpose"""
-        system_prompt = render_prompt("generate_scenario.j2", {"num_scenarios": num_scenarios})
+        system_prompt = render_prompt(
+            "generate_scenario.j2", {"num_scenarios": num_scenarios}
+        )
 
         response = await self.simulator_client.chat.completions.create(
             model=self.simulator_client_params.get("model", "gpt-4o-mini"),
-            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": self.chatbot_purpose}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": self.chatbot_purpose},
+            ],
             temperature=self.simulator_client_params.get("temperature", 0.8),
         )
         response_content = response.choices[0].message.content or ""
