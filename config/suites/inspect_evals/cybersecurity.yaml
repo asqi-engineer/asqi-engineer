@@ -2,7 +2,8 @@ suite_name: "Inspect Cybersecurity Evaluation Suite"
 test_suite:
 
   # CyberSecurityEval 3
-  - name: "inspect_cyberseceval_3"
+  - id: "inspect_cyberseceval_3"
+    name: "inspect cyberseceval 3"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -12,7 +13,8 @@ test_suite:
       limit: 2
 
   # Catastrophic Cyber Capabilities Benchmark (3CB)
-  - name: "inspect_threecb"
+  - id: "inspect_threecb"
+    name: "inspect threecb"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -24,7 +26,8 @@ test_suite:
       limit: 2
 
   # CyberMetric
-  - name: "inspect_cybermetric_80"
+  - id: "inspect_cybermetric_80"
+    name: "inspect cybermetric 80"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -33,7 +36,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_cybermetric_500"
+  - id: "inspect_cybermetric_500"
+    name: "inspect cybermetric 500"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -42,7 +46,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_cybermetric_2000"
+  - id: "inspect_cybermetric_2000"
+    name: "inspect cybermetric 2000"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -51,7 +56,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_cybermetric_10000"
+  - id: "inspect_cybermetric_10000"
+    name: "inspect cybermetric 10000"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -61,7 +67,8 @@ test_suite:
       limit: 2
 
   # CyberSecEval_2
-  - name: "inspect_cyse2_interpreter_abuse"
+  - id: "inspect_cyse2_interpreter_abuse"
+    name: "inspect cyse2 interpreter abuse"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -70,7 +77,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_cyse2_prompt_injection"
+  - id: "inspect_cyse2_prompt_injection"
+    name: "inspect cyse2 prompt injection"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -79,7 +87,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_cyse2_vulnerability_exploit"
+  - id: "inspect_cyse2_vulnerability_exploit"
+    name: "inspect cyse2 vulnerability exploit"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -89,7 +98,8 @@ test_suite:
       limit: 2
 
   # GDM Dangerous Capabilities: Capture the Flag
-  - name: "inspect_gdm_in_house_ctf"
+  - id: "inspect_gdm_in_house_ctf"
+    name: "inspect gdm in house ctf"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -99,7 +109,8 @@ test_suite:
       limit: 2
 
   # InterCode: Security and Coding Capture-the-Flag Challenges
-  - name: "inspect_gdm_intercode_ctf"
+  - id: "inspect_gdm_intercode_ctf"
+    name: "inspect gdm intercode ctf"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -111,7 +122,8 @@ test_suite:
       limit: 2
 
   # SEvenLLM
-  - name: "inspect_sevenllm_mcq_en"
+  - id: "inspect_sevenllm_mcq_en"
+    name: "inspect sevenllm mcq en"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -120,7 +132,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_sevenllm_mcq_zh"
+  - id: "inspect_sevenllm_mcq_zh"
+    name: "inspect sevenllm mcq zh"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -129,7 +142,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_sevenllm_qa_en"
+  - id: "inspect_sevenllm_qa_en"
+    name: "inspect sevenllm qa en"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -138,7 +152,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_sevenllm_qa_zh"
+  - id: "inspect_sevenllm_qa_zh"
+    name: "inspect sevenllm qa zh"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -148,7 +163,8 @@ test_suite:
       limit: 2
 
   # SecQA
-  - name: "inspect_sec_qa_v1"
+  - id: "inspect_sec_qa_v1"
+    name: "inspect sec qa v1"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -157,7 +173,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_sec_qa_v1_5_shot"
+  - id: "inspect_sec_qa_v1_5_shot"
+    name: "inspect sec qa v1 5 shot"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -166,7 +183,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_sec_qa_v2"
+  - id: "inspect_sec_qa_v2"
+    name: "inspect sec qa v2"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -175,7 +193,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_sec_qa_v2_5_shot"
+  - id: "inspect_sec_qa_v2_5_shot"
+    name: "inspect sec qa v2 5 shot"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"

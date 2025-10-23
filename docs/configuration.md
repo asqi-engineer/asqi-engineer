@@ -111,6 +111,12 @@ ASQI supports a three-level configuration hierarchy:
       # Path for the container logs (default: logs)
       LOGS_FOLDER=asqi/logs
       ``` 
+
+      - Test suites paths
+      ```yaml
+      # Paths for the test suite files - Recommended to store only suites in these folders (default: config/suites)
+      TEST_SUITES_PATHS=config/suites/,
+      ``` 
      
       - API Keys
       ```yaml
@@ -161,7 +167,8 @@ image: ${REGISTRY-docker.io}/my-app:latest
 suite_name: "Dynamic Testing Suite"
 description: "Runs Security Tests"
 test_suite:
-  - name: "registry_test"
+  - id: "registry_test"
+    name: "registry test"
     description: "Test for Security Vulnerabilities using Garak"
     image: ${REGISTRY:-my-registry}/garak:latest
     systems_under_test: ["${TARGET_SYSTEM:-openai_gpt4o}"]
@@ -174,13 +181,22 @@ test_suite:
 
 Test suites define collections of tests to execute against your systems.
 
+- Tests ID field (id)
+    
+    This is the unique identifier for the tests across the project.
+    This approach is a slight modification of the standard RFC 9562
+    - Valid Characters: 0-9, a-z, _ 
+    - Max Length: 32
+    - All suites must be located in the directory specified by the TEST_SUITES_PATHS environment variable. See more here [Environment Variable Handling](#environment-variable-handling) 
+
 ### Basic Test Suite
 
 ```yaml
 suite_name: "Basic Mock Testing"
 description: "Simple Compatibility Checks"
 test_suite:
-  - name: "compatibility_check"
+  - id: "compatibility_check"
+    name: "compatibility check"
     description: "Verifies Basic Compatibility"
     image: "my-registry/mock_tester:latest"
     systems_under_test: ["my_llm_service"]
@@ -196,7 +212,8 @@ Tests can coordinate multiple AI systems for complex scenarios:
 suite_name: "Advanced Chatbot Testing"
 description: "Evaluates Chatbot Performance, Safety..."
 test_suite:
-  - name: "chatbot_simulation"
+  - id: "chatbot_simulation"
+    name: "chatbot simulation"
     description: "Simulates Realistic Conversations with the Chatbot"
     image: "my-registry/chatbot_simulator:latest"
     systems_under_test: ["my_chatbot"]
@@ -215,7 +232,8 @@ test_suite:
 suite_name: "Comprehensive Security Testing"
 description: "Spot Vulnerabilities in the Target Model"
 test_suite:
-  - name: "prompt_injection_test"
+  - id: "prompt injection test"
+    name: "prompt_injection_test"
     description: "Checks if the Model Can be Tricked by Malicious Prompts"
     image: "my-registry/garak:latest"
     systems_under_test: ["target_model"]
@@ -223,7 +241,8 @@ test_suite:
       probes: ["promptinject"]
       generations: 10
 
-  - name: "encoding_attack_test"
+  - id: "encoding_attack_test"
+    name: "encoding attack test"
     description: "Tests the Model Against Attacks Using Encoded Inputs"
     image: "my-registry/garak:latest" 
     systems_under_test: ["target_model"]
@@ -231,7 +250,8 @@ test_suite:
       probes: ["encoding.InjectHex"]
       generations: 5
 
-  - name: "red_team_assessment"
+  - id: "red_team_assessment"
+    name: "red team assessment"
     description: "Simulates Attacks to Find Jailbreaks or Injections"
     image: "my-registry/deepteam:latest"
     systems_under_test: ["target_model"]
@@ -251,7 +271,7 @@ score_card_name: "Production Readiness Assessment"
 indicators:
   - name: "Test Success Requirement"
     apply_to:
-      test_name: "security_scan"
+      test_id: "security_scan"
     metric: "success"
     assessment:
       - { outcome: "PASS", condition: "equal_to", threshold: true }
@@ -266,7 +286,7 @@ Score cards support various comparison operators:
 indicators:
   - name: "Performance Score Assessment"
     apply_to:
-      test_name: "benchmark_test"
+      test_id: "benchmark_test"
     metric: "score"
     assessment:
       - { outcome: "EXCELLENT", condition: "greater_equal", threshold: 0.9 }
@@ -276,7 +296,7 @@ indicators:
 
   - name: "Security Threshold"
     apply_to:
-      test_name: "vulnerability_scan"
+      test_id: "vulnerability_scan"
     metric: "vulnerabilities_found"
     assessment:
       - { outcome: "SECURE", condition: "equal_to", threshold: 0 }
@@ -298,7 +318,7 @@ Use the `apply_to` field to target specific tests:
 indicators:
   - name: "Garak Security Check"
     apply_to:
-      test_name: "garak_prompt_injection"  # Only applies to this test
+      test_id: "garak_prompt_injection"  # Only applies to this test
     metric: "attack_success_rate"
     assessment:
       - { outcome: "SECURE", condition: "equal_to", threshold: 0.0 }

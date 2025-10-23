@@ -1,7 +1,8 @@
 # yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
 suite_name: "Robustness testing with trustllm"
 test_suite:
-  - name: "ood test"
+  - id: "ood_test"
+    name: "ood test"
     image: "asqiengineer/test-container:trustllm-latest"
     systems_under_test:
       - "nova_lite"

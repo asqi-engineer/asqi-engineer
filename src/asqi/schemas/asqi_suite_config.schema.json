@@ -79,8 +79,14 @@
           "description": "Optional input/output mounts.",
           "title": "Volumes"
         },
+        "id": {
+          "description": "A unique, human-readable ID for this test instance. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+          "pattern": "^[0-9a-z_]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
         "name": {
-          "description": "A unique, human-readable name for this test instance.",
+          "description": "A descriptive, human-friendly name for this test instance.",
           "title": "Name",
           "type": "string"
         },
@@ -104,6 +110,7 @@
         }
       },
       "required": [
+        "id",
         "name",
         "image"
       ],

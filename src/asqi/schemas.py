@@ -1,6 +1,6 @@
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 # ----------------------------------------------------------------------------
 # Schemas for manifest.yaml (Embedded in Test Containers)
@@ -193,11 +193,19 @@ class TestDefinitionBase(BaseModel):
     )
 
 
+# This is necessary because pydantic prefers Annotated types outside classes
+IDsStringPattern = Annotated[str, StringConstraints(pattern="^[0-9a-z_]{1,32}$")]
+
+
 class TestDefinition(TestDefinitionBase):
     """A single test to be executed."""
 
+    id: IDsStringPattern = Field(
+        ...,
+        description="A unique, human-readable ID for this test instance. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+    )
     name: str = Field(
-        ..., description="A unique, human-readable name for this test instance."
+        ..., description="A descriptive, human-friendly name for this test instance."
     )
     description: Optional[str] = Field(
         None,
@@ -240,9 +248,9 @@ class SuiteConfig(BaseModel):
 class ScoreCardFilter(BaseModel):
     """Defines which test results an indicator applies to."""
 
-    test_name: str = Field(
+    test_id: str = Field(
         ...,
-        description="Test name to filter by, e.g., 'run_mock_on_compatible_system_my_llm_service'",
+        description="Test id to filter by, e.g., 'run-mock-on-compatible-system-my-llm-service'",
     )
 
 

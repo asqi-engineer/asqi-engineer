@@ -1,7 +1,8 @@
 # yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
 suite_name: "Chatbot Conversational Testing"
 test_suite:
-  - name: "tesla_customer_service_test"
+  - id: "tesla_customer_service_test"
+    name: "tesla customer service test"
     image: "asqiengineer/test-container:chatbot_simulator-latest"
     systems_under_test:
       - nova_lite

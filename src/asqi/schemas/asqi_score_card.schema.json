@@ -66,14 +66,14 @@
     "ScoreCardFilter": {
       "description": "Defines which test results an indicator applies to.",
       "properties": {
-        "test_name": {
-          "description": "Test name to filter by, e.g., 'run_mock_on_compatible_system_my_llm_service'",
-          "title": "Test Name",
+        "test_id": {
+          "description": "Test id to filter by, e.g., 'run-mock-on-compatible-system-my-llm-service'",
+          "title": "Test Id",
           "type": "string"
         }
       },
       "required": [
-        "test_name"
+        "test_id"
       ],
       "title": "ScoreCardFilter",
       "type": "object"

@@ -2,7 +2,8 @@ suite_name: "Inspect Personality Evaluation Suite"
 test_suite:
 
   # Personality
-  - name: "inspect_personality_BFI"
+  - id: "inspect_personality_BFI"
+    name: "inspect personality BFI"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -11,7 +12,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_personality_TRAIT"
+  - id: "inspect_personality_TRAIT"
+    name: "inspect personality TRAIT"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"

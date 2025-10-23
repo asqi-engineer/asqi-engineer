@@ -32,6 +32,7 @@ class TestEnvironmentVariables:
             test_suite=[
                 TestDefinition(
                     name="test_with_api_key",
+                    id="test_id",
                     description="Test description",
                     image="my-registry/test:latest",
                     systems_under_test=["test_system"],
@@ -124,6 +125,7 @@ class TestEnvironmentVariables:
         # Execute the test
         _result = execute_single_test(
             test_name="test_env_vars",
+            test_id="test_env_vars",
             image="my-registry/test:latest",
             sut_name="test_system",
             systems_params={"system_under_test": system_params_with_env_file},
@@ -172,6 +174,7 @@ class TestEnvironmentVariables:
         # Execute the test
         _result = execute_single_test(
             test_name="test_specific_env_var",
+            test_id="test_id",
             image="my-registry/test:latest",
             sut_name="openai_system",
             systems_params={"system_under_test": system_params},

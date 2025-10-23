@@ -102,7 +102,7 @@ Score cards provide automated assessment of test results against business-releva
 ### How Score Cards Work
 
 Score cards consist of **indicators** that evaluate specific metrics from test results:
-- **Apply to specific tests**: Target individual test names from your test suite
+- **Apply to specific tests**: Target individual test ids from your test suite
 - **Extract metrics**: Pull any field from test container JSON output
 - **Assessment criteria**: Define pass/fail thresholds with business-friendly outcomes
 - **Individual evaluation**: Each test execution is assessed separately (no aggregation)

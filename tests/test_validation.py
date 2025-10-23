@@ -1,5 +1,7 @@
+import os
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -15,6 +17,7 @@ from asqi.schemas import (
     SystemsConfig,
 )
 from asqi.validation import (
+    DuplicateTestIDError,
     create_test_execution_plan,
     find_manifest_for_image,
     validate_execution_inputs,
@@ -22,6 +25,7 @@ from asqi.validation import (
     validate_score_card_inputs,
     validate_system_compatibility,
     validate_test_execution_inputs,
+    validate_test_ids,
     validate_test_parameters,
     validate_test_plan,
     validate_test_volumes,
@@ -34,6 +38,7 @@ suite_name: "Mock Tester Sanity Check"
 description: "Suite description"
 test_suite:
   - name: "run_mock_on_compatible_system"
+    id: "run_mock_on_compatible_system"
     description: "Test description"
     image: "my-registry/mock_tester:latest"
     systems_under_test:
@@ -205,6 +210,7 @@ class TestSchemaValidation:
             "test_suite": [
                 {
                     "name": "test_llm_service",
+                    "id": "test_llm_service",
                     "description": "Test description",
                     "image": "my-registry/generic:latest",
                     "systems_under_test": ["new_system"],
@@ -289,6 +295,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "test_llm_service",
+                    "id": "test_llm_service",
                     "description": "Test description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -318,6 +325,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "test_missing_system",
+                    "id": "test_missing_system",
                     "description": "Test Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["nonexistent_system"],
@@ -340,6 +348,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "garak_without_probes",
+                    "id": "garak_without_probes",
                     "description": "Test Description",
                     "image": "my-registry/garak:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -363,6 +372,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "test_unknown_param",
+                    "id": "test_unknown_param",
                     "description": "Test Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -383,6 +393,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "chatbot_simulation",
+                    "id": "chatbot_simulation",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {"delay_seconds": 1},
@@ -403,6 +414,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "test_demo",
+                    "id": "test_demo",
                     "description": "Test Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -423,6 +435,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "test_demo",
+                    "id": "test_demo",
                     "description": 33,
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -491,6 +504,7 @@ class TestEdgeCases:
             "test_suite": [
                 {
                     "name": "test_multiple_systems",
+                    "id": "test_multiple_systems",
                     "description": "Test Description",
                     "image": "my-registry/garak:latest",
                     "systems_under_test": ["my_llm_service", "another_llm_service"],
@@ -514,6 +528,7 @@ class TestEdgeCases:
             "test_suite": [
                 {
                     "name": "test_no_params",
+                    "id": "test_no_params",
                     "description": "No Param Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -624,6 +639,7 @@ class TestValidationFunctions:
             "test_suite": [
                 {
                     "name": "t1",
+                    "id": "t1",
                     "description": "Test Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -648,6 +664,7 @@ class TestValidationFunctions:
             "test_suite": [
                 {
                     "name": "t1",
+                    "id": "t1",
                     "description": "T1 Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -655,6 +672,7 @@ class TestValidationFunctions:
                 },
                 {
                     "name": "t2",
+                    "id": "t2",
                     "description": "T2 Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service", "another_llm_service"],
@@ -779,6 +797,7 @@ class TestValidationInputFunctions:
     def test_validate_test_execution_inputs_valid(self):
         """Test valid test execution inputs."""
         validate_test_execution_inputs(
+            test_id="test1",
             test_name="test1",
             image="image:latest",
             system_name="system1",
@@ -791,17 +810,22 @@ class TestValidationInputFunctions:
         # Invalid test_name - empty string
         with pytest.raises(ValueError, match="Invalid test name"):
             validate_test_execution_inputs(
-                "", "image:latest", "system1", {"key": "value"}, {"param": "value"}
+                "", "", "image:latest", "system1", {"key": "value"}, {"param": "value"}
             )
         # Invalid image - empty string
         with pytest.raises(ValueError, match="Invalid image"):
             validate_test_execution_inputs(
-                "test1", "", "system1", {"key": "value"}, {"param": "value"}
+                "test1", "test1", "", "system1", {"key": "value"}, {"param": "value"}
             )
         # Invalid system_name - empty string
         with pytest.raises(ValueError, match="Invalid system name"):
             validate_test_execution_inputs(
-                "test1", "image:latest", "", {"key": "value"}, {"param": "value"}
+                "test1",
+                "test1",
+                "image:latest",
+                "",
+                {"key": "value"},
+                {"param": "value"},
             )
 
 
@@ -839,6 +863,7 @@ class TestWorkflowValidation:
             "test_suite": [
                 {
                     "name": "test_llm",
+                    "id": "test_llm",
                     "description": "Test Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -880,6 +905,7 @@ class TestCreateExecutionPlanEdgeCases:
             "test_suite": [
                 {
                     "name": "test1",
+                    "id": "test1",
                     "description": "Test Description",
                     "image": "image:latest",
                     "systems_under_test": ["sys1"],
@@ -902,6 +928,7 @@ class TestCreateExecutionPlanEdgeCases:
             "test_suite": [
                 {
                     "name": "test_with_volumes",
+                    "id": "test_with_volumes",
                     "description": "Test Description",
                     "image": "image:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -926,6 +953,7 @@ class TestCreateExecutionPlanEdgeCases:
             "test_suite": [
                 {
                     "name": "test_no_sut",
+                    "id": "test_no_sut",
                     "description": "Test Description",
                     "image": "image:latest",
                     "systems_under_test": [],
@@ -946,6 +974,7 @@ class TestCreateExecutionPlanEdgeCases:
             "test_suite": [
                 {
                     "name": "test_multi_system",
+                    "id": "test_multi_system",
                     "description": "Test Description",
                     "image": "image:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -974,6 +1003,7 @@ class TestCreateExecutionPlanEdgeCases:
             "test_suite": [
                 {
                     "name": "test_missing_image",
+                    "id": "test_missing_image",
                     "description": "Test Description",
                     "image": "missing:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -1024,6 +1054,7 @@ class TestVolumeValidation:
                 "test_suite": [
                     {
                         "name": "t",
+                        "id": "t",
                         "description": "Tests Description",
                         "image": "img:latest",
                         "systems_under_test": ["my_llm_service"],
@@ -1083,3 +1114,169 @@ class TestVolumeValidation:
         f.write_text("x")
         with pytest.raises(ValueError, match="is not a directory"):
             validate_test_volumes(self._suite({"output": str(f)}))
+
+
+class TestValidateTestIDs:
+    def test_id_validation(self, tmp_path):
+        """Test ID validation with no duplicates IDs in different files."""
+        suite_folder = tmp_path / "suites"
+        suite_folder.mkdir()
+
+        demo_suite = {
+            "suite_name": "id validation test suite",
+            "test_suite": [
+                {
+                    "id": "id_bayau",
+                    "name": "this is the name",
+                    "image": "validation:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        with open(suite_folder / "demo_test.yaml", "w") as f:
+            yaml.dump(demo_suite, f)
+
+        with patch.dict(os.environ, {"TEST_SUITES_PATHS": str(suite_folder)}):
+            validate_test_ids()
+
+    def test_validation_with_duplicates(self, tmp_path):
+        """Test ID validation with duplicates IDs in the same folder."""
+        suite_folder = tmp_path / "suites"
+        suite_folder.mkdir()
+
+        duplicate_suite = {
+            "suite_name": "id duplicated test suite",
+            "test_suite": [
+                {
+                    "id": "id_bayau",
+                    "name": "this is the dup name",
+                    "image": "validation:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        with open(suite_folder / "demo_test.yaml", "w") as f:
+            yaml.dump(duplicate_suite, f)
+
+        with open(suite_folder / "duplicate_demo_test.yaml", "w") as f:
+            yaml.dump(duplicate_suite, f)
+
+        with patch.dict(os.environ, {"TEST_SUITES_PATHS": str(suite_folder)}):
+            with pytest.raises(DuplicateTestIDError) as exc_info:
+                validate_test_ids()
+
+            error = exc_info.value
+            assert "id_bayau" in error.duplicate_dict
+            assert len(error.duplicate_dict["id_bayau"]) == 2
+
+    def test_validation_with_duplicates_multi_level(self, tmp_path):
+        """Test ID validation with duplicates IDs in different folders(paths separated by comma)."""
+        suite_folder = tmp_path / "suites"
+        other_folder = tmp_path / "others"
+
+        suite_folder.mkdir()
+        other_folder.mkdir()
+
+        duplicate_suite = {
+            "suite_name": "id duplicated test suite",
+            "test_suite": [
+                {
+                    "id": "id_bayau",
+                    "name": "this is the dup name multi level",
+                    "image": "demo:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        with open(suite_folder / "demo_test.yaml", "w") as f:
+            yaml.dump(duplicate_suite, f)
+
+        with open(other_folder / "duplicate_demo_test.yaml", "w") as f:
+            yaml.dump(duplicate_suite, f)
+
+        with patch.dict(
+            os.environ,
+            {"TEST_SUITES_PATHS": f"{suite_folder},{other_folder}"},
+        ):
+            with pytest.raises(DuplicateTestIDError) as exc_info:
+                validate_test_ids()
+
+            error = exc_info.value
+            assert "id_bayau" in error.duplicate_dict
+            assert len(error.duplicate_dict["id_bayau"]) == 2
+
+        validate_test_ids()
+
+    def test_validation_with_multi_folders(self, tmp_path):
+        """Test ID validation in different folders(paths separated by comma)."""
+
+        suite_folder = tmp_path / "suites"
+        other_folder = tmp_path / "others"
+
+        suite_folder.mkdir()
+        other_folder.mkdir()
+
+        suite = {
+            "suite_name": "suite in suites",
+            "test_suite": [
+                {
+                    "id": "if_first",
+                    "name": "this is the dup name multi level",
+                    "image": "demo:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        other_suite = {
+            "suite_name": "suite in others",
+            "test_suite": [
+                {
+                    "id": "if_second",
+                    "name": "this is the dup name multi level",
+                    "image": "demo:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        with open(suite_folder / "suite_demo_test.yaml", "w") as f:
+            yaml.dump(suite, f)
+
+        with open(other_folder / "other_demo_test.yaml", "w") as f:
+            yaml.dump(other_suite, f)
+
+        with patch.dict(
+            os.environ,
+            {"TEST_SUITES_PATHS": f"{suite_folder},{other_folder}"},
+        ):
+            validate_test_ids()
+
+    def test_invalid_yaml_file(self, tmp_path):
+        """Invalid that invalid YAML files are skipped."""
+
+        suite_folder = tmp_path / "suites"
+        suite_folder.mkdir()
+
+        with open(suite_folder / "invalid_test.yaml", "w") as f:
+            f.write("invalid-yaml-here")
+
+        valid_suite = {
+            "suite_name": "valid test suite",
+            "test_suite": [
+                {
+                    "id": "valid_id",
+                    "name": "valid test",
+                    "image": "demo:latest",
+                    "systems_under_test": ["garak"],
+                }
+            ],
+        }
+        with open(suite_folder / "valid_test.yaml", "w") as f:
+            yaml.dump(valid_suite, f)
+
+        with patch.dict(os.environ, {"TEST_SUITES_PATHS": str(suite_folder)}):
+            validate_test_ids()

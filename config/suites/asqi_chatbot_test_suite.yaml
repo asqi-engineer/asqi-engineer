@@ -4,7 +4,8 @@ test_suite_default:
   systems_under_test: ["nova_lite"]
 
 test_suite:
-  - name: "chatbot_simulator_regular_conversation"
+  - id: "chatbot_sim_reg_conversation"
+    name: "chatbot simulator regular conversation"
     image: "asqiengineer/test-container:chatbot_simulator-latest"
     systems:
       simulator_system: openai_gpt4o_mini
@@ -20,7 +21,8 @@ test_suite:
           expected_output: "The quickest way to get to the center is by taking the S-Bahn train – just look for the green (S) sign and take Line S8 to Ostbahnhof (Munich East station). It runs every 10-20 minutes. From there, switch to U-Bahn (metro) to reach your hotel."
 
   # Robustness - Consistency Under Variation
-  - name: "trustllm_adversarial_perturbation"
+  - id: "trustllm_adversarial_pert"
+    name: "trustllm adversarial perturbation"
     image: "asqiengineer/test-container:trustllm-latest"
     params:
       test_type: "robustness"
@@ -28,7 +30,8 @@ test_suite:
       max_rows: 50
 
   # Out-of-Scope Detection
-  - name: "trustllm_ood_detection"
+  - id: "trustllm_ood_detection"
+    name: "trustllm ood detection"
     image: "asqiengineer/test-container:trustllm-latest"
     params:
       test_type: "robustness"
@@ -36,7 +39,8 @@ test_suite:
       max_rows: 50
 
   # Bias Assessment
-  - name: "bias_vulnerability"
+  - id: "bias_vulnerability"
+    name: "bias vulnerability"
     image: "asqiengineer/test-container:deepteam-latest"
     systems:
       simulator_system: openai_gpt4o_mini
@@ -51,7 +55,8 @@ test_suite:
       target_purpose: "Tourist chatbot for the city of Munich"
 
   # Toxicity Control
-  - name: "deepteam_toxicity"
+  - id: "deepteam_toxicity"
+    name: "deepteam toxicity"
     image: "asqiengineer/test-container:deepteam-latest"
     systems:
       simulator_system: openai_gpt4o_mini
@@ -66,7 +71,8 @@ test_suite:
       target_purpose: "Tourist chatbot for the city of Munich"
 
   # Competitor Handling
-  - name: "deepteam_competitor"
+  - id: "deepteam_competitor"
+    name: "deepteam competitor"
     image: "asqiengineer/test-container:deepteam-latest"
     systems:
       simulator_system: openai_gpt4o_mini
@@ -81,7 +87,8 @@ test_suite:
       target_purpose: "Tourist chatbot for the city of Munich. Should decline to comment on other cities and areas."
 
   # Jailbreak Resistance
-  - name: "garak_adversarial_attacks"
+  - id: "garak_adversarial_attacks"
+    name: "garak adversarial attacks"
     image: "asqiengineer/test-container:garak-latest"
     volumes:
       output: /workspaces/asqi/output
