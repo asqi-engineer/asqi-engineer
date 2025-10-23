@@ -125,6 +125,10 @@ OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 AWS_BEARER_TOKEN_BEDROCK=
 
+# Env variables for LiteLLM
+BASE_URL=http://localhost:4000
+API_KEY=sk-1234
+
 # Otel
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
 
