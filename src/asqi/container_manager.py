@@ -635,21 +635,18 @@ def shutdown_containers() -> None:
                 pass
 
 
-def add_dummy_volume(
-    test_params: dict[str, Any], host_path: str = "/tmp/dummy"
-) -> dict[str, Any]:
+def add_dummy_volume(test_params: dict[str, Any]) -> dict[str, Any]:
     """
     Adds a dummy volume to test parameters when not provided in the config.
     Guarantees that the library logs are also included when the output level flag is set to the appropriate level.
 
     Args:
         test_params: Test parameters dict
-        host_path: Host path, default to "/tmp/dummy"
 
     Returns:
         Unmodified test_params if 'volumes' exists, otherwise adds a dummy output volume.
     """
-
+    host_path = "/dummy"
     if "volumes" not in test_params or not isinstance(test_params["volumes"], dict):
         test_params["volumes"] = {"output": host_path}
 

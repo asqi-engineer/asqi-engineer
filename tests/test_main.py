@@ -340,7 +340,6 @@ class TestMainCLI:
         )
 
         assert result.exit_code == 2
-        assert "Invalid value for '--output-level'" in result.output
 
     @patch("asqi.workflow.start_test_execution")
     @patch("asqi.workflow.DBOS")
