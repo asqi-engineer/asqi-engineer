@@ -2,6 +2,7 @@ import copy
 import os
 import re
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, ClassVar, Dict, List, Optional
 
 import yaml
@@ -262,3 +263,28 @@ def save_container_results_to_file(
     with open(logs_path, "w") as f:
         json.dump(container_results, f, indent=2)
     return logs_path
+
+
+class OutputLevel(str, Enum):
+    """Enum that represents all possible output levels."""
+
+    NONE = "none"
+    CONTAINER = "container"
+    LIBRARY = "library"
+    ALL = "all"
+
+    @classmethod
+    def values(cls) -> List[str]:
+        """Return a list of all possible output level string values."""
+
+        return [member.value for member in cls]
+
+    def library_logs_enabled(self) -> bool:
+        """Return True if the output level includes library logs."""
+
+        return self in (OutputLevel.LIBRARY, OutputLevel.ALL)
+
+    def container_logs_enabled(self) -> bool:
+        """Return True if the output level includes container logs."""
+
+        return self in (OutputLevel.CONTAINER, OutputLevel.ALL)

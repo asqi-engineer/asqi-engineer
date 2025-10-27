@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from asqi.config import ContainerConfig, ExecutorConfig
+from asqi.config import ContainerConfig, ExecutorConfig, OutputLevel
 from asqi.schemas import Manifest, SystemInput
 from asqi.workflow import (
     TestExecutionResult,
@@ -280,6 +280,7 @@ def test_execute_single_test_container_failure():
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
             container_config=ContainerConfig(),
+            output_level=OutputLevel.CONTAINER,
         )
 
     assert result.success is False
@@ -482,6 +483,7 @@ def test_run_end_to_end_workflow():
     systems_config = {"systems_under_test": {}}
     score_card_configs = [{"score_card_name": "test"}]
     container_config: ContainerConfig = ContainerConfig()
+    output_level = OutputLevel.NONE
 
     test_results = {"summary": {"status": "COMPLETED"}, "results": []}
     test_container = []
@@ -511,6 +513,7 @@ def test_run_end_to_end_workflow():
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config,
+            output_level,
         )
 
         mock_test_workflow.assert_called_once_with(
@@ -522,6 +525,7 @@ def test_run_end_to_end_workflow():
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config,
+            output_level,
         )
         mock_score_workflow.assert_called_once_with(
             test_results, test_container, score_card_configs

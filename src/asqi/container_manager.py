@@ -12,7 +12,7 @@ from docker.types import Mount
 from requests import exceptions as requests_exceptions
 
 import docker
-from asqi.config import ContainerConfig
+from asqi.config import ContainerConfig, OutputLevel
 from asqi.errors import (
     ManifestExtractionError,
     MissingImageError,
@@ -432,6 +432,7 @@ def run_container_with_args(
     image: str,
     args: List[str],
     container_config: ContainerConfig,
+    output_level: OutputLevel = OutputLevel.NONE,
     environment: Optional[Dict[str, str]] = None,
     name: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -442,6 +443,7 @@ def run_container_with_args(
         image: Docker image to run
         args: Command line arguments to pass to container
         container_config: Container execution configurations
+        output_level: Level to control output verbosity, NONE for default (lowest verbosity)
         environment: Optional dictionary of environment variables to pass to container
         name: Optional name for the container (will be used as container name in Docker)
 
@@ -603,6 +605,8 @@ def run_container_with_args(
                 f"Failed to connect to Docker daemon while running image '{image}': {e}"
             )
         finally:
+            if output_level.library_logs_enabled():
+                result["library_output"] = _get_library_logs(container)
             _decommission_container(container, container_config)
     return result
 
@@ -629,6 +633,113 @@ def shutdown_containers() -> None:
                 _decommission_container(c)
             except (docker_errors.NotFound, docker_errors.APIError):
                 pass
+
+
+def add_dummy_volume(
+    test_params: dict[str, Any], host_path: str = "/tmp/dummy"
+) -> dict[str, Any]:
+    """
+    Adds a dummy volume to test parameters when not provided in the config.
+    Guarantees that the library logs are also included when the output level flag is set to the appropriate level.
+
+    Args:
+        test_params: Test parameters dict
+        host_path: Host path, default to "/tmp/dummy"
+
+    Returns:
+        Unmodified test_params if 'volumes' exists, otherwise adds a dummy output volume.
+    """
+
+    if "volumes" not in test_params or not isinstance(test_params["volumes"], dict):
+        test_params["volumes"] = {"output": host_path}
+
+    return test_params
+
+
+def _get_library_logs(container) -> Dict[str, Any]:
+    """
+    Get and parse the library output logs from the output directory mounted in the container.
+
+    Notes:
+    - ZIP .eval files
+    - .jsonl, .txt, .eval and .json files
+    - fallback: binary files to base64
+
+    Args:
+        container: Docker container object
+
+    Returns:
+        Dictionary with library logs from the container output path.
+    """
+    import base64
+    import io
+    import tarfile
+    import zipfile
+
+    output = {}
+
+    if not container:
+        return output
+
+    try:
+        # Get output files from container
+        bits, _ = container.get_archive(OUTPUT_MOUNT_PATH)
+        file_buffer = io.BytesIO(b"".join(bits))
+
+        with tarfile.open(fileobj=file_buffer) as tar:
+            for member in tar.getmembers():
+                file = tar.extractfile(member)
+                if not file:
+                    continue
+                file_bytes = file.read()
+
+                # ZIP .eval files
+                if member.name.endswith(".eval"):
+                    try:
+                        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zip_file:
+                            eval_data = {}
+                            for eval_file in zip_file.namelist():
+                                with zip_file.open(eval_file) as eval_file_data:
+                                    file_content = eval_file_data.read()
+                                    try:
+                                        eval_data[eval_file] = json.loads(
+                                            file_content.decode("utf-8")
+                                        )
+                                    except json.JSONDecodeError:
+                                        eval_data[eval_file] = file_content.decode(
+                                            "utf-8"
+                                        )
+                            output[member.name] = eval_data
+                            continue
+                    except zipfile.BadZipFile:
+                        pass
+
+                # .jsonl, .txt, .eval and .json files
+                if member.name.endswith((".jsonl", ".eval", ".txt", ".json")):
+                    try:
+                        content = file_bytes.decode("utf-8")
+
+                        if member.name.endswith(".jsonl"):
+                            content = [
+                                json.loads(line)
+                                for line in content.splitlines()
+                                if line.strip()
+                            ]
+                        elif member.name.endswith(".eval"):
+                            content = json.loads(content)
+                        output[member.name] = content
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        pass
+                else:
+                    # Fallback, just encode binary files to base64
+                    output[member.name] = base64.b64encode(file_bytes).decode("utf-8")
+
+    except docker_errors.APIError as e:
+        logger.warning(f"Failed to retrieve library logs: {e}")
+    except Exception as e:
+        logger.warning(f"Unexpected error retrieving library logs: {e}")
+
+    return output
 
 
 def _decommission_container(
