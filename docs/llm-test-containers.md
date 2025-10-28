@@ -535,7 +535,7 @@ test_suite:
 
   # Trustworthiness evaluation
   - id: "trustworthiness_eval"
-    name: "trustworthinessassessment"
+    name: "trustworthiness assessment"
     description: "Check Model Trustworthiness"
     image: "my-registry/trustllm:latest"
     systems_under_test: ["target_model"]

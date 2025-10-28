@@ -798,7 +798,6 @@ class TestValidationInputFunctions:
         """Test valid test execution inputs."""
         validate_test_execution_inputs(
             test_id="test1",
-            test_name="test1",
             image="image:latest",
             system_name="system1",
             system_params={"key": "value"},
@@ -808,19 +807,18 @@ class TestValidationInputFunctions:
     def test_validate_test_execution_inputs_invalid(self):
         """Test invalid test execution inputs."""
         # Invalid test_name - empty string
-        with pytest.raises(ValueError, match="Invalid test name"):
+        with pytest.raises(ValueError, match="Invalid test id"):
             validate_test_execution_inputs(
-                "", "", "image:latest", "system1", {"key": "value"}, {"param": "value"}
+                "", "image:latest", "system1", {"key": "value"}, {"param": "value"}
             )
         # Invalid image - empty string
         with pytest.raises(ValueError, match="Invalid image"):
             validate_test_execution_inputs(
-                "test1", "test1", "", "system1", {"key": "value"}, {"param": "value"}
+                "test1", "", "system1", {"key": "value"}, {"param": "value"}
             )
         # Invalid system_name - empty string
         with pytest.raises(ValueError, match="Invalid system name"):
             validate_test_execution_inputs(
-                "test1",
                 "test1",
                 "image:latest",
                 "",
@@ -1256,7 +1254,7 @@ class TestValidateTestIDs:
             validate_test_ids()
 
     def test_invalid_yaml_file(self, tmp_path):
-        """Invalid that invalid YAML files are skipped."""
+        """Validate that invalid YAML files are skipped."""
 
         suite_folder = tmp_path / "suites"
         suite_folder.mkdir()

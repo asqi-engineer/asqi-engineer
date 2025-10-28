@@ -150,7 +150,6 @@ def _cli_startup_callback():
     Registers shutdown handlers for container cleanup once per process.
     Using a callback keeps registration in the CLI layer and avoids
     side-effects at import time in libraries or tests.
-    Verifies uniqueness of test IDs
     """
     # Ensure cleanup on normal interpreter exit
     atexit.register(_handle_shutdown)
@@ -162,8 +161,16 @@ def _cli_startup_callback():
         except Exception as e:
             console.print(f"\n[red]❌Could not register handler for {sig}: {e}[/red]")
 
-    console.print("\n[blue]Verifying uniqueness of test IDs...[/blue]")
+
+def _validate_unique_test_ids():
+    """Validate that all test IDs in the suite configuration are unique.
+
+    Raises:
+        DuplicateTestIDError: If duplicate test IDs are found.
+    """
+
     try:
+        console.print("\n[blue]Verifying uniqueness of test IDs...[/blue]")
         validate_test_ids()
     except DuplicateTestIDError as e:
         console.print(f"\n[red]❌ Found Duplicated Test IDs: {e}[/red]")
@@ -206,6 +213,7 @@ def validate(
 ):
     """Validate test plan configuration without execution."""
     console.print("[blue]--- Running Verification ---[/blue]")
+    _validate_unique_test_ids()
 
     result = load_and_validate_plan(
         suite_path=test_suite_config,
@@ -350,7 +358,7 @@ def execute_tests(
         None,
         "--test-ids",
         "-tids",
-        help="Comma-separated list of test idsß to run (matches suite test idsß).",
+        help="Comma-separated list of test ids to run (matches suite test ids).",
     ),
     concurrent_tests: int = typer.Option(
         ExecutorConfig.DEFAULT_CONCURRENT_TESTS,

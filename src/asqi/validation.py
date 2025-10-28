@@ -18,7 +18,7 @@ console = Console()
 
 def validate_test_ids() -> None:
     """
-    Validates all test suite configuration files and verfifies that test IDs are unique.
+    Validates all test suite configuration files and verifies that test IDs are unique.
 
     Notes:
     - add folders containing test suites in the environment file
@@ -27,9 +27,11 @@ def validate_test_ids() -> None:
 
 
     Raises:
-        DuplicateTestIDError: If duplicate test IDs are found, withdetailed information about all duplicate locations
+        DuplicateTestIDError: If duplicate test IDs are found, with detailed information about all duplicate locations
         FileNotFoundError: If the specified test suite folder does not exist
     """
+    all_test_ids: Dict[str, List[str]] = {}
+
     try:
         test_suites_folders = [
             Path(test_suites_folder_str.strip())
@@ -38,7 +40,6 @@ def validate_test_ids() -> None:
             ).split(",")
             if test_suites_folder_str.strip()
         ]
-        all_test_ids: Dict[str, List[str]] = {}
     except FileNotFoundError as e:
         console.print(f"[red]Input file not found:[/red] {e}")
         raise
@@ -66,9 +67,9 @@ def validate_test_ids() -> None:
                     )
                     continue
 
-        duplicate_dict = get_duplicate_test_ids(all_test_ids)
-        if duplicate_dict:
-            raise DuplicateTestIDError(duplicate_dict)
+    duplicate_dict = get_duplicate_test_ids(all_test_ids)
+    if duplicate_dict:
+        raise DuplicateTestIDError(duplicate_dict)
 
 
 class DuplicateTestIDError(Exception):
@@ -119,15 +120,15 @@ def extract_suite_ids(
         suite_config: Test suite configuration dictionary
         test_suite_path: Path to the test suite file
     """
-    for suite in suite_config.values():
-        suite_name = suite_config["suite_name"]
-        if isinstance(suite, list):
-            for test in suite:
-                test_id = test["id"]
-                test_name = test["name"]
-                all_test_ids.setdefault(test_id, []).append(
-                    f"location: '{test_suite_path}', suite name: '{suite_name}', test name: '{test_name}'"
-                )
+
+    suite_name = suite_config.get("suite_name", "Unknown Suite")
+    test_suite = suite_config.get("test_suite", [])
+    for test in test_suite:
+        test_id = test["id"]
+        test_name = test["name"]
+        all_test_ids.setdefault(test_id, []).append(
+            f"location: '{test_suite_path}', suite name: '{suite_name}', test name: '{test_name}'"
+        )
 
 
 def get_duplicate_test_ids(all_test_ids: Dict[str, List[str]]) -> Dict[str, List[str]]:
@@ -667,7 +668,6 @@ def validate_score_card_inputs(
 
 
 def validate_test_execution_inputs(
-    test_name: str,
     test_id: str,
     image: str,
     system_name: str,
@@ -678,7 +678,6 @@ def validate_test_execution_inputs(
     Validate inputs for individual test execution.
 
     Args:
-        test_name: Name of the test
         test_id: ID of the test
         image: Docker image name
         system_name: Name of the system
@@ -688,8 +687,6 @@ def validate_test_execution_inputs(
     Raises:
         ValueError: If any input is invalid
     """
-    if not test_name or not isinstance(test_name, str):
-        raise ValueError("Invalid test name: must be non-empty string")
 
     if not test_id or not isinstance(test_id, str):
         raise ValueError("Invalid test id: must be non-empty string")

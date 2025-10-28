@@ -204,8 +204,9 @@ class TestDefinition(TestDefinitionBase):
         ...,
         description="A unique, human-readable ID for this test instance. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
     )
-    name: str = Field(
-        ..., description="A descriptive, human-friendly name for this test instance."
+    name: Optional[str] = Field(
+        None,
+        description="A descriptive, human-friendly name for this test instance.",
     )
     description: Optional[str] = Field(
         None,

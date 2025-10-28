@@ -170,8 +170,8 @@ test_suite:
       limit: 2
 
     # MMLU-Pro
-  - id: "inspect mmlu pro"
-    name: "inspect_mmlu_pro"
+  - id: "inspect_mmlu_pro"
+    name: "inspect mmlu pro"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -180,8 +180,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - id: "inspect mmlu 0 shot"
-    name: "inspect_mmlu_0_shot"
+  - id: "inspect_mmlu_0_shot"
+    name: "inspect mmlu 0 shot"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -190,8 +190,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - id: "inspect mmlu 5 shot"
-    name: "inspect_mmlu_5_shot"
+  - id: "inspect_mmlu_5_shot"
+    name: "inspect mmlu 5 shot"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -201,8 +201,8 @@ test_suite:
       limit: 2
 
   # MedQA
-  - id: "inspect medqa"
-    name: "inspect_medqa"
+  - id: "inspect_medqa"
+    name: "inspect medqa"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -212,8 +212,8 @@ test_suite:
       limit: 2
 
   # O-NET
-  - id: "inspect onet m6"
-    name: "inspect_onet_m6"
+  - id: "inspect_onet_m6"
+    name: "inspect onet m6"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -223,8 +223,8 @@ test_suite:
       limit: 2
 
   # Pre-Flight
-  - id: "inspect pre flight"
-    name: "inspect_pre_flight"
+  - id: "inspect_pre_flight"
+    name: "inspect pre flight"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -234,8 +234,8 @@ test_suite:
       limit: 2
 
   # PubMedQA
-  - id: "inspect pubmedqa"
-    name: "inspect_pubmedqa"
+  - id: "inspect_pubmedqa"
+    name: "inspect pubmedqa"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -245,8 +245,8 @@ test_suite:
       limit: 2
 
   # SOS BENCH
-  - id: "inspect sosbench"
-    name: "inspect_sosbench"
+  - id: "inspect_sosbench"
+    name: "inspect sosbench"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "openai_gpt4o_mini"
@@ -256,8 +256,8 @@ test_suite:
       limit: 2
 
   # SciKnowEval
-  - id: "inspect sciknoweval"
-    name: "inspect_sciknoweval"
+  - id: "inspect_sciknoweval"
+    name: "inspect sciknoweval"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -269,8 +269,8 @@ test_suite:
       limit: 2
 
   # SimpleQA
-  - id: "inspect simpleqa"
-    name: "inspect_simpleqa"
+  - id: "inspect_simpleqa"
+    name: "inspect simpleqa"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -280,8 +280,8 @@ test_suite:
       limit: 2
 
   # TruthfulQA
-  - id: "inspect truthfulqa"
-    name: "inspect_truthfulqa"
+  - id: "inspect_truthfulqa"
+    name: "inspect truthfulqa"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -291,8 +291,8 @@ test_suite:
       limit: 2
 
   # XSTest
-  - id: "inspect xstest"
-    name: "inspect_xstest"
+  - id: "inspect_xstest"
+    name: "inspect xstest"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"

@@ -299,7 +299,7 @@ test_suite:
     params:
       evaluation: "infinite_bench_number_string"
       evaluation_params: {}
-      limit: Next
+      limit: 2
 
   - id: "inspect_infinite_bench_passkey"
     name: "inspect infinite bench passkey"

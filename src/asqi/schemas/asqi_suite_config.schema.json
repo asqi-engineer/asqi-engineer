@@ -86,9 +86,17 @@
           "type": "string"
         },
         "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
           "description": "A descriptive, human-friendly name for this test instance.",
-          "title": "Name",
-          "type": "string"
+          "title": "Name"
         },
         "description": {
           "anyOf": [
@@ -111,7 +119,6 @@
       },
       "required": [
         "id",
-        "name",
         "image"
       ],
       "title": "TestDefinition",

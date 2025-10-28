@@ -218,7 +218,7 @@ def execute_single_test(
 
     try:
         validate_test_execution_inputs(
-            test_name, test_id, image, sut_name, sut_params, test_params
+            test_id, image, sut_name, sut_params, test_params
         )
     except ValueError as e:
         result.error_message = str(e)

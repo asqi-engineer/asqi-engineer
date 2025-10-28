@@ -60,8 +60,8 @@ asqi execute-tests \
 ```yaml
 suite_name: "Custom Security Assessment"
 test_suite:
-  - name: "prompt injection scan"
-    name: "prompt_injection_scan"
+  - id: "prompt_injection_scan"
+    name: "prompt injection scan"
     image: "my-registry/garak:latest"
     systems_under_test: ["production_model"]
     params:
@@ -69,16 +69,16 @@ test_suite:
       generations: 20
       parallel_attempts: 8
 
-  - name: "encoding_attacks"
-    id: "encoding attacks"
+  - id: "encoding_attacks"
+    name: "encoding attacks"
     image: "my-registry/garak:latest"
     systems_under_test: ["production_model"]
     params:
       probes: ["encoding.InjectBase64", "encoding.InjectHex", "encoding.InjectROT13"]
       generations: 15
 
-  - name: "jailbreak_attempts"
-    id: "jailbreak attempts"
+  - id: "jailbreak_attempts"
+    name: "jailbreak attempts"
     image: "my-registry/garak:latest"
     systems_under_test: ["production_model"]
     params:
@@ -261,16 +261,16 @@ systems:
 ```yaml
 suite_name: "LLM Provider Performance Comparison"
 test_suite:
-  - name: "security_test_openai"
-    id: "security test openai"
+  - id: "security_test_openai"
+    name: "security test openai"
     image: "my-registry/garak:latest"
     systems_under_test: ["openai_gpt4o"]
     params:
       probes: ["promptinject", "encoding.InjectBase64"]
       generations: 10
 
-  - name: "security_test_anthropic"
-    id: "security test anthropic"
+  - id: "security_test_anthropic"
+    name: "security test anthropic"
     image: "my-registry/garak:latest"
     systems_under_test: ["anthropic_claude"]
     params:
