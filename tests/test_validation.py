@@ -9,13 +9,18 @@ from pydantic import ValidationError
 
 from asqi.main import load_and_validate_plan
 from asqi.schemas import (
+    AssessmentRule,
     GenericSystemConfig,
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
+    ScoreCard,
+    ScoreCardFilter,
+    ScoreCardIndicator,
     SuiteConfig,
     SystemsConfig,
 )
+from asqi.score_card_engine import ScoreCardEngine
 from asqi.validation import (
     DuplicateTestIDError,
     create_test_execution_plan,
@@ -31,6 +36,7 @@ from asqi.validation import (
     validate_test_volumes,
     validate_workflow_configurations,
 )
+from asqi.workflow import TestExecutionResult
 
 # Test data
 DEMO_SUITE_YAML = """
@@ -1278,3 +1284,79 @@ class TestValidateTestIDs:
 
         with patch.dict(os.environ, {"TEST_SUITES_PATHS": str(suite_folder)}):
             validate_test_ids()
+
+    def test_invalid_id_formats_error(self):
+        """Test invalid id formats fail schema validation"""
+
+        # Examples of invalid IDs not in 0-9, a-z, _ and max length 32
+        invalid_ids = ["Invalid-ID", "UPPERCASE", "has-hyphen", "has.dot", "a" * 33]
+
+        for bad_id in invalid_ids:
+            suite_data = {
+                "suite_name": "invalid id",
+                "test_suite": [
+                    {
+                        "id": bad_id,
+                        "name": "invalid id test",
+                        "description": "Test with invalid id",
+                        "image": "demo:latest",
+                        "systems_under_test": ["my_llm_service"],
+                    }
+                ],
+            }
+
+            with pytest.raises(ValidationError):
+                SuiteConfig(**suite_data)
+
+    def test_missing_id_field_error(self):
+        """Test missing id field fails schema validation."""
+        suite_data = {
+            "suite_name": "missing id",
+            "test_suite": [
+                {
+                    # "id": "no_id_test",
+                    "name": "no id test",
+                    "description": "missing id",
+                    "image": "demo:latest",
+                    "systems_under_test": ["my_llm_service"],
+                }
+            ],
+        }
+
+        with pytest.raises(ValidationError):
+            SuiteConfig(**suite_data)
+
+    def test_score_card_referencing_unknown_test_error(self):
+        """Test scorecard fails when indicators reference unknown test IDs."""
+
+        engine = ScoreCardEngine()
+
+        result = TestExecutionResult(
+            "test_name", "existing_test_id", "sut", "image:latest"
+        )
+        result.test_results = {"success": True}
+
+        score_card = ScoreCard(
+            score_card_name="demo score card",
+            indicators=[
+                ScoreCardIndicator(
+                    name="demo indicator",
+                    apply_to=ScoreCardFilter(test_id="nonexistent_test_id"),
+                    metric="success",
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS",
+                            condition="equal_to",
+                            threshold=True,
+                            description="demo pass rule",
+                        )
+                    ],
+                )
+            ],
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Score card indicators don't match any test ids in the test results",
+        ):
+            engine.evaluate_scorecard([result], score_card)
