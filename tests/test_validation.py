@@ -5,6 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from asqi.errors import DuplicateTestIDError
 from asqi.main import load_and_validate_plan
 from asqi.schemas import (
     AssessmentRule,
@@ -20,7 +21,6 @@ from asqi.schemas import (
 )
 from asqi.score_card_engine import ScoreCardEngine
 from asqi.validation import (
-    DuplicateTestIDError,
     create_test_execution_plan,
     find_manifest_for_image,
     validate_execution_inputs,

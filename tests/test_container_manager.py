@@ -5,24 +5,26 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import yaml
-from docker import errors as docker_errors
 from requests import exceptions as requests_exceptions
 
 from asqi.config import ContainerConfig
 from asqi.container_manager import (
-    ManifestExtractionError,
-    MountExtractionError,
     _decommission_container,
     _resolve_abs,
     _shutdown_event,
     check_images_availability,
     docker_client,
     extract_manifest_from_image,
-    run_container_with_args,
     pull_images,
+    run_container_with_args,
+)
+from asqi.errors import (
+    ManifestExtractionError,
     MissingImageException,
+    MountExtractionError,
 )
 from asqi.schemas import Manifest
+from docker import errors as docker_errors
 
 
 @pytest.fixture(autouse=True)

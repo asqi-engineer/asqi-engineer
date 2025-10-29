@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 class DuplicateTestIDError(Exception):
@@ -34,3 +34,26 @@ class DuplicateTestIDError(Exception):
         lines.append("Test IDs must be unique within the same file")
 
         return "\n".join(lines)
+
+
+class ManifestExtractionError(Exception):
+    """Exception raised when manifest extraction fails."""
+
+    def __init__(
+        self, message: str, error_type: str, original_error: Optional[Exception] = None
+    ):
+        super().__init__(message)
+        self.error_type = error_type
+        self.original_error = original_error
+
+
+class MissingImageException(Exception):
+    """Exception raised when required Docker images are missing."""
+
+    pass
+
+
+class MountExtractionError(Exception):
+    """Exception raised when extracting mounts from args fails."""
+
+    pass
