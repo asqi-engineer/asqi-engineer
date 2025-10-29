@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -8,6 +7,7 @@ from pydantic import BaseModel
 from rich.console import Console
 
 from asqi.config import load_config_file
+from asqi.errors import DuplicateTestIDError
 from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
 
 logger = logging.getLogger()
@@ -16,109 +16,48 @@ logger = logging.getLogger()
 console = Console()
 
 
-def validate_test_ids() -> None:
+def validate_test_ids(test_suite_config_path: str) -> None:
     """
-    Validates all test suite configuration files and verifies that test IDs are unique.
+    Validates that all test IDs in the suite file are unique.
 
-    Notes:
-    - add folders containing test suites in the environment file
-    - folders are comma separated
-    - default folder is config/suites/
-
+    Args:
+        test_suite_config_path: Path to the test suite file
 
     Raises:
         DuplicateTestIDError: If duplicate test IDs are found, with detailed information about all duplicate locations
-        FileNotFoundError: If the specified test suite folder does not exist
     """
     all_test_ids: Dict[str, List[str]] = {}
 
-    try:
-        test_suites_folders = [
-            Path(test_suites_folder_str.strip())
-            for test_suites_folder_str in os.getenv(
-                "TEST_SUITES_PATHS", "config/suites/"
-            ).split(",")
-            if test_suites_folder_str.strip()
-        ]
-    except FileNotFoundError as e:
-        console.print(f"[red]Input file not found:[/red] {e}")
-        raise
+    if test_suite_config_path:
+        try:
+            suite_config = load_config_file(test_suite_config_path)
+            extract_suite_ids(all_test_ids, suite_config, test_suite_config_path)
 
-    for test_suite_folder in test_suites_folders:
-        if not test_suite_folder.exists():
-            raise FileNotFoundError(f"Suite folder not found: {test_suite_folder}")
-
-        test_suite_paths = [f for f in test_suite_folder.iterdir() if f.is_file()]
-        if test_suite_paths:
-            for test_suite_path in test_suite_paths:
-                try:
-                    test_suite_path_str = str(test_suite_path)
-                    suite_config = load_config_file(test_suite_path_str)
-
-                    extract_suite_ids(all_test_ids, suite_config, test_suite_path_str)
-
-                except yaml.YAMLError as e:
-                    console.print(
-                        f"[yellow]Failed to parse test suite file {test_suite_path}:[/yellow] {e}"
-                    )
-                except Exception as e:
-                    console.print(
-                        f"[yellow]Failed to process test suite file {test_suite_path}:[/yellow] {e}"
-                    )
-                    continue
-
+        except yaml.YAMLError as e:
+            console.print(
+                f"[yellow]ID Validation. Failed to parse test suite file {test_suite_config_path}:[/yellow] {e}"
+            )
+        except Exception as e:
+            console.print(
+                f"[yellow]IF Validation. Failed to process test suite file {test_suite_config_path}:[/yellow] {e}"
+            )
     duplicate_dict = get_duplicate_test_ids(all_test_ids)
     if duplicate_dict:
         raise DuplicateTestIDError(duplicate_dict)
 
 
-class DuplicateTestIDError(Exception):
-    """
-    Raised when duplicate test IDs are found.
-
-    Args:
-        duplicate_dict: Dict of duplicate IDs with duplication data
-
-    Notes:
-    - test IDs must be unique across the system
-    """
-
-    def __init__(self, duplicate_dict: Dict[str, List[str]]):
-        self.duplicate_dict = duplicate_dict
-        message = self._get_message()
-        super().__init__(message)
-
-    def _get_message(self) -> str:
-        """
-        Returns a message with all duplicates.
-        """
-        lines = ["\n"]
-
-        for ix_id, (duplicate_id, test_list) in enumerate(
-            self.duplicate_dict.items(), 1
-        ):
-            lines.append(f"Duplicate ID({duplicate_id}) #{ix_id}:")
-            for ix_test, test in enumerate(test_list, 1):
-                lines.append(f"--{ix_test}-- {test}")
-            lines.append("")
-
-        lines.append("Test IDs must be unique across the entire system")
-
-        return "\n".join(lines)
-
-
 def extract_suite_ids(
     all_test_ids: Dict[str, List[str]],
     suite_config: Dict[str, Any],
-    test_suite_path: str,
+    test_suite_config_path: str,
 ) -> None:
     """
-    Extract test IDs from a suite configuration and register them to the ID state.
+    Extract test IDs from a suite config file and register them to the ID state.
 
     Args:
         all_test_ids: Test ID state
-        suite_config: Test suite configuration dictionary
-        test_suite_path: Path to the test suite file
+        suite_config: Test suite config dict
+        test_suite_config_path: Path to the test suite file
     """
 
     suite_name = suite_config.get("suite_name", "Unknown Suite")
@@ -127,7 +66,7 @@ def extract_suite_ids(
         test_id = test["id"]
         test_name = test["name"]
         all_test_ids.setdefault(test_id, []).append(
-            f"location: '{test_suite_path}', suite name: '{suite_name}', test name: '{test_name}'"
+            f"location: '{test_suite_config_path}', suite name: '{suite_name}', test name: '{test_name}'"
         )
 
 
