@@ -1,19 +1,13 @@
 import argparse
 import glob
+import hashlib
 import json
 import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
 
-# Add the llmperf directory to sys.path to import token_benchmark_ray
 sys.path.insert(0, "/app/llmperf")
-
-
-def _export_openai_env(base_url: str, api_key: str) -> None:
-    """Set environment variables expected by llmperf for OpenAI-compatible APIs."""
-    os.environ["OPENAI_API_BASE"] = base_url
-    os.environ["OPENAI_API_KEY"] = api_key
 
 
 def _derive_params(
@@ -26,7 +20,7 @@ def _derive_params(
 
     test_params may optionally override benchmark knobs using the same names as llmperf CLI:
       mean_input_tokens, stddev_input_tokens, mean_output_tokens, stddev_output_tokens,
-      max_num_completed_requests, timeout, num_concurrent_requests, additional_sampling_params.
+      max_num_completed_requests, timeout, num_concurrent_requests.
     """
     sut = systems_params.get("system_under_test", {})
     if not sut:
@@ -52,33 +46,17 @@ def _derive_params(
     params = {
         "llm_api": "openai",
         "model": model,
+        "sut_name": sut.get("name"),
         "mean_input_tokens": int(test_params.get("mean_input_tokens", 550)),
         "stddev_input_tokens": int(test_params.get("stddev_input_tokens", 150)),
         "mean_output_tokens": int(test_params.get("mean_output_tokens", 150)),
         "stddev_output_tokens": int(test_params.get("stddev_output_tokens", 10)),
         "max_num_completed_requests": int(
-            test_params.get("max_num_completed_requests", 2)
+            test_params.get("max_num_completed_requests", 1)
         ),
         "timeout": int(test_params.get("timeout", 600)),
         "num_concurrent_requests": int(test_params.get("num_concurrent_requests", 1)),
-        "results_dir": str(test_params.get("results_dir", "")),
-        "additional_sampling_params": test_params.get(
-            "additional_sampling_params", "{}"
-        ),
     }
-
-    # Validate and normalize additional_sampling_params
-    if isinstance(params["additional_sampling_params"], dict):
-        params["additional_sampling_params"] = json.dumps(
-            params["additional_sampling_params"]
-        )  # to str
-    elif isinstance(params["additional_sampling_params"], str):
-        try:
-            json.loads(params["additional_sampling_params"])  # must be valid JSON
-        except Exception as e:
-            raise ValueError(f"additional_sampling_params must be valid JSON: {e}")
-    else:
-        raise ValueError("additional_sampling_params must be a JSON string or dict")
 
     return {
         "base_url": base_url,
@@ -87,28 +65,35 @@ def _derive_params(
     }
 
 
-def _ensure_results_dir(results_dir: str) -> str:
-    if results_dir:
-        Path(results_dir).mkdir(parents=True, exist_ok=True)
-        return results_dir
+def _ensure_results_dir(subfolder: str = "") -> str:
     # Default to mounted output path
     out_root = os.environ.get("OUTPUT_MOUNT_PATH", "/tmp")
-    out = Path(out_root) / "llmperf"
+    out = Path(out_root) / subfolder if subfolder else Path(out_root)
     out.mkdir(parents=True, exist_ok=True)
     return str(out)
 
 
 def _run_benchmark_and_collect(params: Dict[str, Any]) -> Dict[str, Any]:
     """Run LLMPerf token benchmark in-process, then load summary JSON."""
-    results_dir = _ensure_results_dir(params["results_dir"])
+    # Generate unique folder name: llmperf_<8digit_hash>
+    hash_input = json.dumps(
+        {k: v for k, v in params.items() if k not in ["base_url", "api_key"]},
+        sort_keys=True,
+    )
+    hash_str = hashlib.md5(hash_input.encode()).hexdigest()[:8]
+    folder_name = f"llmperf_{hash_str}"
+    results_dir = _ensure_results_dir(folder_name)
 
     try:
         # Import the function from the installed llmperf package
         from token_benchmark_ray import run_token_benchmark  # type: ignore
         import ray  # type: ignore
 
-        # Propagate environment into Ray workers (OPENAI_* are already set)
-        env_vars = dict(os.environ)
+        # Propagate environment into Ray workers
+        env_vars = {
+            "OPENAI_API_BASE": params["base_url"],
+            "OPENAI_API_KEY": params["api_key"],
+        }
         try:
             ray.init(runtime_env={"env_vars": env_vars})  # type: ignore
         except Exception:
@@ -125,7 +110,7 @@ def _run_benchmark_and_collect(params: Dict[str, Any]) -> Dict[str, Any]:
             stddev_input_tokens=params["stddev_input_tokens"],
             mean_output_tokens=params["mean_output_tokens"],
             stddev_output_tokens=params["stddev_output_tokens"],
-            additional_sampling_params=params["additional_sampling_params"],
+            additional_sampling_params="{}",
             results_dir=results_dir,
             user_metadata={},
         )
@@ -148,15 +133,13 @@ def _run_benchmark_and_collect(params: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "success": True,
         "results_dir": results_dir,
-        "summary_file": summary_files[0],
-        "summary": summary,
+        "metrics": summary,
     }
 
 
 def run_llmperf(systems_params: Dict[str, Any], test_params: Dict[str, Any]):
-    # Derive settings and export OpenAI-compatible env vars
+    # Derive settings
     cfg = _derive_params(systems_params, test_params)
-    _export_openai_env(cfg["base_url"], cfg["api_key"])
 
     # Run benchmark and collect summary
     return _run_benchmark_and_collect(cfg)

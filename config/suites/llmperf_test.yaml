@@ -5,4 +5,6 @@ test_suite:
     image: "asqiengineer/test-container:llmperf-latest"
     systems_under_test:
       - "nova_lite"
+    volumes:
+      output: /Users/linus/resaro/asqi-engineer/logs
     params:
