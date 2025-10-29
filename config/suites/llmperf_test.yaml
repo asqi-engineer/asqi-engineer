@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+suite_name: "LLM load performance benchmarking with llmperf"
+test_suite:
+  - name: "llmperf_throughput"
+    image: "asqiengineer/test-container:llmperf-latest"
+    systems_under_test:
+      - "nova_lite"
+    params:

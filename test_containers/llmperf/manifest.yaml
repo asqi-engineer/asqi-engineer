@@ -1,0 +1,70 @@
+name: "llmperf"
+version: "1.0"
+description: "Token throughput and latency benchmark using Ray LLMPerf against OpenAI-compatible LLM APIs."
+
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested (OpenAI-compatible base_url, model, and api_key)"
+
+input_schema:
+  - name: "mean_input_tokens"
+    type: "integer"
+    required: false
+    description: "Mean number of input tokens per request."
+    default: 550
+  - name: "stddev_input_tokens"
+    type: "integer"
+    required: false
+    description: "Stddev of input tokens per request."
+    default: 150
+  - name: "mean_output_tokens"
+    type: "integer"
+    required: false
+    description: "Mean number of output tokens to generate per request (max_tokens)."
+    default: 150
+  - name: "stddev_output_tokens"
+    type: "integer"
+    required: false
+    description: "Stddev of output tokens per request."
+    default: 10
+  - name: "max_num_completed_requests"
+    type: "integer"
+    required: false
+    description: "Stop after this many completed requests (may stop earlier on timeout)."
+    default: 2
+  - name: "timeout"
+    type: "integer"
+    required: false
+    description: "Benchmark timeout in seconds."
+    default: 600
+  - name: "num_concurrent_requests"
+    type: "integer"
+    required: false
+    description: "Number of concurrent requests (load level)."
+    default: 1
+  - name: "results_dir"
+    type: "string"
+    required: false
+    description: "Directory to write results JSON files; defaults to the mounted output path."
+    default: ""
+  - name: "additional_sampling_params"
+    type: "object"
+    required: false
+    description: "Additional sampling parameters passed to the LLM API (e.g., {\"temperature\":0,\"top_p\":1})."
+    default: {}
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the benchmark execution completed successfully."
+  - name: "results_dir"
+    type: "string"
+    description: "Directory where LLMPerf results were written."
+  - name: "summary_file"
+    type: "string"
+    description: "Path to the summary results file (_summary.json)."
+  - name: "summary"
+    type: "object"
+    description: "LLMPerf summary results including throughput, latency quantiles, error rates, and metadata."
