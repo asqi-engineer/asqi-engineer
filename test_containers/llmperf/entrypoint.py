@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict
 
@@ -67,7 +68,7 @@ def _derive_params(
 
 def _ensure_results_dir(subfolder: str = "") -> str:
     # Default to mounted output path
-    out_root = os.environ.get("OUTPUT_MOUNT_PATH", "/tmp")
+    out_root = os.environ.get("OUTPUT_MOUNT_PATH", tempfile.gettempdir())
     out = Path(out_root) / subfolder if subfolder else Path(out_root)
     out.mkdir(parents=True, exist_ok=True)
     return str(out)
@@ -80,7 +81,7 @@ def _run_benchmark_and_collect(params: Dict[str, Any]) -> Dict[str, Any]:
         {k: v for k, v in params.items() if k not in ["base_url", "api_key"]},
         sort_keys=True,
     )
-    hash_str = hashlib.md5(hash_input.encode()).hexdigest()[:8]
+    hash_str = hashlib.md5(hash_input.encode(), usedforsecurity=False).hexdigest()[:8]
     folder_name = f"llmperf_{hash_str}"
     results_dir = _ensure_results_dir(folder_name)
 
@@ -94,11 +95,8 @@ def _run_benchmark_and_collect(params: Dict[str, Any]) -> Dict[str, Any]:
             "OPENAI_API_BASE": params["base_url"],
             "OPENAI_API_KEY": params["api_key"],
         }
-        try:
+        if not ray.is_initialized():
             ray.init(runtime_env={"env_vars": env_vars})  # type: ignore
-        except Exception:
-            # Ray may already be initialized; ignore
-            pass
 
         run_token_benchmark(
             llm_api=params["llm_api"],
