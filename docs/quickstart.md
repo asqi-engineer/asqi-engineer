@@ -31,6 +31,18 @@ asqi execute-tests -t config/suites/demo_test.yaml -s config/systems/demo_system
 
 This short flow should download a demo test container and generate the test results in `output.json`.
 
+### Generate Starter Config Templates
+
+Use the `init-config` command to scaffold new configuration files:
+
+```bash
+asqi init-config --type systems --output my_systems.yaml
+asqi init-config --type suite --output my_suite.yaml --manifest-path test_containers/mock_tester
+asqi init-config --type score-card --output my_score_card.yaml
+```
+
+When you pass `--manifest-path`, ASQI Engineer inspects the container manifest to pre-fill system roles, parameter placeholders, and optional dependencies.
+
 ## Getting Started with AI System Testing
 
 To configure the AI systems you want to test:
