@@ -91,7 +91,7 @@ def main() -> None:
             "prompt_selection_percentage", 100
         )
         random_seed = test_params.get("random_seed", 1)
-        system_prompt = test_params.get("system_prompt", "")
+        system_prompt = ""
 
         if not all([moonshot_imported, base_url, api_key, sut_model, recipe_name]):
             raise ValueError("Missing required parameters")

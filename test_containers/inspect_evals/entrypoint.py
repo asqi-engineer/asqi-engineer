@@ -26,7 +26,7 @@ EVALUATION_REGISTRY = {
     # ✅ DS-1000
     "ds1000": ("inspect_evals.ds1000", False),
     # ✅ HumanEval
-    "humaneval": ("inspect_evals.humaneval", False),
+    "humaneval": ("inspect_evals.humaneval", True),
     # ✅ MBPP
     "mbpp": ("inspect_evals.mbpp", False),
     # ❌ MLE-bench
@@ -353,6 +353,7 @@ def main():
             raise ValueError(f"Unsupported system_under_test type: {sut_type}")
 
         # Extract SUT parameters
+        sut_name = sut_params.get("name")
         base_url = sut_params.get("base_url")
         api_key = sut_params.get("api_key")
         model = sut_params.get("model")
@@ -361,7 +362,7 @@ def main():
             raise ValueError("Missing required parameters: base_url, api_key, or model")
 
         # Extract test parameters
-        evaluation = test_params.get("evaluation", "medqa")
+        evaluation = test_params.get("evaluation", "ifeval")
         evaluation_params = test_params.get("evaluation_params", {})
         limit = test_params.get("limit", 10)
         volumes = test_params.get("volumes", {})
@@ -410,7 +411,7 @@ def main():
             persistent_log_dir = None
             if store_logs:
                 test_name = os.environ.get("TEST_NAME", evaluation)
-                persistent_log_dir = f"/output/{test_name}"
+                persistent_log_dir = f"/output/{test_name}_{sut_name}"
                 if os.path.exists(persistent_log_dir):
                     if os.path.isdir(persistent_log_dir):
                         shutil.rmtree(persistent_log_dir)

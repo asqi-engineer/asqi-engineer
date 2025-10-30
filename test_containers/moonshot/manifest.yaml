@@ -16,15 +16,11 @@ input_schema:
   - name: "prompt_selection_percentage"
     type: "integer"
     required: false
-    description: "Percentage of prompts to run from the recipe (1-100). Default: 100."
+    description: "Percentage of prompts to run from the recipe (1-100). Default: 1."
   - name: "random_seed"
     type: "integer"
     required: false
     description: "Random seed for reproducibility. Default: 1."
-  - name: "system_prompt"
-    type: "string"
-    required: false
-    description: "Optional system prompt to use with the model. Default: empty string."
 
 output_metrics:
   - name: "success"
