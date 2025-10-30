@@ -42,7 +42,7 @@ The project focuses first on chatbot testing and supports extensions for other A
 
 ## LLM Testing
 
-For our first release, we have introduced the `llm_api` system type and contributed five test packages for comprehensive LLM system testing. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
+For our first release, we have introduced the `llm_api` system type and contributed six test packages for comprehensive LLM system testing. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
 
 ### **LLM Test Containers**
 
@@ -50,6 +50,7 @@ For our first release, we have introduced the `llm_api` system type and contribu
 - **[DeepTeam]**: Red teaming library for adversarial robustness testing
 - **[TrustLLM]**: Comprehensive framework and benchmarks to evaluate trustworthiness of LLM systems
 - **[Inspect Evals]**: Comprehensive evaluation suite with 80+ tasks across cybersecurity, mathematics, reasoning, knowledge, bias, and safety domains
+- **[LLMPerf](https://github.com/ray-project/llmperf)**: Token-level performance benchmarking for latency, throughput, and request metrics
 - **Resaro Chatbot Simulator**: Persona and scenario based conversational testing with multi-turn dialogue simulation
 
 The `llm_api` system type uses OpenAI-compatible API interfaces. Through [LiteLLM] integration, ASQI Engineer provides unified access to 100+ LLM providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints. This standardisation enables test containers to work seamlessly across different LLM providers while supporting complex multi-system test scenarios (e.g., using different models for simulation, evaluation, and target testing).
@@ -98,7 +99,7 @@ Detailed documentation lives on the project docs site — use the links below to
 - CLI & usage reference: https://www.asqi.ai/cli.html
 - Configuration & environment variables: https://www.asqi.ai/configuration.html
 - Test container examples & how-to: https://www.asqi.ai/examples.html
-- LLM test containers overview (Garak, DeepTeam, TrustLLM, Inspect Evals, Chatbot Simulator): https://www.asqi.ai/llm-test-containers.html
+- LLM test containers overview (Garak, DeepTeam, TrustLLM, Inspect Evals, LLMPerf, Chatbot Simulator): https://www.asqi.ai/llm-test-containers.html
 - Score cards & evaluation: https://www.asqi.ai/examples.html#score-cards
 - Developer guide & architecture: https://www.asqi.ai/architecture.html
 - Creating custom test containers: https://www.asqi.ai/custom-test-containers.html

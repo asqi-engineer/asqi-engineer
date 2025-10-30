@@ -1,0 +1,52 @@
+name: "resaro_judge"
+version: "1.1"
+description: "Judge generated answers against gold answers with optional LLM-as-judge; reports per-question correctness and overall average accuracy for facts tests, or summary evaluation metrics for summary tests."
+
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested (used to generate answers)"
+  - name: "evaluator_system"
+    type: "llm_api"
+    required: false
+    description: "Optional LLM used as a judge; if omitted, a simple heuristic judge is used"
+
+input_schema:
+  - name: "test_type"
+    type: "string"
+    required: true
+    description: "Type of evaluation; 'facts' for question-answer pairs, 'summary' for text summarization evaluation"
+  - name: "dataset"
+    type: "list"
+    required: true
+    description: "List of evaluation items. For 'facts': objects with {question: str, answer: str}. For 'summary': single object with {prompt: str, reference: str}"
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the test execution completed successfully"
+  - name: "test_type"
+    type: "string"
+    description: "Echoes the requested test type"
+  - name: "per_question"
+    type: "list"
+    description: "For facts tests: Per-question results including question, reference answer, generated answer, judge reasoning, and a boolean 'correct' field"
+  - name: "overall_average_accuracy"
+    type: "float"
+    description: "For facts tests: Overall average accuracy across all questions"
+  - name: "dataset_item"
+    type: "object"
+    description: "For summary tests: The single dataset item used"
+  - name: "generated_summary"
+    type: "string"
+    description: "For summary tests: The generated summary"
+  - name: "metrics"
+    type: "object"
+    description: "For summary tests: Evaluation metrics from the judge"
+  - name: "judge_type"
+    type: "string"
+    description: "Type of judge used ('llm' or 'heuristic')"
+  - name: "judge_model"
+    type: "string"
+    description: "Model used for LLM judge (if applicable)"

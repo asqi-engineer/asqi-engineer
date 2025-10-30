@@ -1,0 +1,50 @@
+name: "llmperf"
+version: "1.0"
+description: "Token throughput and latency benchmark using Ray LLMPerf against OpenAI-compatible LLM APIs."
+
+input_systems:
+  - name: "system_under_test"
+    type: "llm_api"
+    required: true
+    description: "The LLM system being tested (OpenAI-compatible base_url, model, and api_key)"
+
+input_schema:
+  - name: "mean_input_tokens"
+    type: "integer"
+    required: false
+    description: "Mean number of input tokens per request."
+  - name: "stddev_input_tokens"
+    type: "integer"
+    required: false
+    description: "Stddev of input tokens per request."
+  - name: "mean_output_tokens"
+    type: "integer"
+    required: false
+    description: "Mean number of output tokens to generate per request (max_tokens)."
+  - name: "stddev_output_tokens"
+    type: "integer"
+    required: false
+    description: "Stddev of output tokens per request."
+  - name: "max_num_completed_requests"
+    type: "integer"
+    required: false
+    description: "Stop after this many completed requests (may stop earlier on timeout)."
+  - name: "timeout"
+    type: "integer"
+    required: false
+    description: "Benchmark timeout in seconds."
+  - name: "num_concurrent_requests"
+    type: "integer"
+    required: false
+    description: "Number of concurrent requests (load level)."
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the benchmark execution completed successfully."
+  - name: "results_dir"
+    type: "string"
+    description: "Directory where LLMPerf results were written."
+  - name: "metrics"
+    type: "object"
+    description: "LLMPerf summary results including throughput, latency quantiles, error rates, and metadata."

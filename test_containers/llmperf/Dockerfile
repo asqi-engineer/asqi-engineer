@@ -3,43 +3,39 @@ FROM ghcr.io/astral-sh/uv:bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install build tools
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends build-essential \
+    apt-get update && apt-get install -y --no-install-recommends build-essential git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure uv for faster builds
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 ENV UV_PYTHON_INSTALL_DIR=/python
 ENV UV_PYTHON_PREFERENCE=only-managed
 
-# Install Python
-RUN uv python install 3.12
+RUN uv python install 3.10
 
-# Create virtual environment and install dependencies
+# Clone llmperf v2.0
+RUN git config --global http.sslverify false && \
+    git clone --branch v2.0 --depth 1 https://github.com/ray-project/llmperf.git
+
+WORKDIR /app/llmperf
+
 RUN uv venv
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install openevals==0.1.0 rich openai langchain-openai langchain-core pydantic jinja2
+    uv pip install -e .
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Copy venv, Python installation and set path
-COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/llmperf/.venv /app/.venv
 COPY --from=builder /python /python
+COPY --from=builder /app/llmperf /app/llmperf
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy your app code
 COPY manifest.yaml .
 COPY entrypoint.py .
-COPY simulation.py .
-COPY evaluator.py .
-COPY j2_utils.py .
-COPY prompts/ ./prompts
-
 
 RUN chmod +x entrypoint.py
 ENTRYPOINT ["python", "./entrypoint.py"]
