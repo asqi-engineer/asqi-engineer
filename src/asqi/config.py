@@ -241,8 +241,8 @@ def save_results_to_file(results: Dict[str, Any], output_path: str) -> None:
     """
     import json
 
-    with open(output_path, "w") as f:
-        json.dump(results, f, indent=2)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2, ensure_ascii=False)
 
 
 def save_container_results_to_file(
@@ -260,8 +260,8 @@ def save_container_results_to_file(
 
     logs_path = f"{logs_dir}/{logs_filename}"
 
-    with open(logs_path, "w") as f:
-        json.dump(container_results, f, indent=2)
+    with open(logs_path, "w", encoding="utf-8") as f:
+        json.dump(container_results, f, indent=2, ensure_ascii=False)
     return logs_path
 
 

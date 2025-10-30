@@ -378,7 +378,7 @@ class TestMainCLI:
                 output_path="out.json",
                 score_card_configs=None,
                 execution_mode="tests_only",
-                test_names=None,
+                test_ids=None,
                 executor_config={
                     "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
                     "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
