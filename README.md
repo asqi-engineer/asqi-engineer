@@ -1,6 +1,6 @@
 # ASQI Engineer
 
-![ASQI Engineer](./docs/asqi-engineer-cover.png)
+![ASQI Engineer](https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/main/docs/asqi-engineer-cover.png)
 
 ASQI (AI Solutions Quality Index) Engineer helps teams test and evaluate AI systems. It runs containerized test packages, automates scoring, and provides durable execution workflows.
 
