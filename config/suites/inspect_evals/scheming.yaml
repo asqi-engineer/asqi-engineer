@@ -2,7 +2,8 @@ suite_name: "Inspect Scheming Evaluation Suite"
 test_suite:
 
   # Agentic Misalignment
-  - name: "inspect_agentic_misalignment"
+  - id: "inspect_agentic_misalignment"
+    name: "inspect agentic misalignment"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -12,7 +13,8 @@ test_suite:
       limit: 2
 
   # GDM Dangerous Capabilities: Self-reasoning
-  - name: "inspect_gdm_approved_directories"
+  - id: "inspect_gdm_approved_directories"
+    name: "inspect gdm approved directories"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -22,7 +24,8 @@ test_suite:
         epochs: 1
       limit: 2
 
-  - name: "inspect_gdm_calculator_improvement"
+  - id: "inspect_gdm_calculator_improvement"
+    name: "inspect gdm calculator improvement"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -32,7 +35,8 @@ test_suite:
         epochs: 1
       limit: 2
 
-  - name: "inspect_gdm_context_length_mod_instrumental_only"
+  - id: "inspect_gdm_context_length_mod_instrumental_only"
+    name: "inspect gdm context length mod instrumental only"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -42,7 +46,8 @@ test_suite:
         epochs: 1
       limit: 2
 
-  - name: "inspect_gdm_context_length_mod_irreversibility_only"
+  - id: "inspect_gdm_context_length_mod_irreversibility_only"
+    name: "inspect gdm context length mod irreversibility only"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -52,7 +57,8 @@ test_suite:
         epochs: 1
       limit: 2
 
-  - name: "inspect_gdm_database_tool"
+  - id: "inspect_gdm_database_tool"
+    name: "inspect gdm database tool"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -63,7 +69,8 @@ test_suite:
         message_limit: 10
       limit: 2
 
-  - name: "inspect_gdm_latency_calculator"
+  - id: "inspect_gdm_latency_calculator"
+    name: "inspect gdm latency calculator"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -74,7 +81,8 @@ test_suite:
         message_limit: 10
       limit: 2
 
-  - name: "inspect_gdm_max_messages_calculator"
+  - id: "inspect_gdm_max_messages_calculator"
+    name: "inspect gdm max messages calculator"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -85,7 +93,8 @@ test_suite:
         message_limit: 10
       limit: 2
 
-  - name: "inspect_gdm_max_tokens"
+  - id: "inspect_gdm_max_tokens"
+    name: "inspect gdm max tokens"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -96,7 +105,8 @@ test_suite:
         message_limit: 10
       limit: 2
 
-  - name: "inspect_gdm_oversight_frequency"
+  - id: "inspect_gdm_oversight_frequency"
+    name: "inspect gdm oversight frequency"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -107,7 +117,8 @@ test_suite:
         message_limit: 10
       limit: 2
 
-  - name: "inspect_gdm_read_logs"
+  - id: "inspect_gdm_read_logs"
+    name: "inspect gdm read logs"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -118,7 +129,8 @@ test_suite:
         message_limit: 10
       limit: 2
 
-  - name: "inspect_gdm_turn_off_filters"
+  - id: "inspect_gdm_turn_off_filters"
+    name: "inspect gdm turn off filters"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -130,7 +142,8 @@ test_suite:
       limit: 2
 
   # GDM Dangerous Capabilities: Stealth
-  - name: "inspect_gdm_classifier_evasion"
+  - id: "inspect_gdm_classifier_evasion"
+    name: "inspect gdm classifier evasion"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -141,7 +154,8 @@ test_suite:
         message_limit: 10
       limit: 2
 
-  - name: "inspect_gdm_cover_your_tracks"
+  - id: "inspect_gdm_cover_your_tracks"
+    name: "inspect gdm cover your tracks"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -152,7 +166,8 @@ test_suite:
         message_limit: 10
       limit: 2
 
-  - name: "inspect_gdm_oversight_pattern"
+  - id: "inspect_gdm_oversight_pattern"
+    name: "inspect gdm oversight pattern"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -163,7 +178,8 @@ test_suite:
         message_limit: 10
       limit: 2
 
-  - name: "inspect_gdm_strategic_rule_breaking"
+  - id: "inspect_gdm_strategic_rule_breaking"
+    name: "inspect gdm strategic rule breaking"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"

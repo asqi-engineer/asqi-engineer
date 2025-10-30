@@ -145,10 +145,10 @@ def format_failure_summary(
     for result in failed_results[:max_displayed]:
         error_msg = (
             result.error_message
-            or f"Test '{result.test_name}' returned failure status (exit code: {result.exit_code})"
+            or f"Test id '{result.test_id}' returned failure status (exit code: {result.exit_code})"
         )
         console.print(
-            f"  • {result.test_name} (system under test: {result.sut_name}): {error_msg}"
+            f"  • id: {result.test_id} (system under test: {result.sut_name}): {error_msg}"
         )
 
     if len(failed_results) > max_displayed:
