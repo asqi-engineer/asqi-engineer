@@ -6,5 +6,5 @@ test_suite:
     systems_under_test:
       - "nova_lite"
     volumes:
-      output: /Users/linus/resaro/asqi-engineer/logs
+      output: /workspaces/asqi/output
     params:
