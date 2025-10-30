@@ -199,6 +199,55 @@ docker build -t my-registry/deepteam:latest .
 
 ---
 
+## LLMPerf Performance Tester
+
+**Purpose**: Token-level performance benchmarking for latency, throughput, and request metrics.
+
+**Framework**: [LLMPerf](https://github.com/ray-project/llmperf) - Ray-based performance testing  
+**Location**: `test_containers/llmperf/`
+
+### System Requirements
+- **System Under Test**: `llm_api` (required) - The LLM system being tested
+
+### Input Parameters
+- `mean_input_tokens` (integer, optional): Mean number of input tokens (default: 550)
+- `stddev_input_tokens` (integer, optional): Standard deviation of input tokens (default: 150)
+- `mean_output_tokens` (integer, optional): Mean number of output tokens (default: 150)
+- `stddev_output_tokens` (integer, optional): Standard deviation of output tokens (default: 10)
+- `max_num_completed_requests` (integer, optional): Maximum number of completed requests (default: 1)
+- `timeout` (integer, optional): Timeout in seconds (default: 600)
+- `num_concurrent_requests` (integer, optional): Number of concurrent requests (default: 1)
+
+### Output Metrics
+- `results_dir` (string): Path to the results directory containing all benchmark outputs
+
+The container generates comprehensive performance metrics including inter-token latency, time-to-first-token (TTFT), end-to-end latency, throughput, and request statistics.
+
+### Example Configuration
+```yaml
+test_suite:
+  - name: "llmperf_throughput"
+    image: "asqiengineer/test-container:llmperf-latest"
+    systems_under_test:
+      - "nova_lite"
+    volumes:
+      output: /Users/linus/resaro/asqi-engineer/logs
+    params:
+      mean_input_tokens: 550
+      stddev_input_tokens: 150
+      mean_output_tokens: 150
+      max_num_completed_requests: 2
+      num_concurrent_requests: 1
+```
+
+### Build Instructions
+```bash
+cd test_containers/llmperf
+docker build -t my-registry/llmperf:latest .
+```
+
+---
+
 ## Chatbot Simulator
 
 **Purpose**: Multi-turn conversational testing with persona-based simulation and LLM-as-judge evaluation.
