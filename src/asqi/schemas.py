@@ -251,7 +251,7 @@ class ScoreCardFilter(BaseModel):
 
     test_id: str = Field(
         ...,
-        description="Test id to filter by, e.g., 'run-mock-on-compatible-system-my-llm-service'",
+        description="Test id to filter by, e.g., 'run_mock_on_compatible_sut'",
     )
 
 

@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 
 class DuplicateTestIDError(Exception):
     """
-    Raised when duplicate test IDs are found.
+    Exception raised when duplicate test IDs are found.
 
     Args:
         duplicate_dict: Dict of duplicate IDs with duplication data
@@ -47,7 +47,7 @@ class ManifestExtractionError(Exception):
         self.original_error = original_error
 
 
-class MissingImageException(Exception):
+class MissingImageError(Exception):
     """Exception raised when required Docker images are missing."""
 
     pass

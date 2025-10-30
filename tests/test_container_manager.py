@@ -20,7 +20,7 @@ from asqi.container_manager import (
 )
 from asqi.errors import (
     ManifestExtractionError,
-    MissingImageException,
+    MissingImageError,
     MountExtractionError,
 )
 from asqi.schemas import Manifest
@@ -866,7 +866,7 @@ class TestPullImages:
         mock_cm = mock_docker_client.return_value
         mock_cm.__enter__.side_effect = [mock_client_first, mock_client_second]
 
-        with pytest.raises(MissingImageException) as exc:
+        with pytest.raises(MissingImageError) as exc:
             pull_images(
                 ["repo/tool:1.0"]
             )  # will fail to pull, suggestion should pick "repo/tool:latest"

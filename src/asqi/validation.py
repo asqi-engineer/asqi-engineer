@@ -39,7 +39,7 @@ def validate_test_ids(test_suite_config_path: str) -> None:
             )
         except Exception as e:
             console.print(
-                f"[yellow]IF Validation. Failed to process test suite file {test_suite_config_path}:[/yellow] {e}"
+                f"[yellow]ID Validation. Failed to process test suite file {test_suite_config_path}:[/yellow] {e}"
             )
     duplicate_dict = get_duplicate_test_ids(all_test_ids)
     if duplicate_dict:
@@ -60,13 +60,14 @@ def extract_suite_ids(
         test_suite_config_path: Path to the test suite file
     """
 
-    suite_name = suite_config.get("suite_name", "Unknown Suite")
+    suite_name = suite_config["suite_name"]
     test_suite = suite_config.get("test_suite", [])
     for test in test_suite:
         test_id = test["id"]
-        test_name = test["name"]
+        test_name = test.get("name", "")
         all_test_ids.setdefault(test_id, []).append(
-            f"location: '{test_suite_config_path}', suite name: '{suite_name}', test name: '{test_name}'"
+            f"location: '{test_suite_config_path}', suite name: '{suite_name}'"
+            + (f", test name: '{test_name}'" if test_name else "")
         )
 
 

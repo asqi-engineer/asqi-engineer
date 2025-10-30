@@ -15,7 +15,7 @@ import docker
 from asqi.config import ContainerConfig
 from asqi.errors import (
     ManifestExtractionError,
-    MissingImageException,
+    MissingImageError,
     MountExtractionError,
 )
 from asqi.logging_config import create_container_logger
@@ -88,7 +88,7 @@ def pull_images(images: List[str]):
         None on success
 
     Raises:
-        MissingImageException: If images cannot be pulled (includes alternative suggestions)
+        MissingImageError: If images cannot be pulled (includes alternative suggestions)
         ConnectionError: If unable to connect to Docker daemon
     """
     images_to_pull = []
@@ -150,7 +150,7 @@ def pull_images(images: List[str]):
         else:
             msg = f"❌ Container not found: {image}\nNo similar images found."
         msgs.append(msg)
-    raise MissingImageException("\n\n".join(msgs))
+    raise MissingImageError("\n\n".join(msgs))
 
 
 def extract_manifest_from_image(
