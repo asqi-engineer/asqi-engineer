@@ -91,7 +91,6 @@ def main() -> None:
             "prompt_selection_percentage", 100
         )
         random_seed = test_params.get("random_seed", 1)
-        system_prompt = test_params.get("system_prompt", "")
 
         if not all([moonshot_imported, base_url, api_key, sut_model, recipe_name]):
             raise ValueError("Missing required parameters")
@@ -126,7 +125,7 @@ def main() -> None:
                 recipes=[recipe_name],
                 prompt_selection_percentage=prompt_selection_percentage,
                 random_seed=random_seed,
-                system_prompt=system_prompt,
+                system_prompt="",
                 runner_processing_module="benchmarking",
                 result_processing_module="benchmarking-result",
             )
@@ -163,7 +162,7 @@ def main() -> None:
             result = {
                 "success": True,
                 "recipe": recipe_name,
-                "results": run_result,
+                "results": run_result["results"]["metadata"],
             }
         else:
             result = {

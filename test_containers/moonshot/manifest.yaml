@@ -21,10 +21,6 @@ input_schema:
     type: "integer"
     required: false
     description: "Random seed for reproducibility. Default: 1."
-  - name: "system_prompt"
-    type: "string"
-    required: false
-    description: "Optional system prompt to use with the model. Default: empty string."
 
 output_metrics:
   - name: "success"
