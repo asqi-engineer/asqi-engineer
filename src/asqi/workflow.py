@@ -14,6 +14,7 @@ from rich.console import Console
 
 from asqi.config import (
     ContainerConfig,
+    OutputLevel,
     load_config_file,
     merge_defaults_into_suite,
     save_container_results_to_file,
@@ -22,6 +23,7 @@ from asqi.config import (
 from asqi.container_manager import (
     INPUT_MOUNT_PATH,
     OUTPUT_MOUNT_PATH,
+    add_dummy_volume,
     check_images_availability,
     extract_manifest_from_image,
     pull_images,
@@ -99,6 +101,7 @@ class TestExecutionResult:
         self.container_output: str = ""
         self.test_results: Dict[str, Any] = {}
         self.error_message: str = ""
+        self.library_output: Dict[str, Any] = {}
 
     @property
     def execution_time(self) -> float:
@@ -127,12 +130,18 @@ class TestExecutionResult:
 
     def container_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for storage/reporting."""
-        return {
+        result = {
             "test_id": self.test_id,
             "test_results": self.test_results,
-            "error_message": self.error_message,
-            "container_output": self.container_output,
         }
+        # Include optional fields only if they have content
+        if self.library_output:
+            result["library_output"] = self.library_output
+        if self.error_message:
+            result["error_message"] = self.error_message
+        if self.container_output:
+            result["container_output"] = self.container_output
+        return result
 
 
 @DBOS.step()
@@ -189,6 +198,7 @@ def execute_single_test(
     systems_params: Dict[str, Any],
     test_params: Dict[str, Any],
     container_config: ContainerConfig,
+    output_level: OutputLevel = OutputLevel.NONE,
 ) -> TestExecutionResult:
     """Execute a single test in a Docker container.
 
@@ -203,6 +213,7 @@ def execute_single_test(
         systems_params: Dictionary containing system_under_test and other systems (pre-validated)
         test_params: Parameters for the test (pre-validated)
         container_config: Container execution configurations
+        output_level: Level to control output verbosity, NONE for default (lowest verbosity)
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -252,6 +263,8 @@ def execute_single_test(
     # Prepare command line arguments
     try:
         systems_params_json = json.dumps(systems_params_with_fallbacks)
+        if output_level.library_logs_enabled():
+            add_dummy_volume(test_params)
         test_params_json = json.dumps(test_params)
         command_args = [
             "--systems-params",
@@ -336,13 +349,21 @@ def execute_single_test(
         environment=container_env,
         container_config=container_config,
         name=container_name,
+        output_level=output_level,
     )
 
     result.end_time = time.time()
     result.container_id = container_result["container_id"]
     result.exit_code = container_result["exit_code"]
     result.container_output = container_result["output"]
-    result.error_message = container_result["error"]
+    result.error_message = (
+        container_result["error"] if output_level.container_logs_enabled() else ""
+    )
+    result.library_output = (
+        container_result["library_output"]
+        if output_level.library_logs_enabled()
+        else {}
+    )
 
     # Parse JSON output from container
     if container_result["success"]:
@@ -363,7 +384,10 @@ def execute_single_test(
     # Log failures for debugging
     if not result.success:
         DBOS.logger.error(f"Test failed, id: {test_id} - {result.error_message}")
-
+    # Can remove container_output if output level does not require it
+    result.container_output = (
+        container_result["output"] if output_level.container_logs_enabled() else ""
+    )
     return result
 
 
@@ -436,6 +460,7 @@ def run_test_suite_workflow(
     systems_config: Dict[str, Any],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
+    output_level: OutputLevel = OutputLevel.NONE,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
@@ -451,6 +476,7 @@ def run_test_suite_workflow(
         systems_config: Serialized SystemsConfig containing system configurations
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
+        output_level: Level to control output verbosity, NONE for default (lowest verbosity)
 
     Returns:
         Execution summary with metadata and individual test results (no score cards) and container results
@@ -625,6 +651,7 @@ def run_test_suite_workflow(
                     test_plan["systems_params"],
                     test_plan["test_params"],
                     container_config,
+                    output_level,
                 )
                 test_handles.append((handle, test_plan))
 
@@ -650,7 +677,6 @@ def run_test_suite_workflow(
                     result.exit_code = 137  # convention for forced termination/timeout
                     result.success = False
                     result.error_message = f"Test execution failed: {e}"
-                    result.container_output = ""
                 all_results.append(result)
                 try:
                     progress.advance(task)
@@ -676,6 +702,7 @@ def run_test_suite_workflow(
                 test_plan["systems_params"],
                 test_plan["test_params"],
                 container_config,
+                output_level,
             )
             test_handles.append((handle, test_plan))
 
@@ -701,7 +728,6 @@ def run_test_suite_workflow(
                 result.exit_code = 137
                 result.success = False
                 result.error_message = f"Test execution failed: {e}"
-                result.container_output = ""
             all_results.append(result)
             if i % progress_interval == 0 or i == test_count:
                 console.print(f"[dim]Completed {i}/{test_count} tests[/dim]")
@@ -780,9 +806,12 @@ def convert_test_results_to_objects(
         result.exit_code = metadata["exit_code"]
         # case where the logs file was moved and test_container_data is empty
         if id < len(test_container_data):
-            result.container_output = test_container_data[id]["container_output"]
             result.test_results = test_container_data[id]["test_results"]
-            result.error_message = test_container_data[id]["error_message"]
+            # depending on output level, these fields may be empty
+            result.container_output = test_container_data[id].get(
+                "container_output", ""
+            )
+            result.error_message = test_container_data[id].get("error_message", "")
         test_results.append(result)
     return test_results
 
@@ -868,6 +897,7 @@ def run_end_to_end_workflow(
     score_card_configs: List[Dict[str, Any]],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
+    output_level: OutputLevel = OutputLevel.NONE,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a complete end-to-end workflow: test execution + score card evaluation.
@@ -878,12 +908,13 @@ def run_end_to_end_workflow(
         score_card_configs: List of score card configurations to evaluate
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
+        output_level: Level to control output verbosity, NONE for default (lowest verbosity)
 
     Returns:
         Complete execution results with test results, score card evaluations and container results
     """
     test_results, container_results = run_test_suite_workflow(
-        suite_config, systems_config, executor_config, container_config
+        suite_config, systems_config, executor_config, container_config, output_level
     )
 
     final_results = evaluate_score_cards_workflow(
@@ -935,6 +966,7 @@ def start_test_execution(
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
     execution_mode: str = "end_to_end",
     test_ids: Optional[List[str]] = None,
+    output_level: OutputLevel = OutputLevel.NONE,
 ) -> str:
     """
     Orchestrate test suite execution workflow.
@@ -954,6 +986,7 @@ def start_test_execution(
         score_card_configs: Optional list of score card configurations to evaluate
         execution_mode: "tests_only" or "end_to_end"
         test_ids: Optional list of test ids to filter from suite
+        output_level: Level to control output verbosity, NONE for default (lowest verbosity)
 
     Returns:
         Workflow ID for tracking execution
@@ -1016,6 +1049,7 @@ def start_test_execution(
                 systems_config,
                 executor_config,
                 container_config,
+                output_level,
             )
         elif execution_mode == "end_to_end":
             if not score_card_configs:
@@ -1026,6 +1060,7 @@ def start_test_execution(
                     systems_config,
                     executor_config,
                     container_config,
+                    output_level,
                 )
             else:
                 handle = DBOS.start_workflow(
@@ -1035,6 +1070,7 @@ def start_test_execution(
                     score_card_configs,
                     executor_config,
                     container_config,
+                    output_level,
                 )
         else:
             raise ValueError(f"Invalid execution mode: {execution_mode}")

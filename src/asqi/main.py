@@ -13,6 +13,7 @@ from rich.console import Console
 from asqi.config import (
     ContainerConfig,
     ExecutorConfig,
+    OutputLevel,
     interpolate_env_vars,
     merge_defaults_into_suite,
 )
@@ -256,6 +257,13 @@ def execute(
         "-o",
         help="Path to save execution results JSON file.",
     ),
+    output_level: OutputLevel = typer.Option(
+        OutputLevel.NONE,
+        "--output-level",
+        "-ol",
+        help=f"Select which log level to show. Possible options: {', '.join(OutputLevel.values())}. Default: {OutputLevel.NONE.value}.",
+        case_sensitive=False,
+    ),
     concurrent_tests: int = typer.Option(
         ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
         "--concurrent-tests",
@@ -328,6 +336,7 @@ def execute(
             suite_path=test_suite_config,
             systems_path=systems_config,
             output_path=output_file,
+            output_level=output_level,
             score_card_configs=score_card_configs,
             execution_mode="end_to_end",
             executor_config=executor_config,
@@ -360,6 +369,13 @@ def execute_tests(
         "--output-file",
         "-o",
         help="Path to save execution results JSON file.",
+    ),
+    output_level: OutputLevel = typer.Option(
+        OutputLevel.NONE,
+        "--output-level",
+        "-ol",
+        help=f"Select which log level to show. Possible options: {', '.join(OutputLevel.values())}. Default: {OutputLevel.NONE.value}.",
+        case_sensitive=False,
     ),
     test_ids: Optional[List[str]] = typer.Option(
         None,
@@ -428,6 +444,7 @@ def execute_tests(
             suite_path=test_suite_config,
             systems_path=systems_config,
             output_path=output_file,
+            output_level=output_level,
             score_card_configs=None,
             execution_mode="tests_only",
             test_ids=test_ids,

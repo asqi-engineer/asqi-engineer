@@ -6,7 +6,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from asqi.config import ContainerConfig, ExecutorConfig
+from asqi.config import ContainerConfig, ExecutorConfig, OutputLevel
 from asqi.main import app, load_score_card_file, load_yaml_file
 
 
@@ -102,6 +102,7 @@ class TestMainCLI:
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config=ContainerConfig.with_streaming(False),
+            output_level=OutputLevel.NONE,
         )
         assert "✨ Test execution completed! Workflow ID: workflow-123" in result.stdout
 
@@ -142,6 +143,7 @@ class TestMainCLI:
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config=ContainerConfig.with_streaming(False),
+            output_level=OutputLevel.NONE,
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
         assert "✨ Execution completed! Workflow ID: workflow-456" in result.stdout
@@ -260,6 +262,7 @@ class TestMainCLI:
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config=ContainerConfig.with_streaming(False),
+            output_level=OutputLevel.NONE,
         )
 
     @patch("asqi.workflow.start_test_execution")
@@ -289,6 +292,7 @@ class TestMainCLI:
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config=ContainerConfig.with_streaming(False),
+            output_level=OutputLevel.NONE,
         )
 
     @patch("asqi.main.load_score_card_file")
@@ -315,6 +319,80 @@ class TestMainCLI:
             "❌ score card configuration error: Invalid score card format"
             in result.stdout
         )
+
+    def test_invalid_output_level_error(self):
+        """Test invalid output level flag error."""
+        result = self.runner.invoke(
+            app,
+            [
+                "execute-tests",
+                "-t",
+                "suite.yaml",
+                "-s",
+                "systems.yaml",
+                "-tn",
+                "t1",
+                "-o",
+                "out.json",
+                "--output-level",
+                "invalid_level",
+            ],
+        )
+
+        assert result.exit_code == 2
+
+    @patch("asqi.workflow.start_test_execution")
+    @patch("asqi.workflow.DBOS")
+    def test_execution_with_output_level_values_success(self, mock_dbos, mock_start):
+        """Test execution succeeds when valid output levels are passed."""
+        mock_start.return_value = "workflow-777"
+
+        output_levels = [
+            ("none", OutputLevel.NONE),
+            ("library", OutputLevel.LIBRARY),
+            ("container", OutputLevel.CONTAINER),
+            ("all", OutputLevel.ALL),
+        ]
+
+        for value, expected_value in output_levels:
+            result = self.runner.invoke(
+                app,
+                [
+                    "execute-tests",
+                    "-t",
+                    "suite.yaml",
+                    "-s",
+                    "systems.yaml",
+                    "-o",
+                    "out.json",
+                    "-ol",
+                    value,
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_dbos.launch.assert_called_once()
+            mock_start.assert_called_once_with(
+                suite_path="suite.yaml",
+                systems_path="systems.yaml",
+                output_path="out.json",
+                score_card_configs=None,
+                execution_mode="tests_only",
+                test_ids=None,
+                executor_config={
+                    "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                    "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                    "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+                },
+                container_config=ContainerConfig.with_streaming(False),
+                output_level=expected_value,
+            )
+            assert (
+                "✨ Test execution completed! Workflow ID: workflow-777"
+                in result.stdout
+            )
+            mock_dbos.launch.reset_mock()
+            mock_start.reset_mock()
 
     @patch("asqi.workflow.start_test_execution")
     @patch("asqi.workflow.DBOS")
@@ -352,6 +430,7 @@ class TestMainCLI:
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config=ContainerConfig.with_streaming(False),
+            output_level=OutputLevel.NONE,
         )
         assert "✨ Test execution completed! Workflow ID: workflow-888" in result.stdout
 
@@ -392,6 +471,7 @@ class TestMainCLI:
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config=ContainerConfig.with_streaming(False),
+            output_level=OutputLevel.NONE,
         )
 
         mock_dbos.start_workflow.assert_not_called()
