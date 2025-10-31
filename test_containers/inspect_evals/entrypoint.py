@@ -353,7 +353,6 @@ def main():
             raise ValueError(f"Unsupported system_under_test type: {sut_type}")
 
         # Extract SUT parameters
-        sut_name = sut_params.get("name")
         base_url = sut_params.get("base_url")
         api_key = sut_params.get("api_key")
         model = sut_params.get("model")
@@ -411,7 +410,11 @@ def main():
             persistent_log_dir = None
             if store_logs:
                 test_name = os.environ.get("TEST_NAME", evaluation)
-                persistent_log_dir = f"/output/{test_name}_{sut_name}"
+                # Use model name but make it safe for file paths
+                safe_model_name = (
+                    model.replace("/", "_").replace(":", "_").replace(".", "_")
+                )
+                persistent_log_dir = f"/output/{test_name}_{safe_model_name}"
                 if os.path.exists(persistent_log_dir):
                     if os.path.isdir(persistent_log_dir):
                         shutil.rmtree(persistent_log_dir)
