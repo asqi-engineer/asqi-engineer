@@ -80,7 +80,7 @@
           "title": "Volumes"
         },
         "id": {
-          "description": "A unique, human-readable ID for this test instance. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+          "description": "A unique, human-readable ID (up to 32 characters) for this test instance. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
           "pattern": "^[0-9a-z_]{1,32}$",
           "title": "Id",
           "type": "string"

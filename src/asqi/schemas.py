@@ -2,6 +2,9 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, StringConstraints
 
+# This is necessary because pydantic prefers Annotated types outside classes
+IDsStringPattern = Annotated[str, StringConstraints(pattern="^[0-9a-z_]{1,32}$")]
+
 # ----------------------------------------------------------------------------
 # Schemas for manifest.yaml (Embedded in Test Containers)
 # ----------------------------------------------------------------------------
@@ -193,16 +196,12 @@ class TestDefinitionBase(BaseModel):
     )
 
 
-# This is necessary because pydantic prefers Annotated types outside classes
-IDsStringPattern = Annotated[str, StringConstraints(pattern="^[0-9a-z_]{1,32}$")]
-
-
 class TestDefinition(TestDefinitionBase):
     """A single test to be executed."""
 
     id: IDsStringPattern = Field(
         ...,
-        description="A unique, human-readable ID for this test instance. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+        description="A unique, human-readable ID (up to 32 characters) for this test instance. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
     )
     name: Optional[str] = Field(
         None,
@@ -282,8 +281,12 @@ class AssessmentRule(BaseModel):
 class ScoreCardIndicator(BaseModel):
     """Individual score card indicator with filtering and assessment."""
 
-    name: str = Field(
-        ..., description="Human-readable name for this score card indicator"
+    id: IDsStringPattern = Field(
+        ...,
+        description="A unique, human-readable ID (up to 32 characters) for this score card indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+    )
+    name: Optional[str] = Field(
+        None, description="Human-readable name for this score card indicator"
     )
     apply_to: ScoreCardFilter = Field(
         ...,

@@ -17,10 +17,10 @@ from asqi.config import (
     merge_defaults_into_suite,
 )
 from asqi.container_manager import shutdown_containers
-from asqi.errors import DuplicateTestIDError
+from asqi.errors import DuplicateIDError
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
-from asqi.validation import validate_test_ids, validate_test_plan
+from asqi.validation import validate_ids, validate_test_plan
 
 load_dotenv()
 configure_logging()
@@ -163,23 +163,22 @@ def _cli_startup_callback():
             console.print(f"\n[red]❌Could not register handler for {sig}: {e}[/red]")
 
 
-def _validate_unique_test_ids(test_suite_config_path: str) -> None:
-    """Validate that all test IDs in the suite configuration are unique.
-
-    Args:
-        test_suite_config_path: Path to the test suite file
+def _validate_unique_ids(*config_paths: str) -> None:
+    """
+    Validates ID uniqueness within each configuration file.
+    Prints status and raises on duplicates.
 
     Raises:
-        DuplicateTestIDError: If duplicate test IDs are found
+        DuplicateIDError: If duplicate IDs are found within a file
     """
 
-    console.print("\n[blue]Verifying uniqueness of test IDs...[/blue]")
+    console.print("\n[blue]Verifying uniqueness of IDs...[/blue]")
     try:
-        validate_test_ids(test_suite_config_path)
-    except DuplicateTestIDError as e:
-        console.print(f"\n[red]❌ Found Duplicated Test IDs: {e}[/red]")
+        validate_ids(*config_paths)
+    except DuplicateIDError as e:
+        console.print(f"\n[red]❌ Found Duplicated IDs: {e}[/red]")
         raise
-    console.print("\n[green]✅ Test IDs verified[/green]")
+    console.print("\n[green]✅ IDs verified[/green]")
 
 
 def _handle_shutdown(signum=None, frame=None):
@@ -218,7 +217,7 @@ def validate(
     """Validate test plan configuration without execution."""
     console.print("[blue]--- Running Verification ---[/blue]")
 
-    _validate_unique_test_ids(test_suite_config)
+    _validate_unique_ids(test_suite_config)
 
     result = load_and_validate_plan(
         suite_path=test_suite_config,
@@ -289,7 +288,7 @@ def execute(
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
     console.print("[blue]--- 🚀 Executing End-to-End Workflow ---[/blue]")
 
-    _validate_unique_test_ids(test_suite_config)
+    _validate_unique_ids(test_suite_config, score_card_config)
 
     try:
         from asqi.workflow import DBOS, start_test_execution
@@ -400,7 +399,7 @@ def execute_tests(
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
 
-    _validate_unique_test_ids(test_suite_config)
+    _validate_unique_ids(test_suite_config)
 
     try:
         from asqi.workflow import DBOS, start_test_execution
@@ -465,6 +464,8 @@ def evaluate_score_cards(
 ):
     """Evaluate score cards against existing test results from JSON file."""
     console.print("[blue]--- 📊 Evaluating Score Cards ---[/blue]")
+
+    _validate_unique_ids(score_card_config)
 
     try:
         from asqi.workflow import DBOS, start_score_card_evaluation

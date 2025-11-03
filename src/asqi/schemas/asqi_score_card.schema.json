@@ -81,10 +81,24 @@
     "ScoreCardIndicator": {
       "description": "Individual score card indicator with filtering and assessment.",
       "properties": {
-        "name": {
-          "description": "Human-readable name for this score card indicator",
-          "title": "Name",
+        "id": {
+          "description": "A unique, human-readable ID (up to 32 characters) for this score card indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+          "pattern": "^[0-9a-z_]{1,32}$",
+          "title": "Id",
           "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable name for this score card indicator",
+          "title": "Name"
         },
         "apply_to": {
           "$ref": "#/$defs/ScoreCardFilter",
@@ -105,7 +119,7 @@
         }
       },
       "required": [
-        "name",
+        "id",
         "apply_to",
         "metric",
         "assessment"
