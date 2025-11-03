@@ -119,6 +119,7 @@ class TestscorecardEngine:
 
         # Create indicator
         indicator = ScoreCardIndicator(
+            id="test_individual_success",
             name="Test individual success",
             apply_to=ScoreCardFilter(test_id="test1"),
             metric="success",
@@ -134,6 +135,7 @@ class TestscorecardEngine:
 
         # Check first result
         result1 = evaluation_results[0]
+        assert result1.indicator_id == "test_individual_success"
         assert result1.indicator_name == "Test individual success"
         assert result1.test_id == "test1"
         assert result1.outcome == "PASS"
@@ -142,6 +144,7 @@ class TestscorecardEngine:
 
         # Check second result
         result2 = evaluation_results[1]
+        assert result2.indicator_id == "test_individual_success"
         assert result2.indicator_name == "Test individual success"
         assert result2.test_id == "test1"
         assert result2.outcome == "PASS"
@@ -162,6 +165,7 @@ class TestscorecardEngine:
 
         # Create indicator
         indicator = ScoreCardIndicator(
+            id="test_individual_success",
             name="Test individual success",
             apply_to=ScoreCardFilter(test_id="test1"),
             metric="success",
@@ -201,6 +205,7 @@ class TestscorecardEngine:
             score_card_name="Test score_card",
             indicators=[
                 ScoreCardIndicator(
+                    id="individual_test_success",
                     name="Individual test success",
                     apply_to=ScoreCardFilter(test_id="test1"),
                     metric="success",
@@ -214,6 +219,7 @@ class TestscorecardEngine:
                     ],
                 ),
                 ScoreCardIndicator(
+                    id="individual_score_quality",
                     name="Individual score quality",
                     apply_to=ScoreCardFilter(test_id="test1"),
                     metric="score",
@@ -244,6 +250,7 @@ class TestscorecardEngine:
 
         # Check that all evaluations have the required fields
         for evaluation in result:
+            assert "indicator_id" in evaluation
             assert "indicator_name" in evaluation
             assert "test_id" in evaluation
             assert "sut_name" in evaluation
@@ -263,6 +270,7 @@ class TestscorecardEngine:
             score_card_name="Test score_card",
             indicators=[
                 ScoreCardIndicator(
+                    id="individual_test_success",
                     name="Individual test success",
                     apply_to=ScoreCardFilter(test_id="test1"),
                     metric="success",
@@ -276,6 +284,7 @@ class TestscorecardEngine:
                     ],
                 ),
                 ScoreCardIndicator(
+                    id="individual_score_quality",
                     name="Individual score quality",
                     apply_to=ScoreCardFilter(test_id="test2"),
                     metric="score",
@@ -319,6 +328,7 @@ class TestscorecardEngine:
             score_card_name="Test score_card",
             indicators=[
                 ScoreCardIndicator(
+                    id="individual_test_success",
                     name="Individual test success",
                     apply_to=ScoreCardFilter(test_id="test1"),
                     metric="success",
@@ -559,6 +569,7 @@ class TestNestedMetricAccess:
             score_card_name="Nested Metrics Test",
             indicators=[
                 ScoreCardIndicator(
+                    id="garak_decode_match_score",
                     name="Garak DecodeMatch Score",
                     apply_to=ScoreCardFilter(test_id="garak_test"),
                     metric='probe_results["encoding.InjectHex"]["encoding.DecodeMatch"].score',
@@ -572,6 +583,7 @@ class TestNestedMetricAccess:
                     ],
                 ),
                 ScoreCardIndicator(
+                    id="overall_success_check",
                     name="Overall Success Check",
                     apply_to=ScoreCardFilter(test_id="garak_test"),
                     metric="success",
@@ -592,14 +604,14 @@ class TestNestedMetricAccess:
         assert len(results) == 2
 
         nested_result = next(
-            r for r in results if r["indicator_name"] == "Garak DecodeMatch Score"
+            r for r in results if r["indicator_id"] == "garak_decode_match_score"
         )
         assert nested_result["outcome"] == "GOOD"
         assert nested_result["metric_value"] == 0.33203125
         assert nested_result["error"] is None
 
         flat_result = next(
-            r for r in results if r["indicator_name"] == "Overall Success Check"
+            r for r in results if r["indicator_id"] == "overall_success_check"
         )
         assert flat_result["outcome"] == "PASS"
         assert flat_result["metric_value"] is True

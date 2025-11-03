@@ -367,6 +367,7 @@ def test_add_score_cards_to_results():
 
     score_card_evaluation = [
         {
+            "indicator_id": "test_success",
             "indicator_name": "Test success",
             "test_name": "test1",
             "test_id": "test1",
@@ -396,11 +397,13 @@ def test_add_score_cards_to_results_multiple_score_cards():
 
     score_card_evaluation = [
         {
+            "indicator_id": "test_1",
             "indicator_name": "Test 1",
             "outcome": "PASS",
             "score_card_name": "Scorecard A",
         },
         {
+            "indicator_id": "test_2",
             "indicator_name": "Test 2",
             "outcome": "FAIL",
             "score_card_name": "Scorecard B",
