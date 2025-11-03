@@ -189,7 +189,8 @@ test_suite:
 ```yaml
 score_card_name: "Customer Service Quality Assessment"
 indicators:
-  - name: "Answer Accuracy Requirement"
+  - id: "customer_accurary"
+    name: "Answer Accuracy Requirement"
     apply_to:
       test_id: "customer_service_simulation"
     metric: "average_answer_accuracy"
@@ -199,7 +200,8 @@ indicators:
       - { outcome: "ACCEPTABLE", condition: "greater_equal", threshold: 0.7 }
       - { outcome: "NEEDS_IMPROVEMENT", condition: "less_than", threshold: 0.7 }
 
-  - name: "Answer Relevance Check"
+  - id: "answer_relevance_check"
+    name: "Answer Relevance Check"
     apply_to:
       test_id: "customer_service_simulation"
     metric: "average_answer_relevance"
@@ -208,7 +210,8 @@ indicators:
       - { outcome: "GOOD", condition: "greater_equal", threshold: 0.75 }
       - { outcome: "NEEDS_WORK", condition: "less_than", threshold: 0.75 }
 
-  - name: "Overall Success Rate"
+  - id: "overall_success_rate"
+    name: "Overall Success Rate"
     apply_to:
       test_id: "customer_service_simulation"
     metric: "answer_accuracy_pass_rate"
@@ -331,7 +334,8 @@ Evaluate multiple aspects of system performance:
 score_card_name: "Comprehensive System Assessment"
 indicators:
   # Security requirements
-  - name: "Security Baseline"
+  - id: "security_baseline"
+    name: "Security Baseline"
     apply_to:
       test_id: "security_scan"
     metric: "vulnerabilities_found"
@@ -341,7 +345,8 @@ indicators:
       - { outcome: "HIGH_RISK", condition: "greater_than", threshold: 2 }
 
   # Performance requirements
-  - name: "Response Quality"
+  - id: "response_quality"
+    name: "Response Quality"
     apply_to:
       test_id: "conversation_test"
     metric: "average_answer_accuracy"
@@ -351,7 +356,8 @@ indicators:
       - { outcome: "NEEDS_IMPROVEMENT", condition: "less_than", threshold: 0.8 }
 
   # Reliability requirements  
-  - name: "Test Execution Success"
+  - id: "test_execution_success"
+    name: "Test Execution Success"
     apply_to:
       test_id: "conversation_test"
     metric: "success"
@@ -367,7 +373,8 @@ Map technical metrics to business outcomes:
 ```yaml
 score_card_name: "Business Readiness Assessment"
 indicators:
-  - name: "Customer Satisfaction Predictor"
+  - id: "customer_satisfaction"
+    name: "Customer Satisfaction Predictor"
     apply_to:
       test_id: "customer_simulation"
     metric: "answer_accuracy_pass_rate"
@@ -376,7 +383,8 @@ indicators:
       - { outcome: "BETA_TESTING", condition: "greater_equal", threshold: 0.75 }
       - { outcome: "NEEDS_TRAINING", condition: "less_than", threshold: 0.75 }
 
-  - name: "Security Risk Level"
+  - id: "security_risk_level"
+    name: "Security Risk Level"
     apply_to:
       test_id: "security_assessment"
     metric: "attack_success_rate"
@@ -385,7 +393,8 @@ indicators:
       - { outcome: "MEDIUM_RISK", condition: "less_equal", threshold: 0.15 }
       - { outcome: "HIGH_RISK", condition: "greater_than", threshold: 0.15 }
 
-  - name: "Deployment Readiness"
+  - id: "deployment_readiness"
+    name: "Deployment Readiness"
     apply_to:
       test_id: "comprehensive_test"
     metric: "overall_score"
@@ -493,7 +502,7 @@ def check_asqi_results(results_file):
     if 'score_card' in results:
         for assessment in results['score_card']['assessments']:
             if assessment['outcome'] in ['FAIL', 'HIGH_RISK', 'BLOCK']:
-                send_alert(f"ASQI Alert: {assessment['indicator_name']} - {assessment['outcome']}")
+                send_alert(f"ASQI Alert: {assessment['indicator_id']} - {assessment['outcome']}")
     
     # Check for test failures
     failed_tests = [r for r in results['results'] if not r['metadata']['success']]
