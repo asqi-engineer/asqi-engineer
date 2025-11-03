@@ -189,7 +189,7 @@ test_suite:
 ```yaml
 score_card_name: "Customer Service Quality Assessment"
 indicators:
-  - id: "customer_accurary"
+  - id: "customer_accuracy"
     name: "Answer Accuracy Requirement"
     apply_to:
       test_id: "customer_service_simulation"

@@ -269,7 +269,7 @@ Score cards define automated assessment criteria for test results. They evaluate
 ```yaml
 score_card_name: "Production Readiness Assessment"
 indicators:
-  - id: "test_success_requierement"
+  - id: "test_success_requirement"
     name: "Test Success Requirement"
     apply_to:
       test_id: "security_scan"
