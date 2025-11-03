@@ -404,7 +404,8 @@ def evaluate_score_card(
             error_result = {
                 "score_card_name": score_card_config.get("score_card_name", "unknown"),
                 "error": f"Score card validation failed: {e}",
-                "indicator_name": "SCORE_CARD_VALIDATION_ERROR",
+                "indicator_id": "score_card_validation_error",
+                "indicator_name": "SCORE CARD VALIDATION ERROR",
                 "test_name": "N/A",
                 "test_id": "N/A",
                 "sut_name": "N/A",
@@ -417,7 +418,8 @@ def evaluate_score_card(
             error_result = {
                 "score_card_name": score_card_config.get("score_card_name", "unknown"),
                 "error": f"Score card evaluation error: {e}",
-                "indicator_name": "SCORE_CARD_EVALUATION_ERROR",
+                "indicator_id": "score_card_evaluation_error",
+                "indicator_name": "SCORE CARD EVALUATION ERROR",
                 "test_name": "N/A",
                 "test_id": "N/A",
                 "sut_name": "N/A",

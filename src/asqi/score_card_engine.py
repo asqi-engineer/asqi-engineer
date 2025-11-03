@@ -194,7 +194,8 @@ def get_nested_value(data: Dict[str, Any], path: str) -> Tuple[Any, Optional[str
 class ScoreCardEvaluationResult:
     """Result of evaluating a single score_card indicator."""
 
-    def __init__(self, indicator_name: str, test_id: str):
+    def __init__(self, indicator_id: str, indicator_name: Optional[str], test_id: str):
+        self.indicator_id = indicator_id
         self.indicator_name = indicator_name
         self.test_id = test_id
         self.outcome: Optional[str] = None
@@ -209,6 +210,7 @@ class ScoreCardEvaluationResult:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
+            "indicator_id": self.indicator_id,
             "indicator_name": self.indicator_name,
             "test_id": self.test_id,
             "sut_name": self.sut_name,
@@ -417,7 +419,7 @@ class ScoreCardEngine:
             if not filtered_results:
                 # Create a single error result when no tests match
                 error_result = ScoreCardEvaluationResult(
-                    indicator.name, indicator.apply_to.test_id
+                    indicator.id, indicator.name, indicator.apply_to.test_id
                 )
                 available_tests = (
                     ", ".join(set(r.test_id for r in test_results))
@@ -430,7 +432,7 @@ class ScoreCardEngine:
             # Evaluate each individual test result
             for test_result in filtered_results:
                 eval_result = ScoreCardEvaluationResult(
-                    indicator.name, indicator.apply_to.test_id
+                    indicator.id, indicator.name, indicator.apply_to.test_id
                 )
                 eval_result.sut_name = test_result.sut_name
                 eval_result.test_result_id = (
@@ -466,13 +468,13 @@ class ScoreCardEngine:
                                         assessment_rule.description
                                     )
                                     logger.debug(
-                                        f"score_card indicator '{indicator.name}' for test id '{test_result.test_id}' (system under test: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
+                                        f"score_card indicator id '{indicator.id}' for test id '{test_result.test_id}' (system under test: {test_result.sut_name}) evaluated to '{assessment_rule.outcome}': {description}"
                                     )
                                     break
 
                             except Exception as e:
                                 logger.error(
-                                    f"Error evaluating assessment rule for indicator '{indicator.name}': {e}"
+                                    f"Error evaluating assessment rule for indicator id '{indicator.id}': {e}"
                                 )
                                 eval_result.error = str(e)
                                 break
@@ -488,16 +490,16 @@ class ScoreCardEngine:
 
                 except Exception as e:
                     logger.error(
-                        f"Error evaluating test result for indicator '{indicator.name}': {e}"
+                        f"Error evaluating test result for indicator id '{indicator.id}': {e}"
                     )
                     eval_result.error = str(e)
 
                 results.append(eval_result)
 
         except Exception as e:
-            logger.error(f"Error evaluating indicator '{indicator.name}': {e}")
+            logger.error(f"Error evaluating indicator id '{indicator.id}': {e}")
             error_result = ScoreCardEvaluationResult(
-                indicator.name, indicator.apply_to.test_id
+                indicator.id, indicator.name, indicator.apply_to.test_id
             )
             error_result.error = str(e)
             results.append(error_result)

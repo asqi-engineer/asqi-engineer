@@ -1,15 +1,20 @@
 from typing import Dict, List, Optional
 
 
-class DuplicateTestIDError(Exception):
+class DuplicateIDError(Exception):
     """
-    Exception raised when duplicate test IDs are found.
+    Exception raised when duplicate IDs are found across configuration files.
 
     Args:
-        duplicate_dict: Dict of duplicate IDs with duplication data
+        duplicate_dict: Dict of duplicate IDs and duplication data
 
-    Notes:
-    - test IDs must be unique within the same file
+    Example:
+        duplicate_dict = {
+            "id: example_id, config type: test suite": [
+                "location: 'config.yaml', suite name: 'suite example', test name: 'test 1'",
+                "location: 'config.yaml', suite name: 'suite example', test name: 'test 2'"
+            ]
+        }
     """
 
     def __init__(self, duplicate_dict: Dict[str, List[str]]):
@@ -23,15 +28,15 @@ class DuplicateTestIDError(Exception):
         """
         lines = ["\n"]
 
-        for ix_id, (duplicate_id, test_list) in enumerate(
+        for duplicate_count, (duplicate_id, id_list) in enumerate(
             self.duplicate_dict.items(), 1
         ):
-            lines.append(f"#{ix_id}: Duplicate ID({duplicate_id})")
-            for ix_test, test in enumerate(test_list, 1):
-                lines.append(f"--{ix_test}-- {test}")
+            lines.append(f"#{duplicate_count}: Duplicate -> {duplicate_id}")
+            for occurrence_count, occurrence_details in enumerate(id_list, 1):
+                lines.append(f"--{occurrence_count}-- {occurrence_details}")
             lines.append("")
 
-        lines.append("Test IDs must be unique within the same file")
+        lines.append("IDs must be unique within the same file.")
 
         return "\n".join(lines)
 

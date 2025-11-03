@@ -269,7 +269,8 @@ Score cards define automated assessment criteria for test results. They evaluate
 ```yaml
 score_card_name: "Production Readiness Assessment"
 indicators:
-  - name: "Test Success Requirement"
+  - id: "test_success_requierement"
+    name: "Test Success Requirement"
     apply_to:
       test_id: "security_scan"
     metric: "success"
@@ -284,7 +285,8 @@ Score cards support various comparison operators:
 
 ```yaml
 indicators:
-  - name: "Performance Score Assessment"
+  - id: "performance_score_assessment"
+    name: "Performance Score Assessment"
     apply_to:
       test_id: "benchmark_test"
     metric: "score"
@@ -294,7 +296,8 @@ indicators:
       - { outcome: "ACCEPTABLE", condition: "greater_equal", threshold: 0.7 }
       - { outcome: "NEEDS_IMPROVEMENT", condition: "less_than", threshold: 0.7 }
 
-  - name: "Security Threshold"
+  - id: "security_threshold"
+    name: "Security Threshold"
     apply_to:
       test_id: "vulnerability_scan"
     metric: "vulnerabilities_found"
@@ -316,7 +319,8 @@ Use the `apply_to` field to target specific tests:
 
 ```yaml
 indicators:
-  - name: "Garak Security Check"
+  - id: "garak_security_check"
+    name: "Garak Security Check"
     apply_to:
       test_id: "garak_prompt_injection"  # Only applies to this test
     metric: "attack_success_rate"
