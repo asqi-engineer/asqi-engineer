@@ -1,11 +1,32 @@
 # yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
 suite_name: "Benchmarking LLMs with Moonshot"
+test_suite_default:
+  systems_under_test: 
+    - "nova_lite"
+  volumes:
+    output: /workspaces/asqi/output
 test_suite:
-  - name: "moonshot_test"
+
+  - name: "moonshot_singapore_facts"
     image: "asqiengineer/test-container:moonshot-latest"
-    systems_under_test:
-      - "openai_gpt4o_mini"
     params:
       recipe: "singapore-facts"
-      prompt_selection_percentage: 5
-      random_seed: 42
+      prompt_selection_percentage: 1
+      
+  - name: "moonshot_truthfulqa_mcq"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "truthfulqa-mcq"
+      prompt_selection_percentage: 1
+
+  - name: "moonshot_truthfulqa_open_ended"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "truthfulqa-open-ended"
+      prompt_selection_percentage: 1
+
+  - name: "moonshot_winobias"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "winobias"
+      prompt_selection_percentage: 10

@@ -1,7 +1,9 @@
 import argparse
 import asyncio
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from slugify import slugify
 
@@ -87,9 +89,7 @@ def main() -> None:
         sut_model = sut.get("model")
 
         recipe_name = test_params.get("recipe")
-        prompt_selection_percentage = test_params.get(
-            "prompt_selection_percentage", 100
-        )
+        prompt_selection_percentage = test_params.get("prompt_selection_percentage", 1)
         random_seed = test_params.get("random_seed", 1)
 
         if not all([moonshot_imported, base_url, api_key, sut_model, recipe_name]):
@@ -159,10 +159,25 @@ def main() -> None:
 
         # Return the complete results
         if run_result:
+            # Persist results to mounted output volume (configurable via OUTPUT_MOUNT_PATH)
+            test_name = recipe_name
+            safe_model_name = (
+                sut_model.replace("/", "_").replace(":", "_").replace(".", "_")
+            )
+            out_root = os.environ.get("OUTPUT_MOUNT_PATH", tempfile.gettempdir())
+            output_dir_path = Path(out_root) / f"moonshot_{test_name}_{safe_model_name}"
+            output_dir_path.mkdir(parents=True, exist_ok=True)
+            output_file_path = output_dir_path / "result.json"
+
+            with output_file_path.open("w") as f:
+                json.dump(run_result, f, indent=2, default=str)
+
+            # Return the full Moonshot run result object without reduction
             result = {
                 "success": True,
                 "recipe": recipe_name,
-                "results": run_result["results"]["metadata"],
+                "output_file": str(output_file_path),
+                "run_result": run_result,
             }
         else:
             result = {
@@ -172,7 +187,7 @@ def main() -> None:
             }
 
         print(json.dumps(result, indent=2, default=str))
-        sys.exit(0)
+        sys.exit(0 if result["success"] else 1)
 
     except Exception as exc:
         import traceback
