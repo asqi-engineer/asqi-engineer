@@ -119,7 +119,8 @@ When running test containers, mount a host directory for persistent logs. Exampl
 
 ```yaml
 test_suite:
-  - name: "chatbot_test"
+  - id: "chatbot_test"
+    name: "chatbot test"
     image: "my-registry/chatbot_simulator:latest"
     volumes:
       output: /path/to/logs

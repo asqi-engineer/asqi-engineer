@@ -119,7 +119,8 @@ Tests can coordinate multiple systems for sophisticated evaluation:
 ### Configuration Flexibility
 ```yaml
 test_suite:
-  - name: "chatbot_simulation"
+  - id: "chatbot_simulation"
+    name: "chatbot simulation"
     image: "my-registry/chatbot_simulator:latest" 
     systems_under_test: ["my_chatbot"]
     systems:

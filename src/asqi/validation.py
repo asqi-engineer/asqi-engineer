@@ -2,11 +2,91 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import yaml
 from pydantic import BaseModel
+from rich.console import Console
 
+from asqi.config import load_config_file
+from asqi.errors import DuplicateTestIDError
 from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
 
 logger = logging.getLogger()
+
+# Initialize Rich console and execution queue
+console = Console()
+
+
+def validate_test_ids(test_suite_config_path: str) -> None:
+    """
+    Validates that all test IDs in the suite file are unique.
+
+    Args:
+        test_suite_config_path: Path to the test suite file
+
+    Raises:
+        DuplicateTestIDError: If duplicate test IDs are found, with detailed information about all duplicate locations
+    """
+    all_test_ids: Dict[str, List[str]] = {}
+
+    if test_suite_config_path:
+        try:
+            suite_config = load_config_file(test_suite_config_path)
+            extract_suite_ids(all_test_ids, suite_config, test_suite_config_path)
+
+        except yaml.YAMLError as e:
+            console.print(
+                f"[yellow]ID Validation. Failed to parse test suite file {test_suite_config_path}:[/yellow] {e}"
+            )
+        except Exception as e:
+            console.print(
+                f"[yellow]ID Validation. Failed to process test suite file {test_suite_config_path}:[/yellow] {e}"
+            )
+    duplicate_dict = get_duplicate_test_ids(all_test_ids)
+    if duplicate_dict:
+        raise DuplicateTestIDError(duplicate_dict)
+
+
+def extract_suite_ids(
+    all_test_ids: Dict[str, List[str]],
+    suite_config: Dict[str, Any],
+    test_suite_config_path: str,
+) -> None:
+    """
+    Extract test IDs from a suite config file and register them to the ID state.
+
+    Args:
+        all_test_ids: Test ID state
+        suite_config: Test suite config dict
+        test_suite_config_path: Path to the test suite file
+    """
+
+    suite_name = suite_config["suite_name"]
+    test_suite = suite_config.get("test_suite", [])
+    for test in test_suite:
+        test_id = test["id"]
+        test_name = test.get("name", "")
+        all_test_ids.setdefault(test_id, []).append(
+            f"location: '{test_suite_config_path}', suite name: '{suite_name}'"
+            + (f", test name: '{test_name}'" if test_name else "")
+        )
+
+
+def get_duplicate_test_ids(all_test_ids: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    """
+    Find all duplicate test IDs.
+
+    Args:
+        all_test_ids: Current state of the project test IDs
+
+    Returns:
+        Dict of duplicate groups based on their ID.
+        Returns empty dict if no duplicates found.
+    """
+    duplicate_ids = {}
+    for id, test_id_data in all_test_ids.items():
+        if len(test_id_data) > 1:
+            duplicate_ids[id] = test_id_data
+    return duplicate_ids
 
 
 def validate_test_volumes(
@@ -369,6 +449,7 @@ def create_test_execution_plan(
             plan.append(
                 {
                     "test_name": test.name,
+                    "test_id": test.id,
                     "image": image,
                     "sut_name": system_name,
                     "systems_params": systems_params,
@@ -527,7 +608,7 @@ def validate_score_card_inputs(
 
 
 def validate_test_execution_inputs(
-    test_name: str,
+    test_id: str,
     image: str,
     system_name: str,
     system_params: Dict[str, Any],
@@ -537,7 +618,7 @@ def validate_test_execution_inputs(
     Validate inputs for individual test execution.
 
     Args:
-        test_name: Name of the test
+        test_id: ID of the test
         image: Docker image name
         system_name: Name of the system
         system_params: System parameters dictionary (flattened configuration)
@@ -546,8 +627,9 @@ def validate_test_execution_inputs(
     Raises:
         ValueError: If any input is invalid
     """
-    if not test_name or not isinstance(test_name, str):
-        raise ValueError("Invalid test name: must be non-empty string")
+
+    if not test_id or not isinstance(test_id, str):
+        raise ValueError("Invalid test id: must be non-empty string")
 
     if not image or not isinstance(image, str):
         raise ValueError("Invalid image: must be non-empty string")
