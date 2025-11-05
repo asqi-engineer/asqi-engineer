@@ -40,31 +40,18 @@ def parse_container_json_output(output: str) -> Dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    # Try line-by-line parsing for multi-line output
+    # Strategy: Find the LAST complete JSON object in the output
+    # This handles cases where logs are mixed with JSON output
     lines = output.split("\n")
-    json_lines = []
-    capturing = False
 
-    for line in lines:
-        line = line.strip()
-        if line.startswith("{"):
-            capturing = True
-            json_lines = [line]
-        elif capturing:
-            json_lines.append(line)
-            if line.endswith("}"):
-                try:
-                    json_str = "\n".join(json_lines)
-                    return json.loads(json_str)
-                except json.JSONDecodeError:
-                    continue
-
-    # Fallback: try parsing last non-empty line that looks like JSON
-    for line in reversed(lines):
-        line = line.strip()
-        if line.startswith("{"):
+    # Try parsing from each line that starts with { to the end
+    # Start from the end and work backwards to find the last valid JSON
+    for i in range(len(lines) - 1, -1, -1):
+        if lines[i].strip().startswith("{"):
+            json_str = "\n".join(lines[i:])
             try:
-                return json.loads(line)
+                result = json.loads(json_str)
+                return result
             except json.JSONDecodeError:
                 continue
 
