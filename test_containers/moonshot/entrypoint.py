@@ -176,7 +176,7 @@ def main() -> None:
             result = {
                 "success": True,
                 "recipe": recipe_name,
-                "output_file": str(output_file_path),
+                "prompt_selection_percentage": prompt_selection_percentage,
                 "run_result": run_result,
             }
         else:
