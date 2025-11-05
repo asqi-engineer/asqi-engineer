@@ -56,10 +56,11 @@ EVALUATION_REGISTRY = {
         "inspect_evals.assistant_bench",
         False,
     ),
+    "bfcl": ("inspect_evals.bfcl", True),
     "browse_comp": ("inspect_evals.browse_comp", False),
     "gaia": (
         "inspect_evals.gaia",
-        False,
+        True,
     ),  # Info: Requires HF_TOKEN and access to GAIA: https://huggingface.co/datasets/gaia-benchmark/GAIA
     "gaia_level1": (
         "inspect_evals.gaia",
