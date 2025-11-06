@@ -107,7 +107,7 @@ class TestExecutionResult:
             return self.end_time - self.start_time
         return 0.0
 
-    def metadata_dict(self) -> Dict[str, Any]:
+    def result_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for storage/reporting."""
         return {
             "metadata": {
@@ -123,13 +123,13 @@ class TestExecutionResult:
                 "timestamp": datetime.now().isoformat(),
                 "success": self.success,
             },
+            "test_results": self.test_results,
         }
 
     def container_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for storage/reporting."""
         return {
             "test_id": self.test_id,
-            "test_results": self.test_results,
             "error_message": self.error_message,
             "container_output": self.container_output,
         }
@@ -743,7 +743,7 @@ def run_test_suite_workflow(
 
     return {
         "summary": summary,
-        "results": [result.metadata_dict() for result in all_results],
+        "results": [result.result_dict() for result in all_results],
     }, [result.container_dict() for result in all_results]
 
 
@@ -757,7 +757,7 @@ def convert_test_results_to_objects(
 
     Args:
         test_results_data: Test execution results
-        test_container_data: Test container results containing 'results' field
+        test_container_data: Test container results containing container output and error message
 
     Returns:
         List of TestExecutionResult objects
@@ -778,10 +778,10 @@ def convert_test_results_to_objects(
         result.success = metadata["success"]
         result.container_id = metadata["container_id"]
         result.exit_code = metadata["exit_code"]
+        result.test_results = result_dict["test_results"]
         # case where the logs file was moved and test_container_data is empty
         if id < len(test_container_data):
             result.container_output = test_container_data[id]["container_output"]
-            result.test_results = test_container_data[id]["test_results"]
             result.error_message = test_container_data[id]["error_message"]
         test_results.append(result)
     return test_results
@@ -842,7 +842,7 @@ def evaluate_score_cards_workflow(
 
     Args:
         test_results_data: Test execution results
-        test_container_data: Test container results containing 'results' field
+        test_container_data: Test container results containing container output and error message
         score_card_configs: List of score card configurations to evaluate
 
     Returns:
