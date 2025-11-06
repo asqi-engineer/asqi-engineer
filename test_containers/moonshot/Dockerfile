@@ -26,8 +26,8 @@ RUN uv venv
 
 # Install Moonshot and data
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install "aiverify-moonshot[all]" openai && \
-    git clone https://github.com/aiverify-foundation/moonshot-data.git && \
+    uv pip install "aiverify-moonshot[all]==0.7.4" "openai==2.7.1" && \
+    git clone --depth 1 --branch 0.7.4 https://github.com/aiverify-foundation/moonshot-data.git && \
     cd moonshot-data && \
     uv pip install -r requirements.txt
 
