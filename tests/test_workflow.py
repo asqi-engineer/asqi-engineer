@@ -148,7 +148,6 @@ def test_run_test_suite_workflow_success():
     assert results["results"][0]["metadata"]["success"] is True
 
     assert len(container_results) == 1
-    assert container_results[0]["test_results"]["success"] is True
 
 
 def test_run_test_suite_workflow_validation_failure():
@@ -330,13 +329,13 @@ def test_convert_test_results_to_objects():
                     "container_id": "abc123",
                     "exit_code": 0,
                 },
+                "test_results": {"success": True, "score": 0.9},
             }
         ]
     }
 
     test_container_data = [
         {
-            "test_results": {"success": True, "score": 0.9},
             "error_message": "",
             "container_output": '{"success": true}',
         }
@@ -437,6 +436,8 @@ def test_evaluate_score_cards_workflow():
                     "container_id": "abc123",
                     "exit_code": 0,
                 },
+                "test_results": {"success": True},
+
             }
         ],
     }
@@ -444,7 +445,6 @@ def test_evaluate_score_cards_workflow():
     test_container_data = [
         {
             "test_id": "test1",
-            "test_results": {"success": True},
             "error_message": "",
             "container_output": "",
         }

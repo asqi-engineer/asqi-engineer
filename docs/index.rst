@@ -169,8 +169,8 @@ The complete evaluation combines multiple test containers and provides comprehen
 
 **Output Files Generated:**
 
-- ``chatbot_asqi_assessment.json`` - Assessment results
-- ``./logs/chatbot_asqi_assessment.json`` - Test container execution results and logs
+- ``chatbot_asqi_assessment.json`` - Assessment and test results
+- ``./logs/chatbot_asqi_assessment.json`` - Test container output and error message
 
 Beta Status and Collaboration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
