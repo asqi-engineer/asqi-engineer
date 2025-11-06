@@ -2,7 +2,8 @@ suite_name: "Inspect Writing Evaluation Suite"
 test_suite:
 
   # WritingBench
-  - name: "inspect_writingbench"
+  - id: "inspect_writingbench"
+    name: "inspect writingbench"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "openai_gpt4o_mini"

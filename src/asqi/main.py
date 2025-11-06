@@ -17,9 +17,10 @@ from asqi.config import (
     merge_defaults_into_suite,
 )
 from asqi.container_manager import shutdown_containers
+from asqi.errors import DuplicateTestIDError
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
-from asqi.validation import validate_test_plan
+from asqi.validation import validate_test_ids, validate_test_plan
 
 load_dotenv()
 configure_logging()
@@ -162,6 +163,25 @@ def _cli_startup_callback():
             console.print(f"\n[red]❌Could not register handler for {sig}: {e}[/red]")
 
 
+def _validate_unique_test_ids(test_suite_config_path: str) -> None:
+    """Validate that all test IDs in the suite configuration are unique.
+
+    Args:
+        test_suite_config_path: Path to the test suite file
+
+    Raises:
+        DuplicateTestIDError: If duplicate test IDs are found
+    """
+
+    console.print("\n[blue]Verifying uniqueness of test IDs...[/blue]")
+    try:
+        validate_test_ids(test_suite_config_path)
+    except DuplicateTestIDError as e:
+        console.print(f"\n[red]❌ Found Duplicated Test IDs: {e}[/red]")
+        raise
+    console.print("\n[green]✅ Test IDs verified[/green]")
+
+
 def _handle_shutdown(signum=None, frame=None):
     signame = None
     if isinstance(signum, int):
@@ -197,6 +217,8 @@ def validate(
 ):
     """Validate test plan configuration without execution."""
     console.print("[blue]--- Running Verification ---[/blue]")
+
+    _validate_unique_test_ids(test_suite_config)
 
     result = load_and_validate_plan(
         suite_path=test_suite_config,
@@ -266,6 +288,8 @@ def execute(
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
     console.print("[blue]--- 🚀 Executing End-to-End Workflow ---[/blue]")
+
+    _validate_unique_test_ids(test_suite_config)
 
     try:
         from asqi.workflow import DBOS, start_test_execution
@@ -337,11 +361,11 @@ def execute_tests(
         "-o",
         help="Path to save execution results JSON file.",
     ),
-    test_names: Optional[List[str]] = typer.Option(
+    test_ids: Optional[List[str]] = typer.Option(
         None,
-        "--test-names",
-        "-tn",
-        help="Comma-separated list of test names to run (matches suite test names).",
+        "--test-ids",
+        "-tids",
+        help="Comma-separated list of test ids to run (matches suite test ids).",
     ),
     concurrent_tests: int = typer.Option(
         ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
@@ -376,6 +400,8 @@ def execute_tests(
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
 
+    _validate_unique_test_ids(test_suite_config)
+
     try:
         from asqi.workflow import DBOS, start_test_execution
 
@@ -404,7 +430,7 @@ def execute_tests(
             output_path=output_file,
             score_card_configs=None,
             execution_mode="tests_only",
-            test_names=test_names,
+            test_ids=test_ids,
             executor_config=executor_config,
             container_config=container_config,
         )

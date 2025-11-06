@@ -5,15 +5,21 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from asqi.errors import DuplicateTestIDError
 from asqi.main import load_and_validate_plan
 from asqi.schemas import (
+    AssessmentRule,
     GenericSystemConfig,
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
+    ScoreCard,
+    ScoreCardFilter,
+    ScoreCardIndicator,
     SuiteConfig,
     SystemsConfig,
 )
+from asqi.score_card_engine import ScoreCardEngine
 from asqi.validation import (
     create_test_execution_plan,
     find_manifest_for_image,
@@ -22,11 +28,13 @@ from asqi.validation import (
     validate_score_card_inputs,
     validate_system_compatibility,
     validate_test_execution_inputs,
+    validate_test_ids,
     validate_test_parameters,
     validate_test_plan,
     validate_test_volumes,
     validate_workflow_configurations,
 )
+from asqi.workflow import TestExecutionResult
 
 # Test data
 DEMO_SUITE_YAML = """
@@ -34,6 +42,7 @@ suite_name: "Mock Tester Sanity Check"
 description: "Suite description"
 test_suite:
   - name: "run_mock_on_compatible_system"
+    id: "run_mock_on_compatible_system"
     description: "Test description"
     image: "my-registry/mock_tester:latest"
     systems_under_test:
@@ -205,6 +214,7 @@ class TestSchemaValidation:
             "test_suite": [
                 {
                     "name": "test_llm_service",
+                    "id": "test_llm_service",
                     "description": "Test description",
                     "image": "my-registry/generic:latest",
                     "systems_under_test": ["new_system"],
@@ -289,6 +299,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "test_llm_service",
+                    "id": "test_llm_service",
                     "description": "Test description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -318,6 +329,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "test_missing_system",
+                    "id": "test_missing_system",
                     "description": "Test Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["nonexistent_system"],
@@ -340,6 +352,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "garak_without_probes",
+                    "id": "garak_without_probes",
                     "description": "Test Description",
                     "image": "my-registry/garak:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -363,6 +376,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "test_unknown_param",
+                    "id": "test_unknown_param",
                     "description": "Test Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -383,6 +397,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "chatbot_simulation",
+                    "id": "chatbot_simulation",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
                     "params": {"delay_seconds": 1},
@@ -403,6 +418,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "test_demo",
+                    "id": "test_demo",
                     "description": "Test Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -423,6 +439,7 @@ class TestCrossFileValidation:
             "test_suite": [
                 {
                     "name": "test_demo",
+                    "id": "test_demo",
                     "description": 33,
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -491,6 +508,7 @@ class TestEdgeCases:
             "test_suite": [
                 {
                     "name": "test_multiple_systems",
+                    "id": "test_multiple_systems",
                     "description": "Test Description",
                     "image": "my-registry/garak:latest",
                     "systems_under_test": ["my_llm_service", "another_llm_service"],
@@ -514,6 +532,7 @@ class TestEdgeCases:
             "test_suite": [
                 {
                     "name": "test_no_params",
+                    "id": "test_no_params",
                     "description": "No Param Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -624,6 +643,7 @@ class TestValidationFunctions:
             "test_suite": [
                 {
                     "name": "t1",
+                    "id": "t1",
                     "description": "Test Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -648,6 +668,7 @@ class TestValidationFunctions:
             "test_suite": [
                 {
                     "name": "t1",
+                    "id": "t1",
                     "description": "T1 Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -655,6 +676,7 @@ class TestValidationFunctions:
                 },
                 {
                     "name": "t2",
+                    "id": "t2",
                     "description": "T2 Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service", "another_llm_service"],
@@ -779,7 +801,7 @@ class TestValidationInputFunctions:
     def test_validate_test_execution_inputs_valid(self):
         """Test valid test execution inputs."""
         validate_test_execution_inputs(
-            test_name="test1",
+            test_id="test1",
             image="image:latest",
             system_name="system1",
             system_params={"key": "value"},
@@ -789,7 +811,7 @@ class TestValidationInputFunctions:
     def test_validate_test_execution_inputs_invalid(self):
         """Test invalid test execution inputs."""
         # Invalid test_name - empty string
-        with pytest.raises(ValueError, match="Invalid test name"):
+        with pytest.raises(ValueError, match="Invalid test id"):
             validate_test_execution_inputs(
                 "", "image:latest", "system1", {"key": "value"}, {"param": "value"}
             )
@@ -801,7 +823,11 @@ class TestValidationInputFunctions:
         # Invalid system_name - empty string
         with pytest.raises(ValueError, match="Invalid system name"):
             validate_test_execution_inputs(
-                "test1", "image:latest", "", {"key": "value"}, {"param": "value"}
+                "test1",
+                "image:latest",
+                "",
+                {"key": "value"},
+                {"param": "value"},
             )
 
 
@@ -839,6 +865,7 @@ class TestWorkflowValidation:
             "test_suite": [
                 {
                     "name": "test_llm",
+                    "id": "test_llm",
                     "description": "Test Description",
                     "image": "my-registry/mock_tester:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -880,6 +907,7 @@ class TestCreateExecutionPlanEdgeCases:
             "test_suite": [
                 {
                     "name": "test1",
+                    "id": "test1",
                     "description": "Test Description",
                     "image": "image:latest",
                     "systems_under_test": ["sys1"],
@@ -902,6 +930,7 @@ class TestCreateExecutionPlanEdgeCases:
             "test_suite": [
                 {
                     "name": "test_with_volumes",
+                    "id": "test_with_volumes",
                     "description": "Test Description",
                     "image": "image:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -926,6 +955,7 @@ class TestCreateExecutionPlanEdgeCases:
             "test_suite": [
                 {
                     "name": "test_no_sut",
+                    "id": "test_no_sut",
                     "description": "Test Description",
                     "image": "image:latest",
                     "systems_under_test": [],
@@ -946,6 +976,7 @@ class TestCreateExecutionPlanEdgeCases:
             "test_suite": [
                 {
                     "name": "test_multi_system",
+                    "id": "test_multi_system",
                     "description": "Test Description",
                     "image": "image:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -974,6 +1005,7 @@ class TestCreateExecutionPlanEdgeCases:
             "test_suite": [
                 {
                     "name": "test_missing_image",
+                    "id": "test_missing_image",
                     "description": "Test Description",
                     "image": "missing:latest",
                     "systems_under_test": ["my_llm_service"],
@@ -1024,6 +1056,7 @@ class TestVolumeValidation:
                 "test_suite": [
                     {
                         "name": "t",
+                        "id": "t",
                         "description": "Tests Description",
                         "image": "img:latest",
                         "systems_under_test": ["my_llm_service"],
@@ -1083,3 +1116,155 @@ class TestVolumeValidation:
         f.write_text("x")
         with pytest.raises(ValueError, match="is not a directory"):
             validate_test_volumes(self._suite({"output": str(f)}))
+
+
+class TestValidateTestIDs:
+    def test_id_validation_success(self, tmp_path):
+        """Test ID validation with no duplicates IDs."""
+        suite_folder = tmp_path / "suites"
+        suite_config_path = suite_folder / "demo_test.yaml"
+        suite_folder.mkdir()
+
+        demo_suite = {
+            "suite_name": "id validation test suite",
+            "test_suite": [
+                {
+                    "id": "id_bayau",
+                    "name": "this is the name",
+                    "image": "validation:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        with open(suite_config_path, "w") as f:
+            yaml.dump(demo_suite, f)
+
+        validate_test_ids(suite_config_path)
+
+    def test_validation_with_duplicates_error(self, tmp_path):
+        """Test ID validation with duplicates IDs and DuplicateTestIDError exception."""
+        suite_folder = tmp_path / "suites"
+        suite_config_path = suite_folder / "demo_test.yaml"
+        suite_folder.mkdir()
+
+        duplicate_suite = {
+            "suite_name": "id duplicated test suite",
+            "test_suite": [
+                {
+                    "id": "id_bayau",
+                    "name": "this is the first dup name",
+                    "image": "validation:latest",
+                    "systems_under_test": ["garak"],
+                },
+                {
+                    "id": "id_bayau",
+                    "name": "this is the second dup name",
+                    "image": "validation:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        with open(suite_config_path, "w") as f:
+            yaml.dump(duplicate_suite, f)
+
+        with pytest.raises(
+            DuplicateTestIDError, match=r"Duplicate ID\(id_bayau\)"
+        ) as exe_raised:
+            validate_test_ids(suite_config_path)
+
+        error = exe_raised.value
+        assert len(error.duplicate_dict["id_bayau"]) == 2
+
+    def test_invalid_id_formats_error(self):
+        """Test invalid id formats fail schema validation"""
+
+        # Examples of invalid IDs not in 0-9, a-z, _ and max length 32
+        invalid_ids = ["Invalid-ID", "UPPERCASE", "has-hyphen", "has.dot", "a" * 33]
+
+        for bad_id in invalid_ids:
+            suite_data = {
+                "suite_name": "invalid id",
+                "test_suite": [
+                    {
+                        "id": bad_id,
+                        "name": "invalid id test",
+                        "description": "Test with invalid id",
+                        "image": "demo:latest",
+                        "systems_under_test": ["my_llm_service"],
+                    }
+                ],
+            }
+
+            with pytest.raises(ValidationError):
+                SuiteConfig(**suite_data)
+
+    def test_invalid_yaml_format(self, tmp_path):
+        """Test invalid YAML format does not affect ID validation."""
+        suite_folder = tmp_path / "suites"
+        suite_config_path = suite_folder / "demo_test.yaml"
+        suite_folder.mkdir()
+
+        invalid_yaml_content = """
+        suite_name: invalid yaml
+        test
+        """
+
+        with open(suite_config_path, "w") as f:
+            f.write(invalid_yaml_content)
+
+        validate_test_ids(suite_config_path)
+
+    def test_missing_id_field_error(self):
+        """Test missing id field fails schema validation."""
+        suite_data = {
+            "suite_name": "missing id",
+            "test_suite": [
+                {
+                    # "id": "no_id_test",
+                    "name": "no id test",
+                    "description": "missing id",
+                    "image": "demo:latest",
+                    "systems_under_test": ["my_llm_service"],
+                }
+            ],
+        }
+
+        with pytest.raises(ValidationError):
+            SuiteConfig(**suite_data)
+
+    def test_score_card_referencing_unknown_test_error(self):
+        """Test scorecard fails when indicators reference unknown test IDs."""
+
+        engine = ScoreCardEngine()
+
+        result = TestExecutionResult(
+            "test_name", "existing_test_id", "sut", "image:latest"
+        )
+        result.test_results = {"success": True}
+
+        score_card = ScoreCard(
+            score_card_name="demo score card",
+            indicators=[
+                ScoreCardIndicator(
+                    name="demo indicator",
+                    apply_to=ScoreCardFilter(test_id="nonexistent_test_id"),
+                    metric="success",
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS",
+                            condition="equal_to",
+                            threshold=True,
+                            description="demo pass rule",
+                        )
+                    ],
+                )
+            ],
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Score card indicators don't match any test ids in the test results",
+        ):
+            engine.evaluate_scorecard([result], score_card)

@@ -95,7 +95,7 @@ class TestMainCLI:
             output_path="output.json",
             score_card_configs=None,
             execution_mode="tests_only",
-            test_names=None,
+            test_ids=None,
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
@@ -253,7 +253,7 @@ class TestMainCLI:
             output_path="output.json",
             score_card_configs=None,
             execution_mode="tests_only",
-            test_names=None,
+            test_ids=None,
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
@@ -318,7 +318,7 @@ class TestMainCLI:
 
     @patch("asqi.workflow.start_test_execution")
     @patch("asqi.workflow.DBOS")
-    def test_execute_tests_with_test_names_success(self, mock_dbos, mock_start):
+    def test_execute_tests_with_test_ids_success(self, mock_dbos, mock_start):
         """Test execute-tests succeeds when valid test-names are passed."""
         mock_start.return_value = "workflow-888"
 
@@ -330,7 +330,7 @@ class TestMainCLI:
                 "suite.yaml",
                 "-s",
                 "systems.yaml",
-                "-tn",
+                "-tids",
                 "t1",
                 "-o",
                 "out.json",
@@ -345,7 +345,7 @@ class TestMainCLI:
             output_path="out.json",
             score_card_configs=None,
             execution_mode="tests_only",
-            test_names=["t1"],
+            test_ids=["t1"],
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
@@ -357,7 +357,7 @@ class TestMainCLI:
 
     @patch("asqi.workflow.start_test_execution")
     @patch("asqi.workflow.DBOS")
-    def test_execute_tests_with_test_names_failure(self, mock_dbos, mock_start):
+    def test_execute_tests_with_test_ids_failure(self, mock_dbos, mock_start):
         """Test execute-tests fails when invalid test-names are passed."""
         mock_start.side_effect = ValueError(
             "❌ Test execution failed: ❌ Test not found: tes1\n   Did you mean: test1"
@@ -371,7 +371,7 @@ class TestMainCLI:
                 "suite.yaml",
                 "-s",
                 "systems.yaml",
-                "-tn",
+                "-tids",
                 "tes1",
                 "-o",
                 "out.json",
@@ -385,7 +385,7 @@ class TestMainCLI:
             output_path="out.json",
             score_card_configs=None,
             execution_mode="tests_only",
-            test_names=["tes1"],
+            test_ids=["tes1"],
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
@@ -466,7 +466,7 @@ class TestUtilityFunctions:
             "indicators": [
                 {
                     "name": "test_indicator",
-                    "apply_to": {"test_name": "test1"},
+                    "apply_to": {"test_id": "test1"},
                     "metric": "success",
                     "assessment": [
                         {"outcome": "PASS", "condition": "equal_to", "threshold": True}

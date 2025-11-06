@@ -32,7 +32,7 @@ from asqi.workflow import (
 
 ### Key APIs
 
-- `start_test_execution(...)` orchestrates validation, image management, and container execution. Pass file paths for the suite and systems configs plus dictionaries describing executor behavior (concurrency, failure reporting, progress cadence). Optional arguments let you select individual tests (`test_names`), supply score cards, and persist the results to disk. The function blocks until the workflow finishes and returns the DBOS workflow ID.
+- `start_test_execution(...)` orchestrates validation, image management, and container execution. Pass file paths for the suite and systems configs plus dictionaries describing executor behavior (concurrency, failure reporting, progress cadence). Optional arguments let you select individual tests (`test_ids`), supply score cards, and persist the results to disk. The function blocks until the workflow finishes and returns the DBOS workflow ID.
 - `start_score_card_evaluation(...)` evaluates one or more score cards against an existing JSON results file (generated either by the CLI or by `start_test_execution`).
 - `run_test_suite_workflow(...)` and `run_end_to_end_workflow(...)` are decorated with `@DBOS.workflow`. Use them when you need direct access to workflow handles or when you want to compose additional steps around the standard execution pipeline.
 - `ContainerConfig` centralises Docker options such as timeouts, memory limits, and capabilities. Instantiate it directly (`ContainerConfig()`) or derive variants with helpers like `ContainerConfig.with_streaming(True)` and `ContainerConfig.from_run_params(...)`.
@@ -90,7 +90,7 @@ print(f"Workflow completed: {workflow_id}")
 Notes:
 
 - `start_test_execution` loads the YAML files, validates manifests, and streams progress to the console. When `output_path` is provided, the final JSON (tests plus score cards) is written to disk.
-- To filter the suite down to a subset of tests, pass `test_names=["run_mock_on_compatible_sut"]` (additional values can be comma-separated or repeated).
+- To filter the suite down to a subset of tests, pass `test_ids=["run_mock_on_compatible_sut"]` (additional values can be comma-separated or repeated).
 - Exceptions raised by validation (`ValueError`) or I/O (`FileNotFoundError`, `PermissionError`) bubble up so they can be handled by the caller.
 
 ### Access workflow results in-memory

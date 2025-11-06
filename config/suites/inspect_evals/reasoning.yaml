@@ -1,7 +1,8 @@
 suite_name: "Inspect Reasoning Evaluation Suite"
 test_suite:
 
-  - name: "inspect_arc_challenge"
+  - id: "inspect_arc_challenge"
+    name: "inspect arc challenge"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -10,7 +11,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_arc_easy"
+  - id: "inspect_arc_easy"
+    name: "inspect arc easy"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -20,7 +22,8 @@ test_suite:
       limit: 2
 
   # BBH
-  - name: "inspect_bbh"
+  - id: "inspect_bbh"
+    name: "inspect bbh"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -30,7 +33,8 @@ test_suite:
       limit: 2
 
   # BIG-Bench Extra Hard
-  - name: "inspect_bbeh"
+  - id: "inspect_bbeh"
+    name: "inspect bbeh"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -39,7 +43,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_bbeh_mini"
+  - id: "inspect_bbeh_mini"
+    name: "inspect bbeh mini"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -49,7 +54,8 @@ test_suite:
       limit: 2
 
   # BoolQ
-  - name: "inspect_boolq"
+  - id: "inspect_boolq"
+    name: "inspect boolq"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -59,7 +65,8 @@ test_suite:
       limit: 2
 
   # DROP
-  - name: "inspect_drop"
+  - id: "inspect_drop"
+    name: "inspect drop"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -69,7 +76,8 @@ test_suite:
       limit: 2
 
   # HellaSwag
-  - name: "inspect_hellaswag"
+  - id: "inspect_hellaswag"
+    name: "inspect hellaswag"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -79,7 +87,8 @@ test_suite:
       limit: 2
 
   # IFEval
-  - name: "inspect_ifeval"
+  - id: "inspect_ifeval"
+    name: "inspect ifeval"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -89,7 +98,8 @@ test_suite:
       limit: 2
 
   # LingOly
-  - name: "inspect_lingoly"
+  - id: "inspect_lingoly"
+    name: "inspect lingoly"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "openai_gpt4o_mini"
@@ -98,7 +108,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_lingoly_too"
+  - id: "inspect_lingoly_too"
+    name: "inspect lingoly too"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -108,7 +119,8 @@ test_suite:
       limit: 2
 
   # MMMU
-  - name: "inspect_mmmu_multiple_choice"
+  - id: "inspect_mmmu_multiple_choice"
+    name: "inspect mmmu multiple choice"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -119,7 +131,8 @@ test_suite:
           - Computer_Science
       limit: 2
 
-  - name: "inspect_mmmu_open"
+  - id: "inspect_mmmu_open"
+    name: "inspect mmmu open"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -131,7 +144,8 @@ test_suite:
       limit: 2
 
   # MuSR
-  - name: "inspect_musr"
+  - id: "inspect_musr"
+    name: "inspect musr"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -141,7 +155,8 @@ test_suite:
       limit: 2
 
   # Needle in a Haystack (NIAH)
-  - name: "inspect_niah"
+  - id: "inspect_niah"
+    name: "inspect niah"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -151,7 +166,8 @@ test_suite:
       limit: 2
 
   # PAWS
-  - name: "inspect_paws"
+  - id: "inspect_paws"
+    name: "inspect paws"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -161,7 +177,8 @@ test_suite:
       limit: 2
 
   # PIQA
-  - name: "inspect_piqa"
+  - id: "inspect_piqa"
+    name: "inspect piqa"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -171,7 +188,8 @@ test_suite:
       limit: 2
 
   # RACE-H
-  - name: "inspect_race_h"
+  - id: "inspect_race_h"
+    name: "inspect race h"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -181,7 +199,8 @@ test_suite:
       limit: 2
 
   # WINOGRANDE
-  - name: "inspect_winogrande"
+  - id: "inspect_winogrande"
+    name: "inspect winogrande"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -191,7 +210,8 @@ test_suite:
       limit: 2
 
   # WorldSense
-  - name: "inspect_worldsense"
+  - id: "inspect_worldsense"
+    name: "inspect worldsense"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -201,7 +221,8 @@ test_suite:
       limit: 2
 
   # ∞Bench
-  - name: "inspect_infinite_bench_code_debug"
+  - id: "inspect_infinite_bench_code_debug"
+    name: "inspect infinite bench code debug"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -210,7 +231,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_infinite_bench_code_run"
+  - id: "inspect_infinite_bench_code_run"
+    name: "inspect infinite bench code run"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -219,7 +241,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_infinite_bench_kv_retrieval"
+  - id: "inspect_infinite_bench_kv_retrieval"
+    name: "inspect infinite bench kv retrieval"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -228,7 +251,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_infinite_bench_longbook_choice_eng"
+  - id: "inspect_infinite_bench_longbook_choice_eng"
+    name: "inspect infinite bench longbook choice eng"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -237,7 +261,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_infinite_bench_longdialogue_qa_eng"
+  - id: "inspect_infinite_bench_longdialogue_qa_eng"
+    name: "inspect infinite bench longdialogue qa eng"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -246,7 +271,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_infinite_bench_math_calc"
+  - id: "inspect_infinite_bench_math_calc"
+    name: "inspect infinite bench math calc"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -255,7 +281,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_infinite_bench_math_find"
+  - id: "inspect_infinite_bench_math_find"
+    name: "inspect infinite bench math find"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -264,7 +291,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_infinite_bench_number_string"
+  - id: "inspect_infinite_bench_number_string"
+    name: "inspect infinite bench number string"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
@@ -273,7 +301,8 @@ test_suite:
       evaluation_params: {}
       limit: 2
 
-  - name: "inspect_infinite_bench_passkey"
+  - id: "inspect_infinite_bench_passkey"
+    name: "inspect infinite bench passkey"
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"

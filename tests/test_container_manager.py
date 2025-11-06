@@ -5,24 +5,26 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import yaml
-from docker import errors as docker_errors
 from requests import exceptions as requests_exceptions
 
 from asqi.config import ContainerConfig
 from asqi.container_manager import (
-    ManifestExtractionError,
-    MountExtractionError,
     _decommission_container,
     _resolve_abs,
     _shutdown_event,
     check_images_availability,
     docker_client,
     extract_manifest_from_image,
-    run_container_with_args,
     pull_images,
-    MissingImageException,
+    run_container_with_args,
+)
+from asqi.errors import (
+    ManifestExtractionError,
+    MissingImageError,
+    MountExtractionError,
 )
 from asqi.schemas import Manifest
+from docker import errors as docker_errors
 
 
 @pytest.fixture(autouse=True)
@@ -864,7 +866,7 @@ class TestPullImages:
         mock_cm = mock_docker_client.return_value
         mock_cm.__enter__.side_effect = [mock_client_first, mock_client_second]
 
-        with pytest.raises(MissingImageException) as exc:
+        with pytest.raises(MissingImageError) as exc:
             pull_images(
                 ["repo/tool:1.0"]
             )  # will fail to pull, suggestion should pick "repo/tool:latest"

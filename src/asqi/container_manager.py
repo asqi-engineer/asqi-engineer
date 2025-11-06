@@ -13,6 +13,11 @@ from requests import exceptions as requests_exceptions
 
 import docker
 from asqi.config import ContainerConfig
+from asqi.errors import (
+    ManifestExtractionError,
+    MissingImageError,
+    MountExtractionError,
+)
 from asqi.logging_config import create_container_logger
 from asqi.schemas import Manifest
 from docker import errors as docker_errors
@@ -32,23 +37,6 @@ _active_lock = threading.Lock()
 _active_containers: set[str] = set()
 _shutdown_in_progress = False
 _shutdown_event = threading.Event()
-
-
-class ManifestExtractionError(Exception):
-    """Exception raised when manifest extraction fails."""
-
-    def __init__(
-        self, message: str, error_type: str, original_error: Optional[Exception] = None
-    ):
-        super().__init__(message)
-        self.error_type = error_type
-        self.original_error = original_error
-
-
-class MissingImageException(Exception):
-    """Exception raised when required Docker images are missing."""
-
-    pass
 
 
 @contextmanager
@@ -100,7 +88,7 @@ def pull_images(images: List[str]):
         None on success
 
     Raises:
-        MissingImageException: If images cannot be pulled (includes alternative suggestions)
+        MissingImageError: If images cannot be pulled (includes alternative suggestions)
         ConnectionError: If unable to connect to Docker daemon
     """
     images_to_pull = []
@@ -162,7 +150,7 @@ def pull_images(images: List[str]):
         else:
             msg = f"❌ Container not found: {image}\nNo similar images found."
         msgs.append(msg)
-    raise MissingImageException("\n\n".join(msgs))
+    raise MissingImageError("\n\n".join(msgs))
 
 
 def extract_manifest_from_image(
@@ -359,12 +347,6 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
     except Exception as e:
         logger.error("Failed to resolve devcontainer path '%s': %s", maybe_dev_path, e)
     return _resolve_abs(maybe_dev_path)
-
-
-class MountExtractionError(Exception):
-    """Exception raised when extracting mounts from args fails."""
-
-    pass
 
 
 def _extract_mounts_from_args(
