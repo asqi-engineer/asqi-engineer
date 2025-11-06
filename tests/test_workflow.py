@@ -437,7 +437,6 @@ def test_evaluate_score_cards_workflow():
                     "exit_code": 0,
                 },
                 "test_results": {"success": True},
-
             }
         ],
     }
