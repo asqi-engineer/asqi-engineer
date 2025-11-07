@@ -465,7 +465,8 @@ class TestUtilityFunctions:
             "score_card_name": "Test Score Card",
             "indicators": [
                 {
-                    "name": "test_indicator",
+                    "id": "test_indicator",
+                    "name": "test indicator",
                     "apply_to": {"test_id": "test1"},
                     "metric": "success",
                     "assessment": [

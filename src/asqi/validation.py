@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from rich.console import Console
 
 from asqi.config import load_config_file
-from asqi.errors import DuplicateTestIDError
+from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
 
 logger = logging.getLogger()
@@ -16,76 +16,137 @@ logger = logging.getLogger()
 console = Console()
 
 
-def validate_test_ids(test_suite_config_path: str) -> None:
+def validate_ids(*config_paths: str) -> None:
     """
-    Validates that all test IDs in the suite file are unique.
+    Validate that all IDs within a config file are unique.
+    Supports multiple config files and reports duplicates found across all of them.
 
     Args:
-        test_suite_config_path: Path to the test suite file
+        *config_paths: Variable number of configuration file paths to validate
+
+    Notes:
+        Only supports:
+            - test suite configs
+            - score card configs
 
     Raises:
-        DuplicateTestIDError: If duplicate test IDs are found, with detailed information about all duplicate locations
+        DuplicateIDError: If duplicate IDs are found
+        MissingIDFieldError: If required ID fields are missing
     """
-    all_test_ids: Dict[str, List[str]] = {}
+    all_ids: Dict[str, Any] = {}
+    for config_path in config_paths:
+        if config_path:
+            try:
+                config_dict = load_config_file(config_path)
+                extract_ids(all_ids, config_dict, config_path)
 
-    if test_suite_config_path:
-        try:
-            suite_config = load_config_file(test_suite_config_path)
-            extract_suite_ids(all_test_ids, suite_config, test_suite_config_path)
-
-        except yaml.YAMLError as e:
-            console.print(
-                f"[yellow]ID Validation. Failed to parse test suite file {test_suite_config_path}:[/yellow] {e}"
-            )
-        except Exception as e:
-            console.print(
-                f"[yellow]ID Validation. Failed to process test suite file {test_suite_config_path}:[/yellow] {e}"
-            )
-    duplicate_dict = get_duplicate_test_ids(all_test_ids)
+            except yaml.YAMLError as e:
+                console.print(
+                    f"[yellow]ID Validation. Failed to parse config file {config_path}:[/yellow] {e}"
+                )
+            except MissingIDFieldError as e:
+                raise e
+            except Exception as e:
+                console.print(
+                    f"[yellow]ID Validation. Failed to process config file {config_path}:[/yellow] {e}"
+                )
+    duplicate_dict = get_duplicate_ids(all_ids)
     if duplicate_dict:
-        raise DuplicateTestIDError(duplicate_dict)
+        raise DuplicateIDError(duplicate_dict)
 
 
-def extract_suite_ids(
-    all_test_ids: Dict[str, List[str]],
-    suite_config: Dict[str, Any],
-    test_suite_config_path: str,
+def extract_ids(
+    all_ids: Dict[str, Any],
+    config_dict: Dict[str, Any],
+    config_path: str,
 ) -> None:
     """
-    Extract test IDs from a suite config file and register them to the ID state.
+    Extract IDs from a config file and register them in the ID state.
 
     Args:
-        all_test_ids: Test ID state
-        suite_config: Test suite config dict
-        test_suite_config_path: Path to the test suite file
+        all_ids: Dictionary tracking all collected IDs
+        config_dict: Parsed configuration dictionary
+        config_path: Path to the config file
+
+    Notes:
+        Only processes IDs from:
+            - score cards
+            - test suites
     """
 
-    suite_name = suite_config["suite_name"]
-    test_suite = suite_config.get("test_suite", [])
-    for test in test_suite:
-        test_id = test["id"]
-        test_name = test.get("name", "")
-        all_test_ids.setdefault(test_id, []).append(
-            f"location: '{test_suite_config_path}', suite name: '{suite_name}'"
-            + (f", test name: '{test_name}'" if test_name else "")
-        )
+    score_card_name = config_dict.get("score_card_name", "")
+    test_suite_name = config_dict.get("suite_name", "")
+
+    if score_card_name:
+        indicators = config_dict.get("indicators", [])
+        for indicator in indicators:
+            indicator_id = indicator.get("id", "")
+            if not indicator_id:
+                raise MissingIDFieldError(
+                    f"Missing required id field in indicator of score card '{score_card_name}'"
+                )
+
+            indicator_name = indicator.get("name", "")
+            indicator_key = f"s_{indicator_id}"
+
+            if indicator_key not in all_ids:
+                all_ids[indicator_key] = {
+                    "config_type": "score_card",
+                    "id": f"{indicator_id}",
+                    "occurrences": [],
+                }
+
+            all_ids[indicator_key]["occurrences"].append(
+                {
+                    "location": config_path,
+                    "score_card_name": score_card_name,
+                    "indicator_name": indicator_name,
+                }
+            )
+
+    elif test_suite_name:
+        test_suite = config_dict.get("test_suite", [])
+        for test in test_suite:
+            test_id = test.get("id", "")
+            if not test_id:
+                raise MissingIDFieldError(
+                    f"Missing required id field in test of test suite '{test_suite_name}'"
+                )
+
+            test_name = test.get("name", "")
+            test_name_key = f"t_{test_id}"
+
+            if test_name_key not in all_ids:
+                all_ids[test_name_key] = {
+                    "config_type": "test_suite",
+                    "id": f"{test_id}",
+                    "occurrences": [],
+                }
+
+            all_ids[test_name_key]["occurrences"].append(
+                {
+                    "location": config_path,
+                    "test_suite_name": test_suite_name,
+                    "test_name": test_name,
+                }
+            )
 
 
-def get_duplicate_test_ids(all_test_ids: Dict[str, List[str]]) -> Dict[str, List[str]]:
+def get_duplicate_ids(all_ids: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Find all duplicate test IDs.
+    Find only duplicate ID entries from the collected IDs.
 
     Args:
-        all_test_ids: Current state of the project test IDs
+        all_ids: Current state of the project IDs
 
     Returns:
-        Dict of duplicate groups based on their ID.
-        Returns empty dict if no duplicates found.
+        Dictionary containing duplicate groups based on their key (ID and file type).
+        Returns an empty dictionary if no duplicates found.
     """
     duplicate_ids = {}
-    for id, test_id_data in all_test_ids.items():
-        if len(test_id_data) > 1:
-            duplicate_ids[id] = test_id_data
+    for k, duplicate in all_ids.items():
+        if len(duplicate["occurrences"]) > 1:
+            duplicate_ids[k] = duplicate
     return duplicate_ids
 
 

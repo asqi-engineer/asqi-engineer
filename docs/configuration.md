@@ -111,12 +111,6 @@ ASQI supports a three-level configuration hierarchy:
       # Path for the container logs (default: logs)
       LOGS_FOLDER=asqi/logs
       ``` 
-
-      - Test suites paths
-      ```yaml
-      # Paths for the test suite files - Recommended to store only suites in these folders (default: config/suites)
-      TEST_SUITES_PATHS=config/suites/,
-      ``` 
      
       - API Keys
       ```yaml
@@ -187,7 +181,6 @@ Test suites define collections of tests to execute against your systems.
     This approach is a slight modification of the standard RFC 9562
     - Valid Characters: 0-9, a-z, _ 
     - Max Length: 32
-    - All suites must be located in the directory specified by the TEST_SUITES_PATHS environment variable. See more here [Environment Variable Handling](#environment-variable-handling) 
 
 ### Basic Test Suite
 
@@ -264,12 +257,20 @@ test_suite:
 
 Score cards define automated assessment criteria for test results. They evaluate individual test executions (not aggregated results).
 
+- Indicators ID field (id)
+    
+    This is the unique identifier for the indicator across the project.
+    This approach is a slight modification of the standard RFC 9562
+    - Valid Characters: 0-9, a-z, _ 
+    - Max Length: 32
+
 ### Basic Score Card Structure
 
 ```yaml
 score_card_name: "Production Readiness Assessment"
 indicators:
-  - name: "Test Success Requirement"
+  - id: "test_success_requirement"
+    name: "Test Success Requirement"
     apply_to:
       test_id: "security_scan"
     metric: "success"
@@ -284,7 +285,8 @@ Score cards support various comparison operators:
 
 ```yaml
 indicators:
-  - name: "Performance Score Assessment"
+  - id: "performance_score_assessment"
+    name: "Performance Score Assessment"
     apply_to:
       test_id: "benchmark_test"
     metric: "score"
@@ -294,7 +296,8 @@ indicators:
       - { outcome: "ACCEPTABLE", condition: "greater_equal", threshold: 0.7 }
       - { outcome: "NEEDS_IMPROVEMENT", condition: "less_than", threshold: 0.7 }
 
-  - name: "Security Threshold"
+  - id: "security_threshold"
+    name: "Security Threshold"
     apply_to:
       test_id: "vulnerability_scan"
     metric: "vulnerabilities_found"
@@ -316,7 +319,8 @@ Use the `apply_to` field to target specific tests:
 
 ```yaml
 indicators:
-  - name: "Garak Security Check"
+  - id: "garak_security_check"
+    name: "Garak Security Check"
     apply_to:
       test_id: "garak_prompt_injection"  # Only applies to this test
     metric: "attack_success_rate"
