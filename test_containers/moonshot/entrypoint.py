@@ -172,12 +172,33 @@ def main() -> None:
             with output_file_path.open("w") as f:
                 json.dump(run_result, f, indent=2, default=str)
 
+            results = run_result.get("results", {}).get("results", {})
+            recipes = results.get("recipes", [])
+
+            if (
+                recipes
+                and recipes[0].get("details")
+                and isinstance(recipes[0]["details"], list)
+                and recipes[0]["details"]
+            ):
+                details = recipes[0]["details"][0]
+                if (
+                    details.get("metrics")
+                    and isinstance(details["metrics"], list)
+                    and details["metrics"]
+                ):
+                    grading_criteria = details["metrics"][0].get("grading_criteria", {})
+                else:
+                    grading_criteria = {}
+            else:
+                grading_criteria = {}
+
             # Return the full Moonshot run result object without reduction
             result = {
                 "success": True,
                 "recipe": recipe_name,
                 "prompt_selection_percentage": prompt_selection_percentage,
-                "run_result": run_result,
+                "metrics": grading_criteria,
             }
         else:
             result = {
