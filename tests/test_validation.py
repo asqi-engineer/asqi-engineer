@@ -5,7 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from asqi.errors import DuplicateIDError
+from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.main import load_and_validate_plan
 from asqi.schemas import (
     AssessmentRule,
@@ -1174,6 +1174,57 @@ class TestValidateIDs:
 
         validate_ids(suite_config_path)
 
+    def test_id_test_suite_missing_id_field_error(self, tmp_path):
+        """Test ID validation in test suite with missing ID field."""
+        config_folder = tmp_path / "config"
+        suite_config_path = config_folder / "demo_test.yaml"
+        config_folder.mkdir()
+
+        test_suite_data = {
+            "suite_name": "id validation test suite",
+            "test_suite": [
+                {
+                    # "id": "missing_id_field",
+                    "name": "this is the name",
+                    "image": "validation:latest",
+                    "systems_under_test": ["garak"],
+                },
+            ],
+        }
+
+        with open(suite_config_path, "w") as f:
+            yaml.dump(test_suite_data, f)
+
+        with pytest.raises(
+            MissingIDFieldError, match="Missing required id field in test of test suite"
+        ):
+            validate_ids(suite_config_path)
+
+    def test_id_score_card_missing_id_field_error(self, tmp_path):
+        """Test ID validation in score card with missing ID field."""
+        config_folder = tmp_path / "config"
+        score_card_config_path = config_folder / "demo_score_card.yaml"
+        config_folder.mkdir()
+
+        score_card_data = {
+            "score_card_name": "id validation score card",
+            "indicators": [
+                {
+                    # "id": "missing_id_field",
+                    "name": "this is the name",
+                },
+            ],
+        }
+
+        with open(score_card_config_path, "w") as f:
+            yaml.dump(score_card_data, f)
+
+        with pytest.raises(
+            MissingIDFieldError,
+            match="Missing required id field in indicator of score card",
+        ):
+            validate_ids(score_card_config_path)
+
     def test_id_score_card_validation_success(self, tmp_path):
         """Test ID validation in score card with no duplicate IDs."""
         config_folder = tmp_path / "config"
@@ -1242,12 +1293,22 @@ class TestValidateIDs:
             yaml.dump(self.test_suite_duplicate_data, f)
 
         with pytest.raises(
-            DuplicateIDError, match="Duplicate -> id: id_bayau, config type: test suite"
+            DuplicateIDError, match="Duplicate id -> id_bayau in test_suite"
         ) as exe_raised:
             validate_ids(suite_config_path)
 
         error = exe_raised.value
-        assert len(error.duplicate_dict["id: id_bayau, config type: test suite"]) == 2
+        assert len(error.duplicate_dict["t_id_bayau"]["occurrences"]) == 2
+        assert error.duplicate_dict["t_id_bayau"]["config_type"] == "test_suite"
+        assert error.duplicate_dict["t_id_bayau"]["id"] == "id_bayau"
+        assert (
+            error.duplicate_dict["t_id_bayau"]["occurrences"][0]["test_name"]
+            == "this is the first dup name"
+        )
+        assert (
+            error.duplicate_dict["t_id_bayau"]["occurrences"][1]["test_name"]
+            == "this is the second dup name"
+        )
 
     def test_validation_score_card_with_duplicates_error(self, tmp_path):
         """Test ID validation in score card with duplicate IDs and DuplicateIDError exception."""
@@ -1259,12 +1320,22 @@ class TestValidateIDs:
             yaml.dump(self.score_card_duplicate_data, f)
 
         with pytest.raises(
-            DuplicateIDError, match="Duplicate -> id: id_bayau, config type: score card"
+            DuplicateIDError, match="Duplicate id -> id_bayau in score_card"
         ) as exe_raised:
             validate_ids(score_card_config_path)
 
         error = exe_raised.value
-        assert len(error.duplicate_dict["id: id_bayau, config type: score card"]) == 2
+        assert len(error.duplicate_dict["s_id_bayau"]["occurrences"]) == 2
+        assert error.duplicate_dict["s_id_bayau"]["config_type"] == "score_card"
+        assert error.duplicate_dict["s_id_bayau"]["id"] == "id_bayau"
+        assert (
+            error.duplicate_dict["s_id_bayau"]["occurrences"][0]["indicator_name"]
+            == "this is the first dup name"
+        )
+        assert (
+            error.duplicate_dict["s_id_bayau"]["occurrences"][1]["indicator_name"]
+            == "this is the second dup name"
+        )
 
     def test_validation_score_card_and_test_suite_with_duplicates_error(self, tmp_path):
         """Test ID validation in score card and test suite with duplicate IDs and DuplicateIDError exception."""
@@ -1283,8 +1354,8 @@ class TestValidateIDs:
             validate_ids(score_card_config_path, suite_config_path)
 
         error = exe_raised.value
-        assert len(error.duplicate_dict["id: id_bayau, config type: score card"]) == 2
-        assert len(error.duplicate_dict["id: id_bayau, config type: test suite"]) == 2
+        assert len(error.duplicate_dict["t_id_bayau"]["occurrences"]) == 2
+        assert len(error.duplicate_dict["s_id_bayau"]["occurrences"]) == 2
 
     def test_invalid_id_formats_error(self):
         """Test invalid id formats fail schema validation"""

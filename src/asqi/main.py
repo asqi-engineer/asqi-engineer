@@ -17,7 +17,7 @@ from asqi.config import (
     merge_defaults_into_suite,
 )
 from asqi.container_manager import shutdown_containers
-from asqi.errors import DuplicateIDError
+from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.logging_config import configure_logging
 from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
 from asqi.validation import validate_ids, validate_test_plan
@@ -170,6 +170,7 @@ def _validate_unique_ids(*config_paths: str) -> None:
 
     Raises:
         DuplicateIDError: If duplicate IDs are found within a file
+        MissingIDFieldError: If required ID fields are missing within a file
     """
 
     console.print("\n[blue]Verifying uniqueness of IDs...[/blue]")
@@ -177,6 +178,9 @@ def _validate_unique_ids(*config_paths: str) -> None:
         validate_ids(*config_paths)
     except DuplicateIDError as e:
         console.print(f"\n[red]❌ Found Duplicated IDs: {e}[/red]")
+        raise
+    except MissingIDFieldError as e:
+        console.print(f"\n[red]❌ Missing required ID field: {e}[/red]")
         raise
     console.print("\n[green]✅ IDs verified[/green]")
 

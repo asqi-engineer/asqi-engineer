@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from rich.console import Console
 
 from asqi.config import load_config_file
-from asqi.errors import DuplicateIDError
+from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
 
 logger = logging.getLogger()
@@ -31,8 +31,9 @@ def validate_ids(*config_paths: str) -> None:
 
     Raises:
         DuplicateIDError: If duplicate IDs are found
+        MissingIDFieldError: If required ID fields are missing
     """
-    all_ids: Dict[str, List[str]] = {}
+    all_ids: Dict[str, Any] = {}
     for config_path in config_paths:
         if config_path:
             try:
@@ -43,6 +44,8 @@ def validate_ids(*config_paths: str) -> None:
                 console.print(
                     f"[yellow]ID Validation. Failed to parse config file {config_path}:[/yellow] {e}"
                 )
+            except MissingIDFieldError as e:
+                raise e
             except Exception as e:
                 console.print(
                     f"[yellow]ID Validation. Failed to process config file {config_path}:[/yellow] {e}"
@@ -53,7 +56,7 @@ def validate_ids(*config_paths: str) -> None:
 
 
 def extract_ids(
-    all_ids: Dict[str, List[str]],
+    all_ids: Dict[str, Any],
     config_dict: Dict[str, Any],
     config_path: str,
 ) -> None:
@@ -77,27 +80,59 @@ def extract_ids(
     if score_card_name:
         indicators = config_dict.get("indicators", [])
         for indicator in indicators:
-            score_card_id = indicator["id"]
+            indicator_id = indicator.get("id", "")
+            if not indicator_id:
+                raise MissingIDFieldError(
+                    f"Missing required id field in indicator of score card '{score_card_name}'"
+                )
+
             indicator_name = indicator.get("name", "")
-            all_ids.setdefault(
-                f"id: {score_card_id}, config type: score card", []
-            ).append(
-                f"location: '{config_path}', score card name: '{score_card_name}'"
-                + (f", indicator name: '{indicator_name}'" if indicator_name else "")
+            indicator_key = f"s_{indicator_id}"
+
+            if indicator_key not in all_ids:
+                all_ids[indicator_key] = {
+                    "config_type": "score_card",
+                    "id": f"{indicator_id}",
+                    "occurrences": [],
+                }
+
+            all_ids[indicator_key]["occurrences"].append(
+                {
+                    "location": config_path,
+                    "score_card_name": score_card_name,
+                    "indicator_name": indicator_name,
+                }
             )
 
     elif test_suite_name:
         test_suite = config_dict.get("test_suite", [])
         for test in test_suite:
-            test_id = test["id"]
+            test_id = test.get("id", "")
+            if not test_id:
+                raise MissingIDFieldError(
+                    f"Missing required id field in test of test suite '{test_suite_name}'"
+                )
+
             test_name = test.get("name", "")
-            all_ids.setdefault(f"id: {test_id}, config type: test suite", []).append(
-                f"location: '{config_path}', suite name: '{test_suite_name}'"
-                + (f", test name: '{test_name}'" if test_name else "")
+            test_name_key = f"t_{test_id}"
+
+            if test_name_key not in all_ids:
+                all_ids[test_name_key] = {
+                    "config_type": "test_suite",
+                    "id": f"{test_id}",
+                    "occurrences": [],
+                }
+
+            all_ids[test_name_key]["occurrences"].append(
+                {
+                    "location": config_path,
+                    "test_suite_name": test_suite_name,
+                    "test_name": test_name,
+                }
             )
 
 
-def get_duplicate_ids(all_ids: Dict[str, List[str]]) -> Dict[str, List[str]]:
+def get_duplicate_ids(all_ids: Dict[str, Any]) -> Dict[str, Any]:
     """
     Find only duplicate ID entries from the collected IDs.
 
@@ -109,9 +144,9 @@ def get_duplicate_ids(all_ids: Dict[str, List[str]]) -> Dict[str, List[str]]:
         Returns an empty dictionary if no duplicates found.
     """
     duplicate_ids = {}
-    for k, id in all_ids.items():
-        if len(id) > 1:
-            duplicate_ids[k] = id
+    for k, duplicate in all_ids.items():
+        if len(duplicate["occurrences"]) > 1:
+            duplicate_ids[k] = duplicate
     return duplicate_ids
 
 

@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 class DuplicateIDError(Exception):
@@ -10,14 +10,18 @@ class DuplicateIDError(Exception):
 
     Example:
         duplicate_dict = {
-            "id: example_id, config type: test suite": [
-                "location: 'config.yaml', suite name: 'suite example', test name: 'test 1'",
-                "location: 'config.yaml', suite name: 'suite example', test name: 'test 2'"
-            ]
+            "t_duplicate_id": {
+                "id": "duplicate_id",
+                "config_type": "test_suite",
+                "occurrences": [
+                    {"location": "config.yaml", "test_suite_name": "suite", "test_name": "test 1"},
+                    {"location": "config.yaml", "test_suite_name": "suite", "test_name": "test 2"}
+                ]
+            }
         }
     """
 
-    def __init__(self, duplicate_dict: Dict[str, List[str]]):
+    def __init__(self, duplicate_dict: Dict[str, Any]):
         self.duplicate_dict = duplicate_dict
         message = self._get_message()
         super().__init__(message)
@@ -28,17 +32,25 @@ class DuplicateIDError(Exception):
         """
         lines = ["\n"]
 
-        for duplicate_count, (duplicate_id, id_list) in enumerate(
-            self.duplicate_dict.items(), 1
-        ):
-            lines.append(f"#{duplicate_count}: Duplicate -> {duplicate_id}")
-            for occurrence_count, occurrence_details in enumerate(id_list, 1):
+        for duplicate_count, (_, id_list) in enumerate(self.duplicate_dict.items(), 1):
+            lines.append(
+                f"#{duplicate_count}: Duplicate id -> {id_list['id']} in {id_list['config_type']}"
+            )
+            for occurrence_count, occurrence_details in enumerate(
+                id_list["occurrences"], 1
+            ):
                 lines.append(f"--{occurrence_count}-- {occurrence_details}")
             lines.append("")
 
         lines.append("IDs must be unique within the same file.")
 
         return "\n".join(lines)
+
+
+class MissingIDFieldError(Exception):
+    """Exception raised when required ID fields are missing."""
+
+    pass
 
 
 class ManifestExtractionError(Exception):
