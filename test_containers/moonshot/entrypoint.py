@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import fnmatch
 import json
 import os
 import sys
@@ -91,6 +92,33 @@ def main() -> None:
         recipe_name = test_params.get("recipe")
         prompt_selection_percentage = test_params.get("prompt_selection_percentage", 1)
         random_seed = test_params.get("random_seed", 1)
+
+        # Check if recipe is supported
+        supported_recipes = [
+            "singapore-facts",
+            "truthfulqa-mcq",
+            "winobias",
+            "mmlu",
+            "cyberseceval-en",
+            "realtime-qa",
+            "commonsense-morality-easy",
+            "jailbreak-dan",
+            "advglue",
+        ]
+        supported_patterns = [
+            "answercarefully-*",
+        ]
+        is_supported = recipe_name in supported_recipes or any(
+            fnmatch.fnmatch(recipe_name, pattern) for pattern in supported_patterns
+        )
+        if not is_supported:
+            error_result = {
+                "success": False,
+                "error": f"Recipe '{recipe_name}' is not supported. Supported recipes: {supported_recipes} and {supported_patterns}",
+                "status": "failed",
+            }
+            print(json.dumps(error_result, indent=2))
+            sys.exit(1)
 
         if not all([moonshot_imported, base_url, api_key, sut_model, recipe_name]):
             raise ValueError("Missing required parameters")
