@@ -26,7 +26,7 @@ ENV HF_DATASETS_TRUST_REMOTE_CODE=1
 # Clone inspect_evals 
 RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
     cd inspect_evals && \
-    git checkout 0d37467
+    git checkout 0ec1127
 
 # Create virtual environment
 RUN cd inspect_evals && uv venv
@@ -34,7 +34,7 @@ RUN cd inspect_evals && uv venv
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd inspect_evals && \
     uv pip install torch --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match && \
-    uv sync --extra test --extra math --extra mle_bench --extra worldsense --extra scicode --extra ifeval --extra personality --extra stealth --extra bbq && \
+    uv sync --extra test --extra math --extra worldsense --extra scicode --group ifeval --extra personality --extra stealth && \
     uv add tf-keras && \
     uv add google-genai
 
