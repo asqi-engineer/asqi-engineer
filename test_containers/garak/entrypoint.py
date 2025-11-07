@@ -311,8 +311,6 @@ def main():
                 "generations": generations,
                 "sut_type": sut_type,
                 "probe_results": probe_results,
-                "garak_stdout": result.stdout[:1000],  # Truncate to avoid huge outputs
-                "garak_stderr": result.stderr[:1000] if result.stderr else "",
             }
 
             if not success:
