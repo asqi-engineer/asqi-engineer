@@ -100,7 +100,7 @@ jobs:
           outputs: type=docker,dest=/tmp/image-${{ env.PLATFORM_PAIR }}.tar
 
       - name: Upload platform image
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: image-${{ env.PLATFORM_PAIR }}
           path: /tmp/image-${{ env.PLATFORM_PAIR }}.tar
@@ -156,7 +156,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Download all platform images
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: /tmp
           pattern: image-*
