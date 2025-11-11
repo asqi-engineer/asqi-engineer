@@ -172,8 +172,12 @@ class MetricExpressionEvaluator:
 
         try:
             # Compile and evaluate
+            # Note: This eval is safe because:
+            # 1. AST is validated to only contain allowed operations (arithmetic, allowed functions)
+            # 2. __builtins__ is empty, preventing access to dangerous functions
+            # 3. Context only contains validated numeric values and safe functions
             code = compile(tree, "<expression>", "eval")
-            result = eval(code, {"__builtins__": {}}, context)
+            result = eval(code, {"__builtins__": {}}, context)  # nosec B307
 
             # Ensure result is numeric
             if not isinstance(result, (int, float)):
