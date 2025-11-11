@@ -1,6 +1,12 @@
 import pytest
 
-from asqi.schemas import AssessmentRule, ScoreCard, ScoreCardFilter, ScoreCardIndicator
+from asqi.schemas import (
+    AssessmentRule,
+    MetricExpression,
+    ScoreCard,
+    ScoreCardFilter,
+    ScoreCardIndicator,
+)
 from asqi.score_card_engine import ScoreCardEngine, get_nested_value, parse_metric_path
 from asqi.workflow import TestExecutionResult
 
@@ -616,3 +622,316 @@ class TestNestedMetricAccess:
         assert flat_result["outcome"] == "PASS"
         assert flat_result["metric_value"] is True
         assert flat_result["error"] is None
+
+
+class TestMetricExpressions:
+    """Test metric expression evaluation in score card engine."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.engine = ScoreCardEngine()
+
+    def create_test_result(
+        self, test_name: str, test_id: str, test_results: dict
+    ) -> TestExecutionResult:
+        """Helper to create a TestExecutionResult for testing."""
+        result = TestExecutionResult(test_name, test_id, "test_sut", "test_image")
+        result.test_results = test_results
+        result.success = True
+        return result
+
+    def test_simple_metric_backward_compatible(self):
+        """Test that simple metric paths still work (backward compatibility)."""
+        test_result = self.create_test_result("test1", "test_id_1", {"accuracy": 0.85})
+
+        value, error = self.engine.resolve_metric_or_expression(test_result, "accuracy")
+
+        assert error is None
+        assert value == 0.85
+
+    def test_expression_weighted_sum(self):
+        """Test weighted sum expression."""
+        test_result = self.create_test_result(
+            "test1",
+            "test_id_1",
+            {"accuracy": 0.8, "relevance": 0.9},
+        )
+
+        metric_expr = MetricExpression(
+            expression="0.7 * accuracy + 0.3 * relevance",
+            values={"accuracy": "accuracy", "relevance": "relevance"},
+        )
+
+        value, error = self.engine.resolve_metric_or_expression(
+            test_result, metric_expr
+        )
+
+        assert error is None
+        assert value == pytest.approx(0.83)
+
+    def test_expression_with_min(self):
+        """Test expression using min function."""
+        test_result = self.create_test_result(
+            "test1",
+            "test_id_1",
+            {"score1": 0.9, "score2": 0.7, "score3": 0.8},
+        )
+
+        metric_expr = MetricExpression(
+            expression="min(score1, score2, score3)",
+            values={"score1": "score1", "score2": "score2", "score3": "score3"},
+        )
+
+        value, error = self.engine.resolve_metric_or_expression(
+            test_result, metric_expr
+        )
+
+        assert error is None
+        assert value == 0.7
+
+    def test_expression_with_max(self):
+        """Test expression using max function."""
+        test_result = self.create_test_result(
+            "test1",
+            "test_id_1",
+            {"score1": 0.9, "score2": 0.7, "score3": 0.8},
+        )
+
+        metric_expr = MetricExpression(
+            expression="max(score1, score2, score3)",
+            values={"score1": "score1", "score2": "score2", "score3": "score3"},
+        )
+
+        value, error = self.engine.resolve_metric_or_expression(
+            test_result, metric_expr
+        )
+
+        assert error is None
+        assert value == 0.9
+
+    def test_expression_with_avg(self):
+        """Test expression using avg function."""
+        test_result = self.create_test_result(
+            "test1",
+            "test_id_1",
+            {"score1": 0.6, "score2": 0.8, "score3": 1.0},
+        )
+
+        metric_expr = MetricExpression(
+            expression="avg(score1, score2, score3)",
+            values={"score1": "score1", "score2": "score2", "score3": "score3"},
+        )
+
+        value, error = self.engine.resolve_metric_or_expression(
+            test_result, metric_expr
+        )
+
+        assert error is None
+        assert value == pytest.approx(0.8)
+
+    def test_expression_complex_formula(self):
+        """Test complex expression with multiple operations."""
+        test_result = self.create_test_result(
+            "test1",
+            "test_id_1",
+            {"accuracy": 0.9, "relevance": 0.8},
+        )
+
+        metric_expr = MetricExpression(
+            expression="min(0.7 * accuracy + 0.3 * relevance, 1.0)",
+            values={"accuracy": "accuracy", "relevance": "relevance"},
+        )
+
+        value, error = self.engine.resolve_metric_or_expression(
+            test_result, metric_expr
+        )
+
+        assert error is None
+        assert value == pytest.approx(0.87)
+
+    def test_expression_with_nested_metrics(self):
+        """Test expression with nested metric paths.
+
+        With dict mapping, we can use simple variable names in expressions
+        while extracting from nested paths.
+        """
+        test_result = self.create_test_result(
+            "test1",
+            "test_id_1",
+            {"stats": {"pass_rate": 0.7, "fail_rate": 0.3}},
+        )
+
+        metric_expr = MetricExpression(
+            expression="pass_rate + fail_rate",
+            values={"pass_rate": "stats.pass_rate", "fail_rate": "stats.fail_rate"},
+        )
+
+        value, error = self.engine.resolve_metric_or_expression(
+            test_result, metric_expr
+        )
+
+        assert error is None
+        assert value == pytest.approx(1.0)
+
+    def test_expression_missing_metric(self):
+        """Test that missing metrics return appropriate error."""
+        test_result = self.create_test_result("test1", "test_id_1", {"accuracy": 0.8})
+
+        metric_expr = MetricExpression(
+            expression="accuracy + missing_metric",
+            values={"accuracy": "accuracy", "missing_metric": "missing_metric"},
+        )
+
+        value, error = self.engine.resolve_metric_or_expression(
+            test_result, metric_expr
+        )
+
+        assert value is None
+        assert error is not None
+        assert "missing_metric" in error
+
+    def test_expression_non_numeric_metric(self):
+        """Test that non-numeric metrics return appropriate error."""
+        test_result = self.create_test_result(
+            "test1",
+            "test_id_1",
+            {"accuracy": "high"},  # String, not number
+        )
+
+        metric_expr = MetricExpression(
+            expression="accuracy * 2",
+            values={"accuracy": "accuracy"},
+        )
+
+        value, error = self.engine.resolve_metric_or_expression(
+            test_result, metric_expr
+        )
+
+        assert value is None
+        assert error is not None
+        assert "non-numeric" in error
+
+    def test_expression_division_by_zero(self):
+        """Test that division by zero returns appropriate error."""
+        test_result = self.create_test_result(
+            "test1", "test_id_1", {"numerator": 10, "denominator": 0}
+        )
+
+        metric_expr = MetricExpression(
+            expression="numerator / denominator",
+            values={"numerator": "numerator", "denominator": "denominator"},
+        )
+
+        value, error = self.engine.resolve_metric_or_expression(
+            test_result, metric_expr
+        )
+
+        assert value is None
+        assert error is not None
+        assert "Division by zero" in error
+
+    def test_evaluate_indicator_with_expression(self):
+        """Test full indicator evaluation with expression."""
+        test_results = [
+            self.create_test_result(
+                "test1", "chatbot_test", {"accuracy": 0.9, "relevance": 0.85}
+            )
+        ]
+
+        metric_expr = MetricExpression(
+            expression="0.6 * accuracy + 0.4 * relevance",
+            values={"accuracy": "accuracy", "relevance": "relevance"},
+        )
+
+        indicator = ScoreCardIndicator(
+            id="combined_score",
+            name="Combined Quality Score",
+            apply_to=ScoreCardFilter(test_id="chatbot_test"),
+            metric=metric_expr,
+            assessment=[
+                AssessmentRule(outcome="A", condition="greater_equal", threshold=0.85),
+                AssessmentRule(outcome="B", condition="greater_equal", threshold=0.75),
+                AssessmentRule(outcome="C", condition="less_than", threshold=0.75),
+            ],
+        )
+
+        results = self.engine.evaluate_indicator(test_results, indicator)
+
+        assert len(results) == 1
+        result = results[0]
+
+        assert result.outcome == "A"
+        assert result.metric_value == pytest.approx(0.88)
+        assert result.error is None
+
+    def test_evaluate_scorecard_with_expressions(self):
+        """Test full scorecard evaluation with multiple expression indicators."""
+        test_result = self.create_test_result(
+            "chatbot_test",
+            "chatbot_test",
+            {
+                "accuracy": 0.85,
+                "relevance": 0.90,
+                "score1": 0.7,
+                "score2": 0.8,
+                "score3": 0.75,
+            },
+        )
+
+        metric_expr1 = MetricExpression(
+            expression="0.5 * accuracy + 0.5 * relevance",
+            values={"accuracy": "accuracy", "relevance": "relevance"},
+        )
+
+        metric_expr2 = MetricExpression(
+            expression="min(score1, score2, score3)",
+            values={"score1": "score1", "score2": "score2", "score3": "score3"},
+        )
+
+        score_card = ScoreCard(
+            score_card_name="Expression Test Scorecard",
+            indicators=[
+                ScoreCardIndicator(
+                    id="weighted_quality",
+                    name="Weighted Quality",
+                    apply_to=ScoreCardFilter(test_id="chatbot_test"),
+                    metric=metric_expr1,
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.8
+                        ),
+                        AssessmentRule(
+                            outcome="FAIL", condition="less_than", threshold=0.8
+                        ),
+                    ],
+                ),
+                ScoreCardIndicator(
+                    id="min_score",
+                    name="Minimum Score",
+                    apply_to=ScoreCardFilter(test_id="chatbot_test"),
+                    metric=metric_expr2,
+                    assessment=[
+                        AssessmentRule(
+                            outcome="GOOD", condition="greater_equal", threshold=0.7
+                        ),
+                        AssessmentRule(
+                            outcome="BAD", condition="less_than", threshold=0.7
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        results = self.engine.evaluate_scorecard([test_result], score_card)
+
+        assert len(results) == 2
+
+        weighted_result = next(
+            r for r in results if r["indicator_id"] == "weighted_quality"
+        )
+        assert weighted_result["outcome"] == "PASS"
+        assert weighted_result["metric_value"] == pytest.approx(0.875)
+
+        min_result = next(r for r in results if r["indicator_id"] == "min_score")
+        assert min_result["outcome"] == "GOOD"
+        assert min_result["metric_value"] == 0.7
