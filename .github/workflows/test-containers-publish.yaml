@@ -138,7 +138,7 @@ jobs:
 
       - name: Upload Docker image as artifact (${{ matrix.name }}-${{ matrix.platform_pair }})
         if: ${{ matrix.skip != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository) }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: docker-image-${{ matrix.name }}-${{ matrix.platform_pair }}
           path: /tmp/image-${{ matrix.name }}-${{ matrix.platform_pair }}.tar
@@ -165,7 +165,7 @@ jobs:
 
       - name: Download Docker image artifacts (${{ matrix.name }})
         if: ${{ matrix.skip != true }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: /tmp
           pattern: docker-image-${{ matrix.name }}-*
@@ -286,7 +286,7 @@ jobs:
           docker run --rm --platform ${{ matrix.platform }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${GITHUB_SHA}-${{ env.PLATFORM_PAIR }} --help
 
       - name: Upload Docker image as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: docker-image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}
           path: /tmp/image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}.tar
@@ -306,7 +306,7 @@ jobs:
       attestations: write
     steps:
       - name: Download Docker image artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: /tmp
           pattern: docker-image-${{ needs.build-and-test-tag.outputs.name }}-*
