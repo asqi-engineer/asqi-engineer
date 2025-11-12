@@ -57,7 +57,7 @@ class MetricExpressionEvaluator:
         ast.USub,  # Unary minus
     }
 
-    ALLOWED_FUNCTIONS = {"min", "max", "avg"}
+    ALLOWED_FUNCTIONS = {"min", "max", "avg", "sum"}
 
     def parse_expression(self, expression: str) -> ast.Expression:
         """
@@ -106,7 +106,6 @@ class MetricExpressionEvaluator:
                 ast.Num,  # For older Python versions
                 ast.Name,
                 ast.Load,
-                ast.Attribute,  # For nested paths like stats.pass_rate
             ):
                 # Validate binary and unary operators
                 if isinstance(node, (ast.BinOp, ast.UnaryOp)):
@@ -168,6 +167,7 @@ class MetricExpressionEvaluator:
         context: Dict[str, Any] = metric_values.copy()
         context["min"] = min
         context["max"] = max
+        context["sum"] = sum
         context["avg"] = lambda *args: sum(args) / len(args) if args else 0
 
         try:
