@@ -1,8 +1,7 @@
 """
 Safe metric expression evaluator for score card indicators.
 
-Supports arithmetic operations and aggregation functions while maintaining security
-by using AST parsing instead of eval().
+Supports arithmetic operations and aggregation functions while maintaining security by using AST parsing instead of eval().
 """
 
 import ast
