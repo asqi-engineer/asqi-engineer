@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+suite_name: "Moonshot - Hallucination Cookbook"
+test_suite_default:
+  systems_under_test: 
+    - "nova_lite"
+test_suite:
+
+  - id: "moonshot_singapore_facts"
+    name: "moonshot_singapore_facts"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "singapore-facts"
+      prompt_selection_percentage: 10
+
+  - id: "moonshot_mmlu"
+    name: "moonshot_mmlu"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mmlu"
+      prompt_selection_percentage: 1
