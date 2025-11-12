@@ -56,7 +56,7 @@ class MetricExpressionEvaluator:
         ast.USub,  # Unary minus
     }
 
-    ALLOWED_FUNCTIONS = {"min", "max", "avg", "sum", "abs", "round", "pow"}
+    ALLOWED_FUNCTIONS = {"min", "max", "avg", "abs", "round", "pow"}
 
     def parse_expression(self, expression: str) -> ast.Expression:
         """
@@ -166,7 +166,6 @@ class MetricExpressionEvaluator:
         context: Dict[str, Any] = metric_values.copy()
         context["min"] = min
         context["max"] = max
-        context["sum"] = sum
         context["abs"] = abs
         context["round"] = round
         context["pow"] = pow
