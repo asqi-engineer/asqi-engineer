@@ -35,7 +35,7 @@ class TestMetricExpressionEvaluator:
         evaluator = MetricExpressionEvaluator()
 
         with pytest.raises(MetricExpressionError, match="not allowed"):
-            evaluator.parse_expression("pow(a, 2)")  # pow not in allowed list
+            evaluator.parse_expression("open('file.txt')")  # open not in allowed list
 
         with pytest.raises(MetricExpressionError, match="Unsupported operator"):
             evaluator.parse_expression("a ** 2")  # Exponentiation not allowed
@@ -145,6 +145,58 @@ class TestMetricExpressionEvaluator:
 
         result = evaluator.evaluate_expression("a * b * c", {"a": 2, "b": 3, "c": 4})
         assert result == 24
+
+    def test_evaluate_expression_with_abs(self):
+        """Test absolute value function."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Test with negative number
+        result = evaluator.evaluate_expression("abs(a)", {"a": -0.5})
+        assert result == pytest.approx(0.5)
+
+        # Test with positive number
+        result = evaluator.evaluate_expression("abs(b)", {"b": 0.3})
+        assert result == pytest.approx(0.3)
+
+        # Test in expression
+        result = evaluator.evaluate_expression("abs(a - b)", {"a": 0.2, "b": 0.7})
+        assert result == pytest.approx(0.5)
+
+    def test_evaluate_expression_with_round(self):
+        """Test rounding function."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Test with 2 decimal places
+        result = evaluator.evaluate_expression("round(a, 2)", {"a": 0.666})
+        assert result == pytest.approx(0.67)
+
+        # Test default rounding (to integer)
+        result = evaluator.evaluate_expression("round(b)", {"b": 2.5})
+        assert result == 2
+
+        # Test in expression
+        result = evaluator.evaluate_expression(
+            "round(a + b, 1)", {"a": 0.333, "b": 0.444}
+        )
+        assert result == pytest.approx(0.8)
+
+    def test_evaluate_expression_with_pow(self):
+        """Test power function."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Test integer power
+        result = evaluator.evaluate_expression("pow(a, 2)", {"a": 3})
+        assert result == 9
+
+        # Test fractional power (square root)
+        result = evaluator.evaluate_expression("pow(b, 0.5)", {"b": 4})
+        assert result == pytest.approx(2.0)
+
+        # Test in expression
+        result = evaluator.evaluate_expression(
+            "pow(a, 2) + pow(b, 2)", {"a": 3, "b": 4}
+        )
+        assert result == 25
 
     def test_evaluate_expression_division(self):
         """Test division operations."""

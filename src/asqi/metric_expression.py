@@ -57,7 +57,7 @@ class MetricExpressionEvaluator:
         ast.USub,  # Unary minus
     }
 
-    ALLOWED_FUNCTIONS = {"min", "max", "avg", "sum"}
+    ALLOWED_FUNCTIONS = {"min", "max", "avg", "sum", "abs", "round", "pow"}
 
     def parse_expression(self, expression: str) -> ast.Expression:
         """
@@ -168,6 +168,9 @@ class MetricExpressionEvaluator:
         context["min"] = min
         context["max"] = max
         context["sum"] = sum
+        context["abs"] = abs
+        context["round"] = round
+        context["pow"] = pow
         context["avg"] = lambda *args: sum(args) / len(args) if args else 0
 
         try:
