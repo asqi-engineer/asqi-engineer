@@ -434,6 +434,7 @@ def run_container_with_args(
     container_config: ContainerConfig,
     environment: Optional[Dict[str, str]] = None,
     name: Optional[str] = None,
+    workflow_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Run a Docker container with specified arguments and return results.
@@ -444,6 +445,7 @@ def run_container_with_args(
         container_config: Container execution configurations
         environment: Optional dictionary of environment variables to pass to container
         name: Optional name for the container (will be used as container name in Docker)
+        workflow_id: Optional workflow identifier to uniquely associate the container with a workflow
 
     Returns:
         Dictionary with execution results including exit_code, output, success, etc.
@@ -470,7 +472,8 @@ def run_container_with_args(
         try:
             # Run container
             args, mounts = _extract_mounts_from_args(client, args)
-
+            # Container labels
+            labels = {"workflow_id": workflow_id or "", "service": "asqi_engineer"}
             logger.info(f"Running container for image '{image}' with args: {args}")
             if mounts:
                 logger.info(f"Mounts: {mounts}")
@@ -481,6 +484,7 @@ def run_container_with_args(
                 "command": args,
                 "environment": environment or {},
                 "mounts": mounts,
+                "labels": labels,
                 **container_config.run_params,
             }
 
