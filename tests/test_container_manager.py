@@ -519,6 +519,36 @@ class TestRunContainerWithArgs:
         call_kwargs = mock_client.containers.run.call_args[1]
         assert call_kwargs["mounts"] == test_mounts
 
+    def test_run_container_labels(self, mock_container_setup):
+        """Test that container labels are correctly applied."""
+        mock_client, _, mock_extract_mounts = mock_container_setup
+
+        container_config: ContainerConfig = ContainerConfig()
+        run_container_with_args(
+            image="test:latest",
+            args=["--test"],
+            container_config=container_config,
+            workflow_id="test_workflow",
+        )
+        mock_extract_mounts.assert_called_once()
+        call_kwargs = mock_client.containers.run.call_args[1]
+        assert call_kwargs["labels"] == {
+            "workflow_id": "test_workflow",
+            "service": "asqi_engineer",
+        }
+
+    def test_run_container_labels_empty_workflow(self, mock_container_setup):
+        """Test that container labels when workflow_id is empty"""
+        mock_client, _, mock_extract_mounts = mock_container_setup
+
+        container_config: ContainerConfig = ContainerConfig()
+        run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
+        mock_extract_mounts.assert_called_once()
+        call_kwargs = mock_client.containers.run.call_args[1]
+        assert call_kwargs["labels"] == {"workflow_id": "", "service": "asqi_engineer"}
+
     @pytest.mark.parametrize(
         "exception,expected_error_message",
         [

@@ -336,7 +336,7 @@ def execute_single_test(
         environment=container_env,
         container_config=container_config,
         name=container_name,
-        workflow_id=DBOS.workflow_id,
+        workflow_id=DBOS.workflow_id or "",
     )
 
     result.end_time = time.time()
