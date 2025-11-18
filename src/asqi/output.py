@@ -55,6 +55,35 @@ def parse_container_json_output(output: str) -> Dict[str, Any]:
             except json.JSONDecodeError:
                 continue
 
+        # Try line-by-line parsing for multi-line output
+    lines = output.split("\n")
+    json_lines = []
+    capturing = False
+
+    #  Capture lines between { and }
+    for line in lines:
+        line = line.strip()
+        if line.startswith("{"):
+            capturing = True
+            json_lines = [line]
+        elif capturing:
+            json_lines.append(line)
+            if line.endswith("}"):
+                try:
+                    json_str = "\n".join(json_lines)
+                    return json.loads(json_str)
+                except json.JSONDecodeError:
+                    continue
+
+    # Try parsing last non-empty line that looks like JSON
+    for line in reversed(lines):
+        line = line.strip()
+        if line.startswith("{"):
+            try:
+                return json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
     raise ValueError(
         f"No valid JSON found in container output. Output preview: '{output[:100]}{'...' if len(output) > 100 else ''}'"
     )
