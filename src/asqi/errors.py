@@ -74,3 +74,9 @@ class MountExtractionError(Exception):
     """Exception raised when extracting mounts from args fails."""
 
     pass
+
+
+class MetricExpressionError(Exception):
+    """Raised when metric expression parsing or evaluation fails."""
+
+    pass

@@ -278,6 +278,19 @@ class AssessmentRule(BaseModel):
     )
 
 
+class MetricExpression(BaseModel):
+    """Expression-based metric evaluation with explicit value declarations."""
+
+    expression: str = Field(
+        ...,
+        description="Mathematical formula combining metrics. Variable names in the expression must match keys in the 'values' dict.",
+    )
+    values: Dict[str, str] = Field(
+        ...,
+        description="Mapping from expression variable names to metric paths. Keys are used in the expression, values are paths to extract from test results.",
+    )
+
+
 class ScoreCardIndicator(BaseModel):
     """Individual score card indicator with filtering and assessment."""
 
@@ -292,9 +305,20 @@ class ScoreCardIndicator(BaseModel):
         ...,
         description="Filter criteria for which test results this indicator applies to",
     )
-    metric: str = Field(
+    metric: Union[str, MetricExpression] = Field(
         ...,
-        description="Path to metric within test_results object. Supports dot notation for nested objects ('vulnerability_stats.Toxicity.overall_pass_rate'), and bracket notation for keys with dots ('probe_results[\"encoding.InjectHex\"][\"encoding.DecodeMatch\"].passed')",
+        description=(
+            "Metric to evaluate. Can be either:\n"
+            "1. Simple path (string): 'average_answer_relevance' or 'stats.pass_rate'\n"
+            "2. Expression object with 'expression' and 'values' fields:\n"
+            "   metric:\n"
+            "     expression: '0.7 * accuracy + 0.3 * relevance'\n"
+            "     values:\n"
+            "       accuracy: 'average_answer_accuracy'\n"
+            "       relevance: 'average_answer_relevance'\n"
+            "   Supports arithmetic operators (+, -, *, /), functions (min, max, avg), and parentheses.\n"
+            "   Variable names in expression are mapped to metric paths via the 'values' dict."
+        ),
     )
     assessment: List[AssessmentRule] = Field(
         ..., description="List of assessment rules to evaluate against the metric"

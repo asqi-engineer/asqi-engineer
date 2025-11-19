@@ -32,7 +32,8 @@ The project focuses first on chatbot testing and supports extensions for other A
 ### **Automated Assessment**
 
 - **Structured reporting**: JSON output with detailed metrics and assessment outcomes
-- **Configurable score cards**: Define custom evaluation criteria with flexible assessment criteria
+- **Configurable score cards**: Define custom evaluation criteria with flexible assessment conditions
+- **Metric expressions**: Combine multiple metrics using mathematical operations (`+`, `-`, `*`, `/`) and functions (`min`, `max`, `avg`, `sum`, `abs`, `round`, `pow`) for sophisticated composite scoring
 
 ### **Developer Experience**
 

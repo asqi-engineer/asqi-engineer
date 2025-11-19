@@ -2,7 +2,11 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from asqi.schemas import ScoreCard, ScoreCardIndicator
+from asqi.metric_expression import (
+    MetricExpressionError,
+    MetricExpressionEvaluator,
+)
+from asqi.schemas import MetricExpression, ScoreCard, ScoreCardIndicator
 from asqi.workflow import TestExecutionResult
 
 logger = logging.getLogger(__name__)
@@ -315,6 +319,61 @@ class ScoreCardEngine:
 
         return values
 
+    def resolve_metric_or_expression(
+        self,
+        test_result: TestExecutionResult,
+        metric_config: Union[str, MetricExpression],
+    ) -> Tuple[Optional[Union[int, float]], Optional[str]]:
+        """
+        Resolve a metric configuration (simple path or expression object).
+
+        Args:
+            test_result: Test execution result containing metric data
+            metric_config: Either a simple metric path string or MetricExpression object
+
+        Returns:
+            Tuple of (resolved_value, error_message). If successful, error is None.
+        """
+        # Handle simple string path (backward compatible)
+        if isinstance(metric_config, str):
+            return get_nested_value(test_result.test_results, metric_config)
+
+        # Handle MetricExpression object
+        evaluator = MetricExpressionEvaluator()
+
+        try:
+            # Resolve all declared metric values
+            metric_values: Dict[str, Union[int, float]] = {}
+            for var_name, metric_path in metric_config.values.items():
+                value, error = get_nested_value(test_result.test_results, metric_path)
+
+                if error is not None:
+                    return (
+                        None,
+                        f"Failed to resolve metric '{metric_path}' for variable '{var_name}': {error}",
+                    )
+
+                # Validate it's numeric for expression evaluation
+                if not isinstance(value, (int, float)):
+                    return (
+                        None,
+                        f"Metric '{metric_path}' (variable '{var_name}') has non-numeric value {type(value).__name__}: {value}",
+                    )
+
+                # Use the variable name directly from the dict key
+                metric_values[var_name] = value
+
+            # Evaluate the expression with resolved values
+            result = evaluator.evaluate_expression(
+                metric_config.expression, metric_values
+            )
+            return result, None
+
+        except MetricExpressionError as e:
+            return None, f"Expression evaluation error: {e}"
+        except Exception as e:
+            return None, f"Unexpected error evaluating expression: {e}"
+
     def apply_condition_to_value(
         self, value: Any, condition: str, threshold: Optional[Union[int, float]] = None
     ) -> Tuple[bool, str]:
@@ -440,9 +499,9 @@ class ScoreCardEngine:
                 )
 
                 try:
-                    # Extract metric value from this specific test using nested path support
-                    metric_value, error = get_nested_value(
-                        test_result.test_results, indicator.metric
+                    # Resolve metric value (handles both simple paths and expressions)
+                    metric_value, error = self.resolve_metric_or_expression(
+                        test_result, indicator.metric
                     )
 
                     if error is None:

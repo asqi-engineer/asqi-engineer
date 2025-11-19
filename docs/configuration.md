@@ -329,6 +329,112 @@ indicators:
       - { outcome: "VULNERABLE", condition: "greater_than", threshold: 0.0 }
 ```
 
+### Metric Expressions
+
+Combine multiple metrics using mathematical operations and functions for sophisticated composite scoring.
+
+#### Basic Usage
+
+Simple metric path (backward compatible):
+```yaml
+metric: "accuracy_score"
+```
+
+Expression format for combining metrics:
+```yaml
+metric:
+  expression: "0.7 * accuracy + 0.3 * relevance"
+  values:
+    accuracy: "metrics.answer_accuracy"
+    relevance: "metrics.answer_relevance"
+```
+
+**Key components:**
+- `expression`: Mathematical formula using variable names
+- `values`: Maps variable names to metric paths in test results
+
+#### Supported Operations
+
+**Operators:** `+`, `-`, `*`, `/`, `()`
+
+**Functions:**
+- `min(...)`, `max(...)`, `avg(...)`, `sum(...)` - Aggregation
+- `abs(x)` - Absolute value
+- `round(x, n)` - Round to n decimals
+- `pow(x, y)` - Power (x^y)
+
+#### Common Patterns
+
+Weighted average:
+```yaml
+expression: "0.5 * accuracy + 0.3 * speed + 0.2 * reliability"
+values: { accuracy: "test_accuracy", speed: "response_time", reliability: "uptime" }
+```
+
+All metrics must pass:
+```yaml
+expression: "min(security, privacy, compliance)"
+values: { security: "sec_score", privacy: "priv_score", compliance: "comp_score" }
+```
+
+Best performer:
+```yaml
+expression: "max(model_a, model_b, model_c)"
+values: { model_a: "models.a.score", model_b: "models.b.score", model_c: "models.c.score" }
+```
+
+Capped composite:
+```yaml
+expression: "min((0.4 * speed + 0.6 * quality), 1.0)"
+values: { speed: "perf.speed_score", quality: "perf.quality_score" }
+```
+
+#### Complete Example
+
+```yaml
+score_card_name: "Comprehensive Assessment"
+indicators:
+  # Simple metric
+  - id: "basic_success"
+    name: "Success Check"
+    apply_to: { test_id: "compatibility_test" }
+    metric: "success"
+    assessment:
+      - { outcome: "PASS", condition: "equal_to", threshold: true }
+  
+  # Weighted composite
+  - id: "quality_score"
+    name: "Overall Quality"
+    apply_to: { test_id: "chatbot_test" }
+    metric:
+      expression: "0.4 * accuracy + 0.3 * relevance + 0.3 * consistency"
+      values:
+        accuracy: "average_answer_accuracy"
+        relevance: "average_answer_relevance"
+        consistency: "consistency_score"
+    assessment:
+      - { outcome: "Excellent", condition: "greater_equal", threshold: 0.9 }
+      - { outcome: "Good", condition: "greater_equal", threshold: 0.75 }
+  
+  # Minimum threshold
+  - id: "min_requirements"
+    name: "All Metrics Pass"
+    apply_to: { test_id: "chatbot_test" }
+    metric:
+      expression: "min(accuracy, relevance, consistency)"
+      values:
+        accuracy: "average_answer_accuracy"
+        relevance: "average_answer_relevance"
+        consistency: "consistency_score"
+    assessment:
+      - { outcome: "Pass", condition: "greater_equal", threshold: 0.7 }
+      - { outcome: "Fail", condition: "less_than", threshold: 0.7 }
+```
+
+**Security:** Expressions run in a sandboxed environment with AST validation—no code execution, imports, or file access allowed.
+
+See `config/score_cards/expression_examples_score_card.yaml` for more examples.
+
 ## Container Interface Specification
 
 ### Standardized Entry Point
