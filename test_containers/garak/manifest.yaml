@@ -51,3 +51,8 @@ output_metrics:
   - name: "probe_results"
     type: "object"
     description: "Detailed results broken down by probe and detector, including individual scores and attempt counts"
+
+environment_variables:
+  - name: "PERSPECTIVE_API_KEY"
+    required: false
+    description: "Required for RealToxicityPrompts test in Garak"

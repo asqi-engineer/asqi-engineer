@@ -8,7 +8,7 @@ from rich.console import Console
 
 from asqi.config import load_config_file
 from asqi.errors import DuplicateIDError, MissingIDFieldError
-from asqi.schemas import Manifest, SuiteConfig, SystemsConfig
+from asqi.schemas import EnvironmentVariable, Manifest, SuiteConfig, SystemsConfig
 
 logger = logging.getLogger()
 
@@ -515,6 +515,8 @@ def create_test_execution_plan(
                     "sut_name": system_name,
                     "systems_params": systems_params,
                     "test_params": test_params,
+                    "env_file": test.env_file,
+                    "environment": test.environment,
                 }
             )
 
@@ -703,6 +705,52 @@ def validate_test_execution_inputs(
 
     if not isinstance(test_params, dict):
         raise ValueError("Invalid test parameters: must be dictionary")
+
+
+def build_env_var_error_message(
+    missing_vars: List["EnvironmentVariable"],
+    test_name: str,
+    image: str,
+) -> str:
+    """
+    Build helpful error message for missing environment variables.
+
+    Args:
+        missing_vars: List of EnvironmentVariable objects that are missing
+        test_name: Name of the test being executed
+        image: Docker image being used
+
+    Returns:
+        Formatted error message with suggestions for fixing the issue
+    """
+    var_list = "\n".join(
+        [
+            f"  - {var.name}: {var.description or 'No description'}"
+            for var in missing_vars
+        ]
+    )
+
+    var_names = ", ".join(v.name for v in missing_vars)
+
+    env_dict_lines = "\n".join(
+        f'    {var.name}: "${{{var.name}}}"' for var in missing_vars
+    )
+
+    return f"""Test '{test_name}' (image: {image}) requires environment variables that are not available:
+
+{var_list}
+
+To fix this, add to your test configuration:
+
+Option 1 - Use env_file:
+  env_file: ".env"  # File containing {var_names}
+
+Option 2 - Specify environment variables directly:
+  environment:
+{env_dict_lines}
+
+Then ensure these variables are set in your shell or .env file.
+"""
 
 
 def validate_workflow_configurations(

@@ -190,3 +190,171 @@ class TestEnvironmentVariables:
         assert call_kwargs["environment"]["API_KEY"] == "sk-123"
         # Verify .env file variables are NOT automatically loaded
         assert "TEST_SECRET_KEY" not in call_kwargs["environment"]
+
+    @patch("asqi.workflow.run_container_with_args")
+    def test_test_level_env_file(self, mock_run_container, tmp_path, monkeypatch):
+        """Test that test-level env_file loads environment variables."""
+        test_env_content = "TEST_VAR=test_value\nANOTHER_VAR=another_value\n"
+        test_env_path = tmp_path / "test.env"
+        test_env_path.write_text(test_env_content)
+        monkeypatch.chdir(tmp_path)
+
+        system_params = {
+            "type": "llm_api",
+            "base_url": "http://localhost:4000",
+            "model": "gpt-4o-mini",
+        }
+
+        mock_run_container.return_value = {
+            "success": True,
+            "exit_code": 0,
+            "output": '{"success": true}',
+            "error": "",
+            "container_id": "test_123",
+        }
+
+        container_config: ContainerConfig = ContainerConfig()
+
+        _result = execute_single_test(
+            test_name="test_with_env_file",
+            test_id="test_id",
+            image="my-registry/test:latest",
+            sut_name="test_system",
+            systems_params={"system_under_test": system_params},
+            test_params={},
+            container_config=container_config,
+            env_file="test.env",
+            environment=None,
+        )
+
+        call_kwargs = mock_run_container.call_args[1]
+        assert call_kwargs["environment"]["TEST_VAR"] == "test_value"
+        assert call_kwargs["environment"]["ANOTHER_VAR"] == "another_value"
+
+    @patch("asqi.workflow.run_container_with_args")
+    def test_test_level_environment_dict(
+        self, mock_run_container, tmp_path, monkeypatch
+    ):
+        """Test that test-level environment dict sets env vars."""
+        monkeypatch.chdir(tmp_path)
+
+        system_params = {
+            "type": "llm_api",
+            "base_url": "http://localhost:4000",
+            "model": "gpt-4o-mini",
+        }
+
+        mock_run_container.return_value = {
+            "success": True,
+            "exit_code": 0,
+            "output": '{"success": true}',
+            "error": "",
+            "container_id": "test_123",
+        }
+
+        container_config: ContainerConfig = ContainerConfig()
+
+        _result = execute_single_test(
+            test_name="test_with_env_dict",
+            test_id="test_id",
+            image="my-registry/test:latest",
+            sut_name="test_system",
+            systems_params={"system_under_test": system_params},
+            test_params={},
+            container_config=container_config,
+            env_file=None,
+            environment={"CUSTOM_VAR": "custom_value", "ANOTHER": "value2"},
+        )
+
+        call_kwargs = mock_run_container.call_args[1]
+        assert call_kwargs["environment"]["CUSTOM_VAR"] == "custom_value"
+        assert call_kwargs["environment"]["ANOTHER"] == "value2"
+
+    @patch("asqi.workflow.run_container_with_args")
+    def test_environment_interpolation(self, mock_run_container, tmp_path, monkeypatch):
+        """Test that environment dict supports ${VAR} interpolation."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("MY_SECRET_KEY", "interpolated_secret")
+
+        system_params = {
+            "type": "llm_api",
+            "base_url": "http://localhost:4000",
+            "model": "gpt-4o-mini",
+        }
+
+        mock_run_container.return_value = {
+            "success": True,
+            "exit_code": 0,
+            "output": '{"success": true}',
+            "error": "",
+            "container_id": "test_123",
+        }
+
+        container_config: ContainerConfig = ContainerConfig()
+
+        _result = execute_single_test(
+            test_name="test_interpolation",
+            test_id="test_id",
+            image="my-registry/test:latest",
+            sut_name="test_system",
+            systems_params={"system_under_test": system_params},
+            test_params={},
+            container_config=container_config,
+            env_file=None,
+            environment={"OPENAI_API_KEY": "${MY_SECRET_KEY}"},
+        )
+
+        call_kwargs = mock_run_container.call_args[1]
+        assert call_kwargs["environment"]["OPENAI_API_KEY"] == "interpolated_secret"
+
+    @patch("asqi.workflow.run_container_with_args")
+    def test_merge_priority_test_over_system(
+        self, mock_run_container, tmp_path, monkeypatch
+    ):
+        """Test that test-level env vars override system-level ones."""
+        # Create system-level .env
+        system_env_content = "SHARED_VAR=system_value\nSYSTEM_ONLY=sys_value\n"
+        system_env_path = tmp_path / "system.env"
+        system_env_path.write_text(system_env_content)
+
+        # Create test-level .env
+        test_env_content = "SHARED_VAR=test_value\nTEST_ONLY=test_value\n"
+        test_env_path = tmp_path / "test.env"
+        test_env_path.write_text(test_env_content)
+
+        monkeypatch.chdir(tmp_path)
+
+        system_params = {
+            "type": "llm_api",
+            "base_url": "http://localhost:4000",
+            "model": "gpt-4o-mini",
+            "env_file": "system.env",
+        }
+
+        mock_run_container.return_value = {
+            "success": True,
+            "exit_code": 0,
+            "output": '{"success": true}',
+            "error": "",
+            "container_id": "test_123",
+        }
+
+        container_config: ContainerConfig = ContainerConfig()
+
+        _result = execute_single_test(
+            test_name="test_merge",
+            test_id="test_id",
+            image="my-registry/test:latest",
+            sut_name="test_system",
+            systems_params={"system_under_test": system_params},
+            test_params={},
+            container_config=container_config,
+            env_file="test.env",
+            environment=None,
+        )
+
+        # Verify merge priority: test-level overrides system-level
+        call_kwargs = mock_run_container.call_args[1]
+        assert call_kwargs["environment"]["SHARED_VAR"] == "test_value"  # Overridden
+        assert call_kwargs["environment"]["SYSTEM_ONLY"] == "sys_value"  # From system
+        assert call_kwargs["environment"]["TEST_ONLY"] == "test_value"  # From test

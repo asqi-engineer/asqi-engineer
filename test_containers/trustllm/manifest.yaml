@@ -38,16 +38,20 @@ output_metrics:
   - name: "success"
     type: "boolean"
     description: "Whether the TrustLLM evaluation completed successfully"
-  
+
   - name: "test_type"
     type: "string"
     description: "The test dimension that was evaluated"
-  
+
   - name: "datasets_tested"
     type: "list"
     description: "List of dataset names that were actually tested"
-  
+
   - name: "dataset_results"
     type: "object"
     description: "Individual results for each dataset, with dataset name as key containing both generation and evaluation results"
- 
+
+environment_variables:
+  - name: "OPENAI_API_KEY"
+    required: true
+    description: "Required for TrustLLM evaluation embeddings and LLM-as-judge scoring used in certain test dimensions"

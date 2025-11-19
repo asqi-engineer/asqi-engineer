@@ -51,6 +51,22 @@ class OutputArtifact(BaseModel):
     description: Optional[str] = None
 
 
+class EnvironmentVariable(BaseModel):
+    """Defines an environment variable required by the test container."""
+
+    name: str = Field(
+        ...,
+        description="Environment variable name (e.g., 'OPENAI_API_KEY', 'HF_TOKEN').",
+    )
+    required: bool = Field(
+        True,
+        description="Whether this environment variable is mandatory for execution.",
+    )
+    description: Optional[str] = Field(
+        None, description="Explanation of what this variable is used for."
+    )
+
+
 class Manifest(BaseModel):
     """Schema for the manifest.yaml file inside a test container."""
 
@@ -73,6 +89,10 @@ class Manifest(BaseModel):
         description="Defines expected high-level metrics in the final JSON output. Can be a simple list of strings or detailed metric definitions.",
     )
     output_artifacts: Optional[List[OutputArtifact]] = None
+    environment_variables: List[EnvironmentVariable] = Field(
+        [],
+        description="Environment variables required by this test container. Used for validation and documentation.",
+    )
 
 
 # ----------------------------------------------------------------------------
@@ -193,6 +213,14 @@ class TestDefinitionBase(BaseModel):
     )
     volumes: Optional[Dict[str, Any]] = Field(
         None, description="Optional input/output mounts."
+    )
+    env_file: Optional[str] = Field(
+        None,
+        description="Path to .env file containing environment variables for this test's container execution (e.g., '.env', 'test.env').",
+    )
+    environment: Optional[Dict[str, str]] = Field(
+        None,
+        description="Dictionary of environment variables to pass to the test container. Supports interpolation syntax (e.g., {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
     )
 
 

@@ -79,6 +79,35 @@
           "description": "Optional input/output mounts.",
           "title": "Volumes"
         },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to .env file containing environment variables for this test's container execution (e.g., '.env', 'test.env').",
+          "title": "Env File"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dictionary of environment variables to pass to the test container. Supports interpolation syntax (e.g., {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
+          "title": "Environment"
+        },
         "id": {
           "description": "A unique, human-readable ID (up to 32 characters) for this test instance. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
           "pattern": "^[0-9a-z_]{1,32}$",
@@ -202,6 +231,35 @@
           "default": null,
           "description": "Optional input/output mounts.",
           "title": "Volumes"
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to .env file containing environment variables for this test's container execution (e.g., '.env', 'test.env').",
+          "title": "Env File"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dictionary of environment variables to pass to the test container. Supports interpolation syntax (e.g., {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
+          "title": "Environment"
         }
       },
       "title": "TestSuiteDefault",

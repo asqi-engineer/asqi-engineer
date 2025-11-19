@@ -7,6 +7,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "aime2024"
       evaluation_params: {}
@@ -18,6 +20,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "gsm8k"
       evaluation_params: {}
@@ -29,6 +33,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "math"
       evaluation_params: {}
@@ -40,6 +46,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "mgsm"
       evaluation_params: {}
@@ -51,6 +59,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "mathvista"
       evaluation_params: {}
