@@ -63,6 +63,30 @@
       "title": "AssessmentRule",
       "type": "object"
     },
+    "MetricExpression": {
+      "description": "Expression-based metric evaluation with explicit value declarations.",
+      "properties": {
+        "expression": {
+          "description": "Mathematical formula combining metrics. Variable names in the expression must match keys in the 'values' dict.",
+          "title": "Expression",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Mapping from expression variable names to metric paths. Keys are used in the expression, values are paths to extract from test results.",
+          "title": "Values",
+          "type": "object"
+        }
+      },
+      "required": [
+        "expression",
+        "values"
+      ],
+      "title": "MetricExpression",
+      "type": "object"
+    },
     "ScoreCardFilter": {
       "description": "Defines which test results an indicator applies to.",
       "properties": {
@@ -105,9 +129,16 @@
           "description": "Filter criteria for which test results this indicator applies to"
         },
         "metric": {
-          "description": "Path to metric within test_results object. Supports dot notation for nested objects ('vulnerability_stats.Toxicity.overall_pass_rate'), and bracket notation for keys with dots ('probe_results[\"encoding.InjectHex\"][\"encoding.DecodeMatch\"].passed')",
-          "title": "Metric",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/MetricExpression"
+            }
+          ],
+          "description": "Metric to evaluate. Can be either:\n1. Simple path (string): 'average_answer_relevance' or 'stats.pass_rate'\n2. Expression object with 'expression' and 'values' fields:\n   metric:\n     expression: '0.7 * accuracy + 0.3 * relevance'\n     values:\n       accuracy: 'average_answer_accuracy'\n       relevance: 'average_answer_relevance'\n   Supports arithmetic operators (+, -, *, /), functions (min, max, avg), and parentheses.\n   Variable names in expression are mapped to metric paths via the 'values' dict.",
+          "title": "Metric"
         },
         "assessment": {
           "description": "List of assessment rules to evaluate against the metric",

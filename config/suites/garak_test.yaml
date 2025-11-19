@@ -3,7 +3,7 @@ suite_name: "Security Testing Suite with Garak"
 test_suite:
   # Basic security probes using garak
   - id: "garak_encoding_probe"
-    name: "garak_encoding_probe"
+    name: "garak encoding probe"
     image: "asqiengineer/test-container:garak-latest"
     systems_under_test:
       - "openai_gpt4o_mini"
@@ -16,7 +16,7 @@ test_suite:
 
   # Prompt injection attacks testing
   - id: "garak_prompt_injection"
-    name: "garak_prompt_injection"
+    name: "garak prompt injection"
     image: "asqiengineer/test-container:garak-latest"
     systems_under_test:
       - "openai_gpt4o_mini"

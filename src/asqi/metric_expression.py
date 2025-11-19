@@ -7,14 +7,9 @@ Supports arithmetic operations and aggregation functions while maintaining secur
 import ast
 import logging
 from typing import Any, Dict, Union
+from asqi.errors import MetricExpressionError
 
 logger = logging.getLogger(__name__)
-
-
-class MetricExpressionError(Exception):
-    """Raised when metric expression parsing or evaluation fails."""
-
-    pass
 
 
 class MetricExpressionEvaluator:
@@ -190,7 +185,7 @@ class MetricExpressionEvaluator:
 
         except NameError as e:
             # Extract missing metric name
-            missing_metric = str(e).split("'")[1] if "'" in str(e) else "unknown"
+            missing_metric = getattr(e, "name", "unknown")
             available_metrics = list(metric_values.keys())
             raise MetricExpressionError(
                 f"Metric '{missing_metric}' not found. Available metrics: {available_metrics}"

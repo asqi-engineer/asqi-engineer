@@ -2,10 +2,8 @@
 
 import pytest
 
-from asqi.metric_expression import (
-    MetricExpressionError,
-    MetricExpressionEvaluator,
-)
+from asqi.metric_expression import MetricExpressionEvaluator
+from asqi.errors import MetricExpressionError
 
 
 class TestMetricExpressionEvaluator:
@@ -204,6 +202,48 @@ class TestMetricExpressionEvaluator:
 
         result = evaluator.evaluate_expression("a / b", {"a": 10, "b": 4})
         assert result == pytest.approx(2.5)
+
+    def test_evaluate_expression_empty_string(self):
+        """Test that empty expression string raises appropriate error."""
+        evaluator = MetricExpressionEvaluator()
+
+        with pytest.raises(MetricExpressionError, match="Invalid expression syntax"):
+            evaluator.evaluate_expression("", {"a": 0.5})
+
+    def test_evaluate_expression_with_invalid_function_name(self):
+        """Test that invalid function names (like 'average' instead of 'avg') raise error."""
+        evaluator = MetricExpressionEvaluator()
+
+        with pytest.raises(MetricExpressionError, match="not allowed"):
+            evaluator.evaluate_expression(
+                "average(a, b, c)", {"a": 0.6, "b": 0.8, "c": 1.0}
+            )
+
+    def test_evaluate_expression_with_assignment(self):
+        """Test that variable assignment is not allowed."""
+        evaluator = MetricExpressionEvaluator()
+
+        with pytest.raises(MetricExpressionError, match="Invalid expression syntax"):
+            evaluator.parse_expression("min = 3")
+
+        with pytest.raises(MetricExpressionError, match="Invalid expression syntax"):
+            evaluator.parse_expression("x = a + b")
+
+    def test_evaluate_expression_with_non_numeric_metric_value(self):
+        """Test that non-numeric metric values raise appropriate error."""
+        evaluator = MetricExpressionEvaluator()
+
+        # String value instead of number - causes TypeError during addition
+        with pytest.raises(MetricExpressionError, match="Type error"):
+            evaluator.evaluate_expression("a + b", {"a": "string", "b": 0.5})
+
+        # List value instead of number - list * int returns list, which fails numeric check
+        with pytest.raises(MetricExpressionError, match="must evaluate to a number"):
+            evaluator.evaluate_expression("a * 2", {"a": [1, 2, 3]})
+
+        # Dict value instead of number - causes TypeError during addition
+        with pytest.raises(MetricExpressionError, match="Type error"):
+            evaluator.evaluate_expression("a + 1", {"a": {"value": 5}})
 
 
 class TestExpressionSafety:

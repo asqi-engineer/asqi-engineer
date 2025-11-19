@@ -3,11 +3,9 @@ suite_name: "LLM load performance benchmarking with llmperf"
 test_suite:
 
   - id: "llmperf_throughput_test"
-    name: "llmperf_throughput"
+    name: "llmperf throughput"
     image: "asqiengineer/test-container:llmperf-latest"
     systems_under_test:
       - "nova_lite"
-    # volumes:
-    #   output: /workspaces/asqi/output
     params:
       max_num_completed_requests: 10

@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_score_card.schema.json
+score_card_name: "Example scorecard that shows how to use metrics in score cards"
+indicators:
+
+  # simple metric example (backkwards compatible)
+  - id: "simple_ttft_check"
+    name: "How fast is the time to first token?"
+    apply_to:
+      test_id: "llmperf_throughput_test"
+    metric: "metrics.results_ttft_s_mean"
+    assessment:
+      - { outcome: "A", condition: "less_than", threshold: 1.0 }
+      - { outcome: "B", condition: "less_than", threshold: 2.0 }
+      - { outcome: "C", condition: "less_than", threshold: 3.0 }
+      - { outcome: "D", condition: "less_than", threshold: 4.0 }
+      - { outcome: "E", condition: "greater_equal", threshold: 4.0 }
+
+  # weighted average example
+  - id: "weighted_latency_score"
+    name: "What is the overall latency performance score?"
+    apply_to:
+      test_id: "llmperf_throughput_test"
+    metric:
+      expression: "0.4 * ttft + 0.3 * inter_token + 0.3 * e2e"
+      values:
+        ttft: "metrics.results_ttft_s_mean"
+        inter_token: "metrics.results_inter_token_latency_s_mean"
+        e2e: "metrics.results_end_to_end_latency_s_mean"
+    assessment:
+      - { outcome: "A", condition: "less_than", threshold: 1.5 }
+      - { outcome: "B", condition: "less_than", threshold: 2.0 }
+      - { outcome: "C", condition: "less_than", threshold: 2.5 }
+      - { outcome: "D", condition: "less_than", threshold: 3.0 }
+      - { outcome: "E", condition: "greater_equal", threshold: 3.0 }
+
+  # aggregate function example
+  - id: "max_latency_check"
+    name: "Are all latency metrics within acceptable thresholds?"
+    apply_to:
+      test_id: "llmperf_throughput_test"
+    metric:
+      expression: "max(ttft, inter_token, e2e)"
+      values:
+        ttft: "metrics.results_ttft_s_mean"
+        inter_token: "metrics.results_inter_token_latency_s_mean"
+        e2e: "metrics.results_end_to_end_latency_s_mean"
+    assessment:
+      - { outcome: "A", condition: "less_than", threshold: 2.0 }
+      - { outcome: "B", condition: "less_than", threshold: 3.0 }
+      - { outcome: "C", condition: "less_than", threshold: 4.0 }
+      - { outcome: "D", condition: "less_than", threshold: 5.0 }
+      - { outcome: "E", condition: "greater_equal", threshold: 5.0 }
+
+  # complex formula example
+  - id: "capped_composite_score"
+    name: "What is the normalized performance score?"
+    apply_to:
+      test_id: "llmperf_throughput_test"
+    metric:
+      expression: "min((0.5 * throughput + 0.5 * (100 / ttft)), 100)"
+      values:
+        throughput: "metrics.results_request_output_throughput_token_per_s_mean"
+        ttft: "metrics.results_ttft_s_mean"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 80 }
+      - { outcome: "B", condition: "greater_equal", threshold: 65 }
+      - { outcome: "C", condition: "greater_equal", threshold: 50 }
+      - { outcome: "D", condition: "greater_equal", threshold: 35 }
+      - { outcome: "E", condition: "less_than", threshold: 35 }
+
+  # rounding example
+  - id: "rounded_throughput_tier"
+    name: "What throughput tier does the system belong to?"
+    apply_to:
+      test_id: "llmperf_throughput_test"
+    metric:
+      expression: "round(throughput / 10, 0)"
+      values:
+        throughput: "metrics.results_request_output_throughput_token_per_s_mean"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 5 }
+      - { outcome: "B", condition: "greater_equal", threshold: 4 }
+      - { outcome: "C", condition: "greater_equal", threshold: 3 }
+      - { outcome: "D", condition: "greater_equal", threshold: 2 }
+      - { outcome: "E", condition: "less_than", threshold: 2 }
