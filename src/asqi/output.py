@@ -49,6 +49,10 @@ def parse_container_json_output(output: str) -> Dict[str, Any]:
     for i in range(len(lines) - 1, -1, -1):
         if lines[i].strip().startswith("{"):
             json_str = "\n".join(lines[i:])
+            end = json_str.rfind("}")
+            if end == -1:
+                raise ValueError(f"JSON object not properly closed: {json_str}")
+            json_str = json_str[: end + 1]
             try:
                 result = json.loads(json_str)
                 return result
