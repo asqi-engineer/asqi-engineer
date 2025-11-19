@@ -2,6 +2,7 @@ import atexit
 import glob
 import os
 import signal
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import typer
@@ -15,6 +16,11 @@ from asqi.config import (
     ExecutorConfig,
     interpolate_env_vars,
     merge_defaults_into_suite,
+)
+from asqi.config_templates import (
+    TemplateType,
+    generate_template,
+    resolve_manifest_path,
 )
 from asqi.container_manager import shutdown_containers
 from asqi.errors import DuplicateIDError, MissingIDFieldError
@@ -204,6 +210,113 @@ def _handle_shutdown(signum=None, frame=None):
     console.print(
         "[yellow] Containers stopped. Waiting for workflows to complete...[/yellow]"
     )
+
+
+@app.command("init-config", help="Generate starter templates for configuration files.")
+def init_config_command(
+    config_type_value: str = typer.Option(
+        ...,
+        "--type",
+        "-t",
+        help="Type of configuration to generate: systems, suite, or score-card.",
+    ),
+    output_path: Path = typer.Option(
+        ...,
+        "--output",
+        "-o",
+        help="Path to write the generated template YAML file.",
+    ),
+    manifest_path: Optional[Path] = typer.Option(
+        None,
+        "--manifest-path",
+        "--manifest",
+        "-m",
+        help="Optional path to a manifest.yaml file (or its directory) to tailor the template.",
+    ),
+    image: Optional[str] = typer.Option(
+        None,
+        "--image",
+        "-i",
+        help="Image reference to use in the generated suite template. Defaults to manifest name/version when provided.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Overwrite the output file if it already exists.",
+    ),
+):
+    """Generate starter configuration files for new users."""
+    target_path = output_path.expanduser()
+
+    if target_path.exists() and not force:
+        console.print(
+            f"[red]❌ Output file '{target_path}' already exists. Use --force to overwrite.[/red]"
+        )
+        raise typer.Exit(1)
+
+    try:
+        config_type = TemplateType.from_str(config_type_value)
+    except ValueError as e:
+        console.print(f"[red]❌ {e}[/red]")
+        raise typer.Exit(1)
+
+    manifest: Optional[Manifest] = None
+    if manifest_path:
+        try:
+            resolved_manifest = resolve_manifest_path(manifest_path.expanduser())
+            manifest_data = load_yaml_file(str(resolved_manifest))
+            manifest = Manifest(**manifest_data)
+        except (FileNotFoundError, ValueError, ValidationError, PermissionError) as e:
+            console.print(f"[red]❌ Failed to load manifest: {e}[/red]")
+            raise typer.Exit(1)
+
+    if manifest and config_type is TemplateType.SCORE_CARD:
+        console.print(
+            "[yellow]⚠️ Manifest input is not used when generating score card templates.[/yellow]"
+        )
+        manifest = None
+
+    if image and config_type is not TemplateType.SUITE:
+        console.print(
+            "[yellow]⚠️ Ignoring --image option because it only applies to suite templates.[/yellow]"
+        )
+        image = None
+
+    try:
+        template = generate_template(
+            config_type,
+            manifest=manifest,
+            image=image,
+        )
+    except ValueError as e:
+        console.print(f"[red]❌ {e}[/red]")
+        raise typer.Exit(1)
+
+    yaml_block = yaml.safe_dump(template.payload, sort_keys=False)
+    if template.header_lines:
+        header = "\n".join(template.header_lines)
+        file_contents = f"{header}\n\n{yaml_block}"
+    else:
+        file_contents = yaml_block
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(file_contents)
+
+    console.print(
+        f"[green]✨ Created {config_type.value} template at '{target_path}'.[/green]"
+    )
+
+    if manifest_path and manifest:
+        console.print(
+            f"[blue]📄 Based on manifest: {manifest.name} v{manifest.version}[/blue]"
+        )
+
+    if template.optional_systems:
+        optional_roles = ", ".join(template.optional_systems)
+        console.print(
+            f"[yellow]Note: The following system roles are optional and can be removed if not needed: {optional_roles}[/yellow]"
+        )
 
 
 @app.command("validate", help="Validate test plan configuration without execution.")

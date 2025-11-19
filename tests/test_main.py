@@ -1,5 +1,6 @@
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -397,6 +398,77 @@ class TestMainCLI:
         mock_dbos.start_workflow.assert_not_called()
         assert "❌ Test execution failed: ❌ Test not found: tes1" in result.stdout
         assert "Did you mean: test1" in result.stdout
+
+    def test_init_config_generates_systems_template(self, tmp_path):
+        """Generate a starter systems template."""
+        output_file = tmp_path / "systems.yaml"
+        result = self.runner.invoke(
+            app,
+            [
+                "init-config",
+                "--type",
+                "systems",
+                "--output",
+                str(output_file),
+            ],
+        )
+
+        assert result.exit_code == 0, result.stdout
+        content = output_file.read_text()
+        assert "systems:" in content
+        assert "my_llm_system" in content
+
+    def test_init_config_suite_with_manifest(self, tmp_path):
+        """Suite template pulls structure from manifest."""
+        manifest_path = Path("test_containers/mock_tester/manifest.yaml")
+        output_file = tmp_path / "suite.yaml"
+
+        result = self.runner.invoke(
+            app,
+            [
+                "init-config",
+                "--type",
+                "suite",
+                "--output",
+                str(output_file),
+                "--manifest-path",
+                str(manifest_path),
+                "--image",
+                "registry/mock:latest",
+            ],
+        )
+
+        assert result.exit_code == 0, result.stdout
+        content = output_file.read_text()
+        yaml_body = "\n".join(
+            line for line in content.splitlines() if not line.startswith("#")
+        )
+        data = yaml.safe_load(yaml_body)
+
+        test_def = data["test_suite"][0]
+        assert test_def["image"] == "registry/mock:latest"
+        assert test_def["systems_under_test"] == ["system_under_test"]
+        assert "params" in test_def
+        assert test_def["params"]["delay_seconds"] == 1
+
+    def test_init_config_requires_force_for_overwrite(self, tmp_path):
+        """Existing file cannot be overwritten without --force."""
+        output_file = tmp_path / "score_card.yaml"
+        output_file.write_text("existing: true\n")
+
+        result = self.runner.invoke(
+            app,
+            [
+                "init-config",
+                "--type",
+                "score-card",
+                "--output",
+                str(output_file),
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "already exists" in result.stdout
 
 
 class TestUtilityFunctions:
