@@ -24,6 +24,8 @@ test_suite:
   - id: "trustllm_adversarial_pert"
     name: "trustllm adversarial perturbation"
     image: "asqiengineer/test-container:trustllm-latest"
+    environment:
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
     params:
       test_type: "robustness"
       datasets: ["AdvInstruction"]
@@ -33,6 +35,8 @@ test_suite:
   - id: "trustllm_ood_detection"
     name: "trustllm ood detection"
     image: "asqiengineer/test-container:trustllm-latest"
+    environment:
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
     params:
       test_type: "robustness"
       datasets: ["ood_detection"]

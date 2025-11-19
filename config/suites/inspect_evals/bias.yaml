@@ -7,6 +7,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "bbq"
       evaluation_params: {}
@@ -18,6 +20,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "bold"
       evaluation_params: {}

@@ -7,6 +7,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "abstention_bench"
       evaluation_params: {
@@ -22,6 +24,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "agentdojo"
       evaluation_params: {}
@@ -33,6 +37,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "agentharm"
       evaluation_params: {}
@@ -43,6 +49,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "agentharm_benign"
       evaluation_params: {}
@@ -54,6 +62,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "lab_bench_cloning_scenarios"
       evaluation_params: {}
@@ -64,6 +74,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "lab_bench_dbqa"
       evaluation_params: {}
@@ -74,6 +86,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "lab_bench_figqa"
       evaluation_params: {}
@@ -84,6 +98,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "lab_bench_litqa"
       evaluation_params: {}
@@ -94,6 +110,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "lab_bench_protocolqa"
       evaluation_params: {}
@@ -104,6 +122,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "lab_bench_seqqa"
       evaluation_params: {}
@@ -115,6 +135,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "mask"
       evaluation_params: {}
@@ -126,6 +148,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "make_me_pay"
       evaluation_params: {}
@@ -137,6 +161,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "stereoset"
       evaluation_params: {}
@@ -148,6 +174,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "strong_reject"
       evaluation_params: {}
@@ -159,6 +187,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "wmdp_bio"
       evaluation_params: {}
@@ -169,6 +199,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "wmdp_chem"
       evaluation_params: {}
@@ -179,6 +211,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "wmdp_cyber"
       evaluation_params: {}

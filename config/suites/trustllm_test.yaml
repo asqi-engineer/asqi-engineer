@@ -6,6 +6,8 @@ test_suite:
     image: "asqiengineer/test-container:trustllm-latest"
     systems_under_test:
       - "nova_lite"
+    environment:
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
     volumes:
       output: /workspaces/asqi/output # Add a output volume to save the log file
     params:

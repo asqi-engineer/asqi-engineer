@@ -64,3 +64,8 @@ output_metrics:
   - name: "log_dir"
     type: "string"
     description: "Path to stored evaluation logs (present when output volume is configured)"
+
+environment_variables:
+  - name: "HF_TOKEN"
+    required: false
+    description: "Require access to gated HuggingFace datasets"

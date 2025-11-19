@@ -7,6 +7,8 @@ test_suite:
     image: "asqiengineer/test-container:inspect_evals-latest"
     systems_under_test:
       - "openai_gpt4o_mini"
+    environment:
+      HF_TOKEN: "${HF_TOKEN}"
     params:
       evaluation: "writingbench"
       evaluation_params: {
