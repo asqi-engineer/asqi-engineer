@@ -14,6 +14,7 @@ from rich.console import Console
 
 from asqi.config import (
     ContainerConfig,
+    interpolate_env_vars,
     load_config_file,
     merge_defaults_into_suite,
     save_container_results_to_file,
@@ -319,27 +320,14 @@ def execute_single_test(
 
     # Merge test-level environment dict (with interpolation support)
     if environment:
-        for key, value in environment.items():
-            # Support ${VAR_NAME} interpolation from current environment
-            if (
-                value
-                and isinstance(value, str)
-                and value.startswith("${")
-                and value.endswith("}")
-            ):
-                var_name = value[2:-1]  # Extract VAR_NAME from ${VAR_NAME}
-                env_value = os.environ.get(var_name)
-                if env_value:
-                    container_env[key] = env_value
-                    DBOS.logger.info(
-                        f"Interpolated environment variable {key} from ${{{var_name}}}"
-                    )
-                else:
-                    DBOS.logger.warning(
-                        f"Environment variable {var_name} not found for interpolation"
-                    )
+        interpolated_env = interpolate_env_vars(environment)
+        for key, value in interpolated_env.items():
+            container_env[key] = value
+            if environment.get(key) != value:
+                DBOS.logger.info(
+                    f"Interpolated environment variable {key}: {environment[key]} -> {value}"
+                )
             else:
-                container_env[key] = value
                 DBOS.logger.info(
                     f"Set environment variable {key} from test configuration"
                 )
