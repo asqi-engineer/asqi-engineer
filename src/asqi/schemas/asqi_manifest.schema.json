@@ -1,5 +1,39 @@
 {
   "$defs": {
+    "EnvironmentVariable": {
+      "description": "Defines an environment variable required by the test container.",
+      "properties": {
+        "name": {
+          "description": "Environment variable name (e.g., 'OPENAI_API_KEY', 'HF_TOKEN').",
+          "title": "Name",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether this environment variable is mandatory for execution.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Explanation of what this variable is used for.",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "EnvironmentVariable",
+      "type": "object"
+    },
     "InputParameter": {
       "description": "Defines a parameter that can be passed to the test container.",
       "properties": {
@@ -234,6 +268,15 @@
       ],
       "default": null,
       "title": "Output Artifacts"
+    },
+    "environment_variables": {
+      "default": [],
+      "description": "Environment variables required by this test container. Used for validation and documentation.",
+      "items": {
+        "$ref": "#/$defs/EnvironmentVariable"
+      },
+      "title": "Environment Variables",
+      "type": "array"
     }
   },
   "required": [
