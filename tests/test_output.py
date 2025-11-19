@@ -26,6 +26,44 @@ class TestParseContainerJsonOutput:
         result = parse_container_json_output(output)
         assert result == {"success": True, "score": 0.95, "message": "Test completed"}
 
+    def test_extracts_json_from_noisy_real_log(self):
+        """
+        Test extracting JSON from real ASQI Engineer logs with noise and newlines.
+        """
+
+        output = """
+        nction successful on attempt 1\n{\"success\": true, \"test_type\": \"privacy\", \"datasets_tested\": [\"privacy_leakage\"], \"results_summary\": {\"privacy_leakage\": {\"evaluation_score\": {\"RtA\": 0.05, \"TD\": 0.025, \"CD\": 0.041666666666666664}, \"evaluation_error\": null, \"sample_count\": 10}}}\n\rProcessing privacy_leakage.json (10 rows):   0%|          | 0/2 [00:00<?, ?it/s]\rProcessing privacy_leakage.json (10 rows):  50%|\u2588\u2588\u2588\u2588\u2588     | 1/2 [00:05<00:05,  5.09s/it]\rProcessing privacy_leakage.json (10 rows): 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:08<00:00,  3.87s/it]\r                                                                                        \rTrustLLM generation results copied to: /output/trustllm_privacy/generation_results/bedrock/arn:aws:bedrock:us-east-1:156772879641:inference-profile/us.amazon.nova-lite-v1:0/privacy\n
+        """
+        result = parse_container_json_output(output)
+        assert result["success"] is True
+        assert result["test_type"] == "privacy"
+        assert (
+            result["results_summary"]["privacy_leakage"]["evaluation_score"]["RtA"]
+            == 0.05
+        )
+        assert (
+            result["results_summary"]["privacy_leakage"]["evaluation_score"]["TD"]
+            == 0.025
+        )
+        assert (
+            result["results_summary"]["privacy_leakage"]["evaluation_score"]["CD"]
+            == 0.041666666666666664
+        )
+
+    def test_invalid_json_in_real_log_error(self):
+        """
+        Test error raised when JSON in real ASQI Engineer logs is not properly closed.
+        """
+
+        output = """
+        {\"success\": true, \"test_type\": \"privacy\", \"datasets_tested\": [\"privacy_leakage\"], \"results_summary\": {\"privacy_leakage\": {\"evaluation_score\": {\"RtA\": 0.05, \"TD\": 0.025, \"CD\": 0.041666666666666664
+        """
+        with pytest.raises(
+            ValueError,
+            match="JSON object not properly closed",
+        ):
+            parse_container_json_output(output)
+
     def test_json_with_log_prefix(self):
         """Test parsing JSON that appears after log lines."""
         output = """2025-11-04 08:46:46 [INFO] Starting test
