@@ -16,6 +16,24 @@ class TestMainCLI:
     def setup_method(self):
         self.runner = CliRunner()
 
+    def test_version_flag(self):
+        """Test that --version flag displays version information."""
+        result = self.runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+        assert "asqi-engineer version" in result.output
+        # Check for either format: simple version or version with build info
+        assert "asqi-engineer version" in result.output and (
+            "build" in result.output
+            or "unknown" in result.output
+            or result.output.count("asqi-engineer version") == 1
+        )
+
+    def test_version_flag_short(self):
+        """Test that -v flag displays version information."""
+        result = self.runner.invoke(app, ["-v"])
+        assert result.exit_code == 0
+        assert "asqi-engineer version" in result.output
+
     @pytest.mark.parametrize(
         "command,expected_missing",
         [
