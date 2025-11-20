@@ -2,6 +2,7 @@ import atexit
 import glob
 import os
 import signal
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any, Dict, List, Optional
 
 import typer
@@ -144,8 +145,36 @@ def load_and_validate_plan(
 app = typer.Typer(help="A test executor for AI systems.")
 
 
+def version_callback(value: bool):
+    """Display version information and exit."""
+    if value:
+        try:
+            pkg_version = version("asqi-engineer")
+            # Extract just the version number and build info
+            # Format: 0.3.1.dev2+g816449b60.d20251120 -> version 0.3.1.dev2, build g816449b60
+            if "+" in pkg_version:
+                ver, build = pkg_version.split("+", 1)
+                # Extract git hash from build info (e.g., g816449b60.d20251120 -> g816449b60)
+                git_hash = build.split(".")[0] if "." in build else build
+                typer.echo(f"asqi-engineer version {ver}, build {git_hash}")
+            else:
+                typer.echo(f"asqi-engineer version {pkg_version}")
+        except PackageNotFoundError:
+            typer.echo("asqi-engineer version: unknown (not installed)")
+        raise typer.Exit()
+
+
 @app.callback()
-def _cli_startup_callback():
+def _cli_startup_callback(
+    version: bool = typer.Option(
+        None,
+        "--version",
+        "-V",
+        help="Show version and exit.",
+        callback=version_callback,
+        is_eager=True,
+    ),
+):
     """Global CLI callback invoked before any subcommand.
 
     Registers shutdown handlers for container cleanup once per process.
