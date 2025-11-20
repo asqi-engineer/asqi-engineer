@@ -169,7 +169,7 @@ def _cli_startup_callback(
     version: bool = typer.Option(
         None,
         "--version",
-        "-v",
+        "-V",
         help="Show version and exit.",
         callback=version_callback,
         is_eager=True,

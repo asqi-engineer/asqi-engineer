@@ -29,8 +29,8 @@ class TestMainCLI:
         )
 
     def test_version_flag_short(self):
-        """Test that -v flag displays version information."""
-        result = self.runner.invoke(app, ["-v"])
+        """Test that -V flag displays version information."""
+        result = self.runner.invoke(app, ["-V"])
         assert result.exit_code == 0
         assert "asqi-engineer version" in result.output
 
