@@ -1,5 +1,6 @@
 import os
 import tempfile
+from importlib.metadata import PackageNotFoundError
 from unittest.mock import patch
 
 import pytest
@@ -33,6 +34,15 @@ class TestMainCLI:
         result = self.runner.invoke(app, ["-V"])
         assert result.exit_code == 0
         assert "asqi-engineer version" in result.output
+
+    def test_version_flag_package_not_found_error(self):
+        """
+        Test that --version flag raises an error when asqi-engineer is not installed.
+        """
+        with patch("asqi.main.version", side_effect=PackageNotFoundError):
+            result = self.runner.invoke(app, ["--version"])
+            assert result.exit_code == 0
+            assert "asqi-engineer version: unknown (not installed)" in result.output
 
     @pytest.mark.parametrize(
         "command,expected_missing",
