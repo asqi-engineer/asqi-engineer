@@ -35,6 +35,10 @@ from asqi.validation import (
     validate_workflow_configurations,
 )
 from asqi.workflow import TestExecutionResult
+from test_data import (
+    MOCK_SCORE_CARD_CONFIG,
+    MOCK_AUDIT_RESPONSES,
+)
 
 # Test data
 DEMO_SUITE_YAML = """
@@ -828,6 +832,86 @@ class TestValidationInputFunctions:
                 "",
                 {"key": "value"},
                 {"param": "value"},
+            )
+
+    def test_validate_execution_inputs_with_audit_responses_valid(self):
+        """Test validate_execution_inputs accepts a valid audit_responses_data dict."""
+        validate_execution_inputs(
+            suite_path="suite.yaml",
+            systems_path="systems.yaml",
+            execution_mode="tests_only",
+            audit_responses_data=MOCK_AUDIT_RESPONSES,
+            output_path="output.json",
+        )
+
+        # Also verify it works with end_to_end mode
+        validate_execution_inputs(
+            suite_path="suite.yaml",
+            systems_path="systems.yaml",
+            execution_mode="end_to_end",
+            audit_responses_data=MOCK_AUDIT_RESPONSES,
+            output_path=None,
+        )
+
+    def test_validate_execution_inputs_with_invalid_audit_responses_type(self):
+        """Test validate_execution_inputs rejects non-dict audit_responses_data."""
+        # List instead of dict
+        with pytest.raises(ValueError, match="Invalid audit_responses_data"):
+            validate_execution_inputs(
+                suite_path="suite.yaml",
+                systems_path="systems.yaml",
+                execution_mode="tests_only",
+                audit_responses_data=["not", "a", "dict"],  # type: ignore[arg-type]
+            )
+
+        # String instead of dict
+        with pytest.raises(ValueError, match="Invalid audit_responses_data"):
+            validate_execution_inputs(
+                suite_path="suite.yaml",
+                systems_path="systems.yaml",
+                execution_mode="tests_only",
+                audit_responses_data="not-a-dict",  # type: ignore[arg-type]
+            )
+
+    def test_validate_score_card_inputs_with_audit_responses_valid(self):
+        """Test validate_score_card_inputs accepts valid score cards and audit_responses_data."""
+        score_card_configs = [MOCK_SCORE_CARD_CONFIG]
+
+        validate_score_card_inputs(
+            input_path="results.json",
+            score_card_configs=score_card_configs,
+            audit_responses_data=MOCK_AUDIT_RESPONSES,
+            output_path="scorecard_output.json",
+        )
+
+        # Also ensure it works when output_path is None
+        validate_score_card_inputs(
+            input_path="results.json",
+            score_card_configs=score_card_configs,
+            audit_responses_data=MOCK_AUDIT_RESPONSES,
+            output_path=None,
+        )
+
+    def test_validate_score_card_inputs_with_invalid_audit_responses_type(self):
+        """Test validate_score_card_inputs rejects non-dict audit_responses_data."""
+        score_card_configs = [MOCK_SCORE_CARD_CONFIG]
+
+        # List instead of dict
+        with pytest.raises(ValueError, match="Invalid audit_responses_data"):
+            validate_score_card_inputs(
+                input_path="results.json",
+                score_card_configs=score_card_configs,
+                audit_responses_data=["not", "a", "dict"],  # type: ignore[arg-type]
+                output_path="scorecard_output.json",
+            )
+
+        # Integer instead of dict
+        with pytest.raises(ValueError, match="Invalid audit_responses_data"):
+            validate_score_card_inputs(
+                input_path="results.json",
+                score_card_configs=score_card_configs,
+                audit_responses_data=123,  # type: ignore[arg-type]
+                output_path="scorecard_output.json",
             )
 
 

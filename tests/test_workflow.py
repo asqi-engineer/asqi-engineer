@@ -20,6 +20,7 @@ from asqi.workflow import (
 from asqi.workflow import (
     run_test_suite_workflow as _workflow,
 )
+from test_data import MOCK_SCORE_CARD_CONFIG, MOCK_AUDIT_RESPONSES
 
 
 def _call_inner_workflow(
@@ -477,6 +478,49 @@ def test_evaluate_score_cards_workflow():
         mock_console.print.assert_called_once()
 
 
+def test_evaluate_score_cards_workflow_with_audit_responses():
+    """End-to-end-ish test: audit-only score card + audit responses."""
+
+    # No metric-based indicators needed because scorecard contains only audit indicators
+    test_results_data = {
+        "summary": {"status": "COMPLETED"},
+        "results": [],  # audit indicators don't need test_results
+    }
+
+    test_container_data = []
+
+    score_card_configs = [MOCK_SCORE_CARD_CONFIG]
+    audit_responses_data = MOCK_AUDIT_RESPONSES
+
+    inner_workflow = getattr(
+        evaluate_score_cards_workflow, "__wrapped__", evaluate_score_cards_workflow
+    )
+
+    result = inner_workflow(
+        test_results_data,
+        test_container_data,
+        score_card_configs,
+        audit_responses_data,
+    )
+
+    # We expect a single score_card block with both audit indicators evaluated
+    assert "score_card" in result
+    score = result["score_card"]
+    assert score["score_card_name"] == "Mock Chatbot Scorecard"
+    assert score["total_evaluations"] == 2
+
+    # Map indicator_id -> outcome for easy checking
+    outcomes = {a["indicator_id"]: a["outcome"] for a in score["assessments"]}
+
+    assert outcomes["config_easy"] == "A"
+    assert outcomes["config_v2"] == "C"
+
+    # Optional: check notes/description wiring as well
+    notes_by_id = {a["indicator_id"]: a["audit_notes"] for a in score["assessments"]}
+    assert notes_by_id["config_easy"] == "ok"
+    assert notes_by_id["config_v2"] == "ok"
+
+
 def test_run_end_to_end_workflow():
     """Test the run_end_to_end_workflow function."""
 
@@ -526,7 +570,64 @@ def test_run_end_to_end_workflow():
             container_config,
         )
         mock_score_workflow.assert_called_once_with(
-            test_results, test_container, score_card_configs
+            test_results, test_container, score_card_configs, None
+        )
+        assert result == final_results
+
+
+def test_run_end_to_end_workflow_with_audit_responses():
+    """Ensure run_end_to_end_workflow forwards audit_responses_data."""
+
+    suite_config = {"suite_name": "test"}
+    systems_config = {"systems_under_test": {}}
+    score_card_configs = [MOCK_SCORE_CARD_CONFIG]
+    container_config: ContainerConfig = ContainerConfig()
+    audit_responses_data = MOCK_AUDIT_RESPONSES
+
+    test_results = {"summary": {"status": "COMPLETED"}, "results": []}
+    test_container = []
+    final_results = {
+        "summary": {"status": "COMPLETED"},
+        "results": [],
+        "score_card": {},
+    }
+
+    with (
+        patch("asqi.workflow.run_test_suite_workflow") as mock_test_workflow,
+        patch("asqi.workflow.evaluate_score_cards_workflow") as mock_score_workflow,
+    ):
+        mock_test_workflow.return_value = test_results, test_container
+        mock_score_workflow.return_value = final_results
+
+        inner_workflow = getattr(
+            run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow
+        )
+        result, _ = inner_workflow(
+            suite_config,
+            systems_config,
+            score_card_configs,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            container_config,
+            audit_responses_data,
+        )
+
+        mock_test_workflow.assert_called_once_with(
+            suite_config,
+            systems_config,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            container_config,
+        )
+
+        mock_score_workflow.assert_called_once_with(
+            test_results, test_container, score_card_configs, audit_responses_data
         )
         assert result == final_results
 
@@ -552,6 +653,7 @@ def test_start_test_execution_tests_only_mode():
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             ContainerConfig(),
+            None,
             "output.json",
             None,
             "tests_only",
@@ -586,6 +688,7 @@ def test_start_test_execution_end_to_end_mode():
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             ContainerConfig(),
+            None,
             "output.json",
             score_card_configs,
             "end_to_end",
@@ -596,6 +699,44 @@ def test_start_test_execution_end_to_end_mode():
         # Should call run_end_to_end_workflow for end_to_end mode with score cards
         call_args = mock_start.call_args[0]
         assert call_args[0].__name__ == "run_end_to_end_workflow"
+
+
+def test_start_test_execution_end_to_end_mode_with_audit_responses():
+    """start_test_execution should pass audit_responses_data down for end_to_end mode."""
+
+    mock_handle = DummyHandle({"summary": {"status": "COMPLETED"}}, return_tuple=True)
+    score_card_configs = [MOCK_SCORE_CARD_CONFIG]
+    audit_responses_data = MOCK_AUDIT_RESPONSES
+
+    with (
+        patch("asqi.workflow.load_config_file") as mock_load,
+        patch("asqi.workflow.DBOS.start_workflow") as mock_start,
+    ):
+        mock_start.return_value = mock_handle
+
+        workflow_id = start_test_execution(
+            "suite.yaml",
+            "systems.yaml",
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            ContainerConfig(),
+            audit_responses_data,
+            "output.json",
+            score_card_configs,
+            "end_to_end",
+        )
+
+        assert workflow_id == mock_handle.get_workflow_id()
+        mock_start.assert_called_once()
+
+        call_args = mock_start.call_args[0]
+        # Should call run_end_to_end_workflow
+        assert call_args[0].__name__ == "run_end_to_end_workflow"
+        # audit_responses_data is the last positional arg passed into the workflow
+        assert call_args[-1] == audit_responses_data
 
 
 def test_start_score_card_evaluation(tmp_path):
@@ -614,7 +755,7 @@ def test_start_score_card_evaluation(tmp_path):
         mock_start.return_value = mock_handle
 
         workflow_id = start_score_card_evaluation(
-            str(input_json), score_card_configs, str(output_json)
+            str(input_json), score_card_configs, None, str(output_json)
         )
 
         assert workflow_id == mock_handle.get_workflow_id()
@@ -622,6 +763,36 @@ def test_start_score_card_evaluation(tmp_path):
         # Should call evaluate_score_cards_workflow
         call_args = mock_start.call_args[0]
         assert call_args[0].__name__ == "evaluate_score_cards_workflow"
+
+
+def test_start_score_card_evaluation_with_audit_responses(tmp_path):
+    """start_score_card_evaluation should forward audit_responses_data."""
+
+    test_data = {"summary": {"status": "COMPLETED"}, "results": []}
+    score_card_configs = [MOCK_SCORE_CARD_CONFIG]
+    audit_responses_data = MOCK_AUDIT_RESPONSES
+    mock_handle = DummyHandle({"summary": {"status": "COMPLETED"}})
+
+    input_json = tmp_path / "input.json"
+    output_json = tmp_path / "output.json"
+    with open(input_json, "w") as f:
+        json.dump(test_data, f)
+
+    with patch("asqi.workflow.DBOS.start_workflow") as mock_start:
+        mock_start.return_value = mock_handle
+
+        workflow_id = start_score_card_evaluation(
+            str(input_json), score_card_configs, audit_responses_data, str(output_json)
+        )
+
+        assert workflow_id == mock_handle.get_workflow_id()
+        mock_start.assert_called_once()
+
+        call_args = mock_start.call_args[0]
+        # Function should be evaluate_score_cards_workflow
+        assert call_args[0].__name__ == "evaluate_score_cards_workflow"
+        # audit_responses_data is the last positional arg
+        assert call_args[4] == audit_responses_data
 
 
 def test_image_pulled_but_manifest_not_extracted_bug():
