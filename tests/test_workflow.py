@@ -712,6 +712,7 @@ def test_start_test_execution_end_to_end_mode_with_audit_responses():
         patch("asqi.workflow.load_config_file") as mock_load,
         patch("asqi.workflow.DBOS.start_workflow") as mock_start,
     ):
+        mock_load.return_value = {"test": "config"}
         mock_start.return_value = mock_handle
 
         workflow_id = start_test_execution(
