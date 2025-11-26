@@ -18,7 +18,11 @@ from asqi.config import (
     merge_defaults_into_suite,
 )
 from asqi.container_manager import shutdown_containers
-from asqi.errors import DuplicateIDError, MissingIDFieldError
+from asqi.errors import (
+    AuditResponsesRequiredError,
+    DuplicateIDError,
+    MissingIDFieldError,
+)
 from asqi.logging_config import configure_logging
 from asqi.schemas import (
     Manifest,
@@ -115,6 +119,9 @@ def resolve_audit_options(
     Returns:
         - updated_score_card_data
         - audit_responses_data (or None)
+
+    Raises:
+        AuditResponsesRequiredError: If audit indicators exist but no responses provided
     """
 
     indicators = score_card_data.get("indicators", []) or []
@@ -141,14 +148,11 @@ def resolve_audit_options(
 
     # Require at least one override method
     if not audit_responses_path and not skip_audit_flag:
-        console.print(
-            "[red]❌ Score card contains 'audit' indicators but no audit responses were provided.[/red]"
+        score_card_name = score_card_data.get("score_card_name", "unnamed")
+        raise AuditResponsesRequiredError(
+            score_card_name=score_card_name,
+            audit_indicators=audit_indicators,
         )
-        console.print(
-            "[blue]💡 Either provide --audit-responses audit_responses.yaml "
-            "or use --skip-audit to ignore audit indicators.[/blue]"
-        )
-        raise typer.Exit(1)
 
     # Load provided audit responses
     if audit_responses_path:
@@ -450,11 +454,15 @@ def execute(
             raise typer.Exit(1)
 
         # Handle audit logic
-        score_card_data, audit_responses_data = resolve_audit_options(
-            score_card_data=score_card_data,
-            audit_responses_path=audit_responses,
-            skip_audit_flag=skip_audit,
-        )
+        try:
+            score_card_data, audit_responses_data = resolve_audit_options(
+                score_card_data=score_card_data,
+                audit_responses_path=audit_responses,
+                skip_audit_flag=skip_audit,
+            )
+        except AuditResponsesRequiredError as e:
+            console.print(f"[red]❌ {e}[/red]")
+            raise typer.Exit(1)
 
         score_card_configs = [score_card_data]
 
@@ -634,11 +642,15 @@ def evaluate_score_cards(
             raise typer.Exit(1)
 
         # Handle audit logic
-        score_card_data, audit_responses_data = resolve_audit_options(
-            score_card_data=score_card_data,
-            audit_responses_path=audit_responses,
-            skip_audit_flag=skip_audit,
-        )
+        try:
+            score_card_data, audit_responses_data = resolve_audit_options(
+                score_card_data=score_card_data,
+                audit_responses_path=audit_responses,
+                skip_audit_flag=skip_audit,
+            )
+        except AuditResponsesRequiredError as e:
+            console.print(f"[red]❌ {e}[/red]")
+            raise typer.Exit(1)
 
         score_card_configs = [score_card_data]
 

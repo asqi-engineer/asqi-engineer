@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 
 class DuplicateIDError(Exception):
@@ -80,3 +80,57 @@ class MetricExpressionError(Exception):
     """Raised when metric expression parsing or evaluation fails."""
 
     pass
+
+
+class AuditResponsesRequiredError(Exception):
+    """
+    Exception raised when a score card contains audit indicators
+    but no audit responses file was provided.
+
+    Args:
+        score_card_name: Name of the score card
+        audit_indicators: List of audit indicator dictionaries
+    """
+
+    def __init__(self, score_card_name: str, audit_indicators: List[Dict[str, Any]]):
+        self.score_card_name = score_card_name
+        self.audit_indicators = audit_indicators
+        message = self._get_message()
+        super().__init__(message)
+
+    def _get_message(self) -> str:
+        """
+        Returns a detailed error message with instructions and a template.
+        """
+        indicator_count = len(self.audit_indicators)
+        lines = [
+            f"Score card '{self.score_card_name}' contains {indicator_count} audit indicator(s) "
+            "that require manual assessment.",
+            "",
+            "To complete the evaluation, choose one:",
+            "",
+            "1. Provide audit responses:",
+            "   Create a YAML file with your responses (example below)",
+            "   --audit-responses audit_responses.yaml",
+            "",
+            "2. Skip audit indicators (evaluate technical indicators only):",
+            "   --skip-audit",
+            "",
+            "Template for audit_responses.yaml:",
+            "",
+            "responses:",
+        ]
+
+        for indicator in self.audit_indicators:
+            indicator_id = indicator.get("id", "unknown_id")
+            # Extract available outcomes from assessment field
+            assessment = indicator.get("assessment", [])
+            outcomes = [item.get("outcome", "?") for item in assessment]
+            outcomes_str = ", ".join(outcomes) if outcomes else "A, B, C, D, E"
+
+            lines.append(f'  - indicator_id: "{indicator_id}"')
+            lines.append(f'    selected_outcome: ""  # Choose from: {outcomes_str}')
+            lines.append('    notes: "Optional explanation"')
+            lines.append("")
+
+        return "\n".join(lines)

@@ -451,6 +451,40 @@ class TestscorecardEngine:
         assert r.computed_value is None
         assert r.error is None
 
+    def test_evaluate_audit_indicator_invalid_outcome(self):
+        """If selected_outcome is not in the allowed outcomes, we get an error."""
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+                AuditAssessmentRule(outcome="C", description="Medium"),
+            ],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "selected_outcome": "Z",  # Invalid - not in A, B, C
+                    "notes": "some notes",
+                }
+            ]
+        )
+
+        results = self.engine.evaluate_audit_indicator(indicator, audit_responses)
+
+        assert len(results) == 1
+        r = results[0]
+        assert r.indicator_id == "config_easy"
+        assert r.test_id == "audit"
+        assert r.outcome == "Z"  # The invalid outcome is still recorded
+        assert r.error is not None
+        assert "Invalid selected_outcome 'Z'" in r.error
+        assert "Allowed outcomes: ['A', 'B', 'C']" in r.error
+
 
 class TestNestedMetricAccess:
     """Test nested metric access functionality."""

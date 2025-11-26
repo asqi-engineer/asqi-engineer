@@ -620,6 +620,8 @@ class ScoreCardEngine:
         for rule in indicator.assessment:
             outcome_to_description[rule.outcome] = rule.description
 
+        valid_outcomes = set(outcome_to_description.keys())
+
         # One ScoreCardEvaluationResult per audit response (often just 1)
         for resp in matching_responses:
             eval_result = ScoreCardEvaluationResult(
@@ -636,8 +638,19 @@ class ScoreCardEngine:
             eval_result.notes = resp.notes
 
             # Attach description if we have one for that outcome
-            if resp.selected_outcome in outcome_to_description:
-                eval_result.description = outcome_to_description[resp.selected_outcome]
+            if resp.selected_outcome not in valid_outcomes:
+                eval_result.error = (
+                    f"Invalid selected_outcome '{resp.selected_outcome}' for indicator_id "
+                    f"'{indicator.id}'. Allowed outcomes: {sorted(valid_outcomes)}"
+                )
+
+                eval_result.outcome = resp.selected_outcome
+                results.append(eval_result)
+                continue
+
+            # valid outcome
+            eval_result.outcome = resp.selected_outcome
+            eval_result.description = outcome_to_description[resp.selected_outcome]
 
             results.append(eval_result)
 

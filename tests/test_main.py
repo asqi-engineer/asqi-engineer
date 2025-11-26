@@ -292,13 +292,11 @@ class TestMainCLI:
             ],
         )
 
-        # validate_and_prepare_audit_options raises typer.Exit(1)
         assert result.exit_code == 1
-        assert (
-            "Score card contains 'audit' indicators but no audit responses were provided."
-            in result.stdout
-        )
-        assert "Either provide --audit-responses audit_responses.yaml" in result.stdout
+        out = result.stdout
+
+        assert 'selected_outcome: ""  # Choose from:' in out
+        assert 'notes: "Optional explanation"' in out
 
     @patch("asqi.workflow.start_score_card_evaluation")
     @patch("asqi.main.load_score_card_file")
@@ -445,11 +443,11 @@ class TestMainCLI:
         )
 
         assert result.exit_code == 1
-        assert (
-            "Score card contains 'audit' indicators but no audit responses were provided."
-            in result.stdout
-        )
-        assert "Either provide --audit-responses audit_responses.yaml" in result.stdout
+        out = result.stdout
+
+        # Same expectations: template must be shown
+        assert 'selected_outcome: ""  # Choose from:' in out
+        assert 'notes: "Optional explanation"' in out
 
     @patch("asqi.main.load_and_validate_plan")
     def test_validate_success(self, mock_validate):
