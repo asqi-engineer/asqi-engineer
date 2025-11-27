@@ -59,6 +59,7 @@ config: DBOSConfig = {
 }
 if oltp_endpoint:
     config["otlp_traces_endpoints"] = [oltp_endpoint]
+    config["otlp_logs_endpoints"] = [oltp_endpoint]
 DBOS(config=config)
 
 # Initialize Rich console and execution queue
