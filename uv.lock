@@ -168,7 +168,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dbos", extras = ["otel"], specifier = "==2.3.0" },
+    { name = "dbos", extras = ["otel"], specifier = "==2.5.0" },
     { name = "docker", specifier = ">=7.1.0" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
@@ -450,7 +450,7 @@ wheels = [
 
 [[package]]
 name = "dbos"
-version = "2.3.0"
+version = "2.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "psycopg", extra = ["binary"] },
@@ -460,9 +460,9 @@ dependencies = [
     { name = "typer-slim" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ec/fa/10e804fec5d5f064cbffbc1fd9144897b9e8251f8fa0cefa64255b3bffaa/dbos-2.3.0.tar.gz", hash = "sha256:298c53ac81b6b4811f81a4792c3887c3599f52de2fef96e176d76ded6dc01f19", size = 211419, upload-time = "2025-10-27T18:37:16.645Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/86/e0c4d2ba5f063150edab296e7c566a693660ec53a2f030a5652b805fb490/dbos-2.5.0.tar.gz", hash = "sha256:6e13b1ddefbbc4143152f23d6c87ce36307e98d1fdabb83a027223161ece2b4d", size = 214272, upload-time = "2025-11-17T17:23:09.61Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4b/36/e6c583cdd46825c6f6587631bb037c25da17fedb686bedea88664f34188b/dbos-2.3.0-py3-none-any.whl", hash = "sha256:723d0971d1e3ecc14222106b091f4d3cebd4854e287d396e05bfa8a33455af02", size = 135472, upload-time = "2025-10-27T18:37:13.599Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/f9/c1e1a9745dcf1c15fbebc5437bec1bc4533426d1a729101a07fb54221d96/dbos-2.5.0-py3-none-any.whl", hash = "sha256:476936ee4ef9fbb7ce9cbf52e944ff6f69b49c11a43270774591c742622fac5c", size = 136847, upload-time = "2025-11-17T17:23:07.971Z" },
 ]
 
 [package.optional-dependencies]
