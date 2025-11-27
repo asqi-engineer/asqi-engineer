@@ -55,9 +55,9 @@ if not system_database_url:
 config: DBOSConfig = {
     "name": "asqi-test-executor",
     "system_database_url": system_database_url,
-    "enable_otlp": True,
 }
 if oltp_endpoint:
+    config["enable_otlp"] = True
     config["otlp_traces_endpoints"] = [oltp_endpoint]
     config["otlp_logs_endpoints"] = [oltp_endpoint]
 DBOS(config=config)
