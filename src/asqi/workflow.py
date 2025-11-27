@@ -35,7 +35,7 @@ from asqi.output import (
     format_failure_summary,
     parse_container_json_output,
 )
-from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
+from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig, AuditResponses
 from asqi.validation import (
     build_env_var_error_message,
     create_test_execution_plan,
@@ -442,7 +442,9 @@ def execute_single_test(
 
 @DBOS.step()
 def evaluate_score_card(
-    test_results: List[TestExecutionResult], score_card_configs: List[Dict[str, Any]]
+    test_results: List[TestExecutionResult],
+    score_card_configs: List[Dict[str, Any]],
+    audit_responses_data: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Evaluate score cards against test execution results."""
     from asqi.score_card_engine import ScoreCardEngine
@@ -453,6 +455,14 @@ def evaluate_score_card(
     score_card_engine = ScoreCardEngine()
     all_evaluations = []
 
+    audit_responses = None
+    if audit_responses_data is not None:
+        try:
+            audit_responses = AuditResponses(**audit_responses_data)
+        except ValidationError as e:
+            DBOS.logger.error(f"Audit responses validation failed: {e}")
+            audit_responses = None
+
     for score_card_config in score_card_configs:
         try:
             # Parse score card configuration
@@ -460,7 +470,7 @@ def evaluate_score_card(
 
             # Evaluate score card against test results
             score_card_evaluations = score_card_engine.evaluate_scorecard(
-                test_results, score_card
+                test_results, score_card, audit_responses
             )
 
             # Add score card name to each evaluation
@@ -915,6 +925,7 @@ def evaluate_score_cards_workflow(
     test_results_data: Dict[str, Any],
     test_container_data: List[Dict[str, Any]],
     score_card_configs: List[Dict[str, Any]],
+    audit_responses_data: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Evaluate score cards against existing test results.
@@ -923,6 +934,7 @@ def evaluate_score_cards_workflow(
         test_results_data: Test execution results
         test_container_data: Test container results containing container output and error message
         score_card_configs: List of score card configurations to evaluate
+        audit_responses_data: Optional dict with manual audit responses
 
     Returns:
         Updated results with score card evaluation data
@@ -934,7 +946,9 @@ def evaluate_score_cards_workflow(
 
     # 2. Evaluate score cards using existing step
     console.print("\n[bold blue]Evaluating score cards...[/bold blue]")
-    score_card_evaluation = evaluate_score_card(test_results, score_card_configs)
+    score_card_evaluation = evaluate_score_card(
+        test_results, score_card_configs, audit_responses_data
+    )
 
     # 3. Add score card results to test data
     return add_score_cards_to_results(test_results_data, score_card_evaluation)
@@ -947,6 +961,7 @@ def run_end_to_end_workflow(
     score_card_configs: List[Dict[str, Any]],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
+    audit_responses_data: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a complete end-to-end workflow: test execution + score card evaluation.
@@ -957,6 +972,7 @@ def run_end_to_end_workflow(
         score_card_configs: List of score card configurations to evaluate
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
+        audit_responses_data: Optional dict with manual audit responses
 
     Returns:
         Complete execution results with test results, score card evaluations and container results
@@ -966,7 +982,7 @@ def run_end_to_end_workflow(
     )
 
     final_results = evaluate_score_cards_workflow(
-        test_results, container_results, score_card_configs
+        test_results, container_results, score_card_configs, audit_responses_data
     )
 
     return final_results, container_results
@@ -1010,6 +1026,7 @@ def start_test_execution(
     systems_path: str,
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
+    audit_responses_data: Optional[Dict[str, Any]] = None,
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
     execution_mode: str = "end_to_end",
@@ -1029,6 +1046,7 @@ def start_test_execution(
             - "max_failures": int, max number of failures to display
             - "progress_interval": int, interval for progress updates
         container_config: Container execution configurations
+        audit_responses_data: Optional dictionary of audit responses data
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
         execution_mode: "tests_only" or "end_to_end"
@@ -1042,7 +1060,9 @@ def start_test_execution(
         FileNotFoundError: If configuration files don't exist
         PermissionError: If configuration files cannot be read
     """
-    validate_execution_inputs(suite_path, systems_path, execution_mode, output_path)
+    validate_execution_inputs(
+        suite_path, systems_path, execution_mode, audit_responses_data, output_path
+    )
 
     try:
         # Load configurations
@@ -1114,6 +1134,7 @@ def start_test_execution(
                     score_card_configs,
                     executor_config,
                     container_config,
+                    audit_responses_data,
                 )
         else:
             raise ValueError(f"Invalid execution mode: {execution_mode}")
@@ -1135,6 +1156,7 @@ def start_test_execution(
 def start_score_card_evaluation(
     input_path: str,
     score_card_configs: List[Dict[str, Any]],
+    audit_responses_data: Optional[Dict[str, Any]] = None,
     output_path: Optional[str] = None,
 ) -> str:
     """
@@ -1146,6 +1168,7 @@ def start_score_card_evaluation(
     Args:
         input_path: Path to JSON file containing test execution results
         score_card_configs: List of score card configurations to evaluate
+        audit_responses_data : Optional dictionary of audit responses data
         output_path: Optional path to save updated results JSON file
 
     Returns:
@@ -1157,7 +1180,9 @@ def start_score_card_evaluation(
         json.JSONDecodeError: If input file contains invalid JSON
         PermissionError: If input file cannot be read
     """
-    validate_score_card_inputs(input_path, score_card_configs, output_path)
+    validate_score_card_inputs(
+        input_path, score_card_configs, audit_responses_data, output_path
+    )
 
     try:
         with open(input_path, "r") as f:
@@ -1176,6 +1201,7 @@ def start_score_card_evaluation(
             test_results_data,
             test_container_data,
             score_card_configs,
+            audit_responses_data,
         )
 
         # Wait for completion and optionally save results

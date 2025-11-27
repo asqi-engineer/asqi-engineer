@@ -18,9 +18,19 @@ from asqi.config import (
     merge_defaults_into_suite,
 )
 from asqi.container_manager import shutdown_containers
-from asqi.errors import DuplicateIDError, MissingIDFieldError
+from asqi.errors import (
+    AuditResponsesRequiredError,
+    DuplicateIDError,
+    MissingIDFieldError,
+)
 from asqi.logging_config import configure_logging
-from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig
+from asqi.schemas import (
+    Manifest,
+    SuiteConfig,
+    SystemsConfig,
+    ScoreCard,
+    AuditResponses,
+)
 from asqi.validation import validate_ids, validate_test_plan
 
 load_dotenv()
@@ -83,6 +93,84 @@ def load_score_card_file(score_card_path: str) -> Dict[str, Any]:
         raise ValueError(
             f"Invalid score card configuration in '{score_card_path}': {e}"
         ) from e
+
+
+def load_audit_responses_file(audit_responses_path: str) -> Dict[str, Any]:
+    """Load and validate audit responses YAML file."""
+    try:
+        audit_data = load_yaml_file(audit_responses_path)
+        # Validate structure - will raise ValidationError if invalid
+        AuditResponses(**audit_data)
+        return audit_data
+    except ValidationError as e:
+        raise ValueError(
+            f"Invalid audit responses configuration in '{audit_responses_path}': {e}"
+        ) from e
+
+
+def resolve_audit_options(
+    score_card_data: Dict[str, Any],
+    audit_responses_path: Optional[str],
+    skip_audit_flag: bool,
+) -> tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+    """
+    Handles all validation and preparation for audit indicators.
+
+    Returns:
+        - updated_score_card_data
+        - audit_responses_data (or None)
+
+    Raises:
+        AuditResponsesRequiredError: If audit indicators exist but no responses provided
+    """
+
+    indicators = score_card_data.get("indicators", []) or []
+    audit_indicators = [ind for ind in indicators if ind.get("type") == "audit"]
+    has_audit = bool(audit_indicators)
+
+    audit_responses_data = None
+
+    # If no audit indicators at all
+    if not has_audit:
+        if audit_responses_path:
+            console.print(
+                "[yellow]⚠ Audit responses file provided but no 'audit' indicators "
+                "found in the score card. It will be ignored.[/yellow]"
+            )
+        return score_card_data, None
+
+    # Validate conflicting flags
+    if audit_responses_path and skip_audit_flag:
+        console.print(
+            "[red]❌ Cannot use --audit-responses and --skip-audit together.[/red]"
+        )
+        raise typer.Exit(1)
+
+    # Require at least one override method
+    if not audit_responses_path and not skip_audit_flag:
+        score_card_name = score_card_data.get("score_card_name", "unnamed")
+        raise AuditResponsesRequiredError(
+            score_card_name=score_card_name,
+            audit_indicators=audit_indicators,
+        )
+
+    # Load provided audit responses
+    if audit_responses_path:
+        try:
+            audit_responses_data = load_audit_responses_file(audit_responses_path)
+        except (FileNotFoundError, ValueError, PermissionError) as e:
+            console.print(f"[red]❌ audit responses configuration error: {e}[/red]")
+            raise typer.Exit(1)
+
+    # If skipping audit → remove them from score card
+    if skip_audit_flag:
+        cleaned_card = dict(score_card_data)
+        cleaned_card["indicators"] = [
+            ind for ind in indicators if ind.get("type") != "audit"
+        ]
+        return cleaned_card, None
+
+    return score_card_data, audit_responses_data
 
 
 def load_and_validate_plan(
@@ -288,6 +376,17 @@ def execute(
         "-o",
         help="Path to save execution results JSON file.",
     ),
+    audit_responses: Optional[str] = typer.Option(
+        None,
+        "--audit-responses",
+        "-a",
+        help="Path to YAML file with manual audit indicator responses.",
+    ),
+    skip_audit: bool = typer.Option(
+        False,
+        "--skip-audit",
+        help="Skip 'audit' type indicators if no audit responses are provided.",
+    ),
     concurrent_tests: int = typer.Option(
         ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
         "--concurrent-tests",
@@ -345,16 +444,27 @@ def execute(
             console.print(f"[yellow]Warning: Error launching DBOS: {e}[/yellow]")
 
         # Load score card configuration
-        score_card_configs = None
         try:
             score_card_data = load_score_card_file(score_card_config)
-            score_card_configs = [score_card_data]
             console.print(
                 f"[green]✅ Loaded grading score card: {score_card_data.get('score_card_name', 'unnamed')}[/green]"
             )
         except (FileNotFoundError, ValueError, PermissionError) as e:
             console.print(f"[red]❌ score card configuration error: {e}[/red]")
             raise typer.Exit(1)
+
+        # Handle audit logic
+        try:
+            score_card_data, audit_responses_data = resolve_audit_options(
+                score_card_data=score_card_data,
+                audit_responses_path=audit_responses,
+                skip_audit_flag=skip_audit,
+            )
+        except AuditResponsesRequiredError as e:
+            console.print(f"[red]❌ {e}[/red]")
+            raise typer.Exit(1)
+
+        score_card_configs = [score_card_data]
 
         workflow_id = start_test_execution(
             suite_path=test_suite_config,
@@ -364,6 +474,7 @@ def execute(
             execution_mode="end_to_end",
             executor_config=executor_config,
             container_config=container_config,
+            audit_responses_data=audit_responses_data,
         )
 
         console.print(
@@ -494,6 +605,17 @@ def evaluate_score_cards(
         "-o",
         help="Path to save evaluation results JSON file.",
     ),
+    audit_responses: Optional[str] = typer.Option(
+        None,
+        "--audit-responses",
+        "-a",
+        help="Path to YAML file with manual audit indicator responses.",
+    ),
+    skip_audit: bool = typer.Option(
+        False,
+        "--skip-audit",
+        help="Skip 'audit' type indicators if no audit responses are provided.",
+    ),
 ):
     """Evaluate score cards against existing test results from JSON file."""
     console.print("[blue]--- 📊 Evaluating Score Cards ---[/blue]")
@@ -512,7 +634,6 @@ def evaluate_score_cards(
         # Load score card configuration
         try:
             score_card_data = load_score_card_file(score_card_config)
-            score_card_configs = [score_card_data]
             console.print(
                 f"[green]✅ Loaded grading score card: {score_card_data.get('score_card_name', 'unnamed')}[/green]"
             )
@@ -520,9 +641,23 @@ def evaluate_score_cards(
             console.print(f"[red]❌ score card configuration error: {e}[/red]")
             raise typer.Exit(1)
 
+        # Handle audit logic
+        try:
+            score_card_data, audit_responses_data = resolve_audit_options(
+                score_card_data=score_card_data,
+                audit_responses_path=audit_responses,
+                skip_audit_flag=skip_audit,
+            )
+        except AuditResponsesRequiredError as e:
+            console.print(f"[red]❌ {e}[/red]")
+            raise typer.Exit(1)
+
+        score_card_configs = [score_card_data]
+
         workflow_id = start_score_card_evaluation(
             input_path=input_file,
             score_card_configs=score_card_configs,
+            audit_responses_data=audit_responses_data,
             output_path=output_file,
         )
 

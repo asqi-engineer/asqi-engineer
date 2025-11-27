@@ -389,6 +389,36 @@ expression: "min((0.4 * speed + 0.6 * quality), 1.0)"
 values: { speed: "perf.speed_score", quality: "perf.quality_score" }
 ```
 
+### Audit Indicators
+
+Audit indicators represent **human-reviewed assessment items** that do **not** reference test metrics.
+They require a corresponding manual entry in `audit_responses.yaml` unless skipped using `--skip-audit`.
+
+```yaml
+# Example audit indicator
+- id: "configuration_complexity"
+  type: "audit"
+  name: "Configuration Complexity"
+  assessment:
+    - outcome: "A"
+      description: "Simple configuration with minimal technical effort"
+    - outcome: "B"
+      description: "Moderate configuration requiring some understanding"
+    - outcome: "C"
+      description: "Requires expert knowledge or prompt engineering skill"
+```
+
+### Audit Responses File
+
+Audit responses need to be provided separately:
+
+```yaml
+responses:
+  - indicator_id: configuration_complexity
+    selected_outcome: "B"
+    notes: "Some domain knowledge needed during setup"
+```
+
 #### Complete Example
 
 ```yaml
@@ -429,6 +459,18 @@ indicators:
     assessment:
       - { outcome: "Pass", condition: "greater_equal", threshold: 0.7 }
       - { outcome: "Fail", condition: "less_than", threshold: 0.7 }
+
+  # Audit indicator
+  - id: "configuration_complexity"
+    type: "audit"
+    name: "Configuration Complexity"
+    assessment:
+      - outcome: "A"
+        description: "Simple configuration with minimal technical effort"
+      - outcome: "B"
+        description: "Moderate configuration requiring some understanding"
+      - outcome: "C"
+        description: "Requires expert knowledge or prompt engineering skill"
 ```
 
 **Security:** Expressions run in a sandboxed environment with AST validation—no code execution, imports, or file access allowed.

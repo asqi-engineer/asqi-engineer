@@ -6,6 +6,9 @@ from asqi.schemas import (
     ScoreCard,
     ScoreCardFilter,
     ScoreCardIndicator,
+    AuditScoreCardIndicator,
+    AuditAssessmentRule,
+    AuditResponses,
 )
 from asqi.score_card_engine import ScoreCardEngine, get_nested_value, parse_metric_path
 from asqi.workflow import TestExecutionResult
@@ -352,6 +355,135 @@ class TestscorecardEngine:
 
         with pytest.raises(ValueError, match="Score card indicators don't match"):
             self.engine.evaluate_scorecard(results, score_card)
+
+    def test_evaluate_audit_indicator_no_responses(self):
+        """If no audit_responses is provided, we get an error result for that indicator."""
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+            ],
+        )
+
+        results = self.engine.evaluate_audit_indicator(indicator, audit_responses=None)
+
+        assert len(results) == 1
+        r = results[0]
+        assert r.indicator_id == "config_easy"
+        assert r.test_id == "audit"
+        assert r.outcome is None
+        assert r.error.startswith(
+            "No audit responses provided for indicator_id 'config_easy'"
+        )
+
+    def test_evaluate_audit_indicator_missing_for_indicator(self):
+        """If audit_responses exist but none match this indicator_id, we get an error."""
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+            ],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "other_indicator",
+                    "selected_outcome": "A",
+                    "notes": "irrelevant",
+                }
+            ]
+        )
+
+        results = self.engine.evaluate_audit_indicator(indicator, audit_responses)
+
+        assert len(results) == 1
+        r = results[0]
+        assert r.indicator_id == "config_easy"
+        assert r.test_id == "audit"
+        assert r.outcome is None
+        assert r.error == "No audit response found for indicator_id 'config_easy'"
+
+    def test_evaluate_audit_indicator_success(self):
+        """Audit indicator should map selected_outcome + notes into evaluation result."""
+
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+                AuditAssessmentRule(outcome="C", description="Medium"),
+                AuditAssessmentRule(outcome="D", description="Hard"),
+                AuditAssessmentRule(outcome="E", description="Very hard"),
+            ],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "selected_outcome": "C",
+                    "notes": "a bit tricky but manageable",
+                }
+            ]
+        )
+
+        results = self.engine.evaluate_audit_indicator(indicator, audit_responses)
+
+        assert len(results) == 1
+        r = results[0]
+        assert r.indicator_id == "config_easy"
+        assert r.test_id == "audit"
+        assert r.outcome == "C"
+        assert r.notes == "a bit tricky but manageable"
+        # description from the matching AuditAssessmentRule
+        assert r.description == "Medium"
+        # audit indicators don't attach numeric metric/computed values
+        assert r.metric_value is None
+        assert r.computed_value is None
+        assert r.error is None
+
+    def test_evaluate_audit_indicator_invalid_outcome(self):
+        """If selected_outcome is not in the allowed outcomes, we get an error."""
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+                AuditAssessmentRule(outcome="C", description="Medium"),
+            ],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "selected_outcome": "Z",  # Invalid - not in A, B, C
+                    "notes": "some notes",
+                }
+            ]
+        )
+
+        results = self.engine.evaluate_audit_indicator(indicator, audit_responses)
+
+        assert len(results) == 1
+        r = results[0]
+        assert r.indicator_id == "config_easy"
+        assert r.test_id == "audit"
+        assert r.outcome == "Z"  # The invalid outcome is still recorded
+        assert r.error is not None
+        assert "Invalid selected_outcome 'Z'" in r.error
+        assert "Allowed outcomes: ['A', 'B', 'C']" in r.error
 
 
 class TestNestedMetricAccess:
@@ -935,3 +1067,122 @@ class TestMetricExpressions:
         min_result = next(r for r in results if r["indicator_id"] == "min_score")
         assert min_result["outcome"] == "GOOD"
         assert min_result["metric_value"] == 0.7
+
+    def test_evaluate_scorecard_audit_only_no_test_results(self):
+        """Audit-only scorecard should evaluate using audit_responses even without test results."""
+
+        audit_indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+                AuditAssessmentRule(outcome="C", description="Medium"),
+            ],
+        )
+
+        score_card = ScoreCard(
+            score_card_name="Audit Only Scorecard",
+            indicators=[audit_indicator],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "selected_outcome": "B",
+                    "notes": "pretty simple",
+                }
+            ]
+        )
+
+        # No test_results, but should still work for audit indicators
+        results = self.engine.evaluate_scorecard(
+            test_results=[],
+            score_card=score_card,
+            audit_responses_data=audit_responses,
+        )
+
+        assert len(results) == 1
+        r = results[0]
+        assert r["indicator_id"] == "config_easy"
+        assert r["test_id"] == "audit"
+        assert r["outcome"] == "B"
+        assert r["audit_notes"] == "pretty simple"
+        assert r["error"] is None
+
+    def test_evaluate_scorecard_with_metric_and_audit_indicators(self):
+        """Scorecard mixing metric and audit indicators evaluates both correctly."""
+
+        # Metric-based test result
+        test_results = [
+            self.create_test_result(
+                "quality_test",
+                "quality_test",
+                {"success": True, "accuracy": 0.9},
+            )
+        ]
+
+        metric_indicator = ScoreCardIndicator(
+            id="success_check",
+            name="Success Check",
+            apply_to=ScoreCardFilter(test_id="quality_test"),
+            metric="success",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="equal_to", threshold=True),
+                AssessmentRule(outcome="FAIL", condition="equal_to", threshold=False),
+            ],
+        )
+
+        audit_indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+                AuditAssessmentRule(outcome="C", description="Medium"),
+            ],
+        )
+
+        score_card = ScoreCard(
+            score_card_name="Mixed Scorecard",
+            indicators=[metric_indicator, audit_indicator],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "selected_outcome": "C",
+                    "notes": "UI is a bit complex",
+                }
+            ]
+        )
+
+        results = self.engine.evaluate_scorecard(
+            test_results=test_results,
+            score_card=score_card,
+            audit_responses_data=audit_responses,
+        )
+
+        # We expect 1 metric + 1 audit evaluation
+        assert len(results) == 2
+
+        success_eval = next(r for r in results if r["indicator_id"] == "success_check")
+        audit_eval = next(r for r in results if r["indicator_id"] == "config_easy")
+
+        # Metric indicator result
+        assert success_eval["test_id"] == "quality_test"
+        assert success_eval["outcome"] == "PASS"
+        assert success_eval["metric_value"] is True
+        assert success_eval["error"] is None
+
+        # Audit indicator result
+        assert audit_eval["test_id"] == "audit"
+        assert audit_eval["outcome"] == "C"
+        assert audit_eval["audit_notes"] == "UI is a bit complex"
+        assert audit_eval["description"] == "Medium"
+        assert audit_eval["metric_value"] is None
+        assert audit_eval["error"] is None

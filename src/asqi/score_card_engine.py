@@ -6,7 +6,13 @@ from asqi.metric_expression import (
     MetricExpressionError,
     MetricExpressionEvaluator,
 )
-from asqi.schemas import MetricExpression, ScoreCard, ScoreCardIndicator
+from asqi.schemas import (
+    MetricExpression,
+    ScoreCard,
+    ScoreCardIndicator,
+    AuditScoreCardIndicator,
+    AuditResponses,
+)
 from asqi.workflow import TestExecutionResult
 
 logger = logging.getLogger(__name__)
@@ -209,6 +215,7 @@ class ScoreCardEvaluationResult:
         self.computed_value: Optional[Union[int, float, bool]] = None
         self.details: str = ""
         self.description: Optional[str] = None
+        self.notes: Optional[str] = None
         self.error: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -224,6 +231,7 @@ class ScoreCardEvaluationResult:
             "details": self.details,
             "outcome": self.outcome,
             "description": self.description,
+            "audit_notes": self.notes,
             "error": self.error,
         }
 
@@ -259,17 +267,20 @@ class ScoreCardEngine:
         """
         Check that the score card indicators are applicable to the available test results.
 
-        Args:
-            test_results: List of test execution results
-            score_card: Score card to be evaluated against
-
-        Raises:
-            ValueError: If no indicators match any test ids in the test results
+        Audit indicators do not reference test_ids and are ignored here.
         """
+        # Only consider non audit indicators
+        metric_indicators = [
+            ind for ind in score_card.indicators if isinstance(ind, ScoreCardIndicator)
+        ]
+
+        # If there are only audit indicators, skip validation
+        if not metric_indicators:
+            return
+
         results_test_ids = {result.test_id for result in test_results}
-        score_card_test_ids = {
-            indicator.apply_to.test_id for indicator in score_card.indicators
-        }
+        score_card_test_ids = {ind.apply_to.test_id for ind in metric_indicators}
+
         if not results_test_ids & score_card_test_ids:
             raise ValueError(
                 "Score card indicators don't match any test ids in the test results"
@@ -565,14 +576,98 @@ class ScoreCardEngine:
 
         return results
 
+    def evaluate_audit_indicator(
+        self,
+        indicator: AuditScoreCardIndicator,
+        audit_responses: Optional[AuditResponses] = None,
+    ) -> List[ScoreCardEvaluationResult]:
+        """
+        Convert manual audit responses for a single audit indicator into evaluation results.
+        """
+        results: List[ScoreCardEvaluationResult] = []
+
+        # No responses object at all
+        if audit_responses is None:
+            result = ScoreCardEvaluationResult(
+                indicator_id=indicator.id,
+                indicator_name=indicator.name,
+                test_id="audit",
+            )
+            result.error = (
+                f"No audit responses provided for indicator_id '{indicator.id}'"
+            )
+            results.append(result)
+            return results
+
+        # Filter responses for this specific indicator
+        matching_responses = [
+            r for r in audit_responses.responses if r.indicator_id == indicator.id
+        ]
+
+        if not matching_responses:
+            # We have an audit_responses file, but nothing for this id
+            result = ScoreCardEvaluationResult(
+                indicator_id=indicator.id,
+                indicator_name=indicator.name,
+                test_id="audit",
+            )
+            result.error = f"No audit response found for indicator_id '{indicator.id}'"
+            results.append(result)
+            return results
+
+        # Build lookup: outcome -> description from the scorecard definition
+        outcome_to_description: Dict[str, Optional[str]] = {}
+        for rule in indicator.assessment:
+            outcome_to_description[rule.outcome] = rule.description
+
+        valid_outcomes = set(outcome_to_description.keys())
+
+        # One ScoreCardEvaluationResult per audit response (often just 1)
+        for resp in matching_responses:
+            eval_result = ScoreCardEvaluationResult(
+                indicator_id=indicator.id,
+                indicator_name=indicator.name,
+                test_id="audit",
+            )
+            eval_result.sut_name = None
+            eval_result.test_result_id = None
+            eval_result.metric_value = None
+            eval_result.computed_value = None
+            eval_result.details = "Manual audit indicator response"
+            eval_result.outcome = resp.selected_outcome
+            eval_result.notes = resp.notes
+
+            # Attach description if we have one for that outcome
+            if resp.selected_outcome not in valid_outcomes:
+                eval_result.error = (
+                    f"Invalid selected_outcome '{resp.selected_outcome}' for indicator_id "
+                    f"'{indicator.id}'. Allowed outcomes: {sorted(valid_outcomes)}"
+                )
+
+                eval_result.outcome = resp.selected_outcome
+                results.append(eval_result)
+                continue
+
+            # valid outcome
+            eval_result.outcome = resp.selected_outcome
+            eval_result.description = outcome_to_description[resp.selected_outcome]
+
+            results.append(eval_result)
+
+        return results
+
     def evaluate_scorecard(
-        self, test_results: List[TestExecutionResult], score_card: ScoreCard
+        self,
+        test_results: List[TestExecutionResult],
+        score_card: ScoreCard,
+        audit_responses_data: Optional[AuditResponses] = None,
     ) -> List[Dict[str, Any]]:
         """Evaluate a complete grading score_card against test results.
 
         Args:
             test_results: List of test execution results to evaluate
             score_card: Complete score card configuration
+            audit_responses_data: User-provided audit responses
 
         Returns:
             List of evaluation result dictionaries
@@ -585,9 +680,19 @@ class ScoreCardEngine:
         all_test_evaluations = []
 
         for indicator in score_card.indicators:
-            indicator_results = self.evaluate_indicator(test_results, indicator)
+            # non-audit indicators
+            if isinstance(indicator, ScoreCardIndicator):
+                indicator_results = self.evaluate_indicator(test_results, indicator)
+                all_test_evaluations.extend(r.to_dict() for r in indicator_results)
+                continue
 
-            for result in indicator_results:
-                all_test_evaluations.append(result.to_dict())
+            # audit indicators
+            if isinstance(indicator, AuditScoreCardIndicator):
+                audit_results = self.evaluate_audit_indicator(
+                    indicator=indicator,
+                    audit_responses=audit_responses_data,
+                )
+                all_test_evaluations.extend(r.to_dict() for r in audit_results)
+                continue
 
         return all_test_evaluations

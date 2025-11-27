@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from asqi.config import ContainerConfig, ExecutorConfig
 from asqi.main import app, load_score_card_file, load_yaml_file
+from test_data import MOCK_SCORE_CARD_CONFIG, MOCK_AUDIT_RESPONSES
 
 
 class TestMainCLI:
@@ -170,9 +171,132 @@ class TestMainCLI:
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config=ContainerConfig.with_streaming(False),
+            audit_responses_data=None,
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
         assert "✨ Execution completed! Workflow ID: workflow-456" in result.stdout
+
+    @patch("asqi.workflow.start_test_execution")
+    @patch("asqi.main.load_audit_responses_file")
+    @patch("asqi.main.load_score_card_file")
+    @patch("asqi.workflow.DBOS")
+    def test_execute_with_audit_responses(
+        self, mock_dbos, mock_load_score, mock_load_audit, mock_start
+    ):
+        """Test execute command with score card and audit responses."""
+        mock_load_score.return_value = MOCK_SCORE_CARD_CONFIG
+        mock_load_audit.return_value = MOCK_AUDIT_RESPONSES
+        mock_start.return_value = "workflow-audit-1"
+
+        result = self.runner.invoke(
+            app,
+            [
+                "execute",
+                "-t",
+                "suite.yaml",
+                "-s",
+                "systems.yaml",
+                "-r",
+                "score_card.yaml",
+                "-a",
+                "audit_responses.yaml",
+                "-o",
+                "output_scorecard.json",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        mock_load_score.assert_called_once_with("score_card.yaml")
+        mock_load_audit.assert_called_once_with("audit_responses.yaml")
+
+        mock_start.assert_called_once_with(
+            suite_path="suite.yaml",
+            systems_path="systems.yaml",
+            output_path="output_scorecard.json",
+            score_card_configs=[MOCK_SCORE_CARD_CONFIG],
+            execution_mode="end_to_end",
+            executor_config={
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            container_config=ContainerConfig.with_streaming(False),
+            audit_responses_data=MOCK_AUDIT_RESPONSES,
+        )
+
+        assert "✅ Loaded grading score card: Mock Chatbot Scorecard" in result.stdout
+        assert "✨ Execution completed! Workflow ID: workflow-audit-1" in result.stdout
+
+    @patch("asqi.workflow.start_test_execution")
+    @patch("asqi.main.load_score_card_file")
+    @patch("asqi.workflow.DBOS")
+    def test_execute_with_skip_audit(self, mock_dbos, mock_load_score, mock_start):
+        """Test execute command when audit is explicitly skipped."""
+        mock_load_score.return_value = MOCK_SCORE_CARD_CONFIG
+        mock_start.return_value = "workflow-audit-skip"
+
+        result = self.runner.invoke(
+            app,
+            [
+                "execute",
+                "-t",
+                "suite.yaml",
+                "-s",
+                "systems.yaml",
+                "-r",
+                "score_card.yaml",
+                "--skip-audit",
+                "-o",
+                "output_scorecard.json",
+            ],
+        )
+
+        assert result.exit_code == 0
+        mock_load_score.assert_called_once_with("score_card.yaml")
+
+        # Inspect what was passed into start_test_execution
+        mock_start.assert_called_once()
+        _, kwargs = mock_start.call_args
+
+        cleaned_configs = kwargs["score_card_configs"]
+        assert len(cleaned_configs) == 1
+        cleaned_card = cleaned_configs[0]
+        # All audit indicators should have been removed
+        assert all(
+            ind.get("type") != "audit" for ind in cleaned_card.get("indicators", [])
+        )
+        assert kwargs["audit_responses_data"] is None
+
+        assert (
+            "✨ Execution completed! Workflow ID: workflow-audit-skip" in result.stdout
+        )
+
+    @patch("asqi.main.load_score_card_file")
+    @patch("asqi.workflow.DBOS")
+    def test_execute_audit_required_but_missing(self, mock_dbos, mock_load_score):
+        """Test execute errors when score card has audit indicators but no responses or skip flag."""
+        mock_load_score.return_value = MOCK_SCORE_CARD_CONFIG
+
+        result = self.runner.invoke(
+            app,
+            [
+                "execute",
+                "-t",
+                "suite.yaml",
+                "-s",
+                "systems.yaml",
+                "-r",
+                "score_card.yaml",
+                # no -a and no --skip-audit
+            ],
+        )
+
+        assert result.exit_code == 1
+        out = result.stdout
+
+        assert 'selected_outcome: ""  # Choose from:' in out
+        assert 'notes: "Optional explanation"' in out
 
     @patch("asqi.workflow.start_score_card_evaluation")
     @patch("asqi.main.load_score_card_file")
@@ -203,12 +327,127 @@ class TestMainCLI:
             input_path="input.json",
             score_card_configs=[{"score_card_name": "Test scorecard"}],
             output_path="output.json",
+            audit_responses_data=None,
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
         assert (
             "✨ Score card evaluation completed! Workflow ID: workflow-789"
             in result.stdout
         )
+
+    @patch("asqi.workflow.start_score_card_evaluation")
+    @patch("asqi.main.load_audit_responses_file")
+    @patch("asqi.main.load_score_card_file")
+    @patch("asqi.workflow.DBOS")
+    def test_evaluate_score_cards_with_audit_responses(
+        self, mock_dbos, mock_load_score, mock_load_audit, mock_start_eval
+    ):
+        """Test evaluate-score-cards with audit responses."""
+        mock_load_score.return_value = MOCK_SCORE_CARD_CONFIG
+        mock_load_audit.return_value = MOCK_AUDIT_RESPONSES
+        mock_start_eval.return_value = "workflow-audit-eval-1"
+
+        result = self.runner.invoke(
+            app,
+            [
+                "evaluate-score-cards",
+                "--input-file",
+                "input.json",
+                "-r",
+                "score_card.yaml",
+                "-a",
+                "audit_responses.yaml",
+                "-o",
+                "output_scorecard.json",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        mock_load_score.assert_called_once_with("score_card.yaml")
+        mock_load_audit.assert_called_once_with("audit_responses.yaml")
+
+        mock_start_eval.assert_called_once_with(
+            input_path="input.json",
+            score_card_configs=[MOCK_SCORE_CARD_CONFIG],
+            audit_responses_data=MOCK_AUDIT_RESPONSES,
+            output_path="output_scorecard.json",
+        )
+
+        assert "✅ Loaded grading score card: Mock Chatbot Scorecard" in result.stdout
+        assert (
+            "✨ Score card evaluation completed! Workflow ID: workflow-audit-eval-1"
+            in result.stdout
+        )
+
+    @patch("asqi.workflow.start_score_card_evaluation")
+    @patch("asqi.main.load_score_card_file")
+    @patch("asqi.workflow.DBOS")
+    def test_evaluate_score_cards_with_skip_audit(
+        self, mock_dbos, mock_load_score, mock_start_eval
+    ):
+        """Test evaluate-score-cards when audit indicators are skipped."""
+        mock_load_score.return_value = MOCK_SCORE_CARD_CONFIG
+        mock_start_eval.return_value = "workflow-audit-eval-skip"
+
+        result = self.runner.invoke(
+            app,
+            [
+                "evaluate-score-cards",
+                "--input-file",
+                "input.json",
+                "-r",
+                "score_card.yaml",
+                "--skip-audit",
+                "-o",
+                "output_scorecard.json",
+            ],
+        )
+
+        assert result.exit_code == 0
+        mock_load_score.assert_called_once_with("score_card.yaml")
+
+        mock_start_eval.assert_called_once()
+        _, kwargs = mock_start_eval.call_args
+
+        cleaned_configs = kwargs["score_card_configs"]
+        assert len(cleaned_configs) == 1
+        cleaned_card = cleaned_configs[0]
+        assert all(
+            ind.get("type") != "audit" for ind in cleaned_card.get("indicators", [])
+        )
+        assert kwargs["audit_responses_data"] is None
+
+        assert (
+            "✨ Score card evaluation completed! Workflow ID: workflow-audit-eval-skip"
+            in result.stdout
+        )
+
+    @patch("asqi.main.load_score_card_file")
+    @patch("asqi.workflow.DBOS")
+    def test_evaluate_score_cards_audit_required_but_missing(
+        self, mock_dbos, mock_load_score
+    ):
+        """Test evaluate-score-cards errors when audit indicators exist but no responses or skip flag."""
+        mock_load_score.return_value = MOCK_SCORE_CARD_CONFIG
+
+        result = self.runner.invoke(
+            app,
+            [
+                "evaluate-score-cards",
+                "--input-file",
+                "input.json",
+                "-r",
+                "score_card.yaml",
+            ],
+        )
+
+        assert result.exit_code == 1
+        out = result.stdout
+
+        # Same expectations: template must be shown
+        assert 'selected_outcome: ""  # Choose from:' in out
+        assert 'notes: "Optional explanation"' in out
 
     @patch("asqi.main.load_and_validate_plan")
     def test_validate_success(self, mock_validate):
@@ -317,6 +556,7 @@ class TestMainCLI:
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config=ContainerConfig.with_streaming(False),
+            audit_responses_data=None,
         )
 
     @patch("asqi.main.load_score_card_file")

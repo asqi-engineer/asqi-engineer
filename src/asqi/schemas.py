@@ -353,10 +353,70 @@ class ScoreCardIndicator(BaseModel):
     )
 
 
+# ----------------------------------------------------------------------------
+# Schema for Score Card with Audit Indicators (User-provided)
+# ----------------------------------------------------------------------------
+
+
+class AuditAssessmentRule(BaseModel):
+    """Assessment outcome for audit indicators."""
+
+    outcome: str = Field(
+        ..., description="Assessment outcome, e.g., 'A', 'B', 'C', 'PASS', 'FAIL'."
+    )
+    description: Optional[str] = Field(
+        None,
+        description="Human-readable description for this audit outcome",
+    )
+
+
+class AuditScoreCardIndicator(BaseModel):
+    """Manual audit indicator.
+
+    Outcome is provided via an external audit responses file.
+    """
+
+    id: IDsStringPattern = Field(
+        ...,
+        description=(
+            "A unique, human-readable ID (up to 32 characters) for this audit "
+            "indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_)."
+        ),
+    )
+    type: Literal["audit"] = Field(
+        "audit",
+        description="Indicator type. Must be 'audit' for manual audit indicators.",
+    )
+    name: Optional[str] = Field(
+        None,
+        description="Human-readable name for this audit indicator",
+    )
+    assessment: List[AuditAssessmentRule] = Field(
+        ...,
+        description="List of possible audit outcomes (A–E, PASS/FAIL, etc.).",
+    )
+
+
 class ScoreCard(BaseModel):
     """Complete grading score card configuration."""
 
     score_card_name: str = Field(..., description="Name of the grading score card")
-    indicators: List[ScoreCardIndicator] = Field(
-        ..., description="List of score card indicators to evaluate"
+    indicators: List[Union[ScoreCardIndicator, AuditScoreCardIndicator]] = Field(
+        ...,
+        description="List of score card indicators to evaluate (non-audit and audit).",
     )
+
+
+# ----------------------------------------------------------------------------
+# Schema for Audit Response (User-provided)
+# ----------------------------------------------------------------------------
+class AuditResponse(BaseModel):
+    indicator_id: str = Field(..., description="ID of the audit indicator")
+    selected_outcome: str = Field(
+        ..., description="Letter grade or label (A–E, PASS/FAIL, etc.)."
+    )
+    notes: Optional[str] = Field(None, description="Optional free text notes")
+
+
+class AuditResponses(BaseModel):
+    responses: List[AuditResponse]

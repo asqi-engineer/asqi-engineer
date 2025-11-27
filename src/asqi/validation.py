@@ -615,6 +615,7 @@ def validate_execution_inputs(
     suite_path: str,
     systems_path: str,
     execution_mode: str,
+    audit_responses_data: Optional[Dict[str, Any]] = None,
     output_path: Optional[str] = None,
 ) -> None:
     """
@@ -624,6 +625,7 @@ def validate_execution_inputs(
         suite_path: Path to test suite YAML file
         systems_path: Path to systems YAML file
         execution_mode: Execution mode string
+        audit_responses_data: Optional dictionary of audit responses data
         output_path: Optional output file path
 
     Raises:
@@ -639,6 +641,8 @@ def validate_execution_inputs(
         raise ValueError(
             f"Invalid execution_mode '{execution_mode}': must be 'tests_only' or 'end_to_end'"
         )
+    if audit_responses_data is not None and not isinstance(audit_responses_data, dict):
+        raise ValueError("Invalid audit_responses_data: must be a dictionary or None")
 
     if output_path is not None and not isinstance(output_path, str):
         raise ValueError("Invalid output_path: must be string or None")
@@ -647,6 +651,7 @@ def validate_execution_inputs(
 def validate_score_card_inputs(
     input_path: str,
     score_card_configs: List[Dict[str, Any]],
+    audit_responses_data: Optional[Dict[str, Any]] = None,
     output_path: Optional[str] = None,
 ) -> None:
     """
@@ -655,6 +660,7 @@ def validate_score_card_inputs(
     Args:
         input_path: Path to input JSON file
         score_card_configs: List of score card configurations
+        audit_responses_data: Optional dictionary of audit responses data
         output_path: Optional output file path
 
     Raises:
@@ -665,6 +671,9 @@ def validate_score_card_inputs(
 
     if not score_card_configs or not isinstance(score_card_configs, list):
         raise ValueError("Invalid score_card_configs: must be non-empty list")
+
+    if audit_responses_data is not None and not isinstance(audit_responses_data, dict):
+        raise ValueError("Invalid audit_responses_data: must be a dictionary or None")
 
     if output_path is not None and not isinstance(output_path, str):
         raise ValueError("Invalid output_path: must be string or None")
