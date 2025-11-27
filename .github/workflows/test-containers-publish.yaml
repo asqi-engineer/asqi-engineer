@@ -22,7 +22,7 @@ jobs:
       unique_matrix: ${{ steps.set-matrix.outputs.unique_matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -102,7 +102,7 @@ jobs:
       matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: No changes to test containers (noop)
         if: ${{ matrix.skip == true }}
@@ -252,7 +252,7 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Verify Dockerfile exists
         run: |
