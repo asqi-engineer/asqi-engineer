@@ -67,7 +67,7 @@
       "description": "Assessment outcome for audit indicators.",
       "properties": {
         "outcome": {
-          "description": "Assessment outcome, e.g., 'A', 'B', 'C'",
+          "description": "Assessment outcome, e.g., 'A', 'B', 'C', 'PASS', 'FAIL'.",
           "title": "Outcome",
           "type": "string"
         },
@@ -89,6 +89,51 @@
         "outcome"
       ],
       "title": "AuditAssessmentRule",
+      "type": "object"
+    },
+    "AuditScoreCardIndicator": {
+      "description": "Manual audit indicator.\n\nOutcome is provided via an external audit responses file.",
+      "properties": {
+        "id": {
+          "description": "A unique, human-readable ID (up to 32 characters) for this audit indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+          "pattern": "^[0-9a-z_]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "audit",
+          "default": "audit",
+          "description": "Indicator type. Must be 'audit' for manual audit indicators.",
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable name for this audit indicator",
+          "title": "Name"
+        },
+        "assessment": {
+          "description": "List of possible audit outcomes (A–E, PASS/FAIL, etc.).",
+          "items": {
+            "$ref": "#/$defs/AuditAssessmentRule"
+          },
+          "title": "Assessment",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "assessment"
+      ],
+      "title": "AuditScoreCardIndicator",
       "type": "object"
     },
     "MetricExpression": {
@@ -130,7 +175,7 @@
       "title": "ScoreCardFilter",
       "type": "object"
     },
-    "MetricScoreCardIndicator": {
+    "ScoreCardIndicator": {
       "description": "Individual score card indicator with filtering and assessment.",
       "properties": {
         "id": {
@@ -183,63 +228,8 @@
         "metric",
         "assessment"
       ],
-      "title": "MetricScoreCardIndicator",
+      "title": "ScoreCardIndicator",
       "type": "object"
-    },
-    "AuditScoreCardIndicator": {
-      "description": "Manual audit indicator. Outcome is provided via audit_responses.yaml.",
-      "properties": {
-        "id": {
-          "description": "A unique, human-readable ID (up to 32 characters) for this score card indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
-          "pattern": "^[0-9a-z_]{1,32}$",
-          "title": "Id",
-          "type": "string"
-        },
-        "name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Human-readable name for this score card indicator",
-          "title": "Name"
-        },
-        "type": {
-          "description": "Indicator type. Must be 'audit' for manual audit indicators.",
-          "const": "audit",
-          "type": "string"
-        },
-        "assessment": {
-          "description": "List of assessment rules for this audit indicator.",
-          "items": {
-            "$ref": "#/$defs/AuditAssessmentRule"
-          },
-          "title": "Assessment",
-          "type": "array"
-        }
-      },
-      "required": [
-        "id",
-        "type",
-        "assessment"
-      ],
-      "title": "AuditScoreCardIndicator",
-      "type": "object"
-    },
-    "ScoreCardIndicator": {
-      "description": "Score card indicator – either metric-based or audit-based.",
-      "oneOf": [
-        {
-          "$ref": "#/$defs/MetricScoreCardIndicator"
-        },
-        {
-          "$ref": "#/$defs/AuditScoreCardIndicator"
-        }
-      ]
     }
   },
   "description": "Complete grading score card configuration.",
@@ -250,9 +240,16 @@
       "type": "string"
     },
     "indicators": {
-      "description": "List of score card indicators to evaluate",
+      "description": "List of score card indicators to evaluate (non-audit and audit).",
       "items": {
-        "$ref": "#/$defs/ScoreCardIndicator"
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ScoreCardIndicator"
+          },
+          {
+            "$ref": "#/$defs/AuditScoreCardIndicator"
+          }
+        ]
       },
       "title": "Indicators",
       "type": "array"
