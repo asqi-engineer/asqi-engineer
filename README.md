@@ -43,7 +43,7 @@ The project focuses first on chatbot testing and supports extensions for other A
 
 ## LLM Testing
 
-For our first release, we have introduced the `llm_api` and `rag_api` system types for comprehensive AI system testing. We support both traditional LLM APIs and Retrieval-Augmented Generation (RAG) systems with contextual retrieval capabilities. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
+We have introduced the `llm_api` and `rag_api` system types for comprehensive AI system testing. We support both traditional LLM APIs and Retrieval-Augmented Generation (RAG) systems with contextual retrieval capabilities. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
 
 ### **LLM Test Containers**
 
@@ -53,7 +53,6 @@ For our first release, we have introduced the `llm_api` and `rag_api` system typ
 - **[Inspect Evals]**: Comprehensive evaluation suite with 80+ tasks across cybersecurity, mathematics, reasoning, knowledge, bias, and safety domains
 - **[LLMPerf](https://github.com/ray-project/llmperf)**: Token-level performance benchmarking for latency, throughput, and request metrics
 - **Resaro Chatbot Simulator**: Persona and scenario based conversational testing with multi-turn dialogue simulation
-- **Mock RAG Tester**: Development and validation testing for RAG systems with configurable simulation
 
 The `llm_api` and `rag_api` system types use OpenAI-compatible API interfaces. Through [LiteLLM] integration, ASQI Engineer provides unified access to 100+ LLM providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints. RAG systems additionally require responses with contextual citations for retrieval-augmented evaluation. This standardisation enables test containers to work seamlessly across different AI providers while supporting complex multi-system test scenarios (e.g., using different models for simulation, evaluation, and target testing).
 
