@@ -4,6 +4,8 @@ import random
 import sys
 import time
 
+from report_generator import write_mock_report
+
 
 def main():
     """Main entrypoint that demonstrates the container interface."""
@@ -50,13 +52,25 @@ def main():
         # response = client.chat.completions.create(model=model, messages=[...])
 
         # Always succeed with a random score
+        score = random.uniform(0.7, 1.0)
         result = {
             "success": True,
-            "score": random.uniform(0.7, 1.0),
+            "score": score,
             "delay_used": delay_seconds,
             "base_url": base_url,
             "model": model,
         }
+
+        try:
+            write_mock_report(
+                score=score,
+                delay_used=delay_seconds,
+                base_url=base_url,
+                model=model,
+            )
+        except Exception as e:
+            # Do not break the test if report fails
+            print(f"Warning: could not write technical report: {e}", file=sys.stderr)
 
         # Output results as JSON
         print(json.dumps(result, indent=2))

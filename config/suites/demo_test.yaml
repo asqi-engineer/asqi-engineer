@@ -6,6 +6,8 @@ test_suite:
     image: "asqiengineer/test-container:mock_tester-latest"
     systems_under_test:
       - "openai_gpt4o_mini" # if using demo_suts, it should fail with other systems_under_test or my_backend_api
+    volumes:
+      output: /workspaces/asqi/output
     params:
       delay_seconds: 1
 
