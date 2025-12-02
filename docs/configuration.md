@@ -64,7 +64,7 @@ systems:
 
 ### RAG API Systems
 
-RAG (Retrieval-Augmented Generation) systems extend LLM APIs with contextual retrieval capabilities:
+RAG (Retrieval-Augmented Generation) systems extend LLM APIs with contextual retrieval capabilities. They provide answers augmented with relevant information retrieved from knowledge bases or document collections.
 
 ```yaml
 systems:
@@ -77,6 +77,35 @@ systems:
       base_url: "http://localhost:4000/v1"
       model: "custom_rag"
       api_key: "sk-1234"
+      user_group: "admin"  # Optional: user group for access control
+```
+
+#### Expected Request Format
+
+ASQI sends OpenAI-compatible chat completion requests to RAG systems. The request format is identical to `llm_api` systems, using standard chat completion parameters:
+
+```json
+{
+  "model": "my-rag-model",
+  "messages": [
+    {"role": "user", "content": "What is the company's refund policy?"}
+  ],
+  "temperature": 0.0
+}
+```
+
+**Optional Parameters:**
+- `user_group` (string): When specified in system configuration, may be passed to the RAG system for access control tests.
+
+```json
+{
+  "model": "my-rag-model",
+  "messages": [
+    {"role": "user", "content": "What is the company's refund policy?"}
+  ],
+  "temperature": 0.0,
+  "user_group": "admin"
+}
 ```
 
 #### Expected Response Schema
@@ -84,14 +113,15 @@ systems:
 RAG API systems must return responses in OpenAI-compatible chat completions format with an additional `context` field in each message containing retrieval citations.
 
 **Context Field Requirements:**
-- `context`: List of context objects (required)
-- Each context object contains:
-  - `retrieved_context` (string): The retrieved information
+- `context`: Object containing retrieval information (required)
+- `context.citations`: Array of citation objects (required)
+- Each citation object contains:
+  - `retrieved_context` (string): The retrieved information text
   - `document_id` (string): A stable identifier for the originating document
   - `score` (float, optional): Retrieval ranking or confidence score
   - `source_id` (string, optional): Collection / index / knowledge-base identifier
 
-Example Response:
+**Example Response:**
 
 ```json
 {
@@ -126,9 +156,7 @@ Example Response:
     }
   ]
 }
-
 ```
-
 ### Environment Variable Handling
 
 ASQI supports a three-level configuration hierarchy:
