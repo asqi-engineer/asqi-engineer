@@ -18,6 +18,10 @@ model_list:
       model: "bedrock/*"
       api_key: os.environ/AWS_BEARER_TOKEN_BEDROCK
       drop_params: true # Some frameworks might send not supported params e.g. frequency_penalty
+  - model_name: custom_rag_chatbot
+    litellm_params:
+      model: custom_rag
+      api_key: os.environ/RAG_API_KEY
 
 litellm_settings:
   callbacks: ["otel"]

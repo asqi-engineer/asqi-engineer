@@ -1,0 +1,35 @@
+name: "mock_rag_tester"
+version: "1.0"
+description: "A lightweight mock container for testing the executor logic for rag systems."
+
+input_systems:
+  - name: "system_under_test"
+    type: "rag_api"
+    required: true
+    description: "The RAG system being tested"
+
+input_schema:
+  - name: "delay_seconds"
+    type: "integer"
+    required: false
+    description: "Seconds to sleep to simulate work."
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the test execution completed successfully"
+  - name: "score"
+    type: "float"
+    description: "Mock test score (0.0 to 1.0)"
+  - name: "delay_used"
+    type: "integer"
+    description: "The delay in seconds that was actually used"
+  - name: "base_url"
+    type: "string"
+    description: "The base URL that was used for the RAG API system"
+  - name: "model"
+    type: "string"
+    description: "The model name that was used"
+  - name: "user_group"
+    type: "string"
+    description: "User group used in the API if provided"

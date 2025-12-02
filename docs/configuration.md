@@ -62,6 +62,73 @@ systems:
       # base_url and api_key will use fallbacks from .env
 ```
 
+### RAG API Systems
+
+RAG (Retrieval-Augmented Generation) systems extend LLM APIs with contextual retrieval capabilities:
+
+```yaml
+systems:
+  # LiteLLM proxy configuration
+  rag_proxy_system:
+    type: "rag_api"
+    description: "Custom RAG chatbot"
+    provider: "openai"
+    params:
+      base_url: "http://localhost:4000/v1"
+      model: "custom_rag"
+      api_key: "sk-1234"
+```
+
+#### Expected Response Schema
+
+RAG API systems must return responses in OpenAI-compatible chat completions format with an additional `context` field in each message containing retrieval citations.
+
+**Context Field Requirements:**
+- `context`: List of context objects (required)
+- Each context object contains:
+  - `retrieved_context` (string): The retrieved information
+  - `document_id` (string): A stable identifier for the originating document
+  - `score` (float, optional): Retrieval ranking or confidence score
+  - `source_id` (string, optional): Collection / index / knowledge-base identifier
+
+Example Response:
+
+```json
+{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "my-rag-model",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "We offer 30-day returns at no additional cost for all customers",
+        "context": {
+          "citations": [
+            {
+              "retrieved_context": "All customers are eligible for a 30-day full refund at no extra cost.",
+              "document_id": "return_policy.pdf",
+              "score": 0.96,
+              "source_id": "company_policy"
+            },
+            {
+              "retrieved_context": "We need receipt for 30-day refund",
+              "document_id": "return_policy.pdf",
+              "score": 0.7,
+              "source_id": "company_policy"
+            }
+          ]
+        }
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
+
+```
+
 ### Environment Variable Handling
 
 ASQI supports a three-level configuration hierarchy:
@@ -120,6 +187,8 @@ ASQI supports a three-level configuration hierarchy:
       ANTHROPIC_API_KEY=api-key-anthropic
       # Amazon Bedrock
       AWS_BEARER_TOKEN_BEDROCK=api-key-bedrock
+      # Custom RAG API Key
+      RAG_API_KEY=api-key-rag
       ```       
 
 3. **Validation Error**: If required fields are missing

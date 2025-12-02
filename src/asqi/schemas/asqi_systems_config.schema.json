@@ -141,6 +141,113 @@
       ],
       "title": "LLMAPIParams",
       "type": "object"
+    },
+    "RAGAPIConfig": {
+      "description": "Configuration for RAG API systems.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+          "title": "Provider"
+        },
+        "type": {
+          "const": "rag_api",
+          "description": "RAG API system: rag_api",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/RAGAPIParams",
+          "description": "Parameters specific to the RAG API system (e.g., base url, model name, API key and env file)."
+        }
+      },
+      "required": [
+        "type",
+        "params"
+      ],
+      "title": "RAGAPIConfig",
+      "type": "object"
+    },
+    "RAGAPIParams": {
+      "description": "Parameters for the RAG API systems.",
+      "properties": {
+        "base_url": {
+          "description": "Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "model": {
+          "description": "System name to use as model name with the API",
+          "title": "Model",
+          "type": "string"
+        },
+        "user_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Indicates the role or access tier under which the query should be executed, for example: 'admin', 'support-agent', 'regional-user'",
+          "title": "User Group"
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to .env file containing environment variables for authentication",
+          "title": "Env File"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Direct API key for authentication (alternative to env_file)",
+          "title": "Api Key"
+        }
+      },
+      "required": [
+        "base_url",
+        "model"
+      ],
+      "title": "RAGAPIParams",
+      "type": "object"
     }
   },
   "description": "Schema for the top-level systems configuration file.\n\nExtension Guide:\n    1. Create a new XXXConfig class inheriting from SystemDefinition. e.g, RESTAPIConfig\n    2. Create a new XXXParam class for the parameters of the system. e.g. RESTAPIParams\n    2. Add the new system definition (XXXConfig) to the SystemConfig union type\n        e.g. SystemConfig = Union[LLMAPIConfig, XXXConfig, ..., GenericSystemConfig]",
@@ -150,6 +257,9 @@
         "anyOf": [
           {
             "$ref": "#/$defs/LLMAPIConfig"
+          },
+          {
+            "$ref": "#/$defs/RAGAPIConfig"
           },
           {
             "$ref": "#/$defs/GenericSystemConfig"
