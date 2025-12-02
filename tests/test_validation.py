@@ -13,6 +13,8 @@ from asqi.schemas import (
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
+    RAGAPIConfig,
+    RAGAPIParams,
     ScoreCard,
     ScoreCardFilter,
     ScoreCardIndicator,
@@ -53,6 +55,20 @@ test_suite:
       - "my_llm_api" 
     params:
       delay_seconds: 1
+"""
+
+DEMO_RAG_SUITE_YAML = """   
+suite_name: "Mock RAG Tester Sanity Check"
+description: "Suite description"
+test_suite:
+    - name: "run_mock_on_compatible_system"
+      id: "run_mock_on_compatible_system"
+      description: "Test description"
+      image: "my-registry/mock_rag_tester:latest"
+      systems_under_test:
+          - "my_rag_api"
+      params:
+          delay_seconds: 1
 """
 
 DEMO_systems_YAML = """
@@ -97,6 +113,24 @@ MOCK_TESTER_MANIFEST = {
     "output_metrics": ["success", "score", "delay_used"],
 }
 
+MOCK_RAG_TESTER_MANIFEST = {
+    "name": "mock_rag_tester",
+    "version": "1.0.0",
+    "description": "A mock container for testing RAG systems with context validation.",
+    "input_systems": [
+        {"name": "system_under_test", "type": "rag_api", "required": True},
+    ],
+    "input_schema": [
+        {
+            "name": "delay_seconds",
+            "type": "integer",
+            "required": False,
+            "description": "Seconds to sleep to simulate work.",
+        }
+    ],
+    "output_metrics": ["success", "score", "delay_used", "base_url", "model", "user_group"],
+}
+
 MOCK_GENERIC_MANIFEST = {
     "name": "generic",
     "version": "0.1.0",
@@ -133,6 +167,12 @@ def demo_suite():
     data = yaml.safe_load(DEMO_SUITE_YAML)
     return SuiteConfig(**data)
 
+@pytest.fixture
+def demo_rag_suite():
+    """Fixture providing parsed demo test suite."""
+    data = yaml.safe_load(DEMO_RAG_SUITE_YAML)
+    return SuiteConfig(**data)
+
 
 @pytest.fixture
 def demo_systems():
@@ -146,6 +186,7 @@ def manifests():
     """Fixture providing test manifests."""
     return {
         "my-registry/mock_tester:latest": Manifest(**MOCK_TESTER_MANIFEST),
+        "my-registry/mock_rag_tester:latest": Manifest(**MOCK_RAG_TESTER_MANIFEST),
         "my-registry/generic:latest": Manifest(**MOCK_GENERIC_MANIFEST),
         "my-registry/garak:latest": Manifest(**MOCK_MULTIPLE_MANIFEST),
     }
@@ -283,12 +324,73 @@ class TestSchemaValidation:
         errors = validate_test_plan(demo_suite, system, manifests)
         assert errors == [], f"Expected no errors, but got: {errors}"
 
+    def test_missing_params_rag_api_systems_schema(self):
+        """Test that validates required RAG API system parameters."""
+
+        # This system base_url param is missing
+        with pytest.raises(ValidationError, match="missing"):
+            SystemsConfig(
+                systems={
+                    "test_rag_system": RAGAPIConfig(
+                        type="rag_api",
+                        description="RAG System description",
+                        provider="custom",
+                        params=RAGAPIParams(
+                            env_file="ENV_FILE",
+                            model="rag-model",
+                            api_key="sk-123",
+                        ),  # type: ignore base_url missing
+                    )
+                }
+            )
+        # This system model param is missing
+        with pytest.raises(ValidationError, match="missing"):
+            SystemsConfig(
+                systems={
+                    "test_rag_system": RAGAPIConfig(
+                        type="rag_api",
+                        description="RAG System description",
+                        provider="custom",
+                        params=RAGAPIParams(
+                            base_url="http://URL",
+                            api_key="sk-123",
+                        ),  # type: ignore model missing
+                    )
+                }
+            )
+
+    def test_optional_params_rag_api_systems_schema(self, demo_rag_suite, manifests):
+        """Test that validates optional RAG API system parameters."""
+
+        system = SystemsConfig(
+            systems={
+                "my_rag_api": RAGAPIConfig(
+                    type="rag_api",
+                    description="RAG System description",
+                    provider="custom",
+                    params=RAGAPIParams(
+                        base_url="http://URL",
+                        model="rag-model",
+                        user_group="admin",  # optional param
+                    ),  # type: ignore optional params
+                )
+            }
+        )
+
+        errors = validate_test_plan(demo_rag_suite, system, manifests)
+        assert errors == [], f"Expected no errors, but got: {errors}"
+
     def test_manifest_schema_validation(self, manifests):
         """Test that manifests parse correctly."""
         mock_manifest = manifests["my-registry/mock_tester:latest"]
         assert mock_manifest.name == "mock_tester"
         assert len(mock_manifest.input_systems) == 1
         assert mock_manifest.input_systems[0].type == "llm_api"
+
+        rag_manifest = manifests["my-registry/mock_rag_tester:latest"]
+        assert rag_manifest.name == "mock_rag_tester"
+        assert len(rag_manifest.input_systems) == 1
+        assert rag_manifest.input_systems[0].type == "rag_api"
 
 
 class TestCrossFileValidation:

@@ -6,6 +6,8 @@ from asqi.config import ContainerConfig
 from asqi.schemas import (
     LLMAPIConfig,
     LLMAPIParams,
+    RAGAPIConfig,
+    RAGAPIParams,
     SuiteConfig,
     SystemsConfig,
     TestDefinition,
@@ -65,6 +67,26 @@ class TestEnvironmentVariables:
             }
         )
 
+    @pytest.fixture
+    def sample_rag_api_systems_config(self):
+        """Sample rag api systems configuration with API key."""
+
+        return SystemsConfig(
+            systems={
+                "test_system": RAGAPIConfig(
+                    type="rag_api",
+                    description="RAG System description",
+                    provider="openai",
+                    params=RAGAPIParams(
+                        base_url="http://RAG-URL",
+                        env_file="ENV_FILE",
+                        model="my-rag-chatbot",
+                        api_key="sk-rag-123",
+                    ),
+                )
+            }
+        )
+
     def test_create_test_execution_plan_flattens_llm_api_system_params(
         self, sample_suite_config, sample_llm_api_systems_config
     ):
@@ -87,6 +109,32 @@ class TestEnvironmentVariables:
         assert system_params["env_file"] == "ENV_FILE"
         assert system_params["model"] == "gpt-4o-mini"
         assert system_params["api_key"] == "sk-123"
+
+        # Ensure config is not nested
+        assert "config" not in system_params
+
+    def test_create_test_execution_plan_flattens_rag_api_system_params(
+        self, sample_suite_config, sample_rag_api_systems_config
+    ):
+        """Test that create_test_execution_plan correctly flattens RAG API system parameters."""
+        image_availability = {"my-registry/test:latest": True}
+
+        execution_plan = create_test_execution_plan(
+            sample_suite_config, sample_rag_api_systems_config, image_availability
+        )
+
+        assert len(execution_plan) == 1
+        systems_params = execution_plan[0]["systems_params"]
+        system_params = systems_params["system_under_test"]
+
+        # Verify the system params are flattened correctly
+        assert system_params["type"] == "rag_api"
+        assert system_params["description"] == "RAG System description"
+        assert system_params["provider"] == "openai"
+        assert system_params["base_url"] == "http://RAG-URL"
+        assert system_params["env_file"] == "ENV_FILE"
+        assert system_params["model"] == "my-rag-chatbot"
+        assert system_params["api_key"] == "sk-rag-123"
 
         # Ensure config is not nested
         assert "config" not in system_params
