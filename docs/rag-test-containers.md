@@ -14,6 +14,7 @@ ASQI Engineer provides a mock test container to demonstrate how to configure and
 
 ### Input Parameters
 - `delay_seconds` (integer, optional): Seconds to sleep simulating processing work
+- `user_group` (string, optional) : User group used to execute the query, e.g. 'admin'
 
 ### Output Metrics
 - `success` (boolean): Whether test execution completed successfully
@@ -32,7 +33,8 @@ test_suite:
     image: "my-registry/mock_rag_tester:latest"
     systems_under_test: ["my_rag_service"]
     params:
-      delay_seconds: 2
+      delay_seconds: 2    # Optional
+      user_group: "admin" # Optional
 ```
 
 ### Build Instructions

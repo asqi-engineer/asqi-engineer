@@ -77,7 +77,15 @@ systems:
       base_url: "http://localhost:4000/v1"
       model: "custom_rag"
       api_key: "sk-1234"
-      user_group: "admin"  # Optional: user group for access control
+    
+  # Using environment variable fallbacks
+  fallback_rag:
+    type: "rag_api"
+    description: "Custom RAG API System"
+    provider: "custom"
+    params:
+      model: "my-rag-api"
+      # base_url and api_key will use fallbacks from .env
 ```
 
 #### Expected Request Format
@@ -95,7 +103,7 @@ ASQI sends OpenAI-compatible chat completion requests to RAG systems. The reques
 ```
 
 **Optional Parameters:**
-- `user_group` (string): When specified in system configuration, may be passed to the RAG system for access control tests.
+- `user_group` (string): When specified as a test input parameter, it may be passed to the RAG system for access control tests in the request payload.
 
 ```json
 {
