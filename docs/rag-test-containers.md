@@ -39,12 +39,6 @@ test_suite:
 
 ### Build Instructions
 ```bash
-# Build from the container's directory (like all other test containers)
 cd test_containers/mock_rag_tester
 docker build -t my-registry/mock_rag_tester:latest .
 ```
-
-### Notes
-- The `rag_response_schema.py` file is included in the container directory for self-containment (like other test containers)
-- This file is copied from `src/asqi/rag_response_schema.py` when validation logic is updated
-- To sync with latest validation changes: `cp src/asqi/rag_response_schema.py test_containers/mock_rag_tester/`

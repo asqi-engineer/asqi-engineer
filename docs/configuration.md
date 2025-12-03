@@ -64,7 +64,7 @@ systems:
 
 ### RAG API Systems
 
-RAG (Retrieval-Augmented Generation) systems extend LLM APIs with contextual retrieval capabilities. They provide answers augmented with relevant information retrieved from knowledge bases or document collections.
+`rag_api` systems extend the OpenAI chat response format with a specified response interface - see expected response schema below. Assuming an API has been configured with to support RAG functionality, you can define RAG systems as follows:
 
 #### System Configuration
 
@@ -94,15 +94,6 @@ systems:
       base_url: "http://localhost:4000/v1"
       model: "custom_rag"
       api_key: "sk-1234"
-    
-  # Using environment variable fallbacks
-  fallback_rag:
-    type: "rag_api"
-    description: "Custom RAG API System"
-    provider: "custom"
-    params:
-      model: "my-rag-api"
-      # base_url and api_key will use fallbacks from .env
 ```
 
 #### Expected Request Format
