@@ -240,8 +240,6 @@ ASQI supports a three-level configuration hierarchy:
       ANTHROPIC_API_KEY=api-key-anthropic
       # Amazon Bedrock
       AWS_BEARER_TOKEN_BEDROCK=api-key-bedrock
-      # Custom RAG API Key
-      RAG_API_KEY=api-key-rag
       ```       
 
 3. **Validation Error**: If required fields are missing
