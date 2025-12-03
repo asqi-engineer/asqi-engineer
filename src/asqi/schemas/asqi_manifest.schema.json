@@ -157,7 +157,7 @@
           "type": "string"
         },
         "type": {
-          "description": "The system type, e.g., 'llm_api' or 'rest_api'.",
+          "description": "The system type, e.g., 'llm_api','rest_api' or 'rag_api'.",
           "title": "Type",
           "type": "string"
         },

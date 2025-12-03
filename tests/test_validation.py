@@ -7,12 +7,14 @@ from pydantic import ValidationError
 
 from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.main import load_and_validate_plan
+from asqi.rag_response_schema import RAGCitation, RAGContext, validate_rag_response
 from asqi.schemas import (
     AssessmentRule,
     GenericSystemConfig,
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
+    RAGAPIConfig,
     ScoreCard,
     ScoreCardFilter,
     ScoreCardIndicator,
@@ -53,6 +55,20 @@ test_suite:
       - "my_llm_api" 
     params:
       delay_seconds: 1
+"""
+
+DEMO_RAG_SUITE_YAML = """   
+suite_name: "Mock RAG Tester Sanity Check"
+description: "Suite description"
+test_suite:
+    - name: "run_mock_on_compatible_system"
+      id: "run_mock_on_compatible_system"
+      description: "Test description"
+      image: "my-registry/mock_rag_tester:latest"
+      systems_under_test:
+          - "my_rag_api"
+      params:
+          delay_seconds: 1
 """
 
 DEMO_systems_YAML = """
@@ -97,6 +113,31 @@ MOCK_TESTER_MANIFEST = {
     "output_metrics": ["success", "score", "delay_used"],
 }
 
+MOCK_RAG_TESTER_MANIFEST = {
+    "name": "mock_rag_tester",
+    "version": "1.0.0",
+    "description": "A mock container for testing RAG systems with context validation.",
+    "input_systems": [
+        {"name": "system_under_test", "type": "rag_api", "required": True},
+    ],
+    "input_schema": [
+        {
+            "name": "delay_seconds",
+            "type": "integer",
+            "required": False,
+            "description": "Seconds to sleep to simulate work.",
+        }
+    ],
+    "output_metrics": [
+        "success",
+        "score",
+        "delay_used",
+        "base_url",
+        "model",
+        "user_group",
+    ],
+}
+
 MOCK_GENERIC_MANIFEST = {
     "name": "generic",
     "version": "0.1.0",
@@ -135,6 +176,13 @@ def demo_suite():
 
 
 @pytest.fixture
+def demo_rag_suite():
+    """Fixture providing parsed demo test suite."""
+    data = yaml.safe_load(DEMO_RAG_SUITE_YAML)
+    return SuiteConfig(**data)
+
+
+@pytest.fixture
 def demo_systems():
     """Fixture providing parsed demo systems."""
     data = yaml.safe_load(DEMO_systems_YAML)
@@ -146,6 +194,7 @@ def manifests():
     """Fixture providing test manifests."""
     return {
         "my-registry/mock_tester:latest": Manifest(**MOCK_TESTER_MANIFEST),
+        "my-registry/mock_rag_tester:latest": Manifest(**MOCK_RAG_TESTER_MANIFEST),
         "my-registry/generic:latest": Manifest(**MOCK_GENERIC_MANIFEST),
         "my-registry/garak:latest": Manifest(**MOCK_MULTIPLE_MANIFEST),
     }
@@ -283,12 +332,73 @@ class TestSchemaValidation:
         errors = validate_test_plan(demo_suite, system, manifests)
         assert errors == [], f"Expected no errors, but got: {errors}"
 
+    def test_missing_params_rag_api_systems_schema(self):
+        """Test that validates required RAG API system parameters."""
+
+        # This system base_url param is missing
+        with pytest.raises(ValidationError, match="missing"):
+            SystemsConfig(
+                systems={
+                    "test_rag_system": RAGAPIConfig(
+                        type="rag_api",
+                        description="RAG System description",
+                        provider="custom",
+                        params=LLMAPIParams(
+                            env_file="ENV_FILE",
+                            model="rag-model",
+                            api_key="sk-123",
+                        ),  # type: ignore base_url missing
+                    )
+                }
+            )
+        # This system model param is missing
+        with pytest.raises(ValidationError, match="missing"):
+            SystemsConfig(
+                systems={
+                    "test_rag_system": RAGAPIConfig(
+                        type="rag_api",
+                        description="RAG System description",
+                        provider="custom",
+                        params=LLMAPIParams(
+                            base_url="http://URL",
+                            api_key="sk-123",
+                        ),  # type: ignore model missing
+                    )
+                }
+            )
+
+    def test_optional_params_rag_api_systems_schema(self, demo_rag_suite, manifests):
+        """Test that validates optional RAG API system parameters."""
+
+        system = SystemsConfig(
+            systems={
+                "my_rag_api": RAGAPIConfig(
+                    type="rag_api",
+                    description="RAG System description",
+                    provider="custom",
+                    params=LLMAPIParams(
+                        base_url="http://URL",
+                        model="rag-model",
+                        user_group="admin",  # optional param
+                    ),  # type: ignore optional params
+                )
+            }
+        )
+
+        errors = validate_test_plan(demo_rag_suite, system, manifests)
+        assert errors == [], f"Expected no errors, but got: {errors}"
+
     def test_manifest_schema_validation(self, manifests):
         """Test that manifests parse correctly."""
         mock_manifest = manifests["my-registry/mock_tester:latest"]
         assert mock_manifest.name == "mock_tester"
         assert len(mock_manifest.input_systems) == 1
         assert mock_manifest.input_systems[0].type == "llm_api"
+
+        rag_manifest = manifests["my-registry/mock_rag_tester:latest"]
+        assert rag_manifest.name == "mock_rag_tester"
+        assert len(rag_manifest.input_systems) == 1
+        assert rag_manifest.input_systems[0].type == "rag_api"
 
 
 class TestCrossFileValidation:
@@ -1577,3 +1687,134 @@ class TestValidateIDs:
             match="Score card indicators don't match any test ids in the test results",
         ):
             engine.evaluate_scorecard([result], score_card)
+
+
+class TestRAGResponseSchema:
+    """Test cases for RAG response validation schemas."""
+
+    def test_rag_citation_valid(self):
+        """Test valid RAG citation creation."""
+        citation = RAGCitation(
+            retrieved_context="This is some retrieved text from a document.",
+            document_id="policy.pdf",
+            score=0.95,
+            source_id="company_policies",
+        )
+
+        assert (
+            citation.retrieved_context == "This is some retrieved text from a document."
+        )
+        assert citation.document_id == "policy.pdf"
+        assert citation.score == 0.95
+        assert citation.source_id == "company_policies"
+
+    def test_rag_citation_validation_errors(self):
+        """Test RAG citation validation errors."""
+        # Empty retrieved_context
+        with pytest.raises(ValidationError, match="string_too_short"):
+            RAGCitation(retrieved_context="", document_id="doc.txt")
+
+        # Empty document_id
+        with pytest.raises(ValidationError, match="string_too_short"):
+            RAGCitation(retrieved_context="Some text", document_id="")
+
+        # Invalid score range
+        with pytest.raises(ValidationError, match="greater_than_equal"):
+            RAGCitation(
+                retrieved_context="Some text", document_id="doc.txt", score=-0.1
+            )
+
+        with pytest.raises(ValidationError, match="less_than_equal"):
+            RAGCitation(retrieved_context="Some text", document_id="doc.txt", score=1.5)
+
+    def test_rag_context_valid(self):
+        """Test valid RAG context creation."""
+        citations = [
+            RAGCitation(
+                retrieved_context="First citation text.",
+                document_id="doc1.pdf",
+                score=0.9,
+            ),
+            RAGCitation(
+                retrieved_context="Second citation text.",
+                document_id="doc2.pdf",
+                score=0.8,
+            ),
+        ]
+
+        context = RAGContext(citations=citations)
+        assert len(context.citations) == 2
+        assert context.citations[0].document_id == "doc1.pdf"
+        assert context.citations[1].document_id == "doc2.pdf"
+
+    def test_rag_context_empty_citations(self):
+        """Test RAG context with empty citations list."""
+        context = RAGContext(citations=[])
+        assert context.citations == []
+
+    def test_validate_rag_response_valid(self):
+        """Test validate_rag_response with valid response structure."""
+        response_dict = {
+            "choices": [
+                {
+                    "message": {
+                        "context": {
+                            "citations": [
+                                {
+                                    "retrieved_context": "This is citation text.",
+                                    "document_id": "source.pdf",
+                                    "score": 0.85,
+                                    "source_id": "knowledge_base",
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+
+        citations = validate_rag_response(response_dict)
+        assert len(citations) == 1
+        assert citations[0].retrieved_context == "This is citation text."
+        assert citations[0].document_id == "source.pdf"
+        assert citations[0].score == 0.85
+        assert citations[0].source_id == "knowledge_base"
+
+    def test_validate_rag_response_multiple_citations(self):
+        """Test validate_rag_response with multiple citations."""
+        response_dict = {
+            "choices": [
+                {
+                    "message": {
+                        "context": {
+                            "citations": [
+                                {
+                                    "retrieved_context": "First citation.",
+                                    "document_id": "doc1.pdf",
+                                },
+                                {
+                                    "retrieved_context": "Second citation.",
+                                    "document_id": "doc2.pdf",
+                                    "score": 0.7,
+                                },
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+
+        citations = validate_rag_response(response_dict)
+        assert len(citations) == 2
+        assert citations[0].document_id == "doc1.pdf"
+        assert citations[1].document_id == "doc2.pdf"
+
+    def test_validate_rag_response_missing_required_structure(self):
+        """Test validate_rag_response with missing required response structure."""
+        # Missing message
+        with pytest.raises(KeyError, match="message"):
+            validate_rag_response({"choices": [{"context": {"citations": []}}]})
+
+        # Missing context
+        with pytest.raises(KeyError, match="context"):
+            validate_rag_response({"choices": [{"message": {"citations": []}}]})

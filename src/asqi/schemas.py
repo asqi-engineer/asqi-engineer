@@ -18,7 +18,7 @@ class SystemInput(BaseModel):
         description="The system input name, e.g., 'system_under_test', 'simulator_system', 'evaluator_system'.",
     )
     type: str = Field(
-        ..., description="The system type, e.g., 'llm_api' or 'rest_api'."
+        ..., description="The system type, e.g., 'llm_api','rest_api' or 'rag_api'."
     )
     required: bool = Field(True, description="Whether this system input is required.")
     description: Optional[str] = Field(
@@ -151,6 +151,22 @@ class LLMAPIConfig(SystemDefinition):
     )
 
 
+# RAG API system
+
+
+class RAGAPIConfig(SystemDefinition):
+    """Configuration for RAG API systems."""
+
+    type: Literal["rag_api"] = Field(
+        ...,
+        description="RAG API system: rag_api",
+    )
+    params: LLMAPIParams = Field(
+        ...,
+        description="Parameters specific to the RAG API system (e.g., base url, model name, API key and env file).",
+    )
+
+
 # Generic system
 
 
@@ -170,7 +186,7 @@ class GenericSystemConfig(SystemDefinition):
     )
 
 
-SystemConfig = Union[LLMAPIConfig, GenericSystemConfig]
+SystemConfig = Union[LLMAPIConfig, RAGAPIConfig, GenericSystemConfig]
 
 
 class SystemsConfig(BaseModel):

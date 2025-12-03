@@ -5,6 +5,7 @@ ASQI provides several pre-built test containers for different testing scenarios.
 ## Container Overview
 
 - **Mock Tester** (`asqiengineer/test-container:mock_tester-latest`): Basic test container for development and validation
+- **Mock RAG Tester** (`asqiengineer/test-container:mock_rag_tester-latest`): Mock test container for RAG systems development and validation
 - **Garak Security Tester** (`asqiengineer/test-container:garak-latest`): LLM security vulnerability assessment with 40+ attack vectors  
 - **Inspect Evals** (`asqiengineer/test-container:inspect_evals-latest`): Comprehensive evaluation suite with 80+ tasks across cybersecurity, mathematics, reasoning, knowledge, bias, and safety domains
 - **Chatbot Simulator** (`asqiengineer/test-container:chatbot_simulator-latest`): Persona-based conversational testing with multi-turn dialogue

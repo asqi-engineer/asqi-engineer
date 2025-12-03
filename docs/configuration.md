@@ -62,6 +62,117 @@ systems:
       # base_url and api_key will use fallbacks from .env
 ```
 
+### RAG API Systems
+
+`rag_api` systems extend the OpenAI chat response format with a specified response interface - see expected response schema below. Assuming an API has been configured with to support RAG functionality, you can define RAG systems as follows:
+
+#### System Configuration
+
+Configure RAG systems in your `litellm_config.yaml`:
+
+```yaml
+model_list:
+  # ... existing models ...
+
+  # RAG API Systems - Retrieval-Augmented Generation with contextual retrieval
+  - model_name: custom_rag_chatbot
+    litellm_params:
+      model: custom_rag
+      api_key: os.environ/RAG_API_KEY  # Replace with your actual RAG endpoint authentication
+```
+
+Then reference it in your ASQI systems configuration:
+
+```yaml
+systems:
+  # LiteLLM proxy configuration
+  rag_proxy_system:
+    type: "rag_api"
+    description: "Custom RAG chatbot"
+    provider: "openai"
+    params:
+      base_url: "http://localhost:4000/v1"
+      model: "custom_rag"
+      api_key: "sk-1234"
+```
+
+#### Expected Request Format
+
+ASQI sends OpenAI-compatible chat completion requests to RAG systems. The request format is identical to `llm_api` systems, using standard chat completion parameters:
+
+```json
+{
+  "model": "my-rag-model",
+  "messages": [
+    {"role": "user", "content": "What is the company's refund policy?"}
+  ],
+  "temperature": 0.0
+}
+```
+
+**Optional Parameters:**
+- `user_group` (string): When specified as a test input parameter, it may be passed to the RAG system for access control tests in the request payload.
+
+```json
+{
+  "model": "my-rag-model",
+  "messages": [
+    {"role": "user", "content": "What is the company's refund policy?"}
+  ],
+  "temperature": 0.0,
+  "user_group": "admin"
+}
+```
+
+#### Expected Response Schema
+
+RAG API systems must return responses in OpenAI-compatible chat completions format with an additional `context` field in each message containing retrieval citations.
+
+**Context Field Requirements:**
+- `context`: Object containing retrieval information (required)
+- `context.citations`: Array of citation objects (required)
+- Each citation object contains:
+  - `retrieved_context` (string): The retrieved information text
+  - `document_id` (string): A stable identifier for the originating document
+  - `score` (float, optional): Retrieval ranking or confidence score, normalized to range [0.0, 1.0] where 1.0 indicates highest confidence/relevance
+  - `source_id` (string, optional): Collection / index / knowledge-base identifier
+
+**Example Response:**
+
+```json
+{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "my-rag-model",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "We offer 30-day returns at no additional cost for all customers",
+        "context": {
+          "citations": [
+            {
+              "retrieved_context": "All customers are eligible for a 30-day full refund at no extra cost.",
+              "document_id": "return_policy.pdf",
+              "score": 0.96,
+              "source_id": "company_policy"
+            },
+            {
+              "retrieved_context": "We need receipt for 30-day refund",
+              "document_id": "return_policy.pdf",
+              "score": 0.7,
+              "source_id": "company_policy"
+            }
+          ]
+        }
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
 ### Environment Variable Handling
 
 ASQI supports a three-level configuration hierarchy:

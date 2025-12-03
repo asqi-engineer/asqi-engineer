@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+suite_name: "Mock RAG Tester Sanity Check"
+test_suite:
+  - id: "run_mock_on_compatible_rag_sut"
+    name: "run mock on compatible rag sut"
+    image: "asqiengineer/test-container:mock_rag_tester-latest"
+    systems_under_test:
+      - "custom_rag_chatbot"
+    params:
+      delay_seconds: 1
