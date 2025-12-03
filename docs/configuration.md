@@ -126,7 +126,7 @@ RAG API systems must return responses in OpenAI-compatible chat completions form
 - Each citation object contains:
   - `retrieved_context` (string): The retrieved information text
   - `document_id` (string): A stable identifier for the originating document
-  - `score` (float, optional): Retrieval ranking or confidence score
+  - `score` (float, optional): Retrieval ranking or confidence score, normalized to range [0.0, 1.0] where 1.0 indicates highest confidence/relevance
   - `source_id` (string, optional): Collection / index / knowledge-base identifier
 
 **Example Response:**
