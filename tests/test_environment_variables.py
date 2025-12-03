@@ -7,7 +7,6 @@ from asqi.schemas import (
     LLMAPIConfig,
     LLMAPIParams,
     RAGAPIConfig,
-    RAGAPIParams,
     SuiteConfig,
     SystemsConfig,
     TestDefinition,
@@ -77,7 +76,7 @@ class TestEnvironmentVariables:
                     type="rag_api",
                     description="RAG System description",
                     provider="openai",
-                    params=RAGAPIParams(
+                    params=LLMAPIParams(
                         base_url="http://RAG-URL",
                         env_file="ENV_FILE",
                         model="my-rag-chatbot",

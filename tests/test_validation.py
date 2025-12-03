@@ -14,7 +14,6 @@ from asqi.schemas import (
     LLMAPIParams,
     Manifest,
     RAGAPIConfig,
-    RAGAPIParams,
     ScoreCard,
     ScoreCardFilter,
     ScoreCardIndicator,
@@ -335,7 +334,7 @@ class TestSchemaValidation:
                         type="rag_api",
                         description="RAG System description",
                         provider="custom",
-                        params=RAGAPIParams(
+                        params=LLMAPIParams(
                             env_file="ENV_FILE",
                             model="rag-model",
                             api_key="sk-123",
@@ -351,7 +350,7 @@ class TestSchemaValidation:
                         type="rag_api",
                         description="RAG System description",
                         provider="custom",
-                        params=RAGAPIParams(
+                        params=LLMAPIParams(
                             base_url="http://URL",
                             api_key="sk-123",
                         ),  # type: ignore model missing
@@ -368,7 +367,7 @@ class TestSchemaValidation:
                     type="rag_api",
                     description="RAG System description",
                     provider="custom",
-                    params=RAGAPIParams(
+                    params=LLMAPIParams(
                         base_url="http://URL",
                         model="rag-model",
                         user_group="admin",  # optional param

@@ -13,6 +13,10 @@ input_schema:
     type: "integer"
     required: false
     description: "Seconds to sleep to simulate work."
+  - name: "user_group"
+    type: "string"
+    required: false
+    description: "The role or access tier under which the query should be executed, for example: 'admin', 'regional-user' etc."
 
 output_metrics:
   - name: "success"
@@ -32,4 +36,4 @@ output_metrics:
     description: "The model name that was used"
   - name: "user_group"
     type: "string"
-    description: "User group used in the API if provided"
+    description: "User group used in the API, if provided"

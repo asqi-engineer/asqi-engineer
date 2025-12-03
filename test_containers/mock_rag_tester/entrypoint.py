@@ -1,8 +1,9 @@
 import argparse
 import json
-import random
 import sys
 import time
+import random
+from rag_response_schema import validate_rag_response
 
 
 def main():
@@ -16,6 +17,8 @@ def main():
     )
 
     args = parser.parse_args()
+
+    user_group = None
 
     try:
         # Parse inputs
@@ -36,7 +39,8 @@ def main():
         base_url = sut_params["base_url"]  # Required, validated upstream
         api_key = sut_params["api_key"]  # Required, validated upstream
         model = sut_params["model"]  # Required, validated upstream
-        user_group = sut_params.get("user_group")  # Optional, validated upstream
+
+        user_group = test_params.get("user_group") # Optional
 
         extra_body = {} # OpenAI-compatible API extra body parameters
         if user_group is not None:
@@ -57,28 +61,28 @@ def main():
         # response = client.chat.completions.create(
         #     model=model,
         #     messages=messages,
-        #     extra_body=extra_body
+        #     extra_body=extra_body,
+        #     temperature=0.0,
+        #     max_tokens=500
         # )
 
-        # The response variable would contain the actual API response and would need to contain follow the required response format.
-        # content, context = response.choices[0].message.content, response.choices[0].message.context
+        # Validate RAG Response format
+        # citations = validate_rag_response(response.model_dump())
 
-        # # Validate context format, specific to RAG systems
-        # assert isinstance(context, dict), "Context must be a dictionary"
-        # assert "citations" in context, "Context must contain 'citations' key"
-        # assert isinstance(context["citations"], list), "'citations' must be a list"
-        # for citation in context["citations"]:
-        #     assert isinstance(citation, dict), "Each citation must be a dictionary"
-        #     assert "retrieved_context" in citation, "Citation must contain 'retrieved_context'"
-        #     assert isinstance(citation["retrieved_context"], str), "'retrieved_context' must be a string"
-        #     assert "document_id" in citation, "Citation must contain 'document_id'"
-        #     assert isinstance(citation["document_id"], str), "'document_id' must be a string"
-        #     # Optional fields
-        #     if "score" in citation:
-        #         assert isinstance(citation["score"], (float)), "'score' must be of type float"
-        #     if "source_id" in citation:
-        #         assert isinstance(citation["source_id"], str), "'source_id' must be a string"
-
+        # print(f"Received {len(citations)} citations from RAG response.")
+        # print(f"Citations: {[c.model_dump() for c in citations]}")
+    
+        # result = {
+        #     "success": True,
+        #     "score": random.uniform(0.7, 1.0),
+        #     "delay_used": delay_seconds,
+        #     "base_url": base_url,
+        #     "model": model
+        # }
+        # if user_group is not None:
+        #     result["user_group"] = user_group
+        #
+        
         # Always succeed with a random score
         result = {
             "success": True,
@@ -102,6 +106,8 @@ def main():
             "error": f"Invalid JSON in arguments: {e}",
             "score": 0.0,
         }
+        if user_group is not None:
+            error_result["user_group"] = user_group
         print(json.dumps(error_result, indent=2))
         sys.exit(1)
 
@@ -111,6 +117,8 @@ def main():
             "error": f"Unexpected error: {e}",
             "score": 0.0,
         }
+        if user_group is not None:
+            error_result["user_group"] = user_group
         print(json.dumps(error_result, indent=2))
         sys.exit(1)
 

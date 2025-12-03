@@ -152,31 +152,6 @@ class LLMAPIConfig(SystemDefinition):
 
 # RAG API system
 
-class RAGAPIParams(BaseModel):
-    """Parameters for the RAG API systems."""
-
-    base_url: str = Field(
-        ...,
-        description="Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
-    )
-    model: str = Field(
-        ...,
-        description="System name to use as model name with the API",
-    )
-    user_group: Optional[str] = Field(
-        None,
-        description="Indicates the role or access tier under which the query should be executed, for example: 'admin', 'support-agent', 'regional-user'",
-    )
-    env_file: Optional[str] = Field(
-        None,
-        description="Path to .env file containing environment variables for authentication",
-    )
-    api_key: Optional[str] = Field(
-        None,
-        description="Direct API key for authentication (alternative to env_file)",
-    )
-
-
 class RAGAPIConfig(SystemDefinition):
     """Configuration for RAG API systems."""
 
@@ -184,11 +159,10 @@ class RAGAPIConfig(SystemDefinition):
         ...,
         description="RAG API system: rag_api",
     )
-    params: RAGAPIParams = Field(
+    params: LLMAPIParams = Field(
         ...,
         description="Parameters specific to the RAG API system (e.g., base url, model name, API key and env file).",
     )
-
 
 # Generic system
 

@@ -178,7 +178,7 @@
           "type": "string"
         },
         "params": {
-          "$ref": "#/$defs/RAGAPIParams",
+          "$ref": "#/$defs/LLMAPIParams",
           "description": "Parameters specific to the RAG API system (e.g., base url, model name, API key and env file)."
         }
       },
@@ -187,66 +187,6 @@
         "params"
       ],
       "title": "RAGAPIConfig",
-      "type": "object"
-    },
-    "RAGAPIParams": {
-      "description": "Parameters for the RAG API systems.",
-      "properties": {
-        "base_url": {
-          "description": "Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
-          "title": "Base Url",
-          "type": "string"
-        },
-        "model": {
-          "description": "System name to use as model name with the API",
-          "title": "Model",
-          "type": "string"
-        },
-        "user_group": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Indicates the role or access tier under which the query should be executed, for example: 'admin', 'support-agent', 'regional-user'",
-          "title": "User Group"
-        },
-        "env_file": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Path to .env file containing environment variables for authentication",
-          "title": "Env File"
-        },
-        "api_key": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Direct API key for authentication (alternative to env_file)",
-          "title": "Api Key"
-        }
-      },
-      "required": [
-        "base_url",
-        "model"
-      ],
-      "title": "RAGAPIParams",
       "type": "object"
     }
   },
