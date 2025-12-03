@@ -325,13 +325,9 @@ def execute_single_test(
         for key, value in interpolated_env.items():
             container_env[key] = value
             if environment.get(key) != value:
-                DBOS.logger.info(
-                    f"Interpolated environment variable {key}: {environment[key]} -> {value}"
-                )
+                DBOS.logger.info(f"Interpolated environment variable: {key}")
             else:
-                DBOS.logger.info(
-                    f"Set environment variable {key} from test configuration"
-                )
+                DBOS.logger.info(f"Set environment variable: {key}")
 
     # Pass through explicit API key if specified
     if "api_key" in sut_params:
