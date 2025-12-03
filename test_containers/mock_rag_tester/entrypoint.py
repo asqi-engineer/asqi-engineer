@@ -72,14 +72,6 @@ def main():
         # print(f"Received {len(citations)} citations from RAG response.")
         # print(f"Citations: {[c.model_dump() for c in citations]}")
 
-        # result = {
-        #     "success": True,
-        #     "score": random.uniform(0.7, 1.0),
-        #     "delay_used": delay_seconds,
-        #     "base_url": base_url,
-        #     "model": model
-        # }
-
         # Always succeed with a random score
         result = {
             "success": True,
