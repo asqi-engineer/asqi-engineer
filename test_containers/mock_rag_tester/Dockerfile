@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install -r requirements.txt
 
 # Stage 2: Runtime
-FROM python:3.12-slim
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
