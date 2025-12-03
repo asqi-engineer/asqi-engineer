@@ -3,7 +3,6 @@ import json
 import sys
 import time
 import random
-from rag_response_schema import validate_rag_response
 
 
 def main():
@@ -37,14 +36,10 @@ def main():
 
         # Extract SUT parameters (flattened structure)
         base_url = sut_params["base_url"]  # Required, validated upstream
-        api_key = sut_params["api_key"]  # Required, validated upstream
+        # api_key = sut_params["api_key"]  # Required, validated upstream
         model = sut_params["model"]  # Required, validated upstream
 
-        user_group = test_params.get("user_group") # Optional
-
-        extra_body = {} # OpenAI-compatible API extra body parameters
-        if user_group is not None:
-            extra_body = {'user_group': user_group}
+        user_group = test_params.get("user_group")  # Optional
 
         # Extract delay parameter
         delay_seconds = test_params.get("delay_seconds", 0)
@@ -56,8 +51,13 @@ def main():
         # Simulate RAG API call (this is a mock, so we don't actually call the API)
         # In a real test container, you would use:
         # import openai
+        # from rag_response_schema import validate_rag_response
         # messages = [{"role": "user", "content": "Hello, world!"}]
         # client = openai.OpenAI(base_url=base_url, api_key=api_key)
+        # OpenAI-compatible API extra body parameters
+        # extra_body = {}
+        # if user_group is not None:
+        #     extra_body = {'user_group': user_group}
         # response = client.chat.completions.create(
         #     model=model,
         #     messages=messages,
@@ -71,7 +71,7 @@ def main():
 
         # print(f"Received {len(citations)} citations from RAG response.")
         # print(f"Citations: {[c.model_dump() for c in citations]}")
-    
+
         # result = {
         #     "success": True,
         #     "score": random.uniform(0.7, 1.0),
@@ -79,10 +79,7 @@ def main():
         #     "base_url": base_url,
         #     "model": model
         # }
-        # if user_group is not None:
-        #     result["user_group"] = user_group
-        #
-        
+
         # Always succeed with a random score
         result = {
             "success": True,
@@ -90,9 +87,8 @@ def main():
             "delay_used": delay_seconds,
             "base_url": base_url,
             "model": model,
+            "user_group": user_group,
         }
-        if user_group is not None:
-            result["user_group"] = user_group
 
         # Output results as JSON
         print(json.dumps(result, indent=2))
@@ -105,9 +101,8 @@ def main():
             "success": False,
             "error": f"Invalid JSON in arguments: {e}",
             "score": 0.0,
+            "user_group": user_group,
         }
-        if user_group is not None:
-            error_result["user_group"] = user_group
         print(json.dumps(error_result, indent=2))
         sys.exit(1)
 
@@ -116,9 +111,8 @@ def main():
             "success": False,
             "error": f"Unexpected error: {e}",
             "score": 0.0,
+            "user_group": user_group,
         }
-        if user_group is not None:
-            error_result["user_group"] = user_group
         print(json.dumps(error_result, indent=2))
         sys.exit(1)
 

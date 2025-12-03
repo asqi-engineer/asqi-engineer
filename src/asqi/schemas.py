@@ -150,7 +150,9 @@ class LLMAPIConfig(SystemDefinition):
         description="Parameters specific to the LLM API system (e.g., base url, model name, API key and env file).",
     )
 
+
 # RAG API system
+
 
 class RAGAPIConfig(SystemDefinition):
     """Configuration for RAG API systems."""
@@ -163,6 +165,7 @@ class RAGAPIConfig(SystemDefinition):
         ...,
         description="Parameters specific to the RAG API system (e.g., base url, model name, API key and env file).",
     )
+
 
 # Generic system
 

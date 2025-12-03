@@ -128,7 +128,14 @@ MOCK_RAG_TESTER_MANIFEST = {
             "description": "Seconds to sleep to simulate work.",
         }
     ],
-    "output_metrics": ["success", "score", "delay_used", "base_url", "model", "user_group"],
+    "output_metrics": [
+        "success",
+        "score",
+        "delay_used",
+        "base_url",
+        "model",
+        "user_group",
+    ],
 }
 
 MOCK_GENERIC_MANIFEST = {
@@ -166,6 +173,7 @@ def demo_suite():
     """Fixture providing parsed demo test suite."""
     data = yaml.safe_load(DEMO_SUITE_YAML)
     return SuiteConfig(**data)
+
 
 @pytest.fixture
 def demo_rag_suite():
@@ -1690,10 +1698,12 @@ class TestRAGResponseSchema:
             retrieved_context="This is some retrieved text from a document.",
             document_id="policy.pdf",
             score=0.95,
-            source_id="company_policies"
+            source_id="company_policies",
         )
-        
-        assert citation.retrieved_context == "This is some retrieved text from a document."
+
+        assert (
+            citation.retrieved_context == "This is some retrieved text from a document."
+        )
         assert citation.document_id == "policy.pdf"
         assert citation.score == 0.95
         assert citation.source_id == "company_policies"
@@ -1702,32 +1712,20 @@ class TestRAGResponseSchema:
         """Test RAG citation validation errors."""
         # Empty retrieved_context
         with pytest.raises(ValidationError, match="string_too_short"):
-            RAGCitation(
-                retrieved_context="",
-                document_id="doc.txt"
-            )
-        
+            RAGCitation(retrieved_context="", document_id="doc.txt")
+
         # Empty document_id
         with pytest.raises(ValidationError, match="string_too_short"):
-            RAGCitation(
-                retrieved_context="Some text",
-                document_id=""
-            )
-        
+            RAGCitation(retrieved_context="Some text", document_id="")
+
         # Invalid score range
         with pytest.raises(ValidationError, match="greater_than_equal"):
             RAGCitation(
-                retrieved_context="Some text",
-                document_id="doc.txt",
-                score=-0.1
+                retrieved_context="Some text", document_id="doc.txt", score=-0.1
             )
-        
+
         with pytest.raises(ValidationError, match="less_than_equal"):
-            RAGCitation(
-                retrieved_context="Some text",
-                document_id="doc.txt",
-                score=1.5
-            )
+            RAGCitation(retrieved_context="Some text", document_id="doc.txt", score=1.5)
 
     def test_rag_context_valid(self):
         """Test valid RAG context creation."""
@@ -1735,15 +1733,15 @@ class TestRAGResponseSchema:
             RAGCitation(
                 retrieved_context="First citation text.",
                 document_id="doc1.pdf",
-                score=0.9
+                score=0.9,
             ),
             RAGCitation(
                 retrieved_context="Second citation text.",
                 document_id="doc2.pdf",
-                score=0.8
-            )
+                score=0.8,
+            ),
         ]
-        
+
         context = RAGContext(citations=citations)
         assert len(context.citations) == 2
         assert context.citations[0].document_id == "doc1.pdf"
@@ -1766,7 +1764,7 @@ class TestRAGResponseSchema:
                                     "retrieved_context": "This is citation text.",
                                     "document_id": "source.pdf",
                                     "score": 0.85,
-                                    "source_id": "knowledge_base"
+                                    "source_id": "knowledge_base",
                                 }
                             ]
                         }
@@ -1774,7 +1772,7 @@ class TestRAGResponseSchema:
                 }
             ]
         }
-        
+
         citations = validate_rag_response(response_dict)
         assert len(citations) == 1
         assert citations[0].retrieved_context == "This is citation text."
@@ -1792,20 +1790,20 @@ class TestRAGResponseSchema:
                             "citations": [
                                 {
                                     "retrieved_context": "First citation.",
-                                    "document_id": "doc1.pdf"
+                                    "document_id": "doc1.pdf",
                                 },
                                 {
                                     "retrieved_context": "Second citation.",
                                     "document_id": "doc2.pdf",
-                                    "score": 0.7
-                                }
+                                    "score": 0.7,
+                                },
                             ]
                         }
                     }
                 }
             ]
         }
-        
+
         citations = validate_rag_response(response_dict)
         assert len(citations) == 2
         assert citations[0].document_id == "doc1.pdf"
@@ -1816,7 +1814,7 @@ class TestRAGResponseSchema:
         # Missing message
         with pytest.raises(KeyError, match="message"):
             validate_rag_response({"choices": [{"context": {"citations": []}}]})
-        
+
         # Missing context
         with pytest.raises(KeyError, match="context"):
             validate_rag_response({"choices": [{"message": {"citations": []}}]})

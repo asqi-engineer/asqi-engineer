@@ -66,6 +66,23 @@ systems:
 
 RAG (Retrieval-Augmented Generation) systems extend LLM APIs with contextual retrieval capabilities. They provide answers augmented with relevant information retrieved from knowledge bases or document collections.
 
+#### System Configuration
+
+Configure RAG systems in your `litellm_config.yaml`:
+
+```yaml
+model_list:
+  # ... existing models ...
+
+  # RAG API Systems - Retrieval-Augmented Generation with contextual retrieval
+  - model_name: custom_rag_chatbot
+    litellm_params:
+      model: custom_rag
+      api_key: os.environ/RAG_API_KEY  # Replace with your actual RAG endpoint authentication
+```
+
+Then reference it in your ASQI systems configuration:
+
 ```yaml
 systems:
   # LiteLLM proxy configuration

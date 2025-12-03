@@ -8,5 +8,3 @@ test_suite:
       - "custom_rag_chatbot"
     params:
       delay_seconds: 1
-      user_group: "user-group-123"
-
