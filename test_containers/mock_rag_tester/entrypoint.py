@@ -3,6 +3,7 @@ import json
 import sys
 import time
 import random
+from rag_response_schema import validate_rag_response
 
 
 def main():
@@ -48,39 +49,101 @@ def main():
         if delay_seconds > 0:
             time.sleep(delay_seconds)
 
-        # Simulate RAG API call (this is a mock, so we don't actually call the API)
-        # In a real test container, you would use:
-        # import openai
-        # from rag_response_schema import validate_rag_response
-        # messages = [{"role": "user", "content": "Hello, world!"}]
-        # client = openai.OpenAI(base_url=base_url, api_key=api_key)
-        # OpenAI-compatible API extra body parameters
-        # extra_body = {}
-        # if user_group is not None:
-        #     extra_body = {'user_group': user_group}
+        # Create a mock RAG API response to demonstrate validation
+        # In a real test container, you would call the actual RAG API:
+        #
+        # from openai import OpenAI
+        # client = OpenAI(base_url=base_url, api_key=api_key)
+        # extra_body = {"user_group": user_group} if user_group else {}
         # response = client.chat.completions.create(
         #     model=model,
-        #     messages=messages,
-        #     extra_body=extra_body,
-        #     temperature=0.0,
-        #     max_tokens=500
+        #     messages=[{"role": "user", "content": "What is the refund policy?"}],
+        #     extra_body=extra_body
         # )
+        # mock_response = response.model_dump()
 
-        # Validate RAG Response format
-        # citations = validate_rag_response(response.model_dump())
-
-        # print(f"Received {len(citations)} citations from RAG response.")
-        # print(f"Citations: {[c.model_dump() for c in citations]}")
-
-        # Always succeed with a random score
-        result = {
-            "success": True,
-            "score": random.uniform(0.7, 1.0),
-            "delay_used": delay_seconds,
-            "base_url": base_url,
+        # Mock RAG response with proper structure
+        mock_response = {
+            "id": f"chatcmpl-{random.randint(1000, 9999)}",
+            "object": "chat.completion",
+            "created": int(time.time()),
             "model": model,
-            "user_group": user_group,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "We offer 30-day returns at no additional cost for all customers.",
+                        "context": {
+                            "citations": [
+                                {
+                                    "retrieved_context": "All customers are eligible for a 30-day full refund at no extra cost.",
+                                    "document_id": "return_policy.pdf",
+                                    "score": round(random.uniform(0.85, 0.98), 3),
+                                    "source_id": "company_policies",
+                                },
+                                {
+                                    "retrieved_context": "Receipt required for 30-day refund processing.",
+                                    "document_id": "return_policy.pdf",
+                                    "score": round(random.uniform(0.70, 0.84), 3),
+                                    "source_id": "company_policies",
+                                },
+                            ]
+                        },
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 20, "completion_tokens": 15, "total_tokens": 35},
         }
+
+        # Validate RAG response format using ASQI validation schema
+        try:
+            citations = validate_rag_response(mock_response)
+
+            # Validation succeeded - extract citation metrics
+            num_citations = len(citations)
+            avg_score = (
+                sum(c.score for c in citations if c.score) / num_citations
+                if num_citations > 0
+                else 0.0
+            )
+            unique_docs = len(set(c.document_id for c in citations))
+
+            result = {
+                "success": True,
+                "score": random.uniform(0.7, 1.0),
+                "delay_used": delay_seconds,
+                "base_url": base_url,
+                "model": model,
+                "validation": "passed",
+                "num_citations": num_citations,
+                "avg_citation_score": round(avg_score, 3),
+                "unique_documents": unique_docs,
+                "citations": [
+                    {
+                        "document_id": c.document_id,
+                        "score": c.score,
+                        "context_length": len(c.retrieved_context),
+                    }
+                    for c in citations
+                ],
+            }
+            if user_group is not None:
+                result["user_group"] = user_group
+
+        except Exception as e:
+            # Validation failed - report error
+            result = {
+                "success": False,
+                "score": 0.0,
+                "error": f"RAG response validation failed: {str(e)}",
+                "validation": "failed",
+                "base_url": base_url,
+                "model": model,
+            }
+            if user_group is not None:
+                result["user_group"] = user_group
 
         # Output results as JSON
         print(json.dumps(result, indent=2))
