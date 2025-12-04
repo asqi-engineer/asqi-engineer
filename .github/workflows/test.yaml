@@ -33,13 +33,11 @@ jobs:
 
       - name: Debug token
         run: |
-          if [ -z "$CODECOV_TOKEN" ]; then
+          if [ -z "${{ secrets.CODECOV_TOKEN }}" ]; then
             echo "Token is empty or not set"
           else
-            echo "Token is set (length: ${#CODECOV_TOKEN})"
+            echo "Token is set (length: $(echo -n "${{ secrets.CODECOV_TOKEN }}" | wc -c))"
           fi
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
