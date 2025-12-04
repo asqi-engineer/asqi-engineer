@@ -4,9 +4,8 @@ WORKDIR /app
 
 COPY manifest.yaml .
 COPY entrypoint.py .
+COPY report_generator.py .
 
 RUN chmod +x entrypoint.py
 
 ENTRYPOINT ["python", "./entrypoint.py"]
-
-
