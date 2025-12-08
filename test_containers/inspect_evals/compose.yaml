@@ -1,0 +1,9 @@
+services:
+  default:
+    image: aisiuk/inspect-tool-support
+    init: true
+    command: tail -f /dev/null
+    network_mode: host
+    stop_grace_period: 1s
+    mem_limit: 2g
+    cpus: 2.0

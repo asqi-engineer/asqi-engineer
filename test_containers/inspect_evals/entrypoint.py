@@ -400,9 +400,9 @@ def main():
             task = task_func(**evaluation_params)
 
             print(f"DEBUG: Starting evaluation with limit={limit}", file=sys.stderr)
-            log = eval(task, limit=limit, log_dir=temp_dir)[
-                0
-            ]  # eval returns a list, get first result
+            log = eval(
+                task, limit=limit, log_dir=temp_dir, sandbox=("docker", "compose.yaml")
+            )[0]  # eval returns a list, get first result
             print(
                 f"DEBUG: Evaluation completed, log.location = {log.location}",
                 file=sys.stderr,
