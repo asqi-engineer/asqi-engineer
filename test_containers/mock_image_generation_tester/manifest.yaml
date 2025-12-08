@@ -1,0 +1,49 @@
+name: "mock_image_generation_tester"
+version: "1.0"
+description: "A lightweight mock container for testing image generation systems with response validation."
+
+input_systems:
+  - name: "system_under_test"
+    type: "image_generation_api"
+    required: true
+    description: "The image generation system being tested"
+
+input_schema:
+  - name: "delay_seconds"
+    type: "integer"
+    required: false
+    description: "Seconds to sleep to simulate work."
+  - name: "prompt"
+    type: "string"
+    required: false
+    description: "Text prompt for image generation (optional override)"
+  - name: "response_format"
+    type: "string"
+    required: false
+    description: "Response format: 'url' or 'b64_json'"
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the test execution completed successfully"
+  - name: "score"
+    type: "float"
+    description: "Mock test score (0.0 to 1.0)"
+  - name: "delay_used"
+    type: "integer"
+    description: "The delay in seconds that was actually used"
+  - name: "base_url"
+    type: "string"
+    description: "The base URL that was used for the image generation API system"
+  - name: "model"
+    type: "string"
+    description: "The model name that was used"
+  - name: "num_images"
+    type: "integer"
+    description: "Number of images generated"
+  - name: "response_format"
+    type: "string"
+    description: "Response format used (url or b64_json)"
+  - name: "validation"
+    type: "string"
+    description: "Whether response validation passed or failed"
