@@ -659,6 +659,94 @@ class TestEdgeCases:
         errors = validate_test_plan(suite, demo_systems, manifests)
         assert errors == []  # Should be valid since delay_seconds is optional
 
+    def test_system_role_validation_with_required_and_optional_systems(self, manifests):
+        """Test that validation correctly handles both required and optional systems in test.systems field."""
+        # Create a manifest with both required and optional systems
+        test_manifest = {
+            "name": "test_container",
+            "version": "1.0.0",
+            "description": "Test container with required and optional systems",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True},
+                {"name": "evaluator_system", "type": "llm_api", "required": False},
+            ],
+            "input_schema": [],
+            "output_metrics": ["success"],
+        }
+
+        test_manifests = {"test/image:latest": Manifest(**test_manifest)}
+
+        # Create systems config
+        systems_config = SystemsConfig(
+            systems={
+                "my_llm": LLMAPIConfig(
+                    type="llm_api",
+                    description="Test LLM",
+                    provider="openai",
+                    params=LLMAPIParams(
+                        base_url="http://test",
+                        model="gpt-4",
+                    ),
+                ),
+                "my_evaluator": LLMAPIConfig(
+                    type="llm_api",
+                    description="Test Evaluator",
+                    provider="openai",
+                    params=LLMAPIParams(
+                        base_url="http://evaluator",
+                        model="gpt-4",
+                    ),
+                ),
+            }
+        )
+
+        # Test case: test includes both required (system_under_test) and optional (evaluator_system) systems
+        suite_data = {
+            "suite_name": "Test Required and Optional Systems",
+            "description": "Suite description",
+            "test_suite": [
+                {
+                    "name": "test_with_both_systems",
+                    "id": "test_with_both_systems",
+                    "description": "Test with both required and optional systems",
+                    "image": "test/image:latest",
+                    "systems_under_test": ["my_llm"],
+                    "systems": {
+                        "evaluator_system": "my_evaluator"  # optional system
+                    },
+                    "params": {},
+                }
+            ],
+        }
+
+        suite = SuiteConfig(**suite_data)
+        errors = validate_test_plan(suite, systems_config, test_manifests)
+        assert errors == [], (
+            f"Expected no errors for valid required+optional systems, but got: {errors}"
+        )
+
+        # Test case: test includes only required system (optional system not specified)
+        suite_data_minimal = {
+            "suite_name": "Test Required System Only",
+            "description": "Suite description",
+            "test_suite": [
+                {
+                    "name": "test_required_only",
+                    "id": "test_required_only",
+                    "description": "Test with only required system",
+                    "image": "test/image:latest",
+                    "systems_under_test": ["my_llm"],
+                    "params": {},
+                }
+            ],
+        }
+
+        suite_minimal = SuiteConfig(**suite_data_minimal)
+        errors = validate_test_plan(suite_minimal, systems_config, test_manifests)
+        assert errors == [], (
+            f"Expected no errors for required system only, but got: {errors}"
+        )
+
 
 class TestValidationFunctions:
     def test_validate_test_parameters(self, manifests):
