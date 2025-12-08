@@ -66,7 +66,6 @@ ENV CYBENCH_ACKNOWLEDGE_RISKS=1
 # Copy test container files
 COPY manifest.yaml .
 COPY entrypoint.py .
-COPY compose.yaml .
 
 # TODO: Find a better solution for this
 # Create symlink for evaluator_prompt.yaml to fix sciknoweval path issue

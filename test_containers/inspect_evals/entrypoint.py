@@ -366,6 +366,7 @@ def main():
         evaluation_params = test_params.get("evaluation_params", {})
         limit = test_params.get("limit", 10)
         volumes = test_params.get("volumes", {})
+        sandbox_params = test_params.get("sandbox_params", {})
 
         store_logs = "output" in volumes
 
@@ -400,9 +401,33 @@ def main():
             task = task_func(**evaluation_params)
 
             print(f"DEBUG: Starting evaluation with limit={limit}", file=sys.stderr)
-            log = eval(
-                task, limit=limit, log_dir=temp_dir, sandbox=("docker", "compose.yaml")
-            )[0]  # eval returns a list, get first result
+
+            # Create compose.yaml with resource limits if sandbox_params provided
+            sandbox_arg = None
+            if sandbox_params:
+                cpus = sandbox_params.get("cpus", 1.0)
+                mem_limit = sandbox_params.get("mem_limit", "1g")
+
+                compose_content = f"""services:
+  default:
+    image: aisiuk/inspect-tool-support
+    init: true
+    command: tail -f /dev/null
+    network_mode: host
+    stop_grace_period: 1s
+    mem_limit: {mem_limit}
+    cpus: {cpus}
+"""
+                compose_path = os.path.join(temp_dir, "compose.yaml")
+                with open(compose_path, "w") as f:
+                    f.write(compose_content)
+
+                sandbox_arg = ("docker", compose_path)
+
+            if sandbox_arg:
+                log = eval(task, limit=limit, log_dir=temp_dir, sandbox=sandbox_arg)[0]
+            else:
+                log = eval(task, limit=limit, log_dir=temp_dir)[0]
             print(
                 f"DEBUG: Evaluation completed, log.location = {log.location}",
                 file=sys.stderr,
