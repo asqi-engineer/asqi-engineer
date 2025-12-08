@@ -246,6 +246,252 @@ class TestMetricExpressionEvaluator:
             evaluator.evaluate_expression("a + 1", {"a": {"value": 5}})
 
 
+class TestConditionalExpressions:
+    """Tests for conditional (if-else) expressions."""
+
+    def test_evaluate_expression_simple_if_else(self):
+        """Test simple if-else expressions."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Test when condition is true
+        result = evaluator.evaluate_expression(
+            "a if b > 0.5 else c", {"a": 1.0, "b": 0.8, "c": 2.0}
+        )
+        assert result == 1.0
+
+        # Test when condition is false
+        result = evaluator.evaluate_expression(
+            "a if b > 0.5 else c", {"a": 1.0, "b": 0.3, "c": 2.0}
+        )
+        assert result == 2.0
+
+    def test_evaluate_expression_hard_gates_pattern(self):
+        """Test the hard gates pattern used in accuracy scoring."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Test case: all gates pass (faith >= 0.7 and retr >= 0.6 and instruct >= 0.7)
+        result = evaluator.evaluate_expression(
+            "(0.45 * task_success + 0.35 * answer_correctness + 0.20 * helpfulness) if (faith >= 0.7 and retr >= 0.6 and instruct >= 0.7) else -1",
+            {
+                "task_success": 0.9,
+                "answer_correctness": 0.8,
+                "helpfulness": 0.7,
+                "faith": 0.8,
+                "retr": 0.7,
+                "instruct": 0.75,
+            },
+        )
+        expected = 0.45 * 0.9 + 0.35 * 0.8 + 0.20 * 0.7  # 0.405 + 0.28 + 0.14 = 0.825
+        assert result == pytest.approx(expected)
+
+        # Test case: faith gate fails (faith = 0.6 < 0.7)
+        result = evaluator.evaluate_expression(
+            "(0.6 * acc + 0.4 * rel) if (faith >= 0.7 and retr >= 0.6) else -1",
+            {"acc": 0.9, "rel": 0.8, "faith": 0.6, "retr": 0.7},
+        )
+        assert result == -1
+
+    def test_evaluate_expression_nested_conditionals(self):
+        """Test nested conditional expressions."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Test nested if-else
+        result = evaluator.evaluate_expression(
+            "a if b > 0.5 else (c if d < 0.3 else e)",
+            {"a": 1.0, "b": 0.8, "c": 2.0, "d": 0.2, "e": 3.0},
+        )
+        assert result == 1.0  # b > 0.5, so returns a
+
+        result = evaluator.evaluate_expression(
+            "a if b > 0.5 else (c if d < 0.3 else e)",
+            {"a": 1.0, "b": 0.3, "c": 2.0, "d": 0.2, "e": 3.0},
+        )
+        assert result == 2.0  # b <= 0.5 and d < 0.3, so returns c
+
+        result = evaluator.evaluate_expression(
+            "a if b > 0.5 else (c if d < 0.3 else e)",
+            {"a": 1.0, "b": 0.3, "c": 2.0, "d": 0.5, "e": 3.0},
+        )
+        assert result == 3.0  # b <= 0.5 and d >= 0.3, so returns e
+
+
+class TestComparisonOperators:
+    """Tests for comparison operators (>, >=, <, <=, ==, !=)."""
+
+    def test_evaluate_expression_comparison_operators(self):
+        """Test comparison operators (>, >=, <, <=, ==, !=)."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Test greater than and greater equal
+        result = evaluator.evaluate_expression(
+            "1 if a > b else 0", {"a": 0.8, "b": 0.6}
+        )
+        assert result == 1
+        result = evaluator.evaluate_expression(
+            "1 if a > b else 0", {"a": 0.4, "b": 0.6}
+        )
+        assert result == 0
+
+        result = evaluator.evaluate_expression(
+            "1 if a >= b else 0", {"a": 0.7, "b": 0.7}
+        )
+        assert result == 1
+        result = evaluator.evaluate_expression(
+            "1 if a >= b else 0", {"a": 0.6, "b": 0.7}
+        )
+        assert result == 0
+
+        # Test less than and less equal
+        result = evaluator.evaluate_expression(
+            "1 if a < b else 0", {"a": 0.4, "b": 0.6}
+        )
+        assert result == 1
+        result = evaluator.evaluate_expression(
+            "1 if a < b else 0", {"a": 0.8, "b": 0.6}
+        )
+        assert result == 0
+
+        result = evaluator.evaluate_expression(
+            "1 if a <= b else 0", {"a": 0.7, "b": 0.7}
+        )
+        assert result == 1
+        result = evaluator.evaluate_expression(
+            "1 if a <= b else 0", {"a": 0.8, "b": 0.7}
+        )
+        assert result == 0
+
+        # Test equality operators
+        result = evaluator.evaluate_expression(
+            "1 if a == b else 0", {"a": 0.7, "b": 0.7}
+        )
+        assert result == 1
+        result = evaluator.evaluate_expression(
+            "1 if a == b else 0", {"a": 0.7, "b": 0.8}
+        )
+        assert result == 0
+
+        result = evaluator.evaluate_expression(
+            "1 if a != b else 0", {"a": 0.7, "b": 0.8}
+        )
+        assert result == 1
+        result = evaluator.evaluate_expression(
+            "1 if a != b else 0", {"a": 0.7, "b": 0.7}
+        )
+        assert result == 0
+
+    def test_evaluate_expression_comparison_in_arithmetic(self):
+        """Test comparison operators used in arithmetic expressions."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Use comparison result in arithmetic (True = 1, False = 0)
+        result = evaluator.evaluate_expression(
+            "(a > b) + (c >= d) + (e < f)",
+            {"a": 0.8, "b": 0.6, "c": 0.7, "d": 0.7, "e": 0.4, "f": 0.5},
+        )
+        assert result == 3  # All three comparisons are true
+
+        result = evaluator.evaluate_expression(
+            "(a > b) + (c >= d) + (e < f)",
+            {"a": 0.4, "b": 0.6, "c": 0.6, "d": 0.7, "e": 0.4, "f": 0.5},
+        )
+        assert result == 1  # Only e < f is true
+
+
+class TestBooleanOperators:
+    """Tests for boolean operators (and, or, not)."""
+
+    def test_evaluate_expression_and_operator(self):
+        """Test logical AND operator."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Both conditions true
+        result = evaluator.evaluate_expression(
+            "1 if (a > 0.5 and b > 0.3) else 0", {"a": 0.8, "b": 0.6}
+        )
+        assert result == 1
+
+        # First condition false
+        result = evaluator.evaluate_expression(
+            "1 if (a > 0.5 and b > 0.3) else 0", {"a": 0.3, "b": 0.6}
+        )
+        assert result == 0
+
+        # Second condition false
+        result = evaluator.evaluate_expression(
+            "1 if (a > 0.5 and b > 0.3) else 0", {"a": 0.8, "b": 0.2}
+        )
+        assert result == 0
+
+        # Both conditions false
+        result = evaluator.evaluate_expression(
+            "1 if (a > 0.5 and b > 0.3) else 0", {"a": 0.3, "b": 0.2}
+        )
+        assert result == 0
+
+    def test_evaluate_expression_or_operator(self):
+        """Test logical OR operator."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Both conditions true
+        result = evaluator.evaluate_expression(
+            "1 if (a > 0.5 or b > 0.3) else 0", {"a": 0.8, "b": 0.6}
+        )
+        assert result == 1
+
+        # First condition true, second false
+        result = evaluator.evaluate_expression(
+            "1 if (a > 0.5 or b > 0.3) else 0", {"a": 0.8, "b": 0.2}
+        )
+        assert result == 1
+
+        # First condition false, second true
+        result = evaluator.evaluate_expression(
+            "1 if (a > 0.5 or b > 0.3) else 0", {"a": 0.3, "b": 0.6}
+        )
+        assert result == 1
+
+        # Both conditions false
+        result = evaluator.evaluate_expression(
+            "1 if (a > 0.5 or b > 0.3) else 0", {"a": 0.3, "b": 0.2}
+        )
+        assert result == 0
+
+    def test_evaluate_expression_not_operator(self):
+        """Test logical NOT operator."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Not true = false
+        result = evaluator.evaluate_expression("1 if not (a > 0.5) else 0", {"a": 0.8})
+        assert result == 0
+
+        # Not false = true
+        result = evaluator.evaluate_expression("1 if not (a > 0.5) else 0", {"a": 0.3})
+        assert result == 1
+
+    def test_evaluate_expression_complex_boolean(self):
+        """Test complex boolean expressions."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Complex expression: (a > 0.7 and b >= 0.6) or (c < 0.3 and not (d == 0.5))
+        result = evaluator.evaluate_expression(
+            "1 if ((a > 0.7 and b >= 0.6) or (c < 0.3 and not (d == 0.5))) else 0",
+            {"a": 0.8, "b": 0.7, "c": 0.2, "d": 0.4},
+        )
+        assert result == 1  # First part (a > 0.7 and b >= 0.6) is true
+
+        result = evaluator.evaluate_expression(
+            "1 if ((a > 0.7 and b >= 0.6) or (c < 0.3 and not (d == 0.5))) else 0",
+            {"a": 0.6, "b": 0.7, "c": 0.2, "d": 0.4},
+        )
+        assert result == 1  # Second part (c < 0.3 and not (d == 0.5)) is true
+
+        result = evaluator.evaluate_expression(
+            "1 if ((a > 0.7 and b >= 0.6) or (c < 0.3 and not (d == 0.5))) else 0",
+            {"a": 0.6, "b": 0.5, "c": 0.4, "d": 0.5},
+        )
+        assert result == 0  # Neither part is true
+
+
 class TestExpressionSafety:
     """Tests to ensure expression evaluator is secure."""
 
