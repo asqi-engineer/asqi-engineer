@@ -295,17 +295,13 @@ def validate_system_compatibility(
     # Validate additional systems from test.systems field
     if hasattr(test, "systems") and test.systems:
         # Combine required and optional systems for validation
-        all_optional_systems = {**required_systems, **optional_systems}
+        all_systems = {**required_systems, **optional_systems}
 
         for system_role, system_name in test.systems.items():
             # Check if this system role is declared in manifest
-            expected_type = all_optional_systems.get(system_role)
+            expected_type = all_systems.get(system_role)
             if not expected_type:
-                valid_roles = (
-                    ", ".join(all_optional_systems.keys())
-                    if all_optional_systems
-                    else "none"
-                )
+                valid_roles = ", ".join(all_systems.keys()) if all_systems else "none"
                 errors.append(
                     f"Test '{test.name}': Unknown system role '{system_role}'. Valid roles: {valid_roles}"
                 )
