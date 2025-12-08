@@ -12,6 +12,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "rich>=14.1.0",
     "typer>=0.16.0",
+    "urllib3>=2.6.0",
 ]
 
 [project.scripts]
