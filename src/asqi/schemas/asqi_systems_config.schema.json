@@ -48,6 +48,100 @@
       "title": "GenericSystemConfig",
       "type": "object"
     },
+    "ImageEditingAPIConfig": {
+      "description": "Configuration for Image Editing API systems.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+          "title": "Provider"
+        },
+        "type": {
+          "const": "image_editing_api",
+          "description": "Image Editing API system: image_editing_api",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/LLMAPIParams",
+          "description": "Parameters specific to the Image Editing API system (e.g., base url, model name, API key and env file)."
+        }
+      },
+      "required": [
+        "type",
+        "params"
+      ],
+      "title": "ImageEditingAPIConfig",
+      "type": "object"
+    },
+    "ImageGenerationAPIConfig": {
+      "description": "Configuration for Image Generation API systems.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+          "title": "Provider"
+        },
+        "type": {
+          "const": "image_generation_api",
+          "description": "Image Generation API system: image_generation_api",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/LLMAPIParams",
+          "description": "Parameters specific to the Image Generation API system (e.g., base url, model name, API key and env file)."
+        }
+      },
+      "required": [
+        "type",
+        "params"
+      ],
+      "title": "ImageGenerationAPIConfig",
+      "type": "object"
+    },
     "LLMAPIConfig": {
       "description": "Configuration for LLM API systems.",
       "properties": {
@@ -189,98 +283,57 @@
       "title": "RAGAPIConfig",
       "type": "object"
     },
-    "ImageGenerationAPIConfig": {
-      "description": "Configuration for Image Generation API systems.",
+    "VLMAPIParams": {
+      "description": "Parameters for Vision Language Model API systems.",
       "properties": {
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Description of the system being evaluated.",
-          "title": "Description"
-        },
-        "provider": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
-          "title": "Provider"
-        },
-        "type": {
-          "const": "image_generation_api",
-          "description": "Image Generation API system: image_generation_api",
-          "title": "Type",
+        "base_url": {
+          "description": "Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
+          "title": "Base Url",
           "type": "string"
         },
-        "params": {
-          "$ref": "#/$defs/LLMAPIParams",
-          "description": "Parameters specific to the Image Generation API system (e.g., base url, model name, API key and env file)."
+        "model": {
+          "description": "Model name to use with the API",
+          "title": "Model",
+          "type": "string"
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to .env file containing environment variables for authentication",
+          "title": "Env File"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Direct API key for authentication (alternative to env_file)",
+          "title": "Api Key"
+        },
+        "supports_vision": {
+          "default": true,
+          "description": "Whether this VLM system supports vision/image inputs. Must be True for VLM systems.",
+          "title": "Supports Vision",
+          "type": "boolean"
         }
       },
       "required": [
-        "type",
-        "params"
+        "base_url",
+        "model"
       ],
-      "title": "ImageGenerationAPIConfig",
-      "type": "object"
-    },
-    "ImageEditingAPIConfig": {
-      "description": "Configuration for Image Editing API systems.",
-      "properties": {
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Description of the system being evaluated.",
-          "title": "Description"
-        },
-        "provider": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
-          "title": "Provider"
-        },
-        "type": {
-          "const": "image_editing_api",
-          "description": "Image Editing API system: image_editing_api",
-          "title": "Type",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/LLMAPIParams",
-          "description": "Parameters specific to the Image Editing API system (e.g., base url, model name, API key and env file)."
-        }
-      },
-      "required": [
-        "type",
-        "params"
-      ],
-      "title": "ImageEditingAPIConfig",
+      "title": "VLMAPIParams",
       "type": "object"
     },
     "VLMApiConfig": {
@@ -319,8 +372,8 @@
           "type": "string"
         },
         "params": {
-          "$ref": "#/$defs/LLMAPIParams",
-          "description": "Parameters specific to the VLM API system (e.g., base url, model name, API key and env file)."
+          "$ref": "#/$defs/VLMAPIParams",
+          "description": "Parameters specific to the VLM API system (e.g., base url, model name, API key, env file, and vision support)."
         }
       },
       "required": [
