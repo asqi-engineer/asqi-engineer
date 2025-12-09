@@ -232,6 +232,11 @@ class MetricExpressionEvaluator:
             code = compile(tree, "<expression>", "eval")
             result = eval(code, {"__builtins__": {}}, context)  # nosec B307
 
+            # Convert boolean to int (True->1, False->0)
+            # This handles comparison and boolean expressions consistently
+            if isinstance(result, bool):
+                result = int(result)
+
             # Ensure result is numeric
             if not isinstance(result, (int, float)):
                 raise MetricExpressionError(

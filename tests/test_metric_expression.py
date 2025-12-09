@@ -396,6 +396,32 @@ class TestComparisonOperators:
         )
         assert result == 1  # Only e < f is true
 
+    def test_evaluate_expression_boolean_to_int_conversion(self):
+        """Test that boolean results are automatically converted to int (True->1, False->0)."""
+        evaluator = MetricExpressionEvaluator()
+
+        # Direct comparison returns int, not bool
+        result = evaluator.evaluate_expression("a > b", {"a": 0.8, "b": 0.6})
+        assert result == 1
+        assert isinstance(result, int)
+
+        result = evaluator.evaluate_expression("a > b", {"a": 0.4, "b": 0.6})
+        assert result == 0
+        assert isinstance(result, int)
+
+        # Boolean AND/OR expressions return int
+        result = evaluator.evaluate_expression(
+            "a > b and c > d", {"a": 0.8, "b": 0.6, "c": 0.7, "d": 0.5}
+        )
+        assert result == 1
+        assert isinstance(result, int)
+
+        result = evaluator.evaluate_expression(
+            "a > b or c > d", {"a": 0.3, "b": 0.6, "c": 0.4, "d": 0.5}
+        )
+        assert result == 0
+        assert isinstance(result, int)
+
 
 class TestBooleanOperators:
     """Tests for boolean operators (and, or, not)."""
