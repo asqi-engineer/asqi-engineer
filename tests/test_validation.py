@@ -6,6 +6,12 @@ import yaml
 from pydantic import ValidationError
 
 from asqi.errors import DuplicateIDError, MissingIDFieldError
+from asqi.image_response_schema import (
+    ImageObject,
+    ImageResponse,
+    UsageInfo,
+    validate_image_response,
+)
 from asqi.main import load_and_validate_plan
 from asqi.rag_response_schema import RAGCitation, RAGContext, validate_rag_response
 from asqi.schemas import (
@@ -38,8 +44,8 @@ from asqi.validation import (
 )
 from asqi.workflow import TestExecutionResult
 from test_data import (
-    MOCK_SCORE_CARD_CONFIG,
     MOCK_AUDIT_RESPONSES,
+    MOCK_SCORE_CARD_CONFIG,
 )
 
 # Test data
@@ -69,6 +75,48 @@ test_suite:
           - "my_rag_api"
       params:
           delay_seconds: 1
+"""
+
+DEMO_IMAGE_GENERATION_SUITE_YAML = """
+suite_name: "Mock Image Generation Tester Sanity Check"
+description: "Suite description"
+test_suite:
+  - name: "run_mock_on_compatible_system"
+    id: "run_mock_on_compatible_system"
+    description: "Test description"
+    image: "my-registry/mock_image_generation_tester:latest"
+    systems_under_test:
+      - "my_image_generation_api"
+    params:
+      delay_seconds: 1
+"""
+
+DEMO_IMAGE_EDITING_SUITE_YAML = """
+suite_name: "Mock Image Editing Tester Sanity Check"
+description: "Suite description"
+test_suite:
+  - name: "run_mock_on_compatible_system"
+    id: "run_mock_on_compatible_system"
+    description: "Test description"
+    image: "my-registry/mock_image_editing_tester:latest"
+    systems_under_test:
+      - "my_image_editing_api"
+    params:
+      delay_seconds: 1
+"""
+
+DEMO_VLM_SUITE_YAML = """
+suite_name: "Mock VLM Tester Sanity Check"
+description: "Suite description"
+test_suite:
+  - name: "run_mock_on_compatible_system"
+    id: "run_mock_on_compatible_system"
+    description: "Test description"
+    image: "my-registry/vlm_evaluator_tester:latest"
+    systems_under_test:
+      - "my_vlm_api"
+    params:
+      delay_seconds: 1
 """
 
 DEMO_systems_YAML = """
@@ -167,6 +215,116 @@ MOCK_MULTIPLE_MANIFEST = {
     "output_metrics": ["status", "probes_run", "total_failed"],
 }
 
+MOCK_IMAGE_GENERATION_MANIFEST = {
+    "name": "mock_image_generation_tester",
+    "version": "1.0.0",
+    "description": "A lightweight mock container for testing image generation systems with response validation.",
+    "input_systems": [
+        {"name": "system_under_test", "type": "image_generation_api", "required": True},
+    ],
+    "input_schema": [
+        {
+            "name": "delay_seconds",
+            "type": "integer",
+            "required": False,
+            "description": "Seconds to sleep to simulate work.",
+        },
+        {
+            "name": "prompt",
+            "type": "string",
+            "required": False,
+            "description": "Text prompt for image generation (optional override)",
+        },
+        {
+            "name": "response_format",
+            "type": "string",
+            "required": False,
+            "description": "Response format: 'url' or 'b64_json'",
+        },
+    ],
+    "output_metrics": [
+        "success",
+        "score",
+        "delay_used",
+        "base_url",
+        "model",
+        "num_images",
+        "response_format",
+        "validation",
+    ],
+}
+
+MOCK_IMAGE_EDITING_MANIFEST = {
+    "name": "mock_image_editing_tester",
+    "version": "1.0.0",
+    "description": "A lightweight mock container for testing image editing systems with multipart handling and response validation.",
+    "input_systems": [
+        {"name": "system_under_test", "type": "image_editing_api", "required": True},
+    ],
+    "input_schema": [
+        {
+            "name": "delay_seconds",
+            "type": "integer",
+            "required": False,
+            "description": "Seconds to sleep to simulate work.",
+        },
+        {
+            "name": "prompt",
+            "type": "string",
+            "required": False,
+            "description": "Text prompt describing the desired edit",
+        },
+        {
+            "name": "response_format",
+            "type": "string",
+            "required": False,
+            "description": "Response format: 'url' or 'b64_json'",
+        },
+        {
+            "name": "mask_mode",
+            "type": "string",
+            "required": False,
+            "description": "Type of mask to use: 'none', 'rectangle', 'circle'",
+        },
+    ],
+    "output_metrics": [
+        "success",
+        "score",
+        "delay_used",
+        "base_url",
+        "model",
+        "num_images",
+        "response_format",
+        "mask_mode",
+        "validation",
+    ],
+}
+
+MOCK_VLM_MANIFEST = {
+    "name": "vlm_evaluator_tester",
+    "version": "1.0.0",
+    "description": "A lightweight mock container for testing vision language models.",
+    "input_systems": [
+        {"name": "system_under_test", "type": "vlm_api", "required": True},
+    ],
+    "input_schema": [
+        {
+            "name": "delay_seconds",
+            "type": "integer",
+            "required": False,
+            "description": "Seconds to sleep to simulate work.",
+        }
+    ],
+    "output_metrics": [
+        "success",
+        "score",
+        "delay_used",
+        "base_url",
+        "model",
+        "supports_vision",
+    ],
+}
+
 
 @pytest.fixture
 def demo_suite():
@@ -179,6 +337,27 @@ def demo_suite():
 def demo_rag_suite():
     """Fixture providing parsed demo test suite."""
     data = yaml.safe_load(DEMO_RAG_SUITE_YAML)
+    return SuiteConfig(**data)
+
+
+@pytest.fixture
+def demo_image_generation_suite():
+    """Fixture providing parsed demo image generation test suite."""
+    data = yaml.safe_load(DEMO_IMAGE_GENERATION_SUITE_YAML)
+    return SuiteConfig(**data)
+
+
+@pytest.fixture
+def demo_image_editing_suite():
+    """Fixture providing parsed demo image editing test suite."""
+    data = yaml.safe_load(DEMO_IMAGE_EDITING_SUITE_YAML)
+    return SuiteConfig(**data)
+
+
+@pytest.fixture
+def demo_vlm_suite():
+    """Fixture providing parsed demo VLM test suite."""
+    data = yaml.safe_load(DEMO_VLM_SUITE_YAML)
     return SuiteConfig(**data)
 
 
@@ -197,6 +376,13 @@ def manifests():
         "my-registry/mock_rag_tester:latest": Manifest(**MOCK_RAG_TESTER_MANIFEST),
         "my-registry/generic:latest": Manifest(**MOCK_GENERIC_MANIFEST),
         "my-registry/garak:latest": Manifest(**MOCK_MULTIPLE_MANIFEST),
+        "my-registry/mock_image_generation_tester:latest": Manifest(
+            **MOCK_IMAGE_GENERATION_MANIFEST
+        ),
+        "my-registry/mock_image_editing_tester:latest": Manifest(
+            **MOCK_IMAGE_EDITING_MANIFEST
+        ),
+        "my-registry/vlm_evaluator_tester:latest": Manifest(**MOCK_VLM_MANIFEST),
     }
 
 
@@ -388,6 +574,81 @@ class TestSchemaValidation:
         errors = validate_test_plan(demo_rag_suite, system, manifests)
         assert errors == [], f"Expected no errors, but got: {errors}"
 
+    def test_image_generation_system_compatibility(
+        self, demo_image_generation_suite, manifests
+    ):
+        """Test validation passes for image generation systems."""
+        # Create systems config with image generation system
+        image_gen_systems = SystemsConfig(
+            systems={
+                "my_image_generation_api": {
+                    "type": "image_generation_api",
+                    "description": "Test image generation system",
+                    "provider": "openai",
+                    "params": {
+                        "base_url": "http://test-url",
+                        "model": "dall-e-3",
+                        "api_key": "sk-test",
+                    },
+                }
+            }
+        )
+
+        errors = validate_test_plan(
+            demo_image_generation_suite, image_gen_systems, manifests
+        )
+        assert errors == [], (
+            f"Expected no errors for image generation system, but got: {errors}"
+        )
+
+    def test_image_editing_system_compatibility(
+        self, demo_image_editing_suite, manifests
+    ):
+        """Test validation passes for image editing systems."""
+        # Create systems config with image editing system
+        image_edit_systems = SystemsConfig(
+            systems={
+                "my_image_editing_api": {
+                    "type": "image_editing_api",
+                    "description": "Test image editing system",
+                    "provider": "openai",
+                    "params": {
+                        "base_url": "http://test-url",
+                        "model": "dall-e-2",
+                        "api_key": "sk-test",
+                    },
+                }
+            }
+        )
+
+        errors = validate_test_plan(
+            demo_image_editing_suite, image_edit_systems, manifests
+        )
+        assert errors == [], (
+            f"Expected no errors for image editing system, but got: {errors}"
+        )
+
+    def test_vlm_system_compatibility(self, demo_vlm_suite, manifests):
+        """Test validation passes for VLM systems."""
+        # Create systems config with VLM system
+        vlm_systems = SystemsConfig(
+            systems={
+                "my_vlm_api": {
+                    "type": "vlm_api",
+                    "description": "Test VLM system",
+                    "provider": "openai",
+                    "params": {
+                        "base_url": "http://test-url",
+                        "model": "gpt-4o",
+                        "api_key": "sk-test",
+                    },
+                }
+            }
+        )
+
+        errors = validate_test_plan(demo_vlm_suite, vlm_systems, manifests)
+        assert errors == [], f"Expected no errors for VLM system, but got: {errors}"
+
     def test_manifest_schema_validation(self, manifests):
         """Test that manifests parse correctly."""
         mock_manifest = manifests["my-registry/mock_tester:latest"]
@@ -399,6 +660,26 @@ class TestSchemaValidation:
         assert rag_manifest.name == "mock_rag_tester"
         assert len(rag_manifest.input_systems) == 1
         assert rag_manifest.input_systems[0].type == "rag_api"
+
+        # Check image generation manifest
+        image_gen_manifest = manifests[
+            "my-registry/mock_image_generation_tester:latest"
+        ]
+        assert image_gen_manifest.name == "mock_image_generation_tester"
+        assert len(image_gen_manifest.input_systems) == 1
+        assert image_gen_manifest.input_systems[0].type == "image_generation_api"
+
+        # Check image editing manifest
+        image_edit_manifest = manifests["my-registry/mock_image_editing_tester:latest"]
+        assert image_edit_manifest.name == "mock_image_editing_tester"
+        assert len(image_edit_manifest.input_systems) == 1
+        assert image_edit_manifest.input_systems[0].type == "image_editing_api"
+
+        # Check VLM manifest
+        vlm_manifest = manifests["my-registry/vlm_evaluator_tester:latest"]
+        assert vlm_manifest.name == "vlm_evaluator_tester"
+        assert len(vlm_manifest.input_systems) == 1
+        assert vlm_manifest.input_systems[0].type == "vlm_api"
 
 
 class TestCrossFileValidation:
@@ -1906,3 +2187,180 @@ class TestRAGResponseSchema:
         # Missing context
         with pytest.raises(KeyError, match="context"):
             validate_rag_response({"choices": [{"message": {"citations": []}}]})
+
+
+class TestImageResponseSchema:
+    """Test cases for image response validation schemas."""
+
+    def test_image_usage_info_valid(self):
+        """Test valid UsageInfo creation."""
+        usage = UsageInfo(
+            input_tokens=100,
+            input_tokens_details={"image_tokens": 85, "text_tokens": 15},
+            output_tokens=170,
+            total_tokens=270,
+        )
+
+        assert usage.input_tokens == 100
+        assert usage.input_tokens_details["image_tokens"] == 85
+        assert usage.input_tokens_details["text_tokens"] == 15
+        assert usage.output_tokens == 170
+        assert usage.total_tokens == 270
+
+    def test_image_usage_info_validation_errors(self):
+        """Test UsageInfo validation errors."""
+        # Negative input_tokens
+        with pytest.raises(ValidationError, match="greater_than_equal"):
+            UsageInfo(input_tokens=-1)
+
+        # Negative output_tokens
+        with pytest.raises(ValidationError, match="greater_than_equal"):
+            UsageInfo(output_tokens=-1)
+
+        # Negative total_tokens
+        with pytest.raises(ValidationError, match="greater_than_equal"):
+            UsageInfo(total_tokens=-1)
+
+    def test_image_object_valid(self):
+        """Test valid ImageObject creation."""
+        image = ImageObject(
+            url="https://example.com/generated_image.png",
+            revised_prompt="A beautiful sunset over mountains...",
+        )
+
+        assert image.url == "https://example.com/generated_image.png"
+        assert image.revised_prompt == "A beautiful sunset over mountains..."
+        assert image.b64_json is None
+
+    def test_image_object_b64_json(self):
+        """Test ImageObject with base64 data."""
+        image = ImageObject(b64_json="iVBORw0KGgoAAAANSUhEUgAA...")
+
+        assert image.b64_json == "iVBORw0KGgoAAAANSUhEUgAA..."
+        assert image.url is None
+        assert image.revised_prompt is None
+
+    def test_image_response_valid(self):
+        """Test valid ImageResponse creation."""
+        response = ImageResponse(
+            created=1703658209,
+            data=[
+                ImageObject(
+                    url="https://example.com/image1.png",
+                    revised_prompt="A beautiful landscape...",
+                ),
+                ImageObject(b64_json="iVBORw0KGgoAAAANSUhEUgAA..."),
+            ],
+            usage=UsageInfo(input_tokens=85, output_tokens=170, total_tokens=255),
+        )
+
+        assert response.created == 1703658209
+        assert len(response.data) == 2
+        assert response.data[0].url == "https://example.com/image1.png"
+        assert response.data[1].b64_json == "iVBORw0KGgoAAAANSUhEUgAA..."
+        assert response.usage.total_tokens == 255
+
+    def test_image_response_validation_errors(self):
+        """Test ImageResponse validation errors."""
+        # Negative created timestamp
+        with pytest.raises(ValidationError, match="greater_than"):
+            ImageResponse(created=-1, data=[])
+
+        # Empty data array
+        with pytest.raises(ValidationError, match="too_short"):
+            ImageResponse(created=1703658209, data=[])
+
+    def test_validate_image_response_valid_url_format(self):
+        """Test validate_image_response with valid URL format response."""
+        response_dict = {
+            "created": 1703658209,
+            "data": [
+                {
+                    "url": "https://example.com/generated_image.png",
+                    "revised_prompt": "Adorable baby sea otter with a coat of thick brown fur...",
+                }
+            ],
+            "usage": {
+                "input_tokens": 85,
+                "input_tokens_details": {"image_tokens": 85, "text_tokens": 0},
+                "output_tokens": 85,
+                "total_tokens": 170,
+            },
+        }
+
+        validated_response = validate_image_response(response_dict)
+        assert validated_response.created == 1703658209
+        assert len(validated_response.data) == 1
+        assert (
+            validated_response.data[0].url == "https://example.com/generated_image.png"
+        )
+        assert (
+            validated_response.data[0].revised_prompt
+            == "Adorable baby sea otter with a coat of thick brown fur..."
+        )
+        assert validated_response.usage.total_tokens == 170
+
+    def test_validate_image_response_valid_b64_format(self):
+        """Test validate_image_response with valid base64 format response."""
+        response_dict = {
+            "created": 1677649800,
+            "data": [
+                {"b64_json": "iVBORw0KGgoAAAANSUhEUgAA...", "revised_prompt": None}
+            ],
+        }
+
+        validated_response = validate_image_response(response_dict)
+        assert validated_response.created == 1677649800
+        assert len(validated_response.data) == 1
+        assert validated_response.data[0].b64_json == "iVBORw0KGgoAAAANSUhEUgAA..."
+        assert validated_response.data[0].revised_prompt is None
+        assert validated_response.usage is None
+
+    def test_validate_image_response_multiple_images(self):
+        """Test validate_image_response with multiple images."""
+        response_dict = {
+            "created": 1677649800,
+            "data": [
+                {"url": "https://example.com/edited_image_1.png"},
+                {"url": "https://example.com/edited_image_2.png"},
+            ],
+        }
+
+        validated_response = validate_image_response(response_dict)
+        assert len(validated_response.data) == 2
+        assert (
+            validated_response.data[0].url == "https://example.com/edited_image_1.png"
+        )
+        assert (
+            validated_response.data[1].url == "https://example.com/edited_image_2.png"
+        )
+
+    def test_validate_image_response_missing_required_fields(self):
+        """Test validate_image_response with missing required fields."""
+        # Missing created field
+        with pytest.raises(ValidationError):
+            validate_image_response(
+                {"data": [{"url": "https://example.com/image.png"}]}
+            )
+
+        # Missing data field
+        with pytest.raises(ValidationError):
+            validate_image_response({"created": 1703658209})
+
+        # Empty data array
+        with pytest.raises(ValidationError):
+            validate_image_response({"created": 1703658209, "data": []})
+
+    def test_validate_image_response_invalid_usage(self):
+        """Test validate_image_response with invalid usage data."""
+        response_dict = {
+            "created": 1703658209,
+            "data": [{"url": "https://example.com/image.png"}],
+            "usage": {
+                "input_tokens": -1,  # Invalid negative value
+                "total_tokens": 100,
+            },
+        }
+
+        with pytest.raises(ValidationError, match="greater_than_equal"):
+            validate_image_response(response_dict)
