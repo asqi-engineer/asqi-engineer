@@ -32,13 +32,3 @@ test_suite:
     params:
       delay_seconds: 1
 
-  - id: "img_gen_with_vlm_eval"
-    name: "Image Generation with Custom Prompt"
-    description: "Generate an image with a custom prompt using mock container"
-    image: "asqiengineer/test-container:mock_image_generation_tester-latest"
-    systems_under_test: ["dalle3_generator"]
-    params:
-      prompt: "A serene landscape with mountains and a lake at sunset"
-      response_format: "url"
-      delay_seconds: 1
-
