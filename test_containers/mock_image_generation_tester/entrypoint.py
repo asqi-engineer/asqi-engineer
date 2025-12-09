@@ -66,21 +66,23 @@ def main():
             image_data = {"b64_json": b64_data}
         else:
             # Mock URL response
-            image_data = {"url": f"https://example.com/generated_image_{random.randint(1000, 9999)}.png"}
+            image_data = {
+                "url": f"https://example.com/generated_image_{random.randint(1000, 9999)}.png"
+            }
 
         mock_response = {
             "created": int(time.time()),
             "data": [
                 {
                     "revised_prompt": f"A stunning and vivid depiction of {prompt}, with exceptional detail and artistic quality.",
-                    **image_data
+                    **image_data,
                 }
             ],
             "usage": {
                 "input_tokens": len(prompt.split()),
                 "output_tokens": 170,
-                "total_tokens": len(prompt.split()) + 170
-            }
+                "total_tokens": len(prompt.split()) + 170,
+            },
         }
 
         # Validate image generation response format using ASQI validation schema
@@ -89,8 +91,12 @@ def main():
 
             # Validation succeeded - extract image metrics
             num_images = len(validated_response.data)
-            has_revised_prompt = any(img.revised_prompt for img in validated_response.data)
-            response_format_used = "b64_json" if validated_response.data[0].b64_json else "url"
+            has_revised_prompt = any(
+                img.revised_prompt for img in validated_response.data
+            )
+            response_format_used = (
+                "b64_json" if validated_response.data[0].b64_json else "url"
+            )
 
             result = {
                 "success": True,
@@ -104,10 +110,16 @@ def main():
                 "has_revised_prompt": has_revised_prompt,
                 "prompt": prompt,
                 "usage": {
-                    "input_tokens": validated_response.usage.input_tokens if validated_response.usage else None,
-                    "output_tokens": validated_response.usage.output_tokens if validated_response.usage else None,
-                    "total_tokens": validated_response.usage.total_tokens if validated_response.usage else None,
-                }
+                    "input_tokens": validated_response.usage.input_tokens
+                    if validated_response.usage
+                    else None,
+                    "output_tokens": validated_response.usage.output_tokens
+                    if validated_response.usage
+                    else None,
+                    "total_tokens": validated_response.usage.total_tokens
+                    if validated_response.usage
+                    else None,
+                },
             }
 
         except Exception as e:
