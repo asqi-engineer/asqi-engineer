@@ -18,7 +18,8 @@ class SystemInput(BaseModel):
         description="The system input name, e.g., 'system_under_test', 'simulator_system', 'evaluator_system'.",
     )
     type: str = Field(
-        ..., description="The system type, e.g., 'llm_api','rest_api', 'rag_api', 'image_generation_api', 'image_editing_api', or 'vlm_api'."
+        ...,
+        description="The system type, e.g., 'llm_api','rest_api', 'rag_api', 'image_generation_api', 'image_editing_api', or 'vlm_api'.",
     )
     required: bool = Field(True, description="Whether this system input is required.")
     description: Optional[str] = Field(
@@ -138,6 +139,15 @@ class LLMAPIParams(BaseModel):
     )
 
 
+class VLMAPIParams(LLMAPIParams):
+    """Parameters for Vision Language Model API systems."""
+
+    supports_vision: bool = Field(
+        True,
+        description="Whether this VLM system supports vision/image inputs. Must be True for VLM systems.",
+    )
+
+
 class LLMAPIConfig(SystemDefinition):
     """Configuration for LLM API systems."""
 
@@ -209,9 +219,9 @@ class VLMApiConfig(SystemDefinition):
         ...,
         description="Vision Language Model API system: vlm_api",
     )
-    params: LLMAPIParams = Field(
+    params: VLMAPIParams = Field(
         ...,
-        description="Parameters specific to the VLM API system (e.g., base url, model name, API key and env file).",
+        description="Parameters specific to the VLM API system (e.g., base url, model name, API key, env file, and vision support).",
     )
 
 
@@ -234,7 +244,14 @@ class GenericSystemConfig(SystemDefinition):
     )
 
 
-SystemConfig = Union[LLMAPIConfig, RAGAPIConfig, ImageGenerationAPIConfig, ImageEditingAPIConfig, VLMApiConfig, GenericSystemConfig]
+SystemConfig = Union[
+    LLMAPIConfig,
+    RAGAPIConfig,
+    ImageGenerationAPIConfig,
+    ImageEditingAPIConfig,
+    VLMApiConfig,
+    GenericSystemConfig,
+]
 
 
 class SystemsConfig(BaseModel):
