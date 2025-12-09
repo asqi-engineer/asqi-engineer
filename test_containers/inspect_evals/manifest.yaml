@@ -44,6 +44,15 @@ input_schema:
     required: false
     description: "Maximum number of samples to evaluate. Default: 10"
     default: 10
+  - name: "sandbox_params"
+    type: "object"
+    required: false
+    description: |
+      Optional resource limits for sandbox containers. Provide an object with:
+      - cpus: Number of CPUs (default: 1.0)
+      - mem_limit: Memory limit as string e.g. "1g", "512m" (default: "1g")
+      Example: {"cpus": 2.0, "mem_limit": "2g"}
+    default: {}
 
 output_metrics:
   - name: "success"
