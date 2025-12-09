@@ -33,7 +33,7 @@ The project focuses first on chatbot testing and supports extensions for other A
 
 - **Structured reporting**: JSON output with detailed metrics and assessment outcomes
 - **Configurable score cards**: Define custom evaluation criteria with flexible assessment conditions
-- **Metric expressions**: Combine multiple metrics using mathematical operations (`+`, `-`, `*`, `/`) and functions (`min`, `max`, `avg`, `sum`, `abs`, `round`, `pow`) for sophisticated composite scoring
+- **Metric expressions**: Combine multiple metrics using mathematical operations (`+`, `-`, `*`, `/`), comparison operators (`>`, `>=`, `<`, `<=`, `==`, `!=`), boolean logic (`and`, `or`, `not`), and conditional expressions (`if-else`) for sophisticated composite scoring including hard gates patterns
 
 ### **Developer Experience**
 
