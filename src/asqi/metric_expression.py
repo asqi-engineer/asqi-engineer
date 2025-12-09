@@ -18,9 +18,12 @@ class MetricExpressionEvaluator:
 
     Supports:
     - Arithmetic operators: +, -, *, /
+    - Comparison operators: >, >=, <, <=, ==, !=
+    - Boolean operators: and, or, not
+    - Conditional expressions: if-else
     - Aggregation functions: min(), max(), avg()
     - Numeric literals and parentheses
-    - Complex formulas: '0.7 * accuracy + 0.3 * relevance'
+    - Complex formulas with hard gates: '(score) if (gate1 >= 0.7 and gate2 >= 0.6) else -1'
 
     Does NOT support:
     - Code execution (no eval/exec)
@@ -39,6 +42,12 @@ class MetricExpressionEvaluator:
         >>> # Min function
         >>> evaluator.evaluate_expression("min(x, y, z)", {"x": 0.9, "y": 0.7, "z": 0.8})
         0.7
+        >>> # Hard gates with conditional
+        >>> evaluator.evaluate_expression(
+        ...     "(0.6 * acc + 0.4 * rel) if (faith >= 0.7 and retr >= 0.6) else -1",
+        ...     {"acc": 0.8, "rel": 0.9, "faith": 0.8, "retr": 0.7}
+        ... )
+        0.84
     """
 
     # Allowed AST node types for safety
@@ -49,6 +58,21 @@ class MetricExpressionEvaluator:
         ast.Div,
         ast.UAdd,  # Unary plus
         ast.USub,  # Unary minus
+    }
+
+    ALLOWED_COMPARISONS = {
+        ast.Gt,
+        ast.GtE,
+        ast.Lt,
+        ast.LtE,
+        ast.Eq,
+        ast.NotEq,
+    }
+
+    ALLOWED_BOOL_OPS = {
+        ast.And,
+        ast.Or,
+        ast.Not,
     }
 
     ALLOWED_FUNCTIONS = {"min", "max", "avg", "abs", "round", "pow"}
@@ -100,11 +124,37 @@ class MetricExpressionEvaluator:
                 ast.Num,  # For older Python versions
                 ast.Name,
                 ast.Load,
+                ast.Compare,
+                ast.BoolOp,
+                ast.IfExp,
             ):
                 # Validate binary and unary operators
-                if isinstance(node, (ast.BinOp, ast.UnaryOp)):
+                if isinstance(node, ast.BinOp):
                     op_type = type(node.op)
                     if op_type not in self.ALLOWED_OPS:
+                        raise MetricExpressionError(
+                            f"Unsupported operator: {op_type.__name__}"
+                        )
+
+                # Validate comparison operators
+                elif isinstance(node, ast.Compare):
+                    for op in node.ops:
+                        if type(op) not in self.ALLOWED_COMPARISONS:
+                            raise MetricExpressionError(
+                                f"Unsupported comparison: {type(op).__name__}"
+                            )
+
+                # Validate boolean operators
+                elif isinstance(node, ast.BoolOp):
+                    if type(node.op) not in self.ALLOWED_BOOL_OPS:
+                        raise MetricExpressionError(
+                            f"Unsupported boolean operator: {type(node.op).__name__}"
+                        )
+
+                # Validate unary operators
+                elif isinstance(node, ast.UnaryOp):
+                    op_type = type(node.op)
+                    if op_type not in self.ALLOWED_OPS and op_type != ast.Not:
                         raise MetricExpressionError(
                             f"Unsupported operator: {op_type.__name__}"
                         )
@@ -121,8 +171,15 @@ class MetricExpressionEvaluator:
                             f"Function '{func_name}' is not allowed. "
                             f"Allowed functions: {', '.join(sorted(self.ALLOWED_FUNCTIONS))}"
                         )
+
             elif node_type in self.ALLOWED_OPS:
                 # The operator types themselves (Add, Sub, etc.) - these are fine
+                pass
+            elif node_type in self.ALLOWED_COMPARISONS:
+                # Comparison operators - these are fine
+                pass
+            elif node_type in self.ALLOWED_BOOL_OPS:
+                # Boolean operators - these are fine
                 pass
             else:
                 raise MetricExpressionError(
@@ -174,6 +231,11 @@ class MetricExpressionEvaluator:
             # 3. Context only contains validated numeric values and safe functions
             code = compile(tree, "<expression>", "eval")
             result = eval(code, {"__builtins__": {}}, context)  # nosec B307
+
+            # Convert boolean to int (True->1, False->0)
+            # This handles comparison and boolean expressions consistently
+            if isinstance(result, bool):
+                result = int(result)
 
             # Ensure result is numeric
             if not isinstance(result, (int, float)):

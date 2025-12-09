@@ -466,10 +466,16 @@ metric:
 
 #### Supported Operations
 
-**Operators:** `+`, `-`, `*`, `/`, `()`
+**Arithmetic Operators:** `+`, `-`, `*`, `/`, `()`
+
+**Comparison Operators:** `>`, `>=`, `<`, `<=`, `==`, `!=`
+
+**Boolean Operators:** `and`, `or`, `not`
+
+**Conditional:** `if-else` expressions for conditional logic
 
 **Functions:**
-- `min(...)`, `max(...)`, `avg(...)`, `sum(...)` - Aggregation
+- `min(...)`, `max(...)`, `avg(...)` - Aggregation
 - `abs(x)` - Absolute value
 - `round(x, n)` - Round to n decimals
 - `pow(x, y)` - Power (x^y)
@@ -498,6 +504,41 @@ Capped composite:
 ```yaml
 expression: "min((0.4 * speed + 0.6 * quality), 1.0)"
 values: { speed: "perf.speed_score", quality: "perf.quality_score" }
+```
+
+Hard gates with AND conditions (returns score if all gates pass, else penalty):
+```yaml
+expression: "(0.45 * accuracy + 0.35 * relevance + 0.20 * helpfulness) if (faith >= 0.7 and retrieval >= 0.6) else -1"
+values: 
+  accuracy: "metrics.accuracy"
+  relevance: "metrics.relevance"
+  helpfulness: "metrics.helpfulness"
+  faith: "metrics.faithfulness"
+  retrieval: "metrics.retrieval"
+```
+
+Gate compliance counting (counts how many gates pass):
+```yaml
+expression: "(accuracy >= 0.8) + (relevance >= 0.75) + (helpfulness >= 0.7)"
+values:
+  accuracy: "metrics.accuracy"
+  relevance: "metrics.relevance"
+  helpfulness: "metrics.helpfulness"
+```
+
+Flexible OR gating (meets A or B requirement):
+```yaml
+expression: "1 if (performance >= 80 or cost <= 0.01) else 0"
+values:
+  performance: "metrics.performance_score"
+  cost: "metrics.cost_per_request"
+```
+
+Nested conditional tiers (tiered scoring):
+```yaml
+expression: "0.95 if (risk < 0.1) else (0.75 if (risk < 0.3) else (0.5 if (risk < 0.5) else 0.2))"
+values:
+  risk: "metrics.risk_score"
 ```
 
 ### Audit Indicators
@@ -570,6 +611,69 @@ indicators:
     assessment:
       - { outcome: "Pass", condition: "greater_equal", threshold: 0.7 }
       - { outcome: "Fail", condition: "less_than", threshold: 0.7 }
+
+  # Hard gates with AND conditions
+  - id: "accuracy_with_quality_gates"
+    name: "Accuracy Score with Quality Gates"
+    apply_to: { test_id: "chatbot_test" }
+    metric:
+      expression: "(0.45 * accuracy + 0.35 * relevance + 0.20 * helpfulness) if (faith >= 0.7 and retrieval >= 0.6 and instruction >= 0.7) else -1"
+      values:
+        accuracy: "metrics.answer_accuracy"
+        relevance: "metrics.answer_relevance"
+        helpfulness: "metrics.helpfulness"
+        faith: "metrics.faithfulness"
+        retrieval: "metrics.retrieval"
+        instruction: "metrics.instruction_following"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 0.8 }
+      - { outcome: "B", condition: "greater_equal", threshold: 0.7 }
+      - { outcome: "C", condition: "greater_equal", threshold: 0.6 }
+      - { outcome: "F", condition: "less_than", threshold: 0.6 }
+
+  # Gate compliance counting with comparisons
+  - id: "gate_compliance"
+    name: "Quality Gates Passed"
+    apply_to: { test_id: "chatbot_test" }
+    metric:
+      expression: "(accuracy >= 0.8) + (relevance >= 0.75) + (helpfulness >= 0.7) + (faithfulness >= 0.7)"
+      values:
+        accuracy: "metrics.answer_accuracy"
+        relevance: "metrics.answer_relevance"
+        helpfulness: "metrics.helpfulness"
+        faithfulness: "metrics.faithfulness"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 4 }
+      - { outcome: "B", condition: "greater_equal", threshold: 3 }
+      - { outcome: "C", condition: "greater_equal", threshold: 2 }
+      - { outcome: "F", condition: "less_than", threshold: 2 }
+
+  # Flexible OR gating
+  - id: "performance_or_cost"
+    name: "Performance OR Cost Target Met"
+    apply_to: { test_id: "benchmark_test" }
+    metric:
+      expression: "1 if (throughput >= 50 or cost_per_token <= 0.001) else 0"
+      values:
+        throughput: "metrics.tokens_per_second"
+        cost_per_token: "metrics.cost_per_token"
+    assessment:
+      - { outcome: "Pass", condition: "equal_to", threshold: 1 }
+      - { outcome: "Fail", condition: "equal_to", threshold: 0 }
+
+  # Nested conditional tiers
+  - id: "risk_tiered_score"
+    name: "Safety Score Based on Risk Tier"
+    apply_to: { test_id: "security_test" }
+    metric:
+      expression: "0.95 if (risk < 0.1) else (0.75 if (risk < 0.3) else (0.5 if (risk < 0.5) else 0.2))"
+      values:
+        risk: "metrics.risk_score"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 0.9 }
+      - { outcome: "B", condition: "greater_equal", threshold: 0.7 }
+      - { outcome: "C", condition: "greater_equal", threshold: 0.5 }
+      - { outcome: "F", condition: "less_than", threshold: 0.5 }
 
   # Audit indicator
   - id: "configuration_complexity"
