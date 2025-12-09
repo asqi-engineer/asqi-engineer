@@ -313,6 +313,79 @@ def test_execute_single_test_invalid_json():
     assert "Failed to parse JSON output" in result.error_message
 
 
+def test_execute_single_test_env_file_falsy_values():
+    """Test that env_file processing is skipped when env_file has falsy values."""
+    fake_container_output = '{"success": true, "metric": 1}'
+
+    with patch("asqi.workflow.run_container_with_args") as run_mock:
+        run_mock.return_value = {
+            "success": True,
+            "exit_code": 0,
+            "output": fake_container_output,
+            "error": "",
+            "container_id": "abc123",
+        }
+
+        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+
+        # Test with empty string env_file - should skip env_file processing
+        result = inner_step(
+            test_id="test_empty_env_file",
+            test_name="test empty env file",
+            image="test/image:latest",
+            sut_name="systemA",
+            systems_params={
+                "system_under_test": {
+                    "type": "llm_api",
+                    "env_file": "",  # Empty string - should be treated as falsy
+                }
+            },
+            test_params={},
+            container_config=ContainerConfig(),
+        )
+
+        assert result.success is True
+        # Should not have tried to load env file
+
+        # Test with None env_file - should skip env_file processing
+        result = inner_step(
+            test_id="test_none_env_file",
+            test_name="test none env file",
+            image="test/image:latest",
+            sut_name="systemA",
+            systems_params={
+                "system_under_test": {
+                    "type": "llm_api",
+                    "env_file": None,  # None value - should be treated as falsy
+                }
+            },
+            test_params={},
+            container_config=ContainerConfig(),
+        )
+
+        assert result.success is True
+        # Should not have tried to load env file
+
+        # Test with missing env_file key - should skip env_file processing
+        result = inner_step(
+            test_id="test_missing_env_file",
+            test_name="test missing env file",
+            image="test/image:latest",
+            sut_name="systemA",
+            systems_params={
+                "system_under_test": {
+                    "type": "llm_api"
+                    # No env_file key - should skip env_file processing
+                }
+            },
+            test_params={},
+            container_config=ContainerConfig(),
+        )
+
+        assert result.success is True
+        # Should not have tried to load env file
+
+
 def test_convert_test_results_to_objects():
     """Test converting test results data back to TestExecutionResult objects."""
 
