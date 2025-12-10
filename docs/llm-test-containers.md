@@ -403,8 +403,6 @@ test_suite:
     params:
       evaluation: "bbq"
       limit: 150
-      evaluation_params:
-        use_fast_sampling: true
 ```
 
 ### Build Instructions
