@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+suite_name: "Image Generation and VLM Evaluation Suite"
+test_suite:
+  - id: "image_vlm_test_1"
+    name: "Generate and Evaluate Sea Otter Image"
+    image: "asqiengineer/test-container:image_vlm_tester-latest" # Assuming you build and push this image
+    systems_under_test:
+      - "openai_image_generator"
+    systems:
+      system_under_test: "openai_image_generator"
+      vlm_system: "openai_vlm_evaluator"
+    params:
+      prompt: "A cute baby sea otter, in a photorealistic style, high detail"
+      score_instruction: "Please evaluate the aesthetic qualities of this image and provide a score between 1 and 10, just the number."
+    volumes:
+      output: /workspaces/asqi/output
