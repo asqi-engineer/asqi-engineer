@@ -107,8 +107,11 @@ class ImageVLMTester:
             content = response_json["choices"][0]["message"]["content"]
             # Extract score from content, e.g., "Score: 8/10" or similar
             try:
-                # This is a basic extraction, might need refinement based on actual VLM output
-                score_match = re.search(r"\\b([0-9]|10)\\b", content)
+                # Attempt direct conversion to float, as VLM is instructed to return just the number.
+                return float(content)
+            except ValueError:
+                # Fallback to regex if direct conversion fails (e.g., if VLM output format changes).
+                score_match = re.search(r"\\b([0-9]|10)\b", content)
                 if score_match:
                     return float(score_match.group(0))
                 else:
