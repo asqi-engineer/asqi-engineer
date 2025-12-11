@@ -6,7 +6,11 @@ import sys
 from typing import Any, Dict, List, Optional, Union
 
 import openai
+
+# TODO: check
 from deepeval.models import DeepEvalBaseLLM
+
+# TODO: check
 from deepeval.models.llms.openai_model import log_retry_error, retryable_exceptions
 from deepteam.attacks.multi_turn import (
     BadLikertJudge,
@@ -25,6 +29,13 @@ from deepteam.attacks.single_turn import (
     PromptInjection,
     PromptProbing,
     Roleplay,
+    AdversarialPoetry,
+    SystemOverride,
+    PermissionEscalation,
+    LinguisticConfusion,
+    InputBypass,
+    ContextPoisoning,
+    GoalRedirection,
 )
 from deepteam.red_teamer import RedTeamer
 from deepteam.vulnerabilities import (
@@ -188,15 +199,22 @@ class DeepTeamRedTeamTester:
 
     # Single-turn attack methods
     SINGLE_TURN_ATTACKS = {
+        "adversarial_poetry": AdversarialPoetry,
+        "context_poisoning": ContextPoisoning,
         "base64": Base64,
         "graybox": GrayBox,
+        "goal_redirection": GoalRedirection,
+        "input_bypass": InputBypass,
         "leetspeak": Leetspeak,
+        "linguistic_confusion": LinguisticConfusion,
         "math_problem": MathProblem,
         "multilingual": Multilingual,
+        "permission_escalation": PermissionEscalation,
         "prompt_injection": PromptInjection,
         "prompt_probing": PromptProbing,
         "roleplay": Roleplay,
         "rot13": ROT13,
+        "system_override": SystemOverride,
     }
 
     # Multi-turn attack methods
