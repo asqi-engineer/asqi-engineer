@@ -428,6 +428,10 @@ class ScoreCard(BaseModel):
 # ----------------------------------------------------------------------------
 class AuditResponse(BaseModel):
     indicator_id: str = Field(..., description="ID of the audit indicator")
+    sut_name: Optional[str] = Field(
+        None,
+        description="Name of the system under test this response applies to. If omitted, applies globally.",
+    )
     selected_outcome: str = Field(
         ..., description="Letter grade or label (A–E, PASS/FAIL, etc.)."
     )
