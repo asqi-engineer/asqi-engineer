@@ -22,10 +22,15 @@ class TestscorecardEngine:
         self.engine = ScoreCardEngine()
 
     def create_test_result(
-        self, test_name: str, test_id: str, image: str, test_results: dict
+        self,
+        test_name: str,
+        test_id: str,
+        image: str,
+        test_results: dict,
+        sut_name: str = "test_sut",
     ) -> TestExecutionResult:
         """Helper to create a TestExecutionResult for testing."""
-        result = TestExecutionResult(test_name, test_id, "test_sut", image)
+        result = TestExecutionResult(test_name, test_id, sut_name, image)
         result.test_results = test_results
         result.success = test_results.get("success", True)
         return result
@@ -484,6 +489,136 @@ class TestscorecardEngine:
         assert r.error is not None
         assert "Invalid selected_outcome 'Z'" in r.error
         assert "Allowed outcomes: ['A', 'B', 'C']" in r.error
+
+    def test_evaluate_audit_indicator_per_system_success(self):
+        """Audit responses with sut_name should emit one result per system."""
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+                AuditAssessmentRule(outcome="C", description="Medium"),
+            ],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "sut_name": "sut_a",
+                    "selected_outcome": "A",
+                    "notes": "simple",
+                },
+                {
+                    "indicator_id": "config_easy",
+                    "sut_name": "sut_b",
+                    "selected_outcome": "C",
+                    "notes": "harder",
+                },
+            ]
+        )
+
+        test_results = [
+            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_a"),
+            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_b"),
+        ]
+
+        score_card = ScoreCard(
+            score_card_name="Audit SUT Scorecard",
+            indicators=[indicator],
+        )
+
+        results = self.engine.evaluate_scorecard(test_results, score_card, audit_responses)
+
+        assert len(results) == 2
+        by_sut = {r["sut_name"]: r for r in results}
+        assert set(by_sut.keys()) == {"sut_a", "sut_b"}
+        assert by_sut["sut_a"]["outcome"] == "A"
+        assert by_sut["sut_a"]["audit_notes"] == "simple"
+        assert by_sut["sut_b"]["outcome"] == "C"
+        assert by_sut["sut_b"]["audit_notes"] == "harder"
+        assert all(r["error"] is None for r in results)
+
+    def test_evaluate_audit_indicator_missing_sut_responses(self):
+        """Per-system audits must cover all systems under test."""
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+            ],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "sut_name": "sut_a",
+                    "selected_outcome": "A",
+                }
+            ]
+        )
+
+        test_results = [
+            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_a"),
+            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_b"),
+        ]
+
+        score_card = ScoreCard(
+            score_card_name="Audit SUT Scorecard",
+            indicators=[indicator],
+        )
+
+        results = self.engine.evaluate_scorecard(test_results, score_card, audit_responses)
+
+        assert len(results) == 1
+        assert (
+            results[0]["error"]
+            == "Audit indicator 'config_easy' requires responses for all systems: missing ['sut_b']"
+        )
+
+    def test_evaluate_audit_indicator_unknown_sut(self):
+        """Audit responses with unknown sut_name should produce an error."""
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+            ],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "sut_name": "unknown_sut",
+                    "selected_outcome": "A",
+                }
+            ]
+        )
+
+        test_results = [
+            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_a"),
+        ]
+
+        score_card = ScoreCard(
+            score_card_name="Audit SUT Scorecard",
+            indicators=[indicator],
+        )
+
+        results = self.engine.evaluate_scorecard(test_results, score_card, audit_responses)
+
+        assert len(results) == 1
+        assert (
+            results[0]["error"]
+            == "'unknown_sut' is not a valid system under test for this evaluation"
+        )
 
 
 class TestNestedMetricAccess:
