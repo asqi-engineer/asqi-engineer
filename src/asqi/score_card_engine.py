@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from asqi.metric_expression import (
     MetricExpressionError,
@@ -580,7 +580,7 @@ class ScoreCardEngine:
         self,
         indicator: AuditScoreCardIndicator,
         audit_responses: Optional[AuditResponses] = None,
-        available_suts: Optional[Union[List[str], set[str]]] = None,
+        available_suts: Optional[Set[str]] = None,
     ) -> List[ScoreCardEvaluationResult]:
         """
         Convert manual audit responses for a single audit indicator into evaluation results.
@@ -649,7 +649,7 @@ class ScoreCardEngine:
                 return results
 
             missing_suts = available_sut_set - {
-                r.sut_name for r in per_system_responses if r.sut_name is not None
+                r.sut_name for r in per_system_responses
             }
 
             if missing_suts:
