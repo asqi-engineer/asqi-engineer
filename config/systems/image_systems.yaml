@@ -1,4 +1,5 @@
-# yaml-language-server: $schema=../../src/asqi/schemas/asqi_systems_config.schema.json
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_systems_config.schema.json  # Image Generation Systems
+
   # Image Generation Systems
   dalle3_generator:
     type: "image_generation_api"
@@ -6,6 +7,14 @@
     params:
       base_url: "http://localhost:4000/v1"
       model: "openai/dall-e-3"
+      api_key: "sk-1234"
+
+  openai_image_generator:
+    type: "image_generation_api"
+    description: "OpenAI GPT-Image-1 Generator"
+    params:
+      base_url: "http://localhost:4000/v1"
+      model: "dall-e-3"
       api_key: "sk-1234"
 
   # Image Editing Systems
@@ -18,14 +27,6 @@
       api_key: "sk-1234"
 
   # Vision Language Models (VLMs)
-  openai_image_generator:
-    type: "image_generation_api"
-    description: "OpenAI GPT-Image-1 Generator"
-    params:
-      base_url: "http://localhost:4000/v1"
-      model: "dall-e-3"
-      api_key: "sk-1234"
-
   openai_vlm_evaluator:
     type: "vlm_api"
     description: "OpenAI GPT-5-Mini VLM Evaluator"
