@@ -54,6 +54,8 @@ LLM Testing
 
 For our first release, we have introduced the ``llm_api`` system type and contributed five test packages for comprehensive LLM system testing. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
 
+Beyond LLM testing, we support image generation, image and vision language models through ``image_generation_api``, ``image_editing_api``, and ``vlm_api`` system types, enabling comprehensive evaluation of image generative systems.
+
 LLM Test Containers
 ^^^^^^^^^^^^^^^^^^^
 
@@ -63,7 +65,7 @@ LLM Test Containers
 - **Inspect Evals**: Comprehensive evaluation suite with 80+ tasks across cybersecurity, mathematics, reasoning, knowledge, bias, and safety domains
 - **Resaro Chatbot Simulator**: Persona and scenario based conversational testing with multi-turn dialogue simulation
 
-The ``llm_api`` system type uses OpenAI-compatible API interfaces. Through `LiteLLM <https://github.com/BerriAI/litellm>`_ integration, ASQI Engineer provides unified access to 100+ LLM providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints.
+The ``llm_api``, ``image_generation_api``, ``image_editing_api``, and ``vlm_api`` system types use OpenAI-compatible API interfaces. Through `LiteLLM <https://github.com/BerriAI/litellm>`_ integration, ASQI Engineer provides unified access to 100+ AI providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints for text, image generation, and vision models.
 
 Test Packages
 -------------
@@ -112,6 +114,20 @@ Test Packages
             :outline:
 
             Trust Evaluation
+
+    .. grid-item-card:: 🎨 Image Generation Testing
+        :text-align: center
+
+        Evaluate **image generation quality** with VLM-as-judge assessment for **prompt adherence**, **aesthetics**, and **safety**.
+
+        +++
+
+        .. button-ref:: llm-test-containers
+            :ref-type: doc
+            :color: primary
+            :outline:
+
+            Image Testing
 
     .. grid-item-card:: 🔧 Custom Testing
         :text-align: center
