@@ -38,30 +38,3 @@ systems:
       base_url: "http://localhost:4000/v1"
       model: "custom_rag"
       api_key: "sk-1234"
-
-  # Image Generation Systems
-  dalle3_generator:
-    type: "image_generation_api"
-    description: "OpenAI DALL-E 3 Image Generator"
-    params:
-      base_url: "http://localhost:4000/v1"
-      model: "openai/dall-e-3"
-      api_key: "sk-1234"
-
-  # Image Editing Systems
-  dalle3_editor:
-    type: "image_editing_api"
-    description: "OpenAI DALL-E 3 Image Editor"
-    params:
-      base_url: "http://localhost:4000/v1"
-      model: "openai/dall-e-3"
-      api_key: "sk-1234"
-
-  # Vision Language Models (VLMs)
-  gpt4o_vision:
-    type: "vlm_api"
-    description: "GPT-4o with Vision Capabilities"
-    params:
-      base_url: "http://localhost:4000/v1"
-      model: "openai/gpt-4o"
-      api_key: "sk-1234"
