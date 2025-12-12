@@ -4,12 +4,16 @@ import pytest
 
 from asqi.config import ContainerConfig
 from asqi.schemas import (
+    ImageEditingAPIConfig,
+    ImageGenerationAPIConfig,
     LLMAPIConfig,
     LLMAPIParams,
     RAGAPIConfig,
     SuiteConfig,
     SystemsConfig,
     TestDefinition,
+    VLMApiConfig,
+    VLMAPIParams,
 )
 from asqi.validation import create_test_execution_plan
 from asqi.workflow import execute_single_test
@@ -86,6 +90,66 @@ class TestEnvironmentVariables:
             }
         )
 
+    @pytest.fixture
+    def sample_image_generation_api_systems_config(self):
+        """Sample image generation api systems configuration with API key."""
+
+        return SystemsConfig(
+            systems={
+                "test_system": ImageGenerationAPIConfig(
+                    type="image_generation_api",
+                    description="Image Generation System description",
+                    provider="openai",
+                    params=LLMAPIParams(
+                        base_url="http://IMAGE-GEN-URL",
+                        env_file="ENV_FILE",
+                        model="dall-e-3",
+                        api_key="sk-image-gen-123",
+                    ),
+                )
+            }
+        )
+
+    @pytest.fixture
+    def sample_image_editing_api_systems_config(self):
+        """Sample image editing api systems configuration with API key."""
+
+        return SystemsConfig(
+            systems={
+                "test_system": ImageEditingAPIConfig(
+                    type="image_editing_api",
+                    description="Image Editing System description",
+                    provider="openai",
+                    params=LLMAPIParams(
+                        base_url="http://IMAGE-EDIT-URL",
+                        env_file="ENV_FILE",
+                        model="dall-e-2",
+                        api_key="sk-image-edit-123",
+                    ),
+                )
+            }
+        )
+
+    @pytest.fixture
+    def sample_vlm_api_systems_config(self):
+        """Sample vlm api systems configuration with API key."""
+
+        return SystemsConfig(
+            systems={
+                "test_system": VLMApiConfig(
+                    type="vlm_api",
+                    description="VLM System description",
+                    provider="openai",
+                    params=VLMAPIParams(
+                        base_url="http://VLM-URL",
+                        env_file="ENV_FILE",
+                        model="gpt-4o",
+                        api_key="sk-vlm-123",
+                    ),
+                )
+            }
+        )
+
     def test_create_test_execution_plan_flattens_llm_api_system_params(
         self, sample_suite_config, sample_llm_api_systems_config
     ):
@@ -134,6 +198,88 @@ class TestEnvironmentVariables:
         assert system_params["env_file"] == "ENV_FILE"
         assert system_params["model"] == "my-rag-chatbot"
         assert system_params["api_key"] == "sk-rag-123"
+
+        # Ensure config is not nested
+        assert "config" not in system_params
+
+    def test_create_test_execution_plan_flattens_image_generation_api_system_params(
+        self, sample_suite_config, sample_image_generation_api_systems_config
+    ):
+        """Test that create_test_execution_plan correctly flattens Image Generation API system parameters."""
+        image_availability = {"my-registry/test:latest": True}
+
+        execution_plan = create_test_execution_plan(
+            sample_suite_config,
+            sample_image_generation_api_systems_config,
+            image_availability,
+        )
+
+        assert len(execution_plan) == 1
+        systems_params = execution_plan[0]["systems_params"]
+        system_params = systems_params["system_under_test"]
+
+        # Verify the system params are flattened correctly
+        assert system_params["type"] == "image_generation_api"
+        assert system_params["description"] == "Image Generation System description"
+        assert system_params["provider"] == "openai"
+        assert system_params["base_url"] == "http://IMAGE-GEN-URL"
+        assert system_params["env_file"] == "ENV_FILE"
+        assert system_params["model"] == "dall-e-3"
+        assert system_params["api_key"] == "sk-image-gen-123"
+
+        # Ensure config is not nested
+        assert "config" not in system_params
+
+    def test_create_test_execution_plan_flattens_image_editing_api_system_params(
+        self, sample_suite_config, sample_image_editing_api_systems_config
+    ):
+        """Test that create_test_execution_plan correctly flattens Image Editing API system parameters."""
+        image_availability = {"my-registry/test:latest": True}
+
+        execution_plan = create_test_execution_plan(
+            sample_suite_config,
+            sample_image_editing_api_systems_config,
+            image_availability,
+        )
+
+        assert len(execution_plan) == 1
+        systems_params = execution_plan[0]["systems_params"]
+        system_params = systems_params["system_under_test"]
+
+        # Verify the system params are flattened correctly
+        assert system_params["type"] == "image_editing_api"
+        assert system_params["description"] == "Image Editing System description"
+        assert system_params["provider"] == "openai"
+        assert system_params["base_url"] == "http://IMAGE-EDIT-URL"
+        assert system_params["env_file"] == "ENV_FILE"
+        assert system_params["model"] == "dall-e-2"
+        assert system_params["api_key"] == "sk-image-edit-123"
+
+        # Ensure config is not nested
+        assert "config" not in system_params
+
+    def test_create_test_execution_plan_flattens_vlm_api_system_params(
+        self, sample_suite_config, sample_vlm_api_systems_config
+    ):
+        """Test that create_test_execution_plan correctly flattens VLM API system parameters."""
+        image_availability = {"my-registry/test:latest": True}
+
+        execution_plan = create_test_execution_plan(
+            sample_suite_config, sample_vlm_api_systems_config, image_availability
+        )
+
+        assert len(execution_plan) == 1
+        systems_params = execution_plan[0]["systems_params"]
+        system_params = systems_params["system_under_test"]
+
+        # Verify the system params are flattened correctly
+        assert system_params["type"] == "vlm_api"
+        assert system_params["description"] == "VLM System description"
+        assert system_params["provider"] == "openai"
+        assert system_params["base_url"] == "http://VLM-URL"
+        assert system_params["env_file"] == "ENV_FILE"
+        assert system_params["model"] == "gpt-4o"
+        assert system_params["api_key"] == "sk-vlm-123"
 
         # Ensure config is not nested
         assert "config" not in system_params
