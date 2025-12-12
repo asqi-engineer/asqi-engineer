@@ -1,55 +1,12 @@
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 __all__ = [
     "ImageObject",
-    "UsageInfo",
     "ImageResponse",
     "validate_image_response",
 ]
-
-
-class UsageInfo(BaseModel):
-    """Usage statistics for image generation/editing requests.
-
-    Tracks token consumption across different modalities.
-
-    Attributes:
-        input_tokens: Total tokens in the input (images + text)
-        input_tokens_details: Breakdown of input tokens by type
-        output_tokens: Number of tokens in the output image(s)
-        total_tokens: Total tokens used for the request
-
-    Example:
-        ```python
-        usage = UsageInfo(
-            input_tokens=100,
-            input_tokens_details={"image_tokens": 85, "text_tokens": 15},
-            output_tokens=170,
-            total_tokens=270
-        )
-        ```
-    """
-
-    input_tokens: Optional[int] = Field(
-        None,
-        description="Total tokens in the input (images + text)",
-        ge=0,
-    )
-    input_tokens_details: Optional[Dict[str, int]] = Field(
-        None,
-        description="Breakdown of input tokens (e.g., {'image_tokens': 85, 'text_tokens': 15})",
-    )
-    output_tokens: Optional[int] = Field(
-        None,
-        description="Number of tokens in the output image(s)",
-        ge=0,
-    )
-    total_tokens: Optional[int] = Field(
-        None,
-        description="Total tokens used for the request",
-        ge=0,
-    )
 
 
 class ImageObject(BaseModel):
@@ -94,7 +51,6 @@ class ImageResponse(BaseModel):
     Attributes:
         created: Integer timestamp when the request was created
         data: Array of generated/edited images
-        usage: Optional usage statistics
 
     Example:
         ```python
@@ -105,12 +61,7 @@ class ImageResponse(BaseModel):
                     url="https://example.com/image.png",
                     revised_prompt="A beautiful landscape..."
                 )
-            ],
-            usage=UsageInfo(
-                input_tokens=85,
-                output_tokens=170,
-                total_tokens=255
-            )
+            ]
         )
         ```
     """
@@ -124,10 +75,6 @@ class ImageResponse(BaseModel):
         ...,
         description="Array of generated/edited images",
         min_items=1,
-    )
-    usage: Optional[UsageInfo] = Field(
-        None,
-        description="Optional usage statistics (token counts)",
     )
 
 
@@ -168,8 +115,7 @@ def validate_image_response(response_dict: Dict[str, Any]) -> ImageResponse:
             result = {
                 "success": True,
                 "num_images": len(validated_response.data),
-                "image_urls": [img.url for img in validated_response.data if img.url],
-                "total_tokens": validated_response.usage.total_tokens if validated_response.usage else None
+                "image_urls": [img.url for img in validated_response.data if img.url]
             }
 
         except ValidationError as e:

@@ -9,7 +9,6 @@ from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.image_response_schema import (
     ImageObject,
     ImageResponse,
-    UsageInfo,
     validate_image_response,
 )
 from asqi.main import load_and_validate_plan
@@ -2192,35 +2191,6 @@ class TestRAGResponseSchema:
 class TestImageResponseSchema:
     """Test cases for image response validation schemas."""
 
-    def test_image_usage_info_valid(self):
-        """Test valid UsageInfo creation."""
-        usage = UsageInfo(
-            input_tokens=100,
-            input_tokens_details={"image_tokens": 85, "text_tokens": 15},
-            output_tokens=170,
-            total_tokens=270,
-        )
-
-        assert usage.input_tokens == 100
-        assert usage.input_tokens_details["image_tokens"] == 85
-        assert usage.input_tokens_details["text_tokens"] == 15
-        assert usage.output_tokens == 170
-        assert usage.total_tokens == 270
-
-    def test_image_usage_info_validation_errors(self):
-        """Test UsageInfo validation errors."""
-        # Negative input_tokens
-        with pytest.raises(ValidationError, match="greater_than_equal"):
-            UsageInfo(input_tokens=-1)
-
-        # Negative output_tokens
-        with pytest.raises(ValidationError, match="greater_than_equal"):
-            UsageInfo(output_tokens=-1)
-
-        # Negative total_tokens
-        with pytest.raises(ValidationError, match="greater_than_equal"):
-            UsageInfo(total_tokens=-1)
-
     def test_image_object_valid(self):
         """Test valid ImageObject creation."""
         image = ImageObject(
@@ -2251,14 +2221,12 @@ class TestImageResponseSchema:
                 ),
                 ImageObject(b64_json="iVBORw0KGgoAAAANSUhEUgAA..."),
             ],
-            usage=UsageInfo(input_tokens=85, output_tokens=170, total_tokens=255),
         )
 
         assert response.created == 1703658209
         assert len(response.data) == 2
         assert response.data[0].url == "https://example.com/image1.png"
         assert response.data[1].b64_json == "iVBORw0KGgoAAAANSUhEUgAA..."
-        assert response.usage.total_tokens == 255
 
     def test_image_response_validation_errors(self):
         """Test ImageResponse validation errors."""
@@ -2280,12 +2248,6 @@ class TestImageResponseSchema:
                     "revised_prompt": "Adorable baby sea otter with a coat of thick brown fur...",
                 }
             ],
-            "usage": {
-                "input_tokens": 85,
-                "input_tokens_details": {"image_tokens": 85, "text_tokens": 0},
-                "output_tokens": 85,
-                "total_tokens": 170,
-            },
         }
 
         validated_response = validate_image_response(response_dict)
@@ -2298,7 +2260,6 @@ class TestImageResponseSchema:
             validated_response.data[0].revised_prompt
             == "Adorable baby sea otter with a coat of thick brown fur..."
         )
-        assert validated_response.usage.total_tokens == 170
 
     def test_validate_image_response_valid_b64_format(self):
         """Test validate_image_response with valid base64 format response."""
@@ -2314,7 +2275,6 @@ class TestImageResponseSchema:
         assert len(validated_response.data) == 1
         assert validated_response.data[0].b64_json == "iVBORw0KGgoAAAANSUhEUgAA..."
         assert validated_response.data[0].revised_prompt is None
-        assert validated_response.usage is None
 
     def test_validate_image_response_multiple_images(self):
         """Test validate_image_response with multiple images."""
@@ -2350,17 +2310,3 @@ class TestImageResponseSchema:
         # Empty data array
         with pytest.raises(ValidationError):
             validate_image_response({"created": 1703658209, "data": []})
-
-    def test_validate_image_response_invalid_usage(self):
-        """Test validate_image_response with invalid usage data."""
-        response_dict = {
-            "created": 1703658209,
-            "data": [{"url": "https://example.com/image.png"}],
-            "usage": {
-                "input_tokens": -1,  # Invalid negative value
-                "total_tokens": 100,
-            },
-        }
-
-        with pytest.raises(ValidationError, match="greater_than_equal"):
-            validate_image_response(response_dict)
