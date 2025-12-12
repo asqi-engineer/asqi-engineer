@@ -7,7 +7,7 @@ input_systems:
     type: "image_generation_api"
     required: true
     description: "The image generation system being tested"
-  - name: "vlm_system"
+  - name: "evaluator_system"
     type: "vlm_api"
     required: true
     description: "The Vision Language Model used to evaluate the generated image"

@@ -11,12 +11,12 @@ class ImageVLMTester:
         self.test_params = test_params
 
         self.image_gen_system_params = self.systems_params.get("system_under_test", {})
-        self.vlm_system_params = self.systems_params.get("vlm_system", {})
+        self.vlm_system_params = self.systems_params.get("evaluator_system", {})
 
         if not self.image_gen_system_params:
             raise ValueError("Missing system_under_test in systems_params")
         if not self.vlm_system_params:
-            raise ValueError("Missing vlm_system in systems_params")
+            raise ValueError("Missing evaluator_system in systems_params")
 
         self.image_gen_base_url = self.image_gen_system_params.get("base_url")
         self.image_gen_model = self.image_gen_system_params.get("model")
