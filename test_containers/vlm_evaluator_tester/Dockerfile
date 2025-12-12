@@ -15,9 +15,8 @@ ENV UV_PYTHON_PREFERENCE=only-managed
 RUN uv python install 3.12
 
 RUN uv venv
-COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install -r requirements.txt
+    uv pip install "openai>=1.0.0" "pydantic>=2.0.0"
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim
