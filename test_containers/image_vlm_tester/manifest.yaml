@@ -1,0 +1,34 @@
+name: "image_vlm_tester"
+version: "1.0"
+description: "Generates an image and uses a VLM to score its aesthetic qualities."
+
+input_systems:
+  - name: "system_under_test"
+    type: "image_generation_api"
+    required: true
+    description: "The image generation system being tested"
+  - name: "evaluator_system"
+    type: "vlm_api"
+    required: true
+    description: "The Vision Language Model used to evaluate the generated image"
+
+input_schema:
+  - name: "prompt"
+    type: "string"
+    required: true
+    description: "The prompt for image generation"
+  - name: "score_instruction"
+    type: "string"
+    required: false
+    description: "Additional instructions for the VLM to score the image"
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the test execution completed successfully"
+  - name: "aesthetic_score"
+    type: "float"
+    description: "The aesthetic score given by the VLM"
+  - name: "image_url"
+    type: "string"
+    description: "URL of the generated image"
