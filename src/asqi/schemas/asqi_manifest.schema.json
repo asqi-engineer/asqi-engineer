@@ -212,6 +212,15 @@
       "default": null,
       "title": "Description"
     },
+    "aliases": {
+      "default": [],
+      "description": "Alternative image names that should resolve to this manifest.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Aliases",
+      "type": "array"
+    },
     "host_access": {
       "default": false,
       "description": "Whether the container requires host access (e.g., for Docker-in-Docker).",

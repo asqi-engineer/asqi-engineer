@@ -733,6 +733,9 @@ Each container includes a `manifest.yaml` describing its capabilities:
 name: "advanced_security_tester"
 version: "2.0.0"
 description: "Comprehensive security testing framework"
+aliases:
+  - "registry.example.com/security/advanced_security_tester:2.0.0"
+  - "security/advanced_tester:stable"
 
 input_systems:
   - name: "system_under_test"
@@ -765,6 +768,8 @@ output_metrics:
     type: "float"
     description: "Percentage of successful attacks (0.0 to 1.0)"
 ```
+
+Use the optional `aliases` list to register alternative image references (different registries, tags, or legacy names). Validation and CLI workflows use these aliases to resolve the correct manifest even when users specify `registry.example.com/security/advanced_security_tester:latest` or mistype a suffix such as `advanced_security_testr`.
 
 ## Validation and Error Handling
 

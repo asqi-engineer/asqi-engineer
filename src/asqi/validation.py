@@ -1,6 +1,9 @@
+import difflib
 import logging
+from dataclasses import dataclass, field
+from enum import IntEnum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 import yaml
 from pydantic import BaseModel
@@ -329,39 +332,293 @@ def validate_system_compatibility(
     return errors
 
 
+@dataclass
+class ManifestMatchResult:
+    """Result of attempting to resolve an image to a manifest."""
+
+    manifest: Optional[Manifest]
+    matched_by: Optional[str] = None
+    suggestions: List[str] = field(default_factory=list)
+
+
+class MatchPriority(IntEnum):
+    """Relative priority for manifest match candidates."""
+
+    EXACT_REFERENCE = 0
+    WITHOUT_TAG = 1
+    WITHOUT_REGISTRY = 2
+    BASENAME = 3
+    MANIFEST_NAME = 4
+
+
+@dataclass
+class _Candidate:
+    manifest: Manifest
+    display: str
+    priority: MatchPriority
+
+
+def _normalize_token(value: str) -> str:
+    """Normalize tokens for matching by trimming and lower-casing."""
+
+    return value.strip().lower() if value else ""
+
+
+def _strip_digest(reference: str) -> str:
+    """Remove any digest component (everything after '@')."""
+
+    return reference.split("@", 1)[0].strip() if reference else ""
+
+
+def _split_repo_and_tag(reference: str) -> tuple[str, Optional[str]]:
+    """Split an image reference into repository and optional tag."""
+
+    cleaned = _strip_digest(reference)
+    if not cleaned:
+        return "", None
+
+    repo = cleaned
+    tag: Optional[str] = None
+
+    if "/" in cleaned:
+        head, tail = cleaned.rsplit("/", 1)
+        if ":" in tail:
+            name, tag = tail.rsplit(":", 1)
+            repo = f"{head}/{name}" if head else name
+    else:
+        if ":" in cleaned:
+            repo, tag = cleaned.rsplit(":", 1)
+
+    return repo, tag
+
+
+def _strip_registry(repo: str) -> str:
+    """Remove registry prefix when present (e.g., 'gcr.io/foo/bar' -> 'foo/bar')."""
+
+    if not repo:
+        return ""
+    if "/" not in repo:
+        return repo
+    first, remainder = repo.split("/", 1)
+    if "." in first or ":" in first or first == "localhost":
+        return remainder
+    return repo
+
+
+def _basename(repo: str) -> str:
+    """Return the trailing repository component."""
+
+    if not repo:
+        return ""
+    if "/" not in repo:
+        return repo
+    return repo.rsplit("/", 1)[-1]
+
+
+def _deduplicate_preserve(items: List[str]) -> List[str]:
+    """Remove duplicates from a list while preserving the first occurrence."""
+
+    seen: set[str] = set()
+    result: List[str] = []
+    for item in items:
+        if not item:
+            continue
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+def _exact_variations(reference: str) -> List[str]:
+    """Generate exact reference variations, including digest-free forms."""
+
+    base = reference.strip() if reference else ""
+    no_digest = _strip_digest(base)
+    return _deduplicate_preserve([base, no_digest])
+
+
+def _without_tag_variations(reference: str) -> List[str]:
+    """Generate variations with tags removed."""
+
+    base = _strip_digest(reference)
+    repo, tag = _split_repo_and_tag(base)
+    if not repo or tag is None:
+        return []
+    return _deduplicate_preserve([repo])
+
+
+def _without_registry_variations(reference: str) -> List[str]:
+    """Generate variations without registry prefixes."""
+
+    base = _strip_digest(reference)
+    repo, tag = _split_repo_and_tag(base)
+    stripped = _strip_registry(repo)
+    if not stripped or stripped == repo:
+        return []
+
+    variations = []
+    if tag:
+        variations.append(f"{stripped}:{tag}")
+    variations.append(stripped)
+    return _deduplicate_preserve(variations)
+
+
+def _basename_variations(reference: str) -> List[str]:
+    """Generate variations using only the repository basename with optional tag."""
+
+    base = _strip_digest(reference)
+    repo, tag = _split_repo_and_tag(base)
+    name = _basename(repo)
+    if not name:
+        return []
+
+    variations = []
+    if tag:
+        variations.append(f"{name}:{tag}")
+    variations.append(name)
+    return _deduplicate_preserve(variations)
+
+
+def _register_values(
+    index: Dict[str, _Candidate],
+    manifest: Manifest,
+    values: List[str],
+    priority: MatchPriority,
+) -> None:
+    """Register normalized values for a manifest at the provided priority."""
+
+    for value in values:
+        normalized = _normalize_token(value)
+        if not normalized:
+            continue
+
+        candidate = index.get(normalized)
+        if candidate is None or priority < candidate.priority:
+            index[normalized] = _Candidate(
+                manifest=manifest, display=value, priority=priority
+            )
+
+
+def _register_variations_for_references(
+    index: Dict[str, _Candidate],
+    manifest: Manifest,
+    references: Iterable[str],
+    generator: Callable[[str], List[str]],
+    priority: MatchPriority,
+) -> None:
+    """Register generated variations for each reference."""
+
+    for reference in references:
+        _register_values(index, manifest, generator(reference), priority)
+
+
 def find_manifest_for_image(
     image_name: str, manifests: Dict[str, Manifest]
-) -> Optional[Manifest]:
+) -> ManifestMatchResult:
     """
-    Find manifest for a given image name.
+    Find the best manifest match for a given image name.
 
-    For runtime (workflow), manifests are keyed by full image names.
-    For local validation, manifests are keyed by container directory names.
+    Supports matching across multi-level registries, manifest aliases,
+    and provides suggestions when no exact match exists.
 
     Args:
-        image_name: Full image name (e.g., "my-registry/mock_tester:latest")
+        image_name: Docker image reference (e.g., "registry/org/image:tag")
         manifests: Dictionary of available manifests
 
     Returns:
-        Manifest if found, None otherwise
+        ManifestMatchResult describing the match or suggestions.
     """
-    # Try exact match first (for runtime/workflow usage)
-    if image_name in manifests:
-        return manifests[image_name]
+    if not manifests:
+        return ManifestMatchResult(manifest=None)
 
-    # For local validation, try to match by container name
-    # Extract container name from image (e.g., "my-registry/mock_tester:latest" -> "mock_tester")
-    if "/" in image_name:
-        container_name = image_name.split("/")[-1].split(":")[0]
-        if container_name in manifests:
-            return manifests[container_name]
+    candidate_index: Dict[str, _Candidate] = {}
 
-    # Also try the base name without registry/tag
-    base_name = image_name.split(":")[0].split("/")[-1]
-    if base_name in manifests:
-        return manifests[base_name]
+    for key, manifest in manifests.items():
+        alias_list = list(getattr(manifest, "aliases", []) or [])
+        references = _deduplicate_preserve([key, *alias_list])
 
-    return None
+        _register_variations_for_references(
+            candidate_index,
+            manifest,
+            references,
+            _exact_variations,
+            MatchPriority.EXACT_REFERENCE,
+        )
+        _register_variations_for_references(
+            candidate_index,
+            manifest,
+            references,
+            _without_tag_variations,
+            MatchPriority.WITHOUT_TAG,
+        )
+        _register_variations_for_references(
+            candidate_index,
+            manifest,
+            references,
+            _without_registry_variations,
+            MatchPriority.WITHOUT_REGISTRY,
+        )
+        _register_variations_for_references(
+            candidate_index,
+            manifest,
+            references,
+            _basename_variations,
+            MatchPriority.BASENAME,
+        )
+
+        if manifest.name:
+            _register_values(
+                candidate_index,
+                manifest,
+                [manifest.name],
+                MatchPriority.MANIFEST_NAME,
+            )
+
+    search_values = _deduplicate_preserve(
+        _exact_variations(image_name)
+        + _without_tag_variations(image_name)
+        + _without_registry_variations(image_name)
+        + _basename_variations(image_name)
+    )
+
+    for value in search_values:
+        normalized = _normalize_token(value)
+        if not normalized:
+            continue
+        candidate = candidate_index.get(normalized)
+        if candidate:
+            logger.debug(
+                "Resolved image '%s' to manifest '%s' via '%s'",
+                image_name,
+                candidate.manifest.name,
+                candidate.display,
+            )
+            return ManifestMatchResult(
+                manifest=candidate.manifest, matched_by=candidate.display
+            )
+
+    normalized_candidates = list(candidate_index.keys())
+    search_key = _normalize_token(_strip_digest(image_name))
+    suggestions = []
+    if search_key and normalized_candidates:
+        # Restrict to the three closest suggestions to avoid overwhelming output;
+        # tightening the 0.6 cutoff yields fewer but higher-confidence matches,
+        # while lowering it broadens the pool at the risk of noisy recommendations.
+        close_keys = difflib.get_close_matches(
+            search_key, normalized_candidates, n=3, cutoff=0.6
+        )
+        suggestions = _deduplicate_preserve(
+            [
+                candidate_index[key].display
+                for key in close_keys
+                if key in candidate_index
+            ]
+        )
+
+    logger.debug(
+        "No manifest found for image '%s'. Suggestions: %s", image_name, suggestions
+    )
+    return ManifestMatchResult(manifest=None, suggestions=suggestions)
 
 
 def validate_manifests_against_tests(
@@ -384,12 +641,17 @@ def validate_manifests_against_tests(
 
     for test in suite.test_suite:
         # Check if manifest exists for test image
-        manifest = find_manifest_for_image(test.image, manifests)
+        match = find_manifest_for_image(test.image, manifests)
+        manifest = match.manifest
         if manifest is None:
             available_images = ", ".join(manifests.keys()) if manifests else "none"
-            errors.append(
-                f"Test '{test.name}': No manifest available for image '{test.image}'. Images with manifests: {available_images}"
+            message = (
+                f"Test '{test.name}': No manifest available for image '{test.image}'. "
+                f"Images with manifests: {available_images}"
             )
+            if match.suggestions:
+                message += f". Did you mean: {', '.join(match.suggestions)}?"
+            errors.append(message)
             continue
 
         # Validate test parameters
@@ -544,11 +806,13 @@ def validate_test_plan(
 
     for test in suite.test_suite:
         # 1. Check if the test's image has a corresponding manifest
-        manifest = find_manifest_for_image(test.image, manifests)
+        match = find_manifest_for_image(test.image, manifests)
+        manifest = match.manifest
         if manifest is None:
-            errors.append(
-                f"Test '{test.name}': Image '{test.image}' does not have a loaded manifest."
-            )
+            message = f"Test '{test.name}': Image '{test.image}' does not have a loaded manifest."
+            if match.suggestions:
+                message += f" Did you mean: {', '.join(match.suggestions)}?"
+            errors.append(message)
             continue  # Cannot perform further validation for this test
         supported_system_types = [
             s.type for s in manifest.input_systems if s.name == "system_under_test"

@@ -435,6 +435,27 @@ class TestCrossFileValidation:
         assert len(errors) > 0
         assert any("does not have a loaded manifest" in error for error in errors)
 
+    def test_manifest_typo_suggestion(self, demo_systems, manifests):
+        """Test manifest lookup provides suggestion for close image names."""
+        suite_data = {
+            "suite_name": "Typo Test",
+            "test_suite": [
+                {
+                    "name": "typo_image",
+                    "image": "my-registry/mock_testr:latest",
+                    "systems_under_test": ["my_llm_service"],
+                    "params": {},
+                }
+            ],
+        }
+        suite = SuiteConfig(**suite_data)
+
+        errors = validate_test_plan(suite, demo_systems, manifests)
+        assert len(errors) > 0
+        assert any(
+            "Did you mean: my-registry/mock_tester:latest" in error for error in errors
+        )
+
     def test_missing_system_definition(self, demo_systems, manifests):
         """Test validation fails when system is not defined."""
         suite_data = {
@@ -863,6 +884,12 @@ class TestValidationFunctions:
         errors = validate_manifests_against_tests(suite, demo_systems, manifests)
         assert any("No manifest available for image" in e for e in errors)
 
+        # Typo generates suggestion
+        suite_data["test_suite"][0]["image"] = "my-registry/mock_testr:latest"
+        suite = SuiteConfig(**suite_data)
+        errors = validate_manifests_against_tests(suite, demo_systems, manifests)
+        assert any("Did you mean" in e for e in errors)
+
     def test_create_test_execution_plan(self, demo_systems, manifests):
         suite_data = {
             "suite_name": "ExecPlan",
@@ -913,35 +940,70 @@ class TestFindManifestForImage:
         """Test exact image name match."""
         manifests = {"my-registry/mock_tester:latest": Manifest(**MOCK_TESTER_MANIFEST)}
         result = find_manifest_for_image("my-registry/mock_tester:latest", manifests)
-        assert result is not None
-        assert result.name == "mock_tester"
+        assert result.manifest is not None
+        assert result.manifest.name == "mock_tester"
+        assert result.matched_by == "my-registry/mock_tester:latest"
+        assert result.suggestions == []
 
     def test_container_name_match(self):
         """Test matching by container name when full image not found."""
         manifests = {"mock_tester": Manifest(**MOCK_TESTER_MANIFEST)}
         result = find_manifest_for_image("my-registry/mock_tester:latest", manifests)
-        assert result is not None
-        assert result.name == "mock_tester"
+        assert result.manifest is not None
+        assert result.manifest.name == "mock_tester"
 
     def test_base_name_match(self):
         """Test matching by base name without registry/tag."""
         manifests = {"mock_tester": Manifest(**MOCK_TESTER_MANIFEST)}
         result = find_manifest_for_image("mock_tester:v1.0", manifests)
-        assert result is not None
-        assert result.name == "mock_tester"
+        assert result.manifest is not None
+        assert result.manifest.name == "mock_tester"
 
     def test_no_match(self):
         """Test when no manifest is found."""
         manifests = {"other_image": Manifest(**MOCK_TESTER_MANIFEST)}
         result = find_manifest_for_image("unknown_image:latest", manifests)
-        assert result is None
+        assert result.manifest is None
+        assert isinstance(result.suggestions, list)
 
     def test_image_without_slash(self):
         """Test image name without registry."""
         manifests = {"mock_tester": Manifest(**MOCK_TESTER_MANIFEST)}
         result = find_manifest_for_image("mock_tester:latest", manifests)
-        assert result is not None
-        assert result.name == "mock_tester"
+        assert result.manifest is not None
+        assert result.manifest.name == "mock_tester"
+
+    def test_alias_match(self):
+        """Test manifest alias resolution."""
+        manifest_with_alias = {
+            **MOCK_TESTER_MANIFEST,
+            "aliases": ["registry.example.com/team/mock_tester:stable"],
+        }
+        manifests = {"mock_tester": Manifest(**manifest_with_alias)}
+        result = find_manifest_for_image(
+            "registry.example.com/team/mock_tester:stable", manifests
+        )
+        assert result.manifest is not None
+        assert result.manifest.name == "mock_tester"
+        assert result.matched_by == "registry.example.com/team/mock_tester:stable"
+
+    def test_multilevel_registry_match(self):
+        """Test matching when registry contains multiple path segments."""
+        manifests = {
+            "registry.example.com/org/team/mock_tester:latest": Manifest(
+                **MOCK_TESTER_MANIFEST
+            )
+        }
+        result = find_manifest_for_image("org/team/mock_tester:latest", manifests)
+        assert result.manifest is not None
+        assert result.manifest.name == "mock_tester"
+
+    def test_suggestions_for_close_match(self):
+        """Test that close matches are suggested when no exact match is found."""
+        manifests = {"mock_tester": Manifest(**MOCK_TESTER_MANIFEST)}
+        result = find_manifest_for_image("mock_testr:latest", manifests)
+        assert result.manifest is None
+        assert "mock_tester" in result.suggestions
 
 
 class TestValidationInputFunctions:

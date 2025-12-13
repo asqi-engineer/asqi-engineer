@@ -73,6 +73,10 @@ class Manifest(BaseModel):
     name: str = Field(..., description="The canonical name for the test framework.")
     version: str
     description: Optional[str] = None
+    aliases: List[str] = Field(
+        default_factory=list,
+        description="Alternative image names that should resolve to this manifest.",
+    )
     host_access: bool = Field(
         False,
         description="Whether the container requires host access (e.g., for Docker-in-Docker).",
