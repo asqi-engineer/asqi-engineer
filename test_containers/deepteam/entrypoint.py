@@ -330,6 +330,66 @@ class DeepTeamRedTeamTester:
 
         return attacks
 
+    def _extract_detailed_test_cases(
+        self, risk_assessment: Any, output_dir: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Extract detailed test case information from risk_assessment and save to JSON file
+
+        Args:
+            risk_assessment: The risk assessment object from DeepTeam red_team() call
+            output_dir: Directory to save the detailed test cases JSON file (optional)
+
+        Returns:
+            List of detailed test case dictionaries
+        """
+        detailed_test_cases = []
+
+        for test_case in risk_assessment.test_cases:
+            case_detail = {
+                "vulnerability": test_case.vulnerability,
+                "vulnerability_type": test_case.vulnerability_type.value
+                if test_case.vulnerability_type
+                else None,
+                "attack_method": test_case.attack_method,
+                "risk_category": test_case.risk_category,
+                "input": test_case.input,
+                "actual_output": test_case.actual_output,
+                "score": test_case.score,
+                "reason": test_case.reason,
+                "error": test_case.error,
+                "status": "passed"
+                if (test_case.score and test_case.score > 0)
+                else ("errored" if test_case.error else "failed"),
+            }
+
+            # Include turns for multi-turn conversations if present
+            if test_case.turns:
+                case_detail["turns"] = [
+                    {
+                        "role": turn.role,
+                        "content": turn.content,
+                    }
+                    for turn in test_case.turns
+                ]
+
+            detailed_test_cases.append(case_detail)
+
+        # Save to JSON file if output directory is provided
+        if output_dir:
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+                output_file = os.path.join(output_dir, "results.json")
+                with open(output_file, "w") as f:
+                    json.dump(detailed_test_cases, f, indent=2)
+                print(f"Detailed test cases saved to {output_file}", file=sys.stderr)
+            except Exception as e:
+                print(
+                    f"Warning: Failed to save detailed test cases to file: {e}",
+                    file=sys.stderr,
+                )
+
+        return detailed_test_cases
+
     async def run_red_team_test(self, test_params: Dict[str, Any]) -> Dict[str, Any]:
         """Execute red team testing using DeepTeam"""
         try:
@@ -502,6 +562,31 @@ class DeepTeamRedTeamTester:
             # Calculate overall metrics
             pass_rate = total_passing / total_tests if total_tests > 0 else 0.0
             failure_rate = total_failing / total_tests if total_tests > 0 else 0.0
+
+            # Determine output directory for detailed results
+            persistent_log_dir = None
+            volumes = test_params.get("volumes", {})
+            if "output" in volumes:
+                # Construct test name from vulnerabilities
+                vuln_names = "_".join(
+                    list(vulnerability_stats.keys())[:3]
+                ).lower()  # Use up to 3 vulnerability names
+                if not vuln_names:
+                    vuln_names = "unknown"
+
+                # Make model name safe for file paths
+                safe_model_name = (
+                    self.sut_params["model"]
+                    .replace("/", "_")
+                    .replace(":", "_")
+                    .replace(".", "_")
+                )
+                persistent_log_dir = f"/output/deepteam_{vuln_names}_{safe_model_name}"
+
+            # Extract and save detailed test case information
+            self._extract_detailed_test_cases(
+                risk_assessment, output_dir=persistent_log_dir
+            )
 
             return {
                 "success": True,
