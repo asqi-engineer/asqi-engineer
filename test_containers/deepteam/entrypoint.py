@@ -7,11 +7,10 @@ from typing import Any, Dict, List, Optional, Union
 
 import openai
 
-# TODO: check
 from deepeval.models import DeepEvalBaseLLM
 
 # TODO: check
-from deepeval.models.llms.openai_model import log_retry_error, retryable_exceptions
+from deepeval.confident.api import log_retry_error
 from deepteam.attacks.multi_turn import (
     BadLikertJudge,
     CrescendoJailbreaking,
@@ -68,6 +67,24 @@ from tenacity import (
     retry_if_exception_type,
     wait_exponential_jitter,
 )
+
+# Define retryable exceptions for OpenAI
+try:
+    from openai import (
+        RateLimitError,
+        APIConnectionError,
+        APITimeoutError,
+        APIStatusError,
+    )
+
+    retryable_exceptions = (
+        RateLimitError,
+        APIConnectionError,
+        APITimeoutError,
+        APIStatusError,
+    )
+except ImportError:
+    retryable_exceptions = (Exception,)
 
 
 class CustomOpenAIModel(DeepEvalBaseLLM):
@@ -270,14 +287,11 @@ class DeepTeamRedTeamTester:
 
     async def _model_callback(self, input_text: str) -> str:
         """Model callback function for DeepTeam red teaming"""
-        try:
-            response = self.client.chat.completions.create(
-                model=self.sut_params["model"],
-                messages=[{"role": "user", "content": input_text}],
-            )
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            return f"Error: {str(e)}"
+        response = self.client.chat.completions.create(
+            model=self.sut_params["model"],
+            messages=[{"role": "user", "content": input_text}],
+        )
+        return response.choices[0].message.content or ""
 
     def _create_vulnerabilities(self, vuln_configs: List[Dict[str, Any]]) -> List[Any]:
         """Create vulnerability objects from configuration"""
@@ -375,13 +389,26 @@ class DeepTeamRedTeamTester:
 
             # Run red team assessment
             print("Starting red team assessment...")
-            risk_assessment = red_teamer.red_team(
-                model_callback=self._model_callback,  # type: ignore
-                vulnerabilities=vulnerabilities,
-                attacks=attacks,
-                attacks_per_vulnerability_type=attacks_per_vulnerability_type,
-                ignore_errors=False,
-            )
+            try:
+                risk_assessment = red_teamer.red_team(
+                    model_callback=self._model_callback,  # type: ignore
+                    vulnerabilities=vulnerabilities,
+                    attacks=attacks,
+                    attacks_per_vulnerability_type=attacks_per_vulnerability_type,
+                    ignore_errors=False,
+                    _upload_to_confident=False,
+                )
+            except Exception as e:
+                # Silently skip Confident AI upload errors
+                if "Invalid API key" in str(e) or "ConfidentApiError" in str(
+                    type(e).__name__
+                ):
+                    if hasattr(red_teamer, "risk_assessment"):
+                        risk_assessment = red_teamer.risk_assessment
+                    else:
+                        raise
+                else:
+                    raise
 
             # Extract statistics from risk assessment overview
             vulnerability_stats = {}
@@ -492,6 +519,10 @@ class DeepTeamRedTeamTester:
             }
 
         except Exception as e:
+            import traceback
+
+            error_traceback = traceback.format_exc()
+            print(f"Error during red team testing: {error_traceback}", file=sys.stderr)
             return {
                 "success": False,
                 "error": f"Red team testing failed: {str(e)}",
