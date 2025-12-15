@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
 name: "mock_tester"
 version: "1.0"
 description: "A lightweight mock container for testing the executor logic."
@@ -30,3 +31,8 @@ output_metrics:
   - name: "model"
     type: "string"
     description: "The model name that was used"
+
+output_reports:
+  - name: "quick_summary"
+    type: "html"
+    description: "A quick HTML summary report of the mock test execution"
