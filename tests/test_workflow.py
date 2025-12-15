@@ -4,7 +4,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from asqi.config import ContainerConfig, ExecutorConfig
-from asqi.schemas import Manifest, SystemInput
+from asqi.container_manager import OUTPUT_MOUNT_PATH
+from asqi.schemas import Manifest, OutputReports, SystemInput
 from asqi.workflow import (
     TestExecutionResult,
     add_score_cards_to_results,
@@ -20,7 +21,7 @@ from asqi.workflow import (
 from asqi.workflow import (
     run_test_suite_workflow as _workflow,
 )
-from test_data import MOCK_SCORE_CARD_CONFIG, MOCK_AUDIT_RESPONSES
+from test_data import MOCK_AUDIT_RESPONSES, MOCK_SCORE_CARD_CONFIG
 
 
 def _call_inner_workflow(
@@ -104,13 +105,13 @@ def test_run_test_suite_workflow_success():
 
     with (
         patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
-        patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
+        patch("asqi.workflow.extract_manifests_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
         patch("asqi.workflow.create_test_execution_plan") as mock_plan,
         patch("asqi.workflow.Queue") as mock_queue_class,
     ):
         mock_avail.return_value = {"test/image:latest": True}
-        mock_extract.return_value = manifest
+        mock_extract.return_value = {"test/image:latest": manifest}
         mock_validate.return_value = []
         mock_plan.return_value = [
             {
@@ -178,7 +179,7 @@ def test_run_test_suite_workflow_validation_failure():
 
     with (
         patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
-        patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
+        patch("asqi.workflow.extract_manifests_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
     ):
         mock_avail.return_value = {"missing/image:latest": True}
@@ -404,6 +405,7 @@ def test_convert_test_results_to_objects():
                     "exit_code": 0,
                 },
                 "test_results": {"success": True, "score": 0.9},
+                "technical_reports": [],
             }
         ]
     }
@@ -432,6 +434,7 @@ def test_convert_test_results_to_objects():
     assert result.container_id == "abc123"
     assert result.exit_code == 0
     assert result.test_results == {"success": True, "score": 0.9}
+    assert result.technical_reports == []
 
 
 def test_add_score_cards_to_results():
@@ -641,6 +644,7 @@ def test_run_end_to_end_workflow():
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config,
+            score_card_configs,
         )
         mock_score_workflow.assert_called_once_with(
             test_results, test_container, score_card_configs, None
@@ -697,6 +701,7 @@ def test_run_end_to_end_workflow_with_audit_responses():
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config,
+            score_card_configs,
         )
 
         mock_score_workflow.assert_called_once_with(
@@ -911,7 +916,7 @@ def test_image_pulled_but_manifest_not_extracted_bug():
     with (
         patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
         patch("asqi.workflow.dbos_pull_images"),
-        patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
+        patch("asqi.workflow.extract_manifests_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
         patch("asqi.workflow.create_test_execution_plan") as mock_plan,
         patch("asqi.workflow.Queue") as mock_queue,
@@ -922,7 +927,7 @@ def test_image_pulled_but_manifest_not_extracted_bug():
             {"test/image:latest": True},  # After pull (our fix enables this)
         ]
 
-        mock_extract.return_value = manifest
+        mock_extract.return_value = {"test/image:latest": manifest}
         mock_validate.side_effect = (
             lambda s, sys, manifests: [] if manifests else ["No manifest"]
         )
@@ -996,13 +1001,13 @@ def test_run_test_suite_workflow_handle_exception():
 
     with (
         patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
-        patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
+        patch("asqi.workflow.extract_manifests_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
         patch("asqi.workflow.create_test_execution_plan") as mock_plan,
         patch("asqi.workflow.Queue") as mock_queue_class,
     ):
         mock_avail.return_value = {"test/image:latest": True}
-        mock_extract.return_value = manifest
+        mock_extract.return_value = {"test/image:latest": manifest}
         mock_validate.return_value = []
         mock_plan.return_value = [
             {
@@ -1054,3 +1059,207 @@ def test_run_test_suite_workflow_handle_exception():
     assert result["metadata"]["test_name"] == "t1 systemA"
     assert result["metadata"]["test_id"] == "t1_systemA"
     assert result["metadata"]["image"] == "test/image:latest"
+
+
+class TestTechnicalReport:
+    report_systems_params = {
+        "system_under_test": {
+            "type": "llm_api",
+            "base_url": "http://localhost:4000",
+            "model": "report-model",
+        }
+    }
+
+    def test_report_path_with_volumes(self):
+        """
+        The test report path is translated from the container OUTPUT_MOUNT_PATH to the host volume path.
+        """
+        test_params = {"volumes": {"input": "/host/input", "output": "/host/output"}}
+
+        with (
+            patch("asqi.workflow.run_container_with_args") as mock_run,
+            patch("asqi.workflow.extract_manifest_from_image") as mock_manifest,
+        ):
+            mock_manifest.return_value = None
+            output_mount = str(OUTPUT_MOUNT_PATH)
+            mock_run.return_value = {
+                "success": True,
+                "exit_code": 0,
+                "container_id": "test_rep",
+                "output": f"""{{
+                    "test_results": {{"success": true}},
+                    "technical_reports": [
+                        {{"report_name": "detail", "report_type": "pdf", 
+                         "report_path": "{output_mount}/detail.pdf"}},
+                        {{"report_name": "summary", "report_type": "html",
+                         "report_path": "{output_mount}/summary.html"}}
+                    ]
+                }}""",
+                "error": "",
+            }
+
+            result = execute_single_test(
+                "test reports",
+                "test_reports",
+                "report/image:latest",
+                "test_system",
+                self.report_systems_params,
+                test_params,
+                ContainerConfig(),
+            )
+
+            assert result.success
+            assert len(result.technical_reports) == 2
+            paths = [r["report_path"] for r in result.technical_reports]
+            assert all(p.startswith("/host/output") for p in paths)
+            assert "/host/output/detail.pdf" in paths
+            assert "/host/output/summary.html" in paths
+
+    def test_report_path_without_volumes(self):
+        """
+        The test report path remains unchanged when no volumes are configured.
+        """
+        with (
+            patch("asqi.workflow.run_container_with_args") as mock_run,
+            patch("asqi.workflow.extract_manifest_from_image") as mock_manifest,
+        ):
+            mock_manifest.return_value = None
+            mock_run.return_value = {
+                "success": True,
+                "exit_code": 0,
+                "container_id": "test_rep",
+                "output": """{
+                    "test_results": {"success": true},
+                    "technical_reports": [
+                        {"report_name": "detail", "report_type": "pdf",
+                         "report_path": "/app/output/detail.pdf"}
+                    ]
+                }""",
+                "error": "",
+            }
+
+            result = execute_single_test(
+                "test",
+                "test_no_volumes",
+                "report/image:latest",
+                "test_system",
+                self.report_systems_params,
+                {},
+                ContainerConfig(),
+            )
+
+            assert result.success
+            assert len(result.technical_reports) == 1
+            assert (
+                result.technical_reports[0]["report_path"] == "/app/output/detail.pdf"
+            )
+
+    def test_reports_match_manifest(self):
+        """
+        Tests that report results match the manifest definitions.
+        """
+        manifest = Manifest(
+            name="report_container",
+            version="1.0.0",
+            input_systems=[
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            output_reports=[
+                OutputReports(name="detail", type="pdf"),
+                OutputReports(name="summary", type="html"),
+            ],
+        )
+
+        with (
+            patch("asqi.workflow.run_container_with_args") as mock_run,
+            patch("asqi.workflow.extract_manifest_from_image") as mock_manifest,
+        ):
+            mock_manifest.return_value = manifest
+            mock_run.return_value = {
+                "success": True,
+                "exit_code": 0,
+                "container_id": "test_rep",
+                "output": """{
+                    "test_results": {"success": true},
+                    "technical_reports": [
+                        {"report_name": "detail", "report_type": "pdf", 
+                         "report_path": "/output/detail.pdf"},
+                        {"report_name": "summary", "report_type": "html",
+                         "report_path": "/output/summary.html"}
+                    ]
+                }""",
+                "error": "",
+            }
+
+            result = execute_single_test(
+                "test valid",
+                "test_valid",
+                "report/image:latest",
+                "test_system",
+                self.report_systems_params,
+                {},
+                ContainerConfig(),
+            )
+
+            assert result.success
+            assert len(result.technical_reports) == 2
+
+    def test_empty_reports_list(self):
+        """
+        Tests that an empty technical_reports list is handled correctly.
+        """
+        with (
+            patch("asqi.workflow.run_container_with_args") as mock_run,
+            patch("asqi.workflow.extract_manifest_from_image") as mock_manifest,
+        ):
+            mock_manifest.return_value = None
+            mock_run.return_value = {
+                "success": True,
+                "exit_code": 0,
+                "container_id": "test_rep",
+                "output": '{"test_results": {"success": true}, "technical_reports": []}',
+                "error": "",
+            }
+
+            result = execute_single_test(
+                "test empty",
+                "test_empty",
+                "report/image:latest",
+                "test_system",
+                self.report_systems_params,
+                {},
+                ContainerConfig(),
+            )
+
+            assert result.success
+            assert result.technical_reports == []
+
+    def test_backward_compatibility_no_reports_field(self):
+        """
+        Test that verifies backward compatibility when technical_reports field is missing.
+        """
+        with (
+            patch("asqi.workflow.run_container_with_args") as mock_run,
+            patch("asqi.workflow.extract_manifest_from_image") as mock_manifest,
+        ):
+            mock_manifest.return_value = None
+            mock_run.return_value = {
+                "success": True,
+                "exit_code": 0,
+                "container_id": "test_rep",
+                "output": '{"success": true}',
+                "error": "",
+            }
+
+            result = execute_single_test(
+                "test no field",
+                "test_no_field",
+                "report/image:latest",
+                "test_system",
+                self.report_systems_params,
+                {},
+                ContainerConfig(),
+            )
+
+            assert result.test_results.get("success") is True
+            assert result.technical_reports == []
