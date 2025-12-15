@@ -100,7 +100,7 @@ Detailed documentation lives on the project docs site — use the links below to
 - CLI & usage reference: https://www.asqi.ai/cli.html
 - Configuration & environment variables: https://www.asqi.ai/configuration.html
 - Test container examples & how-to: https://www.asqi.ai/examples.html
-- LLM test containers overview (Garak, DeepTeam, TrustLLM, Inspect Evals, LLMPerf, Chatbot Simulator): https://www.asqi.ai/llm-test-containers.html
+- LLM test containers overview (Garak, DeepTeam, TrustLLM, Inspect Evals, LLMPerf, Chatbot Simulator, Resaro Judge): https://www.asqi.ai/llm-test-containers.html
 - Score cards & evaluation: https://www.asqi.ai/examples.html#score-cards
 - Developer guide & architecture: https://www.asqi.ai/architecture.html
 - Creating custom test containers: https://www.asqi.ai/custom-test-containers.html
