@@ -911,7 +911,7 @@ def run_test_suite_workflow(
             if i % progress_interval == 0 or i == test_count:
                 console.print(f"[dim]Completed {i}/{test_count} tests[/dim]")
 
-    # Validate that generated technical reports and manifests reports are in sync and all the required fields (report_name, report_type and report_path) are present
+    # Validate technical reports generated have required fields and match manifest
     validation_errors = []
     for result in all_results:
         if not result.success:
@@ -949,8 +949,12 @@ def run_test_suite_workflow(
         manifest = manifests[result.image]
         manifest_reports = {(r.name, r.type) for r in (manifest.output_reports or [])}
         container_reports = {
-            (r.get("report_name"), r.get("report_type"))
-            for r in result.technical_reports
+            (report["report_name"], report["report_type"])
+            for report in result.technical_reports
+            if "report_name" in report
+            and "report_type" in report
+            and report["report_name"]
+            and report["report_type"]
         }
         missing_reports = manifest_reports - container_reports
         return_reports = container_reports - manifest_reports
