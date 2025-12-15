@@ -2,13 +2,13 @@ import pytest
 
 from asqi.schemas import (
     AssessmentRule,
+    AuditAssessmentRule,
+    AuditResponses,
+    AuditScoreCardIndicator,
     MetricExpression,
     ScoreCard,
     ScoreCardFilter,
     ScoreCardIndicator,
-    AuditScoreCardIndicator,
-    AuditAssessmentRule,
-    AuditResponses,
 )
 from asqi.score_card_engine import ScoreCardEngine, get_nested_value, parse_metric_path
 from asqi.workflow import TestExecutionResult
@@ -1456,3 +1456,130 @@ class TestMetricExpressions:
         assert audit_eval["description"] == "Medium"
         assert audit_eval["metric_value"] is None
         assert audit_eval["error"] is None
+
+
+class TestTechnicalReports:
+    def test_includes_requested_reports_success(self):
+        """
+        Verifies that the ScoreCardEngine returns only the technical report paths
+        explicitly listed in display_reports.
+        """
+        engine = ScoreCardEngine()
+
+        test_result = TestExecutionResult(
+            test_name="report test",
+            test_id="report_test",
+            sut_name="sut",
+            image="report:latest",
+        )
+        test_result.test_results = {"score": 1.0}
+        test_result.technical_reports = [
+            {
+                "report_name": "detailed_report",
+                "report_type": "html",
+                "report_path": "/app/detailed_report.html",
+            },
+            {
+                "report_name": "summary_report",
+                "report_type": "html",
+                "report_path": "/app/summary_report.html",
+            },
+        ]
+
+        indicator = ScoreCardIndicator(
+            id="indicator_report",
+            name="indicator report",
+            apply_to=ScoreCardFilter(test_id="report_test"),
+            metric="score",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="greater_equal", threshold=0.9)
+            ],
+            display_reports=["detailed_report"],
+        )
+
+        results = engine.evaluate_indicator([test_result], indicator)
+        assert results[0].report_paths == ["/app/detailed_report.html"]
+
+        indicator = ScoreCardIndicator(
+            id="indicator_report",
+            name="indicator report",
+            apply_to=ScoreCardFilter(test_id="report_test"),
+            metric="score",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="greater_equal", threshold=0.9)
+            ],
+            display_reports=["detailed_report", "summary_report"],
+        )
+        results = engine.evaluate_indicator([test_result], indicator)
+        assert set(results[0].report_paths) == {
+            "/app/detailed_report.html",
+            "/app/summary_report.html",
+        }
+
+    def test_missing_requested(self):
+        """
+        Tests that no report paths are returned when the indicator requests reports that do not exist in the test result.
+        """
+        engine = ScoreCardEngine()
+
+        test_result = TestExecutionResult(
+            test_name="report test",
+            test_id="report_test",
+            sut_name="sut",
+            image="report:latest",
+        )
+        test_result.test_results = {"score": 1.0}
+        test_result.technical_reports = [
+            {
+                "report_name": "detailed_report",
+                "report_type": "pdf",
+                "report_path": "/output/detailed_report.pdf",
+            }
+        ]
+        indicator = ScoreCardIndicator(
+            id="indicator_report",
+            name="indicator report",
+            apply_to=ScoreCardFilter(test_id="report_test"),
+            metric="score",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="greater_equal", threshold=0.9)
+            ],
+            display_reports=["detailed_report", "invalid_report"],
+        )
+        results = engine.evaluate_indicator([test_result], indicator)
+        assert results[0].report_paths == ["/output/detailed_report.pdf"]
+
+    def test_reports_with_invalid_path(self):
+        """
+        Tests that a report entry with a None or empty path is skipped
+        """
+        engine = ScoreCardEngine()
+
+        test_result = TestExecutionResult(
+            test_name="report test",
+            test_id="report_test",
+            sut_name="sut",
+            image="report:latest",
+        )
+        test_result.test_results = {"score": 1.0}
+        test_result.technical_reports = [
+            {
+                "report_name": "good_report",
+                "report_type": "pdf",
+                "report_path": "/output/good.pdf",
+            },
+            {"report_name": "bad_report", "report_type": "pdf", "report_path": None},
+            {"report_name": "empty_report", "report_type": "pdf", "report_path": ""},
+        ]
+        indicator = ScoreCardIndicator(
+            id="indicator_report",
+            name="indicator report",
+            apply_to=ScoreCardFilter(test_id="report_test"),
+            metric="score",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="greater_equal", threshold=0.9)
+            ],
+            display_reports=["good_report", "bad_report", "empty_report"],
+        )
+        results = engine.evaluate_indicator([test_result], indicator)
+        assert results[0].report_paths == ["/output/good.pdf"]

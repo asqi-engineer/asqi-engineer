@@ -15,6 +15,7 @@ from asqi.schemas import (
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
+    OutputReports,
     RAGAPIConfig,
     VLMAPIConfig,
     ScoreCard,
@@ -31,6 +32,7 @@ from asqi.validation import (
     validate_ids,
     validate_manifests_against_tests,
     validate_score_card_inputs,
+    validate_score_cards_reports,
     validate_system_compatibility,
     validate_test_execution_inputs,
     validate_test_parameters,
@@ -2197,3 +2199,256 @@ class TestRAGResponseSchema:
         # Missing context
         with pytest.raises(KeyError, match="context"):
             validate_rag_response({"choices": [{"message": {"citations": []}}]})
+
+
+class TestScoreCardReportValidation:
+    @pytest.fixture
+    def report_validation_suite(self):
+        return SuiteConfig(
+            suite_name="Test Suite for Report Validation",
+            test_suite=[
+                {
+                    "name": "test report validation",
+                    "id": "test_report_validation",
+                    "image": "my-registry/generic:latest",
+                    "systems_under_test": ["new_system"],
+                }
+            ],
+        )
+
+    @pytest.fixture
+    def report_validation_manifest(self):
+        manifest = Manifest(
+            name="manifest with reports",
+            version="1.0.0",
+            input_systems=[
+                {
+                    "name": "system_under_test",
+                    "type": "llm_api",
+                    "required": True,
+                }
+            ],
+            output_reports=[
+                OutputReports(
+                    name="detailed_report",
+                    type="pdf",
+                    description="Detailed test report",
+                ),
+                OutputReports(
+                    name="summary_report",
+                    type="html",
+                    description="Summary report",
+                ),
+            ],
+        )
+        return {"my-registry/generic:latest": manifest}
+
+    def create_scorecard_with_reports(self, report_list):
+        return [
+            ScoreCard(
+                score_card_name="Test Score Card",
+                indicators=[
+                    {
+                        "id": "report_indicator",
+                        "name": "Indicator for report validation",
+                        "apply_to": {"test_id": "test_report_validation"},
+                        "metric": "accuracy",
+                        "assessment": [
+                            {
+                                "outcome": "PASS",
+                                "condition": "greater_equal",
+                                "threshold": 0.9,
+                            }
+                        ],
+                        "display_reports": report_list,
+                    }
+                ],
+            )
+        ]
+
+    def test_valid_score_card_with_existing_reports(
+        self, report_validation_suite, report_validation_manifest
+    ):
+        """
+        Test validation passes when requested reports are defined in the manifest.
+        """
+        score_cards = self.create_scorecard_with_reports(
+            ["detailed_report", "summary_report"]
+        )
+        errors = validate_score_cards_reports(
+            report_validation_suite, report_validation_manifest, score_cards
+        )
+        assert errors == []
+
+    def test_empty_display_reports_is_valid(
+        self, report_validation_suite, report_validation_manifest
+    ):
+        """
+        Test validation passes when display_reports list is empty.
+        """
+        score_cards = self.create_scorecard_with_reports([])
+        errors = validate_score_cards_reports(
+            report_validation_suite, report_validation_manifest, score_cards
+        )
+        assert errors == []
+
+    def test_invalid_report_name_not_in_manifest_fails(
+        self, report_validation_suite, report_validation_manifest
+    ):
+        """
+        Test validation fails when a requested report name is missing from the manifest.
+        """
+        score_cards = self.create_scorecard_with_reports(["invalid_report"])
+        errors = validate_score_cards_reports(
+            report_validation_suite, report_validation_manifest, score_cards
+        )
+
+        assert len(errors) == 1
+        assert "report_indicator" in errors[0]
+        assert "invalid_report" in errors[0]
+        assert "only defines: ['detailed_report', 'summary_report']" in errors[0]
+
+    def test_duplicate_report_names_in_display_reports_fails(
+        self, report_validation_suite, report_validation_manifest
+    ):
+        """
+        Test validation fails when duplicate report names are specified in the indicator.
+        """
+        score_cards = self.create_scorecard_with_reports(
+            ["detailed_report", "detailed_report"]
+        )
+        errors = validate_score_cards_reports(
+            report_validation_suite, report_validation_manifest, score_cards
+        )
+
+        assert len(errors) == 1
+        assert "report_indicator" in errors[0]
+        assert (
+            "duplicate report name 'detailed_report' in display_reports"
+            in errors[0].lower()
+        )
+
+    def test_no_manifest_for_image_fails(self, report_validation_suite):
+        """
+        Test validation fails when the manifest for the test image is missing.
+        """
+        score_cards = self.create_scorecard_with_reports(["detailed_report"])
+        manifests = {}
+
+        errors = validate_score_cards_reports(
+            report_validation_suite, manifests, score_cards
+        )
+
+        assert len(errors) == 1
+        assert "report_indicator" in errors[0]
+        assert "No manifest found" in errors[0]
+        assert "my-registry/generic:latest" in errors[0]
+
+    def test_manifest_with_no_output_reports_fails(self, report_validation_suite):
+        """
+        Test failure when the manifest exists but defines no output_reports.
+        """
+
+        manifest_no_reports = Manifest(
+            name="test_container",
+            version="1.0.0",
+            input_systems=[
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            output_reports=[],
+        )
+        manifest = {"my-registry/generic:latest": manifest_no_reports}
+        score_cards = self.create_scorecard_with_reports(["detailed_report"])
+
+        errors = validate_score_cards_reports(
+            report_validation_suite, manifest, score_cards
+        )
+
+        assert len(errors) == 1
+        assert "report_indicator" in errors[0]
+        assert "detailed_report" in errors[0]
+        assert "only defines: none" in errors[0].lower()
+
+    def test_audit_indicators_are_skipped(
+        self, report_validation_suite, report_validation_manifest
+    ):
+        """
+        Test audit type indicators are skipped from report validation.
+        """
+        score_cards = [
+            ScoreCard(
+                score_card_name="Test Score Card",
+                indicators=[
+                    {
+                        "id": "audit_indicator",
+                        "type": "audit",
+                        "name": "Audit Indicator",
+                        "display_reports": ["report_not_needed_for_audit"],
+                        "assessment": [
+                            {"outcome": "A", "description": "A description"},
+                        ],
+                    }
+                ],
+            )
+        ]
+
+        errors = validate_score_cards_reports(
+            report_validation_suite, report_validation_manifest, score_cards
+        )
+        assert errors == []
+
+    def test_multiple_indicators_invalid_report(
+        self, report_validation_suite, report_validation_manifest
+    ):
+        """
+        Test with 2 indicators where only the invalid one produces an error.
+        """
+        score_cards = [
+            ScoreCard(
+                score_card_name="Test Score Card",
+                indicators=[
+                    self.create_scorecard_with_reports(["detailed_report"])[0]
+                    .indicators[0]
+                    .model_dump(),
+                    {
+                        "id": "invalid_report_indicator",
+                        "name": "invalid indicator",
+                        "apply_to": {"test_id": "test_report_validation"},
+                        "metric": "pass_rate",
+                        "assessment": [
+                            {
+                                "outcome": "PASS",
+                                "condition": "greater_equal",
+                                "threshold": 0.8,
+                            }
+                        ],
+                        "display_reports": ["invalid_report_name"],
+                    },
+                ],
+            )
+        ]
+
+        errors = validate_score_cards_reports(
+            report_validation_suite, report_validation_manifest, score_cards
+        )
+
+        assert len(errors) == 1
+        assert "invalid_report_indicator" in errors[0]
+        assert "invalid_report_name" in errors[0]
+
+    def test_display_reports_is_case_sensitive_error(
+        self, report_validation_suite, report_validation_manifest
+    ):
+        """
+        Test that requesting reports with incorrect casing results in a failure.
+        """
+        score_cards = self.create_scorecard_with_reports(["Detailed_Report"])
+
+        errors = validate_score_cards_reports(
+            report_validation_suite, report_validation_manifest, score_cards
+        )
+
+        assert len(errors) == 1
+        assert "report_indicator" in errors[0]
+        assert "Detailed_Report" in errors[0]
+        assert "only defines: ['detailed_report', 'summary_report']" in errors[0]
