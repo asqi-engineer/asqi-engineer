@@ -142,11 +142,6 @@ class LLMAPIParams(BaseModel):
 class VLMAPIParams(LLMAPIParams):
     """Parameters for Vision Language Model API systems."""
 
-    supports_vision: bool = Field(
-        True,
-        description="Whether this VLM system supports vision/image inputs. Must be True for VLM systems.",
-    )
-
 
 class LLMAPIConfig(SystemDefinition):
     """Configuration for LLM API systems."""
