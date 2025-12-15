@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from rich.console import Console
 from rich.progress import (
@@ -62,6 +62,33 @@ def parse_container_json_output(output: str) -> Dict[str, Any]:
     raise ValueError(
         f"No valid JSON found in container output. Output preview: '{output[:100]}{'...' if len(output) > 100 else ''}'"
     )
+
+
+def extract_container_json_output_fields(
+    container_json_output: Dict[str, Any],
+) -> Tuple[Dict[str, Any], List[Any]]:
+    """
+    Extract test results and technical reports from container results.
+
+    Args:
+        container_results: Parsed JSON dictionary from container output
+
+    Notes:
+        Provides backward compatibility for container outputs that do not include the `technical_reports` field
+
+    Returns:
+        A dictionary containing the test results and a list of technical reports
+    """
+    if (
+        "test_results" in container_json_output
+        and "technical_reports" in container_json_output
+    ):
+        test_results = container_json_output.get("test_results") or {}
+        technical_reports = container_json_output.get("technical_reports") or []
+    else:
+        test_results = container_json_output
+        technical_reports = []
+    return test_results, technical_reports
 
 
 def create_test_execution_progress(console: Console) -> Progress:
