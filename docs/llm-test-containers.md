@@ -555,7 +555,8 @@ test_suite:
     description: "Evaluate Answer Accuracy with LLM Judge"
     image: "my-registry/resaro_judge:latest"
     systems_under_test: ["target_model"]
-    evaluator_systems: ["judge_model"]
+    systems:
+      evaluator_system: "judge_model"
     params:
       test_type: "facts"
       dataset:
@@ -569,7 +570,8 @@ test_suite:
     description: "Evaluate Summary Quality"
     image: "my-registry/resaro_judge:latest"
     systems_under_test: ["target_model"]
-    evaluator_systems: ["judge_model"]
+    systems:
+      evaluator_system: "judge_model"
     params:
       test_type: "summary"
       dataset:
