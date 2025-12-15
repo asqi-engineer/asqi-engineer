@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
 name: "chatbot_simulator"
 version: "1.0"
 description: "Multi-turn conversational testing using persona-based simulation and LLM-as-judge evaluation."

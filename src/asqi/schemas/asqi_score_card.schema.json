@@ -220,6 +220,14 @@
           },
           "title": "Assessment",
           "type": "array"
+        },
+        "display_reports": {
+          "description": "List of technical report names to include from the test container manifest.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Display Reports",
+          "type": "array"
         }
       },
       "required": [
