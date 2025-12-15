@@ -586,9 +586,7 @@ class ScoreCardEngine:
         Convert manual audit responses for a single audit indicator into evaluation results.
         """
         results: List[ScoreCardEvaluationResult] = []
-        available_sut_set = set(
-            s for s in (available_suts or []) if s is not None
-        )
+        available_sut_set = set(s for s in (available_suts or []) if s is not None)
 
         # No responses object at all
         if audit_responses is None:
@@ -618,51 +616,74 @@ class ScoreCardEngine:
             result.error = f"No audit response found for indicator_id '{indicator.id}'"
             results.append(result)
             return results
+        # Detect duplicate responses for the same (indicator, sut)
+        seen_keys = set()
+        duplicate_keys = set()
+        for resp in matching_responses:
+            key = resp.sut_name
+            if key in seen_keys:
+                duplicate_keys.add(key)
+            seen_keys.add(key)
+
+        if duplicate_keys:
+            result = ScoreCardEvaluationResult(
+                indicator_id=indicator.id,
+                indicator_name=indicator.name,
+                test_id="audit",
+            )
+            result.error = (
+                f"Duplicate audit responses for indicator '{indicator.id}' and sut(s): "
+                f"{sorted(duplicate_keys)}"
+            )
+            results.append(result)
+            return results
+
         per_system_responses = [
             r for r in matching_responses if r.sut_name is not None
         ]
 
         if per_system_responses:
-            invalid_responses = [
-                r for r in per_system_responses if r.sut_name not in available_sut_set
-            ]
+            if available_sut_set:
+                invalid_responses = [
+                    r for r in per_system_responses if r.sut_name not in available_sut_set
+                ]
 
-            if invalid_responses:
-                for resp in invalid_responses:
-                    eval_result = ScoreCardEvaluationResult(
+                if invalid_responses:
+                    for resp in invalid_responses:
+                        eval_result = ScoreCardEvaluationResult(
+                            indicator_id=indicator.id,
+                            indicator_name=indicator.name,
+                            test_id="audit",
+                        )
+                        eval_result.sut_name = resp.sut_name
+                        eval_result.test_result_id = None
+                        eval_result.metric_value = None
+                        eval_result.computed_value = None
+                        eval_result.details = "Manual audit indicator response"
+                        eval_result.outcome = resp.selected_outcome
+                        eval_result.notes = resp.notes
+                        eval_result.error = (
+                            f"'{resp.sut_name}' is not a valid system under test for this evaluation"
+                        )
+                        results.append(eval_result)
+
+                    return results
+
+                missing_suts = available_sut_set - {
+                    r.sut_name for r in per_system_responses
+                }
+
+                if missing_suts:
+                    result = ScoreCardEvaluationResult(
                         indicator_id=indicator.id,
                         indicator_name=indicator.name,
                         test_id="audit",
                     )
-                    eval_result.sut_name = resp.sut_name
-                    eval_result.test_result_id = None
-                    eval_result.metric_value = None
-                    eval_result.computed_value = None
-                    eval_result.details = "Manual audit indicator response"
-                    eval_result.outcome = resp.selected_outcome
-                    eval_result.notes = resp.notes
-                    eval_result.error = (
-                        f"'{resp.sut_name}' is not a valid system under test for this evaluation"
+                    result.error = (
+                        f"Audit indicator '{indicator.id}' requires responses for all systems: missing {sorted(missing_suts)}"
                     )
-                    results.append(eval_result)
-
-                return results
-
-            missing_suts = available_sut_set - {
-                r.sut_name for r in per_system_responses
-            }
-
-            if missing_suts:
-                result = ScoreCardEvaluationResult(
-                    indicator_id=indicator.id,
-                    indicator_name=indicator.name,
-                    test_id="audit",
-                )
-                result.error = (
-                    f"Audit indicator '{indicator.id}' requires responses for all systems: missing {sorted(missing_suts)}"
-                )
-                results.append(result)
-                return results
+                    results.append(result)
+                    return results
 
         # Build lookup: outcome -> description from the scorecard definition
         outcome_to_description: Dict[str, Optional[str]] = {}

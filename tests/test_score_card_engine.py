@@ -620,6 +620,115 @@ class TestscorecardEngine:
             == "'unknown_sut' is not a valid system under test for this evaluation"
         )
 
+    def test_evaluate_audit_indicator_mixed_per_system_and_global(self):
+        """Mixed per-system and global responses should all be processed."""
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+            ],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "sut_name": "sut_a",
+                    "selected_outcome": "A",
+                },
+                {
+                    "indicator_id": "config_easy",
+                    "sut_name": "sut_b",
+                    "selected_outcome": "B",
+                },
+                {
+                    "indicator_id": "config_easy",
+                    "selected_outcome": "A",
+                    "notes": "global view",
+                },
+            ]
+        )
+
+        test_results = [
+            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_a"),
+            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_b"),
+        ]
+
+        score_card = ScoreCard(
+            score_card_name="Audit SUT Scorecard",
+            indicators=[indicator],
+        )
+
+        results = self.engine.evaluate_scorecard(test_results, score_card, audit_responses)
+
+        assert len(results) == 3
+        sut_names = {r["sut_name"] for r in results}
+        assert sut_names == {"sut_a", "sut_b", None}
+
+    def test_evaluate_audit_indicator_available_suts_none(self):
+        """Per-system responses should not error when available_suts is missing."""
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+            ],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "sut_name": "sut_a",
+                    "selected_outcome": "A",
+                }
+            ]
+        )
+
+        results = self.engine.evaluate_audit_indicator(
+            indicator, audit_responses, available_suts=None
+        )
+
+        assert len(results) == 1
+        assert results[0].sut_name == "sut_a"
+        assert results[0].error is None
+
+    def test_evaluate_audit_indicator_duplicate_responses(self):
+        """Duplicate responses for same indicator + sut should error."""
+        indicator = AuditScoreCardIndicator(
+            id="config_easy",
+            name="Configuration Ease",
+            type="audit",
+            assessment=[
+                AuditAssessmentRule(outcome="A", description="Very easy"),
+                AuditAssessmentRule(outcome="B", description="Easy"),
+            ],
+        )
+
+        audit_responses = AuditResponses(
+            responses=[
+                {
+                    "indicator_id": "config_easy",
+                    "sut_name": "sut_a",
+                    "selected_outcome": "A",
+                },
+                {
+                    "indicator_id": "config_easy",
+                    "sut_name": "sut_a",
+                    "selected_outcome": "B",
+                },
+            ]
+        )
+
+        results = self.engine.evaluate_audit_indicator(indicator, audit_responses, {"sut_a"})
+
+        assert len(results) == 1
+        assert "Duplicate audit responses" in results[0].error
+
 
 class TestNestedMetricAccess:
     """Test nested metric access functionality."""
