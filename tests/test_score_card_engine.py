@@ -621,7 +621,7 @@ class TestscorecardEngine:
         )
 
     def test_evaluate_audit_indicator_mixed_per_system_and_global(self):
-        """Mixed per-system and global responses should all be processed."""
+        """Mixed per-system and global responses should error."""
         indicator = AuditScoreCardIndicator(
             id="config_easy",
             name="Configuration Ease",
@@ -664,9 +664,11 @@ class TestscorecardEngine:
 
         results = self.engine.evaluate_scorecard(test_results, score_card, audit_responses)
 
-        assert len(results) == 3
-        sut_names = {r["sut_name"] for r in results}
-        assert sut_names == {"sut_a", "sut_b", None}
+        assert len(results) == 1
+        assert (
+            results[0]["error"]
+            == "Audit indicator 'config_easy' cannot mix global and per-system responses"
+        )
 
     def test_evaluate_audit_indicator_available_suts_none(self):
         """Per-system responses should not error when available_suts is missing."""

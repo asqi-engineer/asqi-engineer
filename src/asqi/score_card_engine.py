@@ -620,7 +620,7 @@ class ScoreCardEngine:
         seen_keys = set()
         duplicate_keys = set()
         for resp in matching_responses:
-            key = resp.sut_name
+            key = (indicator.id, resp.sut_name)
             if key in seen_keys:
                 duplicate_keys.add(key)
             seen_keys.add(key)
@@ -633,7 +633,7 @@ class ScoreCardEngine:
             )
             result.error = (
                 f"Duplicate audit responses for indicator '{indicator.id}' and sut(s): "
-                f"{sorted(duplicate_keys)}"
+                f"{sorted({k[1] for k in duplicate_keys})}"
             )
             results.append(result)
             return results
@@ -643,6 +643,18 @@ class ScoreCardEngine:
         ]
 
         if per_system_responses:
+            if len(per_system_responses) != len(matching_responses):
+                result = ScoreCardEvaluationResult(
+                    indicator_id=indicator.id,
+                    indicator_name=indicator.name,
+                    test_id="audit",
+                )
+                result.error = (
+                    f"Audit indicator '{indicator.id}' cannot mix global and per-system responses"
+                )
+                results.append(result)
+                return results
+
             if available_sut_set:
                 invalid_responses = [
                     r for r in per_system_responses if r.sut_name not in available_sut_set
