@@ -8,7 +8,14 @@ from rich.console import Console
 
 from asqi.config import load_config_file
 from asqi.errors import DuplicateIDError, MissingIDFieldError
-from asqi.schemas import EnvironmentVariable, Manifest, SuiteConfig, SystemsConfig
+from asqi.schemas import (
+    AuditScoreCardIndicator,
+    EnvironmentVariable,
+    Manifest,
+    ScoreCard,
+    SuiteConfig,
+    SystemsConfig,
+)
 
 logger = logging.getLogger()
 
@@ -815,5 +822,62 @@ def validate_workflow_configurations(
     # Detailed validation if manifests are provided
     if manifests is not None and not errors:  # Only if basic validation passes
         errors.extend(validate_manifests_against_tests(suite, systems, manifests))
+
+    return errors
+
+
+def validate_score_cards_reports(
+    suite: SuiteConfig, manifests: Dict[str, Manifest], score_cards: List[ScoreCard]
+) -> List[str]:
+    """
+    Validate score cards configurations against test suite and manifests.
+
+    Notes:
+        - No duplicate report names within each indicator's `display_reports`
+        - All requested `display_reports` exist in the corresponding test's manifest
+
+    Args:
+        suite: Test suite configuration
+        manifests: Dictionary mapping image names to their manifests
+        score_cards: List of score card configurations
+
+    Returns:
+        List of validation error messages
+    """
+    errors = []
+    test_id_to_image = {test.id: test.image for test in suite.test_suite}
+
+    for score_card in score_cards:
+        for indicator in score_card.indicators:
+            if isinstance(indicator, AuditScoreCardIndicator):
+                continue
+            test_id = indicator.apply_to.test_id
+            image = test_id_to_image[test_id]
+            manifest = manifests.get(image)
+            if not manifest:
+                errors.append(
+                    f"Indicator id '{indicator.id}': No manifest found for image '{image}' (test '{test_id}')"
+                )
+                continue
+
+            available_reports = {
+                report.name for report in (manifest.output_reports or [])
+            }
+
+            # Check for duplicate report names in display_reports
+            reports_set = set()
+            for report_name in indicator.display_reports:
+                if report_name in reports_set:
+                    errors.append(
+                        f"Indicator id '{indicator.id}': Duplicate report name '{report_name}' in display_reports"
+                    )
+                reports_set.add(report_name)
+
+            # Validate that the reports are declared in the test container manifest
+            for requested_report in indicator.display_reports:
+                if requested_report not in available_reports:
+                    errors.append(
+                        f"Indicator id '{indicator.id}': Requests display_report '{requested_report}' from test '{test_id}'. Manifest for image '{image}' only defines: {sorted(list(available_reports)) if available_reports else 'none'}"
+                    )
 
     return errors

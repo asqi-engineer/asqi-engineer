@@ -2,20 +2,24 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
+from rich.console import Console
+
 from asqi.metric_expression import (
     MetricExpressionError,
     MetricExpressionEvaluator,
 )
 from asqi.schemas import (
+    AuditResponses,
+    AuditScoreCardIndicator,
     MetricExpression,
     ScoreCard,
     ScoreCardIndicator,
-    AuditScoreCardIndicator,
-    AuditResponses,
 )
 from asqi.workflow import TestExecutionResult
 
 logger = logging.getLogger(__name__)
+
+console = Console()
 
 
 def _validate_bracket_syntax(path: str) -> None:
@@ -217,6 +221,7 @@ class ScoreCardEvaluationResult:
         self.description: Optional[str] = None
         self.notes: Optional[str] = None
         self.error: Optional[str] = None
+        self.report_paths: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -231,6 +236,7 @@ class ScoreCardEvaluationResult:
             "details": self.details,
             "outcome": self.outcome,
             "description": self.description,
+            "report_paths": self.report_paths,
             "audit_notes": self.notes,
             "error": self.error,
         }
@@ -508,6 +514,14 @@ class ScoreCardEngine:
                 eval_result.test_result_id = (
                     f"{test_result.test_id}_{test_result.sut_name}"
                 )
+                test_reports = test_result.technical_reports or []
+                requested_reports = indicator.display_reports or []
+                eval_result.report_paths = [
+                    str(report["report_path"])
+                    for report in test_reports
+                    if report.get("report_name") in requested_reports
+                    and report.get("report_path")
+                ]
 
                 try:
                     # Resolve metric value (handles both simple paths and expressions)
