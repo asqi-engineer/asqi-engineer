@@ -579,6 +579,8 @@ responses:
 When any response includes `sut_name`, provide entries for **every** system under test.
 If an entry references a system that was not part of the evaluation, the score card will
 return an error.
+Do **not** mix global (no `sut_name`) and per-system (`sut_name` present) responses for the
+same indicator—this combination is rejected with an explicit error.
 
 #### Complete Example
 
