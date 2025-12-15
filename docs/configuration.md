@@ -567,9 +567,20 @@ Audit responses need to be provided separately:
 ```yaml
 responses:
   - indicator_id: configuration_complexity
+    sut_name: "openai_gpt4o_mini"  # Optional; when provided, response is per system
     selected_outcome: "B"
     notes: "Some domain knowledge needed during setup"
+  - indicator_id: configuration_complexity
+    sut_name: "nova_lite"
+    selected_outcome: "C"
+    notes: "Requires prompt engineering and additional infra"
 ```
+
+When any response includes `sut_name`, provide entries for **every** system under test.
+If an entry references a system that was not part of the evaluation, the score card will
+return an error.
+Do **not** mix global (no `sut_name`) and per-system (`sut_name` present) responses for the
+same indicator—this combination is rejected with an explicit error.
 
 #### Complete Example
 
