@@ -126,7 +126,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${{ github.sha }}-${{ matrix.platform_pair }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ matrix.name }}-${{ matrix.platform_pair }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ matrix.name }}-${{ matrix.platform_pair }},mode=max
+          cache-to: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && format('type=registry,ref={0}/{1}:cache-{2}-{3},mode=max', env.REGISTRY, env.IMAGE_NAME, matrix.name, matrix.platform_pair) || '' }}
           outputs: type=docker,dest=/tmp/image-${{ matrix.name }}-${{ matrix.platform_pair }}.tar
 
       - name: Smoke test ${{ matrix.name }} (${{ matrix.platform }})
@@ -276,7 +276,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${{ github.sha }}-${{ env.PLATFORM_PAIR }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }},mode=max
+          cache-to: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && format('type=registry,ref={0}/{1}:cache-{2}-{3},mode=max', env.REGISTRY, env.IMAGE_NAME, steps.parse.outputs.name, env.PLATFORM_PAIR) || '' }}
           outputs: type=docker,dest=/tmp/image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}.tar
 
       - name: Smoke test ${{ steps.parse.outputs.name }} (${{ matrix.platform }})
