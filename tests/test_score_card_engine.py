@@ -521,8 +521,12 @@ class TestscorecardEngine:
         )
 
         test_results = [
-            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_a"),
-            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_b"),
+            self.create_test_result(
+                "test1", "test1", "image1", {"success": True}, "sut_a"
+            ),
+            self.create_test_result(
+                "test1", "test1", "image1", {"success": True}, "sut_b"
+            ),
         ]
 
         score_card = ScoreCard(
@@ -530,7 +534,9 @@ class TestscorecardEngine:
             indicators=[indicator],
         )
 
-        results = self.engine.evaluate_scorecard(test_results, score_card, audit_responses)
+        results = self.engine.evaluate_scorecard(
+            test_results, score_card, audit_responses
+        )
 
         assert len(results) == 2
         by_sut = {r["sut_name"]: r for r in results}
@@ -564,8 +570,12 @@ class TestscorecardEngine:
         )
 
         test_results = [
-            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_a"),
-            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_b"),
+            self.create_test_result(
+                "test1", "test1", "image1", {"success": True}, "sut_a"
+            ),
+            self.create_test_result(
+                "test1", "test1", "image1", {"success": True}, "sut_b"
+            ),
         ]
 
         score_card = ScoreCard(
@@ -573,7 +583,9 @@ class TestscorecardEngine:
             indicators=[indicator],
         )
 
-        results = self.engine.evaluate_scorecard(test_results, score_card, audit_responses)
+        results = self.engine.evaluate_scorecard(
+            test_results, score_card, audit_responses
+        )
 
         assert len(results) == 1
         assert (
@@ -604,7 +616,9 @@ class TestscorecardEngine:
         )
 
         test_results = [
-            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_a"),
+            self.create_test_result(
+                "test1", "test1", "image1", {"success": True}, "sut_a"
+            ),
         ]
 
         score_card = ScoreCard(
@@ -612,7 +626,9 @@ class TestscorecardEngine:
             indicators=[indicator],
         )
 
-        results = self.engine.evaluate_scorecard(test_results, score_card, audit_responses)
+        results = self.engine.evaluate_scorecard(
+            test_results, score_card, audit_responses
+        )
 
         assert len(results) == 1
         assert (
@@ -653,8 +669,12 @@ class TestscorecardEngine:
         )
 
         test_results = [
-            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_a"),
-            self.create_test_result("test1", "test1", "image1", {"success": True}, "sut_b"),
+            self.create_test_result(
+                "test1", "test1", "image1", {"success": True}, "sut_a"
+            ),
+            self.create_test_result(
+                "test1", "test1", "image1", {"success": True}, "sut_b"
+            ),
         ]
 
         score_card = ScoreCard(
@@ -662,7 +682,9 @@ class TestscorecardEngine:
             indicators=[indicator],
         )
 
-        results = self.engine.evaluate_scorecard(test_results, score_card, audit_responses)
+        results = self.engine.evaluate_scorecard(
+            test_results, score_card, audit_responses
+        )
 
         assert len(results) == 1
         assert (
@@ -726,7 +748,9 @@ class TestscorecardEngine:
             ]
         )
 
-        results = self.engine.evaluate_audit_indicator(indicator, audit_responses, {"sut_a"})
+        results = self.engine.evaluate_audit_indicator(
+            indicator, audit_responses, {"sut_a"}
+        )
 
         assert len(results) == 1
         assert "Duplicate audit responses" in results[0].error

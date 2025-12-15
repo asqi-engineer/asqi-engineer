@@ -638,9 +638,7 @@ class ScoreCardEngine:
             results.append(result)
             return results
 
-        per_system_responses = [
-            r for r in matching_responses if r.sut_name is not None
-        ]
+        per_system_responses = [r for r in matching_responses if r.sut_name is not None]
 
         if per_system_responses:
             if len(per_system_responses) != len(matching_responses):
@@ -649,15 +647,15 @@ class ScoreCardEngine:
                     indicator_name=indicator.name,
                     test_id="audit",
                 )
-                result.error = (
-                    f"Audit indicator '{indicator.id}' cannot mix global and per-system responses"
-                )
+                result.error = f"Audit indicator '{indicator.id}' cannot mix global and per-system responses"
                 results.append(result)
                 return results
 
             if available_sut_set:
                 invalid_responses = [
-                    r for r in per_system_responses if r.sut_name not in available_sut_set
+                    r
+                    for r in per_system_responses
+                    if r.sut_name not in available_sut_set
                 ]
 
                 if invalid_responses:
@@ -674,9 +672,7 @@ class ScoreCardEngine:
                         eval_result.details = "Manual audit indicator response"
                         eval_result.outcome = resp.selected_outcome
                         eval_result.notes = resp.notes
-                        eval_result.error = (
-                            f"'{resp.sut_name}' is not a valid system under test for this evaluation"
-                        )
+                        eval_result.error = f"'{resp.sut_name}' is not a valid system under test for this evaluation"
                         results.append(eval_result)
 
                     return results
@@ -691,9 +687,7 @@ class ScoreCardEngine:
                         indicator_name=indicator.name,
                         test_id="audit",
                     )
-                    result.error = (
-                        f"Audit indicator '{indicator.id}' requires responses for all systems: missing {sorted(missing_suts)}"
-                    )
+                    result.error = f"Audit indicator '{indicator.id}' requires responses for all systems: missing {sorted(missing_suts)}"
                     results.append(result)
                     return results
 
