@@ -291,11 +291,22 @@ class DeepTeamRedTeamTester:
             temperature=system_config.get("temperature", 0),
         )
 
-    async def _model_callback(self, input_text: str) -> str:
+    async def _model_callback(self, input_text: str, turns: list = None) -> str:
         """Model callback function for DeepTeam red teaming"""
+        # Build message history from turns if provided (for multi-turn attacks)
+        messages = []
+        if turns:
+            for turn in turns:
+                messages.append({"role": "user", "content": turn.user_input})
+                if turn.model_output:
+                    messages.append({"role": "assistant", "content": turn.model_output})
+
+        # Add current input
+        messages.append({"role": "user", "content": input_text})
+
         response = self.client.chat.completions.create(
             model=self.sut_params["model"],
-            messages=[{"role": "user", "content": input_text}],
+            messages=messages,
         )
         return response.choices[0].message.content or ""
 
