@@ -50,6 +50,8 @@ jobs:
     needs: determine-changes
     if: always() && (startsWith(github.ref, 'refs/tags/') || needs.determine-changes.outputs.should_build == 'true')
     runs-on: self-hosted
+    environment:
+      name: publish-docker-registry
     strategy:
       fail-fast: false
       matrix:
@@ -88,7 +90,8 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log into Docker Hub
-        if: secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
+        id: docker_login
+        continue-on-error: true
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -104,7 +107,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-${{ env.PLATFORM_PAIR }}-${{ github.run_id }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ env.PLATFORM_PAIR }}
-          cache-to: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && format('type=registry,ref={0}/{1}:cache-{2},mode=max', env.REGISTRY, env.IMAGE_NAME, env.PLATFORM_PAIR) || '' }}
+          cache-to: ${{ steps.docker_login.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && format('type=registry,ref={0}/{1}:cache-{2},mode=max', env.REGISTRY, env.IMAGE_NAME, env.PLATFORM_PAIR) || '' }}
           outputs: type=docker,dest=/tmp/image-${{ env.PLATFORM_PAIR }}.tar
 
       - name: Upload platform image

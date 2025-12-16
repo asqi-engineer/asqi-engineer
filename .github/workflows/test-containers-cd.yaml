@@ -10,7 +10,6 @@ on:
 
 jobs:
    build-publish-test-containers:
-      needs: []
       uses: ./.github/workflows/test-containers-publish.yaml
       permissions:
         packages: write
