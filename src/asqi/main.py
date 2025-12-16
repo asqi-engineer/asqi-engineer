@@ -39,7 +39,7 @@ console = Console()
 
 
 def load_yaml_file(file_path: str) -> Dict[str, Any]:
-    """Loads a YAML file with environment variable interpolation
+    """Loads a YAML file with environment variable interpolation.
 
     Args:
         file_path: Path to the YAML file to load
