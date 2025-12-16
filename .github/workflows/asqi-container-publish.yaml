@@ -87,6 +87,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Debug Docker Hub credentials
+        run: |
+          echo "DOCKERHUB_USERNAME is set: ${{ secrets.DOCKERHUB_USERNAME != '' }}"
+          echo "DOCKERHUB_TOKEN is set: ${{ secrets.DOCKERHUB_TOKEN != '' }}"
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+            echo "DOCKERHUB_USERNAME length: ${#DOCKERHUB_USERNAME}"
+          fi
+
       - name: Log into Docker Hub
         id: docker_login
         continue-on-error: true
