@@ -42,7 +42,7 @@ def load_yaml_file(file_path: str) -> Dict[str, Any]:
     """Loads a YAML file with environment variable interpolation.
 
     Args:
-        file_path: Path to the YAML file to load
+        file_path: Path to the YAML file to load.
 
     Returns:
         Dictionary containing the parsed YAML data with environment variables interpolated
