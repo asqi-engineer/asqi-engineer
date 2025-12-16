@@ -50,6 +50,8 @@ jobs:
     needs: determine-changes
     if: always() && (startsWith(github.ref, 'refs/tags/') || needs.determine-changes.outputs.should_build == 'true')
     runs-on: self-hosted
+    environment:
+      name: publish-docker-registry
     strategy:
       fail-fast: false
       matrix:
