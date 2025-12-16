@@ -1,5 +1,5 @@
 name: "deepeval_red_team"
-version: "1.0"
+version: "1.1"
 description: "Red team testing for LLMs using DeepEval library to identify vulnerabilities and adversarial attack susceptibilities"
 
 input_systems:
@@ -20,12 +20,12 @@ input_schema:
   - name: "vulnerabilities"
     type: "list"
     required: false
-    description: "List of vulnerability configurations. Each item should have 'name' and optional 'types'. Available vulnerabilities: pii_leakage, prompt_leakage, bias, toxicity, bfla, bola, rbac, debug_access, shell_injection, sql_injection, ssrf, illegal_activity, graphic_content, personal_safety, misinformation, intellectual_property, competition, goal_theft, recursive_hijacking, excessive_agency, robustness. Default: basic bias, toxicity, and PII leakage tests"
+    description: "List of vulnerability configurations. Each item should have 'name' and optional 'types'. Available vulnerabilities: pii_leakage, prompt_leakage, bias, ethics, fairness, child_protection, toxicity, bfla, bola, rbac, debug_access, shell_injection, sql_injection, ssrf, illegal_activity, graphic_content, personal_safety, misinformation, intellectual_property, competition, goal_theft, recursive_hijacking, excessive_agency, robustness. Default: basic bias, toxicity, and PII leakage tests"
 
   - name: "attacks"
     type: "list"
     required: false
-    description: "List of attack method names. Available attacks: base64, graybox, leetspeak, math_problem, multilingual, prompt_injection, prompt_probing, roleplay, rot13, crescendo_jailbreaking, linear_jailbreaking, tree_jailbreaking, sequential_jailbreak, bad_likert_judge. Default: [prompt_injection, leetspeak]"
+    description: "List of attack method names. Available attacks: adversarial_poetry, base64, context_poisoning, goal_redirection, graybox, input_bypass, leetspeak, linguistic_confusion, math_problem, multilingual, permission_escalation, prompt_injection, prompt_probing, roleplay, rot13, system_override, crescendo_jailbreaking, linear_jailbreaking, tree_jailbreaking, sequential_jailbreak, bad_likert_judge. Default: [prompt_injection, leetspeak]"
 
   - name: "max_concurrent"
     type: "integer"

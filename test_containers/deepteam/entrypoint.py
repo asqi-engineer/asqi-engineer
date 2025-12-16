@@ -9,7 +9,6 @@ import openai
 
 from deepeval.models import DeepEvalBaseLLM
 
-# TODO: check
 from deepeval.confident.api import log_retry_error
 from deepteam.attacks.multi_turn import (
     BadLikertJudge,
@@ -19,7 +18,7 @@ from deepteam.attacks.multi_turn import (
     TreeJailbreaking,
 )
 from deepteam.attacks.single_turn import (
-    ROT13,
+    AdversarialPoetry,
     Base64,
     GrayBox,
     Leetspeak,
@@ -28,7 +27,7 @@ from deepteam.attacks.single_turn import (
     PromptInjection,
     PromptProbing,
     Roleplay,
-    AdversarialPoetry,
+    ROT13,
     SystemOverride,
     PermissionEscalation,
     LinguisticConfusion,
@@ -43,6 +42,11 @@ from deepteam.vulnerabilities import (
     RBAC,
     SSRF,
     Bias,
+    Ethics,
+    Fairness,
+    ChildProtection,
+    Misinformation,
+    Toxicity,
     Competition,
     DebugAccess,
     ExcessiveAgency,
@@ -50,7 +54,6 @@ from deepteam.vulnerabilities import (
     GraphicContent,
     IllegalActivity,
     IntellectualProperty,
-    Misinformation,
     PersonalSafety,
     PIILeakage,
     PromptLeakage,
@@ -58,8 +61,8 @@ from deepteam.vulnerabilities import (
     Robustness,
     ShellInjection,
     SQLInjection,
-    Toxicity,
 )
+
 from openai import AsyncOpenAI, OpenAI
 from pydantic import BaseModel
 from tenacity import (
@@ -191,6 +194,9 @@ class DeepTeamRedTeamTester:
         # Responsible AI
         "bias": Bias,
         "toxicity": Toxicity,
+        "ethics": Ethics,
+        "fairness": Fairness,
+        "child_protection": ChildProtection,
         # Security
         "bfla": BFLA,
         "bola": BOLA,
@@ -219,8 +225,8 @@ class DeepTeamRedTeamTester:
         "adversarial_poetry": AdversarialPoetry,
         "context_poisoning": ContextPoisoning,
         "base64": Base64,
-        "graybox": GrayBox,
         "goal_redirection": GoalRedirection,
+        "graybox": GrayBox,
         "input_bypass": InputBypass,
         "leetspeak": Leetspeak,
         "linguistic_confusion": LinguisticConfusion,
