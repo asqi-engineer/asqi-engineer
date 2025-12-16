@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from asqi.metric_expression import (
     MetricExpressionError,
@@ -580,11 +580,13 @@ class ScoreCardEngine:
         self,
         indicator: AuditScoreCardIndicator,
         audit_responses: Optional[AuditResponses] = None,
+        available_suts: Optional[Set[str]] = None,
     ) -> List[ScoreCardEvaluationResult]:
         """
         Convert manual audit responses for a single audit indicator into evaluation results.
         """
         results: List[ScoreCardEvaluationResult] = []
+        available_sut_set = set(s for s in (available_suts or []) if s is not None)
 
         # No responses object at all
         if audit_responses is None:
@@ -614,6 +616,80 @@ class ScoreCardEngine:
             result.error = f"No audit response found for indicator_id '{indicator.id}'"
             results.append(result)
             return results
+        # Detect duplicate responses for the same (indicator, sut)
+        seen_keys = set()
+        duplicate_keys = set()
+        for resp in matching_responses:
+            key = (indicator.id, resp.sut_name)
+            if key in seen_keys:
+                duplicate_keys.add(key)
+            seen_keys.add(key)
+
+        if duplicate_keys:
+            result = ScoreCardEvaluationResult(
+                indicator_id=indicator.id,
+                indicator_name=indicator.name,
+                test_id="audit",
+            )
+            result.error = (
+                f"Duplicate audit responses for indicator '{indicator.id}' and sut(s): "
+                f"{sorted({k[1] for k in duplicate_keys})}"
+            )
+            results.append(result)
+            return results
+
+        per_system_responses = [r for r in matching_responses if r.sut_name is not None]
+
+        if per_system_responses:
+            if len(per_system_responses) != len(matching_responses):
+                result = ScoreCardEvaluationResult(
+                    indicator_id=indicator.id,
+                    indicator_name=indicator.name,
+                    test_id="audit",
+                )
+                result.error = f"Audit indicator '{indicator.id}' cannot mix global and per-system responses"
+                results.append(result)
+                return results
+
+            if available_sut_set:
+                invalid_responses = [
+                    r
+                    for r in per_system_responses
+                    if r.sut_name not in available_sut_set
+                ]
+
+                if invalid_responses:
+                    for resp in invalid_responses:
+                        eval_result = ScoreCardEvaluationResult(
+                            indicator_id=indicator.id,
+                            indicator_name=indicator.name,
+                            test_id="audit",
+                        )
+                        eval_result.sut_name = resp.sut_name
+                        eval_result.test_result_id = None
+                        eval_result.metric_value = None
+                        eval_result.computed_value = None
+                        eval_result.details = "Manual audit indicator response"
+                        eval_result.outcome = resp.selected_outcome
+                        eval_result.notes = resp.notes
+                        eval_result.error = f"'{resp.sut_name}' is not a valid system under test for this evaluation"
+                        results.append(eval_result)
+
+                    return results
+
+                missing_suts = available_sut_set - {
+                    r.sut_name for r in per_system_responses
+                }
+
+                if missing_suts:
+                    result = ScoreCardEvaluationResult(
+                        indicator_id=indicator.id,
+                        indicator_name=indicator.name,
+                        test_id="audit",
+                    )
+                    result.error = f"Audit indicator '{indicator.id}' requires responses for all systems: missing {sorted(missing_suts)}"
+                    results.append(result)
+                    return results
 
         # Build lookup: outcome -> description from the scorecard definition
         outcome_to_description: Dict[str, Optional[str]] = {}
@@ -629,7 +705,7 @@ class ScoreCardEngine:
                 indicator_name=indicator.name,
                 test_id="audit",
             )
-            eval_result.sut_name = None
+            eval_result.sut_name = resp.sut_name
             eval_result.test_result_id = None
             eval_result.metric_value = None
             eval_result.computed_value = None
@@ -678,6 +754,7 @@ class ScoreCardEngine:
         self.validate_scorecard_test_ids(test_results, score_card)
 
         all_test_evaluations = []
+        sut_names = {r.sut_name for r in test_results if r.sut_name is not None}
 
         for indicator in score_card.indicators:
             # non-audit indicators
@@ -691,6 +768,7 @@ class ScoreCardEngine:
                 audit_results = self.evaluate_audit_indicator(
                     indicator=indicator,
                     audit_responses=audit_responses_data,
+                    available_suts=sut_names,
                 )
                 all_test_evaluations.extend(r.to_dict() for r in audit_results)
                 continue
