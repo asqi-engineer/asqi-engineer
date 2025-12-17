@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
 name: "trustllm"
 version: "1.0"
 description: "TrustLLM comprehensive trustworthiness evaluation framework for LLMs across 6 dimensions: truthfulness, safety, fairness, robustness, privacy, and machine ethics."

@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
 name: "deepeval_red_team"
 version: "1.1"
 description: "Red team testing for LLMs using DeepEval library to identify vulnerabilities and adversarial attack susceptibilities"
