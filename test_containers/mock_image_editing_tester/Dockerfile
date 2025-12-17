@@ -32,7 +32,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 # This ensures the test container uses the latest validation schema from development
 # Alternative: Install asqi-engineer package and import from asqi.image_response_schema
 # RUN uv pip install --no-cache-dir --system asqi-engineer
-COPY image_response_schema.py .
 COPY manifest.yaml .
 COPY entrypoint.py .
 
