@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
 name: "llmperf"
 version: "1.0"
 description: "Token throughput and latency benchmark using Ray LLMPerf against OpenAI-compatible LLM APIs."

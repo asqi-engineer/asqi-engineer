@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
 name: "inspect_evals"
 version: "1.0"
 description: "Run an Inspect Evals task (e.g. gsm8k, mmlu_0_shot, truthfulqa). Provide: evaluation (task name), optional evaluation_params (task args), and limit (sample cap). See https://ukgovernmentbeis.github.io/inspect_evals/ for task docs."

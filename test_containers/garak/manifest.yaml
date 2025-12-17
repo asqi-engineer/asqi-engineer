@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
 name: "garak"
 version: "1.0"
 description: "Garak LLM security testing framework container for vulnerability assessment."

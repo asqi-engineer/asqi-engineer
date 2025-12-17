@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
 name: "mock_rag_tester"
 version: "1.0"
 description: "A lightweight mock container for testing the executor logic for rag systems."
