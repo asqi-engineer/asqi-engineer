@@ -615,7 +615,7 @@ test_suite:
     name: "Generate and Evaluate Sea Otter Image"
     image: "asqiengineer/test-container:image_vlm_tester-latest"
     systems_under_test:
-      - "openai_image_generator"
+      - "dalle3_generator"
     systems:
       system_under_test: "dalle3_generator"
       evaluator_system: "gpt4_1_mini_vlm"
