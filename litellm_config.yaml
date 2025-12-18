@@ -19,16 +19,5 @@ model_list:
       api_key: os.environ/AWS_BEARER_TOKEN_BEDROCK
       drop_params: true # Some frameworks might send not supported params e.g. frequency_penalty
 
-  # OpenAI Image Generation
-  - model_name: "gpt-image-1"
-    litellm_params:
-      model: "dall-e-3"
-      api_key: os.environ/OPENAI_API_KEY
-  # OpenAI VLM
-  - model_name: "gpt-5-mini"
-    litellm_params:
-      model: "gpt-4-vision-preview"
-      api_key: os.environ/OPENAI_API_KEY
-
 litellm_settings:
   callbacks: ["otel"]

@@ -49,9 +49,7 @@ class ImageVLMTester:
             "Authorization": f"Bearer {self.image_gen_api_key}",
         }
         data = {
-            "model": self.image_gen_model.split("/")[
-                -1
-            ],  # litellm model names usually have a prefix like 'openai/', so we need to remove it
+            "model": self.image_gen_model,
             "prompt": self.prompt,
             "n": 1,
             "size": "1024x1024",
@@ -86,9 +84,7 @@ class ImageVLMTester:
         ]
 
         data = {
-            "model": self.vlm_model.split("/")[
-                -1
-            ],  # litellm model names usually have a prefix like 'openai/', so we need to remove it
+            "model": self.vlm_model,
             "messages": messages,
             "max_tokens": 150,
             "temperature": 0.5,

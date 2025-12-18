@@ -321,12 +321,6 @@
           "default": null,
           "description": "Direct API key for authentication (alternative to env_file)",
           "title": "Api Key"
-        },
-        "supports_vision": {
-          "default": true,
-          "description": "Whether this VLM system supports vision/image inputs. Must be True for VLM systems.",
-          "title": "Supports Vision",
-          "type": "boolean"
         }
       },
       "required": [
