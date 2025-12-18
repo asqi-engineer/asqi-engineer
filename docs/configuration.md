@@ -186,10 +186,10 @@ Configure image generation systems in your `litellm_config.yaml`:
 model_list:
   # ... existing models ...
 
-  # Image Generation Systems
-  - model_name: "gpt-image-1"
+  # Image Generation Systems (from OpenAI)
+  - model_name: "openai/*"
     litellm_params:
-      model: "dall-e-3"
+      model: "openai/*"
       api_key: os.environ/OPENAI_API_KEY
 ```
 
@@ -198,12 +198,12 @@ Then reference it in your ASQI systems configuration:
 ```yaml
 systems:
   # LiteLLM proxy configuration
-  openai_image_generator:
+  dalle3_generator:
     type: "image_generation_api"
-    description: "OpenAI GPT-Image-1 Generator"
+    description: "OpenAI DALL-E 3 Image Generator"
     params:
       base_url: "http://localhost:4000/v1"
-      model: "dall-e-3"
+      model: "openai/dall-e-3"
       api_key: "sk-1234"
 ```
 
@@ -250,9 +250,9 @@ model_list:
   # ... existing models ...
 
   # Image Editing Systems
-  - model_name: "dall-e-3"
+  - model_name: "openai/*"
     litellm_params:
-      model: "openai/dall-e-3"
+      model: "openai/*"
       api_key: os.environ/OPENAI_API_KEY
 ```
 
@@ -315,14 +315,13 @@ Then reference it in your ASQI systems configuration:
 ```yaml
 systems:
   # LiteLLM proxy configuration
-  openai_vlm_evaluator:
+  gpt4_1_mini_vlm:
     type: "vlm_api"
-    description: "OpenAI GPT-5-Mini VLM Evaluator"
+    description: "OpenAI GPT-4.1-Mini VLM Evaluator"
     params:
       base_url: "http://localhost:4000/v1"
-      model: "gpt-5-mini"
+      model: "openai/gpt-4.1-mini"
       api_key: "sk-1234"
-      supports_vision: true
 ```
 
 #### Expected Request Format
