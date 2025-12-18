@@ -67,6 +67,36 @@ class EnvironmentVariable(BaseModel):
         None, description="Explanation of what this variable is used for."
     )
 
+class DatasetFeature(BaseModel):
+    """Defines a feature/column within a dataset."""
+
+    name: str = Field(
+        ...,
+        description="The name of the feature.",
+    )
+    # TODO: add type checking for feature data types
+    description: Optional[str] = Field(
+        None, description="Description of the feature - data type, purpose etc."
+    )
+
+
+class InputDataset(BaseModel):
+    """Defines a dataset input that the container requires."""
+
+    name: str = Field(
+        ...,
+        description="The dataset name, e.g., 'evaluation_data', 'test_prompts'.",
+    )
+    required: bool = Field(
+        True, description="Whether this dataset is mandatory for execution."
+    )
+    description: Optional[str] = Field(
+        None, description="Description of the dataset's role in the test."
+    )
+    features: list[DatasetFeature] = Field(
+        [],
+        description="List of required features within the dataset.",
+    )
 
 class Manifest(BaseModel):
     """Schema for the manifest.yaml file inside a test container."""
@@ -84,6 +114,10 @@ class Manifest(BaseModel):
     )
     input_schema: List[InputParameter] = Field(
         [], description="Defines the schema for the user-provided 'params' object."
+    )
+    input_datasets: list[InputDataset] = Field(
+        [],
+        description="Defines the schema for user-provided input datasets.",
     )
     output_metrics: Union[List[str], List[OutputMetric]] = Field(
         [],
