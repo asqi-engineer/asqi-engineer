@@ -31,7 +31,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Copy application files
 COPY entrypoint.py /app/entrypoint.py
 COPY manifest.yaml /app/manifest.yaml
-COPY evaluator.py /app/evaluator.py
 
 RUN chmod +x /app/entrypoint.py
 
