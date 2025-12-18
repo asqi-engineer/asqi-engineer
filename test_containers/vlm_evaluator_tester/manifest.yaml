@@ -1,0 +1,35 @@
+name: "vlm_evaluator_tester"
+version: "1.0"
+description: "A lightweight mock container for testing vision language models."
+
+input_systems:
+  - name: "system_under_test"
+    type: "vlm_api"
+    required: true
+    description: "The VLM system being tested"
+
+input_schema:
+  - name: "delay_seconds"
+    type: "integer"
+    required: false
+    description: "Seconds to sleep to simulate work."
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the test execution completed successfully"
+  - name: "score"
+    type: "float"
+    description: "Mock test score (0.0 to 1.0)"
+  - name: "delay_used"
+    type: "integer"
+    description: "The delay in seconds that was actually used"
+  - name: "base_url"
+    type: "string"
+    description: "The base URL that was used for the API"
+  - name: "model"
+    type: "string"
+    description: "The model name that was used"
+  - name: "supports_vision"
+    type: "boolean"
+    description: "Whether the VLM system supports vision/image inputs"

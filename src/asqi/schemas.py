@@ -18,7 +18,8 @@ class SystemInput(BaseModel):
         description="The system input name, e.g., 'system_under_test', 'simulator_system', 'evaluator_system'.",
     )
     type: str = Field(
-        ..., description="The system type, e.g., 'llm_api','rest_api' or 'rag_api'."
+        ...,
+        description="The system type, e.g., 'llm_api','rest_api', 'rag_api', 'image_generation_api', 'image_editing_api', or 'vlm_api'.",
     )
     required: bool = Field(True, description="Whether this system input is required.")
     description: Optional[str] = Field(
@@ -138,6 +139,10 @@ class LLMAPIParams(BaseModel):
     )
 
 
+class VLMAPIParams(LLMAPIParams):
+    """Parameters for Vision Language Model API systems."""
+
+
 class LLMAPIConfig(SystemDefinition):
     """Configuration for LLM API systems."""
 
@@ -167,6 +172,54 @@ class RAGAPIConfig(SystemDefinition):
     )
 
 
+# Image Generation API system
+
+
+class ImageGenerationAPIConfig(SystemDefinition):
+    """Configuration for Image Generation API systems."""
+
+    type: Literal["image_generation_api"] = Field(
+        ...,
+        description="Image Generation API system: image_generation_api",
+    )
+    params: LLMAPIParams = Field(
+        ...,
+        description="Parameters specific to the Image Generation API system (e.g., base url, model name, API key and env file).",
+    )
+
+
+# Image Editing API system
+
+
+class ImageEditingAPIConfig(SystemDefinition):
+    """Configuration for Image Editing API systems."""
+
+    type: Literal["image_editing_api"] = Field(
+        ...,
+        description="Image Editing API system: image_editing_api",
+    )
+    params: LLMAPIParams = Field(
+        ...,
+        description="Parameters specific to the Image Editing API system (e.g., base url, model name, API key and env file).",
+    )
+
+
+# VLM API system
+
+
+class VLMApiConfig(SystemDefinition):
+    """Configuration for Vision Language Model API systems."""
+
+    type: Literal["vlm_api"] = Field(
+        ...,
+        description="Vision Language Model API system: vlm_api",
+    )
+    params: VLMAPIParams = Field(
+        ...,
+        description="Parameters specific to the VLM API system (e.g., base url, model name, API key, env file, and vision support).",
+    )
+
+
 # Generic system
 
 
@@ -186,7 +239,14 @@ class GenericSystemConfig(SystemDefinition):
     )
 
 
-SystemConfig = Union[LLMAPIConfig, RAGAPIConfig, GenericSystemConfig]
+SystemConfig = Union[
+    LLMAPIConfig,
+    RAGAPIConfig,
+    ImageGenerationAPIConfig,
+    ImageEditingAPIConfig,
+    VLMApiConfig,
+    GenericSystemConfig,
+]
 
 
 class SystemsConfig(BaseModel):

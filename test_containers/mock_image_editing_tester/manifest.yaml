@@ -1,0 +1,56 @@
+name: "mock_image_editing_tester"
+version: "1.0"
+description: "A lightweight mock container for testing image editing systems with multipart handling and response validation."
+
+input_systems:
+  - name: "system_under_test"
+    type: "image_editing_api"
+    required: true
+    description: "The image editing system being tested"
+
+input_schema:
+  - name: "delay_seconds"
+    type: "integer"
+    required: false
+    description: "Seconds to sleep to simulate work."
+  - name: "prompt"
+    type: "string"
+    required: false
+    description: "Text prompt describing the desired edit"
+  - name: "response_format"
+    type: "string"
+    required: false
+    description: "Response format: 'url' or 'b64_json'"
+  - name: "mask_mode"
+    type: "string"
+    required: false
+    description: "Type of mask to use: 'none', 'rectangle', 'circle'"
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the test execution completed successfully"
+  - name: "score"
+    type: "float"
+    description: "Mock test score (0.0 to 1.0)"
+  - name: "delay_used"
+    type: "integer"
+    description: "The delay in seconds that was actually used"
+  - name: "base_url"
+    type: "string"
+    description: "The base URL that was used for the image editing API system"
+  - name: "model"
+    type: "string"
+    description: "The model name that was used"
+  - name: "num_images"
+    type: "integer"
+    description: "Number of edited images generated"
+  - name: "response_format"
+    type: "string"
+    description: "Response format used (url or b64_json)"
+  - name: "mask_mode"
+    type: "string"
+    description: "Mask mode that was used"
+  - name: "validation"
+    type: "string"
+    description: "Whether response validation passed or failed"
