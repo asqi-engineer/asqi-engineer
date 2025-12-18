@@ -27,11 +27,6 @@ COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /python /python
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy validation code from main library
-# Note: image_response_schema.py is copied from src/asqi during package development
-# This ensures the test container uses the latest validation schema from development
-# Alternative: Install asqi-engineer package and import from asqi.image_response_schema
-# RUN uv pip install --no-cache-dir --system asqi-engineer
 COPY manifest.yaml .
 COPY entrypoint.py .
 
