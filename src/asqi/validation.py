@@ -8,7 +8,13 @@ from rich.console import Console
 
 from asqi.config import load_config_file
 from asqi.errors import DuplicateIDError, MissingIDFieldError
-from asqi.schemas import EnvironmentVariable, Manifest, SuiteConfig, SystemsConfig
+from asqi.schemas import (
+    EnvironmentVariable,
+    Manifest,
+    SuiteConfig,
+    SystemsConfig,
+    TestDefinition,
+)
 
 logger = logging.getLogger()
 
@@ -236,6 +242,51 @@ def validate_test_parameters(test, manifest: Manifest) -> List[str]:
     return errors
 
 
+def validate_dataset_configs(test: TestDefinition, manifest: Manifest) -> List[str]:
+    """
+    Validate test.datasets against the manifest's input_datasets schema.
+
+    - Ensures required datasets are provided with required features.
+    - Ensures no unknown dataset names are supplied.
+    - Ensures feature mappings do not include unknown features.
+    """
+    errors = []
+    schema_datasets = {d.name: d for d in manifest.input_datasets}
+    test_datasets = test.datasets or {}
+
+    # Check for required but missing datasets
+    for schema_dataset in manifest.input_datasets:
+        if schema_dataset.required and schema_dataset.name not in test_datasets:
+            errors.append(
+                f"Test '{test.name}': Missing required dataset '{schema_dataset.name}' (description: {schema_dataset.description or 'none'})"
+            )
+
+    # Check for unknown dataset names or unknown mapped fields
+    unknown_datasets: list[str] = []
+    for provided_dataset_name, provided_dataset_config in test_datasets.items():
+        if provided_dataset_name not in schema_datasets:
+            unknown_datasets.append(provided_dataset_name)
+            continue
+        expected_features = {
+            f.name for f in schema_datasets[provided_dataset_name].features
+        }
+        unknown_mappings: list[str] = []
+        for mapped_feature in provided_dataset_config.mapping.keys():
+            if mapped_feature not in expected_features:
+                unknown_mappings.append(mapped_feature)
+        if unknown_mappings:
+            errors.append(
+                f"Test '{test.name}': Unknown feature mappings '{', '.join(unknown_mappings)}' in dataset '{provided_dataset_name}'. Valid features: {', '.join(expected_features) if expected_features else 'none'}"
+            )
+
+    if unknown_datasets:
+        errors.append(
+            f"Test '{test.name}': Unknown datasets '{', '.join(unknown_datasets)}'. Valid datasets: {', '.join(schema_datasets.keys()) if schema_datasets else 'none'}"
+        )
+
+    return errors
+
+
 def validate_system_compatibility(
     test, system_definitions: Dict, manifest: Manifest
 ) -> List[str]:
@@ -395,6 +446,10 @@ def validate_manifests_against_tests(
         # Validate test parameters
         param_errors = validate_test_parameters(test, manifest)
         errors.extend(param_errors)
+
+        # Validate provided dataset configs
+        dataset_errors = validate_dataset_configs(test, manifest)
+        errors.extend(dataset_errors)
 
         # Validate system compatibility
         system_errors = validate_system_compatibility(
