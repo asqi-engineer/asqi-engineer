@@ -19,7 +19,7 @@ systems:
       api_key: "sk-1234"
 
   # Vision Language Models (VLMs)
-  gpt5_mini_vlm:
+  gpt4_1_mini_vlm:
     type: "vlm_api"
     description: "OpenAI GPT-4.1-Mini VLM Evaluator"
     params:
