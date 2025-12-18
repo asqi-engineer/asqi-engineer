@@ -108,7 +108,7 @@ class ImageVLMTester:
                 return float(content)
             except ValueError:
                 # Fallback to regex if direct conversion fails (e.g., if VLM output format changes).
-                score_match = re.search(r"\\b([0-9]|10)\b", content)
+                score_match = re.search(r"\b([0-9]|10)\b", content)
                 if score_match:
                     return float(score_match.group(0))
                 else:
