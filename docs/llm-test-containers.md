@@ -606,7 +606,6 @@ docker build -t my-registry/resaro_judge:latest .
 - `success` (boolean): Whether the test execution completed successfully
 - `aesthetic_score` (float): Numerical score from the VLM evaluation (0.0 to 10.0)
 - `image_url` (string): URL of the generated image
-- `vlm_response` (string): Raw response from the VLM evaluator
 
 ### Example Configuration
 ```yaml
