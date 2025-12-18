@@ -302,12 +302,10 @@ model_list:
   # ... existing models ...
 
   # Vision Language Models
-  - model_name: "gpt-5-mini"
+  - model_name: "openai/*"
     litellm_params:
-      model: "gpt-4-vision-preview"
+      model: "openai/*"
       api_key: os.environ/OPENAI_API_KEY
-    model_info:
-      supports_vision: true
 ```
 
 Then reference it in your ASQI systems configuration:
@@ -330,7 +328,7 @@ ASQI sends multimodal chat completion requests:
 
 ```json
 {
-  "model": "gpt-4-vision-preview",
+  "model": "gpt4_1_mini_vlm",
   "messages": [
     {
       "role": "user",
