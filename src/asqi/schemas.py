@@ -95,7 +95,7 @@ class InputDataset(BaseModel):
     )
     features: list[DatasetFeature] = Field(
         [],
-        description="List of required features within the dataset.",
+        description="List of required features within the dataset. Required feature names can be mapped to a different feature name in the dataset. The default without a mapping is to require the same feature name.",
     )
 
 class Manifest(BaseModel):
@@ -115,6 +115,7 @@ class Manifest(BaseModel):
     input_schema: List[InputParameter] = Field(
         [], description="Defines the schema for the user-provided 'params' object."
     )
+    # Can consider making this new field optional for backward compatibility.
     input_datasets: list[InputDataset] = Field(
         [],
         description="Defines the schema for user-provided input datasets.",
@@ -303,6 +304,14 @@ class SystemsConfig(BaseModel):
 # Schema for test_suite.yaml (User-provided)
 # ----------------------------------------------------------------------------
 
+class DatasetConfig(BaseModel):
+    loader_params: dict[str, str] = Field(
+        ..., description="Arguments for datasets.load_dataset function to load dataset."
+    )
+    mapping: dict[str, str] = Field(
+        {},
+        description="Mapping from expected feature names in container manifest to dataset fields.",
+    )
 
 class TestDefinitionBase(BaseModel):
     """Base class for test configuration fields shared between TestDefinition and TestSuiteDefault."""
@@ -320,6 +329,10 @@ class TestDefinitionBase(BaseModel):
     )
     params: Optional[Dict[str, Any]] = Field(
         None, description="Parameters to be passed to the test container's entrypoint."
+    )
+    datasets: Optional[Dict[str, DatasetConfig]] = Field(
+        None,
+        description="Input dataset names and their loading/mapping configurations.",
     )
     volumes: Optional[Dict[str, Any]] = Field(
         None, description="Optional input/output mounts."
