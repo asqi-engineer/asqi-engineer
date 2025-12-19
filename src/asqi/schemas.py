@@ -67,6 +67,7 @@ class EnvironmentVariable(BaseModel):
         None, description="Explanation of what this variable is used for."
     )
 
+
 class DatasetFeature(BaseModel):
     """Defines a feature/column within a dataset."""
 
@@ -74,7 +75,7 @@ class DatasetFeature(BaseModel):
         ...,
         description="The name of the feature.",
     )
-    # TODO: add type checking for feature data types
+    # TODO: Perhaps add type checking for feature data types
     description: Optional[str] = Field(
         None, description="Description of the feature - data type, purpose etc."
     )
@@ -97,6 +98,7 @@ class InputDataset(BaseModel):
         [],
         description="List of required features within the dataset. Required feature names can be mapped to a different feature name in the dataset. The default without a mapping is to require the same feature name.",
     )
+
 
 class Manifest(BaseModel):
     """Schema for the manifest.yaml file inside a test container."""
@@ -304,14 +306,17 @@ class SystemsConfig(BaseModel):
 # Schema for test_suite.yaml (User-provided)
 # ----------------------------------------------------------------------------
 
+
 class DatasetConfig(BaseModel):
     loader_params: dict[str, str] = Field(
-        ..., description="Arguments for datasets.load_dataset function to load dataset."
+        ...,
+        description="Keyword arguments for HuggingFace datasets.load_dataset function to load dataset.",
     )
     mapping: dict[str, str] = Field(
         {},
         description="Mapping from expected feature names in container manifest to dataset fields.",
     )
+
 
 class TestDefinitionBase(BaseModel):
     """Base class for test configuration fields shared between TestDefinition and TestSuiteDefault."""
@@ -332,7 +337,7 @@ class TestDefinitionBase(BaseModel):
     )
     datasets: Optional[Dict[str, DatasetConfig]] = Field(
         None,
-        description="Input dataset names and their loading/mapping configurations.",
+        description="Input dataset names mapped to their loading and mapping configurations.",
     )
     volumes: Optional[Dict[str, Any]] = Field(
         None, description="Optional input/output mounts."

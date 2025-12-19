@@ -246,13 +246,15 @@ def validate_dataset_configs(test: TestDefinition, manifest: Manifest) -> List[s
     """
     Validate test.datasets against the manifest's input_datasets schema.
 
-    - Ensures required datasets are provided with required features.
-    - Ensures no unknown dataset names are supplied.
-    - Ensures feature mappings do not include unknown features.
+    - Ensures required datasets in input_datasets are provided.
+    - Ensures no unknown dataset names are provided in test.datasets.
+    - Ensures feature mappings for each of test.datasets do not include unknown features.
     """
     errors = []
-    schema_datasets = {d.name: d for d in manifest.input_datasets}
-    test_datasets = test.datasets or {}
+    if test.datasets is None:
+        test_datasets = {}
+    else:
+        test_datasets = test.datasets
 
     # Check for required but missing datasets
     for schema_dataset in manifest.input_datasets:
@@ -262,6 +264,7 @@ def validate_dataset_configs(test: TestDefinition, manifest: Manifest) -> List[s
             )
 
     # Check for unknown dataset names or unknown mapped fields
+    schema_datasets = {d.name: d for d in manifest.input_datasets}
     unknown_datasets: list[str] = []
     for provided_dataset_name, provided_dataset_config in test_datasets.items():
         if provided_dataset_name not in schema_datasets:

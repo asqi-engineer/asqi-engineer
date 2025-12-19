@@ -1,5 +1,33 @@
 {
   "$defs": {
+    "DatasetFeature": {
+      "description": "Defines a feature/column within a dataset.",
+      "properties": {
+        "name": {
+          "description": "The name of the feature.",
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the feature - data type, purpose etc.",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "DatasetFeature",
+      "type": "object"
+    },
     "EnvironmentVariable": {
       "description": "Defines an environment variable required by the test container.",
       "properties": {
@@ -32,6 +60,49 @@
         "name"
       ],
       "title": "EnvironmentVariable",
+      "type": "object"
+    },
+    "InputDataset": {
+      "description": "Defines a dataset input that the container requires.",
+      "properties": {
+        "name": {
+          "description": "The dataset name, e.g., 'evaluation_data', 'test_prompts'.",
+          "title": "Name",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether this dataset is mandatory for execution.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the dataset's role in the test.",
+          "title": "Description"
+        },
+        "features": {
+          "default": [],
+          "description": "List of required features within the dataset. Required feature names can be mapped to a different feature name in the dataset. The default without a mapping is to require the same feature name.",
+          "items": {
+            "$ref": "#/$defs/DatasetFeature"
+          },
+          "title": "Features",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "InputDataset",
       "type": "object"
     },
     "InputParameter": {
@@ -233,6 +304,15 @@
         "$ref": "#/$defs/InputParameter"
       },
       "title": "Input Schema",
+      "type": "array"
+    },
+    "input_datasets": {
+      "default": [],
+      "description": "Defines the schema for user-provided input datasets.",
+      "items": {
+        "$ref": "#/$defs/InputDataset"
+      },
+      "title": "Input Datasets",
       "type": "array"
     },
     "output_metrics": {
