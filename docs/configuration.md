@@ -213,7 +213,7 @@ ASQI sends OpenAI-compatible image generation requests:
 
 ```json
 {
-  "model": "dall-e-3",
+  "model": "openai/dall-e-3",
   "prompt": "A cute baby sea otter, in an animated style",
   "n": 1,
   "size": "1024x1024",
@@ -328,7 +328,7 @@ ASQI sends multimodal chat completion requests:
 
 ```json
 {
-  "model": "gpt4_1_mini_vlm",
+  "model": "openai/gpt4_1_mini_vlm",
   "messages": [
     {
       "role": "user",
