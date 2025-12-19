@@ -212,7 +212,7 @@ class ImageEditingAPIConfig(SystemDefinition):
 # VLM API system
 
 
-class VLMApiConfig(SystemDefinition):
+class VLMAPIConfig(SystemDefinition):
     """Configuration for Vision Language Model API systems."""
 
     type: Literal["vlm_api"] = Field(
@@ -249,7 +249,7 @@ SystemConfig = Union[
     RAGAPIConfig,
     ImageGenerationAPIConfig,
     ImageEditingAPIConfig,
-    VLMApiConfig,
+    VLMAPIConfig,
     GenericSystemConfig,
 ]
 

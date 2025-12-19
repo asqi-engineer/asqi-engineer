@@ -12,7 +12,7 @@ from asqi.schemas import (
     SuiteConfig,
     SystemsConfig,
     TestDefinition,
-    VLMApiConfig,
+    VLMAPIConfig,
     VLMAPIParams,
 )
 from asqi.validation import create_test_execution_plan
@@ -136,7 +136,7 @@ class TestEnvironmentVariables:
 
         return SystemsConfig(
             systems={
-                "test_system": VLMApiConfig(
+                "test_system": VLMAPIConfig(
                     type="vlm_api",
                     description="VLM System description",
                     provider="openai",
