@@ -5,6 +5,7 @@ description = "ASQI quality checks for AI systems"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "datasets[audio,vision]>=4.4.1",
     "dbos[otel]==2.5.0",
     "docker>=7.1.0",
     "pydantic>=2.11.7",

@@ -6,7 +6,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Arguments for datasets.load_dataset function to load dataset.",
+          "description": "Keyword arguments for HuggingFace datasets.load_dataset function to load dataset.",
           "title": "Loader Params",
           "type": "object"
         },
@@ -104,7 +104,7 @@
             }
           ],
           "default": null,
-          "description": "Input dataset names and their loading/mapping configurations.",
+          "description": "Input dataset names mapped to their loading and mapping configurations.",
           "title": "Datasets"
         },
         "volumes": {
@@ -273,7 +273,7 @@
             }
           ],
           "default": null,
-          "description": "Input dataset names and their loading/mapping configurations.",
+          "description": "Input dataset names mapped to their loading and mapping configurations.",
           "title": "Datasets"
         },
         "volumes": {
