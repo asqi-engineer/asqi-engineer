@@ -328,7 +328,7 @@ ASQI sends multimodal chat completion requests:
 
 ```json
 {
-  "model": "openai/gpt4_1_mini_vlm",
+  "model": "openai/gpt-4.1-mini",
   "messages": [
     {
       "role": "user",

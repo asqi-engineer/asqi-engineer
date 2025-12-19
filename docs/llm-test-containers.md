@@ -617,8 +617,8 @@ test_suite:
     systems_under_test:
       - "openai_image_generator"
     systems:
-      system_under_test: "openai_image_generator"
-      evaluator_system: "openai_vlm_evaluator"
+      system_under_test: "dalle3_generator"
+      evaluator_system: "gpt4_1_mini_vlm"
     params:
       prompt: "A cute baby sea otter, in an animated style"
       score_instruction: "Please evaluate the photo-realism of this image and provide a score between 1 and 10, just the number."
