@@ -36,15 +36,6 @@ def main():
         base_url = sut_params["base_url"]  # Required, validated upstream
 
         model = sut_params["model"]  # Required, validated upstream
-        supports_vision = sut_params.get(
-            "supports_vision", True
-        )  # Should always be True for VLM systems
-
-        # Validate that VLM system supports vision
-        if not supports_vision:
-            raise ValueError(
-                "VLM system must support vision, but supports_vision is False"
-            )
 
         # Extract delay parameter
         delay_seconds = test_params.get("delay_seconds", 0)

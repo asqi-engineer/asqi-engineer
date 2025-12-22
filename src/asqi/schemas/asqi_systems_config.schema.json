@@ -321,6 +321,13 @@
           "default": null,
           "description": "Direct API key for authentication (alternative to env_file)",
           "title": "Api Key"
+        },
+        "supports_vision": {
+          "const": true,
+          "default": true,
+          "description": "Whether the VLM system supports vision. Forced to True for vlm_api type.",
+          "title": "Supports Vision",
+          "type": "boolean"
         }
       },
       "required": [
@@ -330,7 +337,7 @@
       "title": "VLMAPIParams",
       "type": "object"
     },
-    "VLMApiConfig": {
+    "VLMAPIConfig": {
       "description": "Configuration for Vision Language Model API systems.",
       "properties": {
         "description": {
@@ -374,7 +381,7 @@
         "type",
         "params"
       ],
-      "title": "VLMApiConfig",
+      "title": "VLMAPIConfig",
       "type": "object"
     }
   },
@@ -396,7 +403,7 @@
             "$ref": "#/$defs/ImageEditingAPIConfig"
           },
           {
-            "$ref": "#/$defs/VLMApiConfig"
+            "$ref": "#/$defs/VLMAPIConfig"
           },
           {
             "$ref": "#/$defs/GenericSystemConfig"

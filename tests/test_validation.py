@@ -16,6 +16,7 @@ from asqi.schemas import (
     LLMAPIParams,
     Manifest,
     RAGAPIConfig,
+    VLMAPIConfig,
     ScoreCard,
     ScoreCardFilter,
     ScoreCardIndicator,
@@ -643,6 +644,20 @@ class TestSchemaValidation:
 
         errors = validate_test_plan(demo_vlm_suite, vlm_systems, manifests)
         assert errors == [], f"Expected no errors for VLM system, but got: {errors}"
+
+    def test_vlm_vision_enforcement(self):
+        """Test that supports_vision must be True for VLM systems."""
+        with pytest.raises(ValidationError) as excinfo:
+            VLMAPIConfig(
+                type="vlm_api",
+                params={
+                    "base_url": "http://localhost:4000/v1",
+                    "model": "gpt-4o",
+                    "supports_vision": False,
+                },
+            )
+        assert "supports_vision" in str(excinfo.value)
+        assert "Input should be True" in str(excinfo.value)
 
     def test_manifest_schema_validation(self, manifests):
         """Test that manifests parse correctly."""
