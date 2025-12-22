@@ -6,7 +6,7 @@ import yaml
 from pydantic import BaseModel
 from rich.console import Console
 
-from asqi.config import load_config_file
+from asqi.config import ExecutionMode, load_config_file
 from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.schemas import (
     AuditScoreCardIndicator,
@@ -622,7 +622,7 @@ def validate_test_plan(
 def validate_execution_inputs(
     suite_path: str,
     systems_path: str,
-    execution_mode: str,
+    execution_mode: ExecutionMode,
     audit_responses_data: Optional[Dict[str, Any]] = None,
     output_path: Optional[str] = None,
 ) -> None:
@@ -632,7 +632,7 @@ def validate_execution_inputs(
     Args:
         suite_path: Path to test suite YAML file
         systems_path: Path to systems YAML file
-        execution_mode: Execution mode string
+        execution_mode: Execution mode
         audit_responses_data: Optional dictionary of audit responses data
         output_path: Optional output file path
 
@@ -645,7 +645,7 @@ def validate_execution_inputs(
     if not systems_path or not isinstance(systems_path, str):
         raise ValueError("Invalid systems_path: must be non-empty string")
 
-    if execution_mode not in ["tests_only", "end_to_end"]:
+    if execution_mode not in [ExecutionMode.TESTS_ONLY, ExecutionMode.END_TO_END]:
         raise ValueError(
             f"Invalid execution_mode '{execution_mode}': must be 'tests_only' or 'end_to_end'"
         )

@@ -5,6 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from asqi.config import ExecutionMode
 from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.main import load_and_validate_plan
 from asqi.rag_response_schema import RAGCitation, RAGContext, validate_rag_response
@@ -1245,13 +1246,13 @@ class TestValidationInputFunctions:
         validate_execution_inputs(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
-            execution_mode="tests_only",
+            execution_mode=ExecutionMode.TESTS_ONLY,
             output_path="output.json",
         )
         validate_execution_inputs(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
-            execution_mode="end_to_end",
+            execution_mode=ExecutionMode.END_TO_END,
             output_path=None,
         )
 
@@ -1330,7 +1331,7 @@ class TestValidationInputFunctions:
         validate_execution_inputs(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
-            execution_mode="tests_only",
+            execution_mode=ExecutionMode.TESTS_ONLY,
             audit_responses_data=MOCK_AUDIT_RESPONSES,
             output_path="output.json",
         )
@@ -1339,7 +1340,7 @@ class TestValidationInputFunctions:
         validate_execution_inputs(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
-            execution_mode="end_to_end",
+            execution_mode=ExecutionMode.END_TO_END,
             audit_responses_data=MOCK_AUDIT_RESPONSES,
             output_path=None,
         )
@@ -1351,7 +1352,7 @@ class TestValidationInputFunctions:
             validate_execution_inputs(
                 suite_path="suite.yaml",
                 systems_path="systems.yaml",
-                execution_mode="tests_only",
+                execution_mode=ExecutionMode.TESTS_ONLY,
                 audit_responses_data=["not", "a", "dict"],  # type: ignore[arg-type]
             )
 
@@ -1360,7 +1361,7 @@ class TestValidationInputFunctions:
             validate_execution_inputs(
                 suite_path="suite.yaml",
                 systems_path="systems.yaml",
-                execution_mode="tests_only",
+                execution_mode=ExecutionMode.TESTS_ONLY,
                 audit_responses_data="not-a-dict",  # type: ignore[arg-type]
             )
 

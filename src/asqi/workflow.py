@@ -14,6 +14,7 @@ from rich.console import Console
 
 from asqi.config import (
     ContainerConfig,
+    ExecutionMode,
     interpolate_env_vars,
     load_config_file,
     merge_defaults_into_suite,
@@ -548,7 +549,7 @@ def evaluate_score_card(
     test_results: List[TestExecutionResult],
     score_card_configs: List[Dict[str, Any]],
     audit_responses_data: Optional[Dict[str, Any]] = None,
-    execution_mode: str = "end_to_end",
+    execution_mode: ExecutionMode = ExecutionMode.END_TO_END,
 ) -> List[Dict[str, Any]]:
     """Evaluate score cards against test execution results."""
     from asqi.score_card_engine import ScoreCardEngine
@@ -598,7 +599,7 @@ def evaluate_score_card(
     for score_card in score_cards:
         try:
             # Validate score card technical reports (end_to_end is validated before test execution)
-            if execution_mode == "evaluate_only":
+            if execution_mode == ExecutionMode.EVALUATE_ONLY:
                 validate_technical_reports(manifests, score_card, test_id_to_image)
 
             # Evaluate score card against test results
@@ -1036,7 +1037,7 @@ def evaluate_score_cards_workflow(
     test_container_data: List[Dict[str, Any]],
     score_card_configs: List[Dict[str, Any]],
     audit_responses_data: Optional[Dict[str, Any]] = None,
-    execution_mode: str = "end_to_end",
+    execution_mode: ExecutionMode = ExecutionMode.END_TO_END,
 ) -> Dict[str, Any]:
     """
     Evaluate score cards against existing test results.
@@ -1046,7 +1047,7 @@ def evaluate_score_cards_workflow(
         test_container_data: Test container results containing container output and error message
         score_card_configs: List of score card configurations to evaluate
         audit_responses_data: Optional dict with manual audit responses
-        execution_mode: "evaluate_only" or "end_to_end"
+        execution_mode: Execution mode (end_to_end or evaluate_only)
 
     Returns:
         Updated results with score card evaluation data
@@ -1206,7 +1207,7 @@ def validate_test_container_technical_reports(
 
 def _resolve_technical_reports_inputs(
     test_results: List[TestExecutionResult],
-    execution_mode: str,
+    execution_mode: ExecutionMode,
 ) -> Tuple[Dict[str, str], Dict[str, Manifest]]:
     """
     Prepares input data needed for technical report validation.
@@ -1218,7 +1219,7 @@ def _resolve_technical_reports_inputs(
     Returns:
         Links test ids to their image names and manifests by image name
     """
-    if execution_mode == "end_to_end":
+    if execution_mode == ExecutionMode.END_TO_END:
         return {}, {}
     unique_images = list(set(result.image for result in test_results))
     available_images, _ = _get_available_images(unique_images)
@@ -1308,7 +1309,7 @@ def start_test_execution(
     audit_responses_data: Optional[Dict[str, Any]] = None,
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
-    execution_mode: str = "end_to_end",
+    execution_mode: ExecutionMode = ExecutionMode.END_TO_END,
     test_ids: Optional[List[str]] = None,
 ) -> str:
     """
@@ -1328,7 +1329,7 @@ def start_test_execution(
         audit_responses_data: Optional dictionary of audit responses data
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
-        execution_mode: "tests_only" or "end_to_end"
+        execution_mode: Execution mode ("tests_only" or "end_to_end")
         test_ids: Optional list of test ids to filter from suite
 
     Returns:
@@ -1387,7 +1388,7 @@ def start_test_execution(
             ]
 
         # Start appropriate workflow based on execution mode
-        if execution_mode == "tests_only":
+        if execution_mode == ExecutionMode.TESTS_ONLY:
             handle = DBOS.start_workflow(
                 run_test_suite_workflow,
                 suite_config,
@@ -1395,7 +1396,7 @@ def start_test_execution(
                 executor_config,
                 container_config,
             )
-        elif execution_mode == "end_to_end":
+        elif execution_mode == ExecutionMode.END_TO_END:
             if not score_card_configs:
                 # Fall back to tests only if no score cards provided
                 handle = DBOS.start_workflow(
