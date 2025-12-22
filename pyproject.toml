@@ -36,7 +36,7 @@ dev = [
     "sphinxcontrib-typer>=0.5.1",
     "sphinx-new-tab-link>=0.8.0"
 ]
-containers = ["deepteam==0.2.4", "litellm>=1.76.0", "openevals>=0.1.0"]
+containers = ["deepteam==1.0.4", "litellm>=1.76.0", "openevals>=0.1.0"]
 
 [tool.bandit]
 exclude_dirs = [".venv", "tests", "test_containers/mock_tester", "test_containers/mock_rag_tester", "test_containers/mock_image_generation_tester", "test_containers/mock_image_editing_tester", "test_containers/vlm_evaluator_tester"]

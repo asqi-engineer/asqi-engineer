@@ -197,7 +197,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 containers = [
-    { name = "deepteam", specifier = "==0.2.4" },
+    { name = "deepteam", specifier = "==1.0.4" },
     { name = "litellm", specifier = ">=1.76.0" },
     { name = "openevals", specifier = ">=0.1.0" },
 ]
@@ -550,7 +550,7 @@ wheels = [
 
 [[package]]
 name = "deepteam"
-version = "0.2.4"
+version = "1.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -563,9 +563,9 @@ dependencies = [
     { name = "tabulate" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5f/84/515d21e3c3b3c8e7b69e28e4354d8dc3e8c2594e878b3c0175c3e8643a00/deepteam-0.2.4.tar.gz", hash = "sha256:145aea2406ff3ca15b7898fdc9b3544dd677098a69f43d084530f978f711042c", size = 245347, upload-time = "2025-08-24T15:03:13.955Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/4e/e3dba2625a0f3ebf41fb7ea0be0f7e2b28f28d3a9c0b21aa4151bacd0a9c/deepteam-1.0.4.tar.gz", hash = "sha256:979a784ee5d43f3f61333652168aaa9d86629f602156cb199349a73ff1afb624", size = 311444, upload-time = "2025-12-07T05:31:11.374Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a9/82/3f5e54aefc1276d437f30c9a5ebfdd0f731a6ff015dd1e61a91e7168059a/deepteam-0.2.4-py3-none-any.whl", hash = "sha256:c9a44d55901026e7b7718c6bb0eba3d1d93b24f98457035ea4303fab8dfb206e", size = 422965, upload-time = "2025-08-24T15:03:06.011Z" },
+    { url = "https://files.pythonhosted.org/packages/22/02/789f5a19016f4ae90af905b2ebc83f68318bdc23ab3bff941e366400478b/deepteam-1.0.4-py3-none-any.whl", hash = "sha256:49813ef52939608d51f1876af95a9db9b2dde40666a0a2081fd4f8a810705fe7", size = 532886, upload-time = "2025-12-07T05:31:09.692Z" },
 ]
 
 [[package]]
