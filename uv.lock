@@ -151,7 +151,6 @@ source = { editable = "." }
 dependencies = [
     { name = "dbos", extra = ["otel"] },
     { name = "docker" },
-    { name = "filelock" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -188,7 +187,6 @@ dev = [
 requires-dist = [
     { name = "dbos", extras = ["otel"], specifier = "==2.7.0" },
     { name = "docker", specifier = ">=7.1.0" },
-    { name = "filelock", specifier = ">=3.20.1" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "pyyaml", specifier = ">=6.0.2" },

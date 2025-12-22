@@ -28,6 +28,7 @@ from asqi.container_manager import (
     pull_images,
     run_container_with_args,
 )
+from asqi.errors import TechnicalReportError
 from asqi.output import (
     create_test_execution_progress,
     create_workflow_summary,
@@ -35,6 +36,7 @@ from asqi.output import (
     format_execution_summary,
     format_failure_summary,
     parse_container_json_output,
+    translate_report_paths,
 )
 from asqi.schemas import (
     AuditResponses,
@@ -47,11 +49,12 @@ from asqi.validation import (
     build_env_var_error_message,
     create_test_execution_plan,
     validate_execution_inputs,
+    validate_indicator_display_reports,
     validate_score_card_inputs,
-    validate_score_cards_reports,
     validate_test_execution_inputs,
     validate_test_volumes,
     validate_workflow_configurations,
+    verify_score_card_reports,
 )
 
 load_dotenv()
@@ -74,6 +77,50 @@ DBOS(config=config)
 
 # Initialize Rich console and execution queue
 console = Console()
+
+
+def _get_available_images(
+    unique_images: List[str],
+) -> Tuple[List[str], Dict[str, bool]]:
+    """
+    Get the list of available Docker images, pulling missing ones as needed.
+
+    Args:
+        unique_images: List of docker image names
+
+    Returns:
+        List of valid available images and a dictionary of their availability status
+
+    """
+    DBOS.logger.info(f"Found {len(unique_images)} unique images")
+
+    # Check image availability
+    with console.status("[bold blue]Checking image availability...", spinner="dots"):
+        image_availability = dbos_check_images_availability(unique_images)
+
+    # Try to pull missing images from Docker Hub/registries
+    missing_images = [
+        img for img, available in image_availability.items() if not available
+    ]
+    if missing_images:
+        console.print(
+            f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally"
+        )
+        with console.status(
+            "[bold blue]Pulling missing images from registry...", spinner="dots"
+        ):
+            dbos_pull_images(missing_images)
+
+    # After pulling, we need to check availability again to include newly pulled images
+    if missing_images:
+        updated_image_availability = dbos_check_images_availability(unique_images)
+        image_availability.update(updated_image_availability)
+
+    # Now get all available images including ones that were just pulled
+    available_images = [
+        img for img, available in image_availability.items() if available
+    ]
+    return available_images, image_availability
 
 
 def _get_docker_socket_path(env_vars: dict[str, str]) -> str:
@@ -207,7 +254,7 @@ def validate_test_plan(
 
 
 @DBOS.step()
-def validate_score_cards_reports_step(
+def validate_indicator_display_reports_step(
     suite: SuiteConfig, manifests: Dict[str, Manifest], score_cards: List[ScoreCard]
 ) -> List[str]:
     """
@@ -224,9 +271,9 @@ def validate_score_cards_reports_step(
     Returns:
         List of validation error messages
     """
-    if not score_cards:
-        return []
-    return validate_score_cards_reports(suite, manifests, score_cards)
+    test_id_to_image = {test.id: test.image for test in suite.test_suite}
+
+    return validate_indicator_display_reports(manifests, score_cards, test_id_to_image)
 
 
 @DBOS.step()
@@ -475,13 +522,8 @@ def execute_single_test(
             result.test_results = test_results
             result.technical_reports = technical_reports
 
-            host_volume = test_params.get("volumes", {}).get("output")
-            if host_volume:
-                for r in technical_reports:
-                    if r.get("report_path", "").startswith(str(OUTPUT_MOUNT_PATH)):
-                        r["report_path"] = r["report_path"].replace(
-                            str(OUTPUT_MOUNT_PATH), host_volume, 1
-                        )
+            host_output_volume = test_params.get("volumes", {}).get("output", "")
+            translate_report_paths(technical_reports, host_output_volume)
             result.success = result.test_results.get("success", False)
         except ValueError as e:
             result.error_message = (
@@ -549,50 +591,16 @@ def evaluate_score_card(
     if not score_cards:
         return all_evaluations
 
-    # In end-to-end mode, validation is done before executing tests
-    if execution_mode == "evaluate_only":
-        unique_images = list(set(result.image for result in test_results))
-        image_availability = dbos_check_images_availability(unique_images)
-        available_images = [
-            img for img, available in image_availability.items() if available
-        ]
-        if not available_images:
-            DBOS.logger.warning("No available images found for manifest extraction")
-        else:
-            manifests = extract_manifests_step(available_images)
-            if manifests:
-                suite_dict = {
-                    "suite_name": "evaluation_suite",
-                    "test_suite": [
-                        {
-                            "id": result.test_id,
-                            "name": result.test_name,
-                            "image": result.image,
-                            "systems_under_test": [result.sut_name],
-                        }
-                        for result in test_results
-                    ],
-                }
-                try:
-                    suite = SuiteConfig(**suite_dict)
-                    with console.status(
-                        "[bold blue]Validating score cards...", spinner="dots"
-                    ):
-                        validation_errors = validate_score_cards_reports_step(
-                            suite, manifests, score_cards
-                        )
+    test_id_to_image, manifests = _resolve_technical_reports_inputs(
+        test_results, execution_mode
+    )
 
-                    if validation_errors:
-                        for error in validation_errors:
-                            DBOS.logger.warning(f"Score card validation error: {error}")
-                except ValidationError as e:
-                    DBOS.logger.warning(f"Skipping score card validation, error: {e}")
-            else:
-                DBOS.logger.warning(
-                    "No manifests extracted, skipping score card validation"
-                )
     for score_card in score_cards:
         try:
+            # Validate score card technical reports (end_to_end is validated before test execution)
+            if execution_mode == "evaluate_only":
+                validate_technical_reports(manifests, score_card, test_id_to_image)
+
             # Evaluate score card against test results
             score_card_evaluations = score_card_engine.evaluate_scorecard(
                 test_results, score_card, audit_responses
@@ -608,7 +616,13 @@ def evaluate_score_card(
                 f"Evaluated score card '{score_card.score_card_name}' with {len(score_card_evaluations)} individual evaluations"
             )
 
-        except (KeyError, AttributeError, TypeError, ValueError) as e:
+        except (
+            KeyError,
+            AttributeError,
+            TypeError,
+            ValueError,
+            TechnicalReportError,
+        ) as e:
             error_result = {
                 "score_card_name": score_card.score_card_name,
                 "error": f"Score card evaluation error: {e}",
@@ -623,7 +637,7 @@ def evaluate_score_card(
             all_evaluations.append(error_result)
             DBOS.logger.error(f"Score card evaluation error: {e}")
 
-    verify_score_card_reports_step(all_evaluations)
+    verify_score_card_reports(all_evaluations)
     return all_evaluations
 
 
@@ -723,36 +737,9 @@ def run_test_suite_workflow(
 
     console.print(f"\n[bold blue]Executing Test Suite:[/bold blue] {suite.suite_name}")
 
-    # Collect all unique images from test suite
+    """Get the list of available Docker images for the test suite."""
     unique_images = list(set(test.image for test in suite.test_suite))
-    DBOS.logger.info(f"Found {len(unique_images)} unique images")
-
-    # Check image availability
-    with console.status("[bold blue]Checking image availability...", spinner="dots"):
-        image_availability = dbos_check_images_availability(unique_images)
-
-    # Try to pull missing images from Docker Hub/registries
-    missing_images = [
-        img for img, available in image_availability.items() if not available
-    ]
-    if missing_images:
-        console.print(
-            f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally"
-        )
-        with console.status(
-            "[bold blue]Pulling missing images from registry...", spinner="dots"
-        ):
-            dbos_pull_images(missing_images)
-
-    # After pulling, we need to check availability again to include newly pulled images
-    if missing_images:
-        updated_image_availability = dbos_check_images_availability(unique_images)
-        image_availability.update(updated_image_availability)
-
-    # Now get all available images including ones that were just pulled
-    available_images = [
-        img for img, available in image_availability.items() if available
-    ]
+    available_images, image_availability = _get_available_images(unique_images)
 
     # Extract manifests from available images (post-pull)
     manifests = extract_manifests_step(available_images)
@@ -762,9 +749,11 @@ def run_test_suite_workflow(
         validation_errors = validate_test_plan(suite, systems, manifests)
 
     # Validate score cards reports
-    with console.status("[bold blue]Validating score cards...", spinner="dots"):
+    with console.status(
+        "[bold blue]Validating indicators display reports...", spinner="dots"
+    ):
         validation_errors.extend(
-            validate_score_cards_reports_step(suite, manifests, score_cards)
+            validate_indicator_display_reports_step(suite, manifests, score_cards)
         )
 
     if validation_errors:
@@ -911,71 +900,9 @@ def run_test_suite_workflow(
             if i % progress_interval == 0 or i == test_count:
                 console.print(f"[dim]Completed {i}/{test_count} tests[/dim]")
 
-    # Validate technical reports generated have required fields and match manifest
-    validation_errors = []
-    for result in all_results:
-        if not result.success:
-            continue
-
-        if not isinstance(result.technical_reports, list):
-            result.success = False
-            result.error_message = "'technical_reports' must be a list"
-            validation_errors.append(f"Test {result.test_id}: {result.error_message}")
-            DBOS.logger.error(f"Test {result.test_id}: {result.error_message}")
-            continue
-
-        for report in result.technical_reports:
-            if not isinstance(report, dict):
-                result.success = False
-                result.error_message = (
-                    "Reports in 'technical_reports' must be dictionaries"
-                )
-                break
-
-            path = report.get("report_path")
-            if not path or not isinstance(path, str):
-                result.success = False
-                result.error_message = f"Report '{report.get('report_name', 'unknown')}' missing valid 'report_path' field"
-                break
-
-        if not result.success:
-            validation_errors.append(f"Test {result.test_id}: {result.error_message}")
-            DBOS.logger.error(f"Test {result.test_id}: {result.error_message}")
-            continue
-
-        if result.image not in manifests:
-            continue
-
-        manifest = manifests[result.image]
-        manifest_reports = {(r.name, r.type) for r in (manifest.output_reports or [])}
-        container_reports = {
-            (report["report_name"], report["report_type"])
-            for report in result.technical_reports
-            if "report_name" in report
-            and "report_type" in report
-            and report["report_name"]
-            and report["report_type"]
-        }
-        missing_reports = manifest_reports - container_reports
-        return_reports = container_reports - manifest_reports
-
-        if missing_reports or return_reports:
-            result.success = False
-            missing_reports = sorted(list(missing_reports))
-            return_reports = sorted(list(return_reports))
-            result.error_message = (
-                f"Mismatch between manifest and returned technical report for image '{result.image}'. "
-                f"Missing required reports: {missing_reports}. "
-                f"Returned reports found: {return_reports}."
-            )
-            result.test_results = {
-                "success": False,
-                "error": "Test results invalidated due to technical report mismatch",
-                "missing_reports": missing_reports,
-                "return_reports": return_reports,
-            }
-            validation_errors.append(result.error_message)
-            DBOS.logger.error(f"Test {result.test_id}: {result.error_message}")
+    validation_errors = validate_test_container_technical_reports(
+        all_results, manifests
+    )
 
     workflow_end_time = time.time()
 
@@ -1177,6 +1104,169 @@ def run_end_to_end_workflow(
     return final_results, container_results
 
 
+def validate_test_container_technical_reports(
+    all_results: List[TestExecutionResult], manifests: Dict[str, Manifest]
+) -> List[str]:
+    """
+    Validates that the reports returned by the test container exactly match the test container manifest `output_reports` definitions.
+
+    Args:
+        all_results: List of test execution results
+        manifests: Dictionary linking each image to its manifest
+
+    Returns:
+        List of validation error messages or empty list if none found
+    """
+    validation_errors = []
+
+    for result in all_results:
+        if not result.success:
+            continue
+
+        def add_error(message: str):
+            result.success = False
+            result.error_message = message
+            validation_errors.append(f"Test {result.test_id}: {message}")
+            DBOS.logger.error(f"Test {result.test_id}: {message}")
+
+        if not isinstance(result.technical_reports, list):
+            add_error("'technical_reports' must be a list")
+            continue
+
+        for report in result.technical_reports:
+            if not isinstance(report, dict):
+                add_error("Each report in 'technical_reports' must be a dictionary")
+                break
+
+            report_name = report.get("report_name")
+            report_type = report.get("report_type")
+            report_path_str = report.get("report_path")
+
+            if not report_name or not isinstance(report_name, str):
+                add_error("Report missing valid 'report_name' field")
+                break
+            if not report_type or not isinstance(report_type, str):
+                add_error(
+                    f"Report name '{report_name}' missing valid 'report_type' field"
+                )
+                break
+            if not report_path_str or not isinstance(report_path_str, str):
+                add_error(
+                    f"Report name '{report_name}' missing valid 'report_path' field"
+                )
+                break
+            try:
+                report_path = Path(report_path_str)
+                if not report_path.exists():
+                    add_error(
+                        f"Report name '{report_name}' does not exist at path '{report_path_str}'"
+                    )
+                    break
+            except (TypeError, ValueError, OSError) as error:
+                add_error(
+                    f"Report name '{report_name}' file validation error: {str(error)}"
+                )
+                break
+        if not result.success:
+            continue
+
+        if result.image not in manifests:
+            DBOS.logger.warning(
+                f"No manifest found for image '{result.image}', skipping technical report validation for test {result.test_id}"
+            )
+            continue
+
+        manifest = manifests[result.image]
+        manifest_reports = {
+            (report.name, report.type) for report in (manifest.output_reports or [])
+        }
+        container_reports = {
+            (report["report_name"], report["report_type"])
+            for report in result.technical_reports
+        }
+        missing_reports = manifest_reports - container_reports
+        extra_reports = container_reports - manifest_reports
+
+        if missing_reports or extra_reports:
+            missing_reports = sorted(list(missing_reports))
+            extra_reports = sorted(list(extra_reports))
+            add_error(
+                f"Mismatch between manifest and returned technical reports for image '{result.image}'. Missing expected reports: {missing_reports}. Extra reports: {extra_reports}."
+            )
+
+            result.test_results["success"] = False
+            result.test_results["error"] = (
+                "Test results invalidated due to technical report mismatch"
+            )
+            result.test_results["missing_reports"] = missing_reports
+            result.test_results["returned_reports"] = extra_reports
+
+    return validation_errors
+
+
+def _resolve_technical_reports_inputs(
+    test_results: List[TestExecutionResult],
+    execution_mode: str,
+) -> Tuple[Dict[str, str], Dict[str, Manifest]]:
+    """
+    Prepares input data needed for technical report validation.
+
+    Args:
+        test_results: List of test execution results
+        execution_mode: Current execution mode ("evaluate_only" or "end_to_end")
+
+    Returns:
+        Links test ids to their image names and manifests by image name
+    """
+    if execution_mode == "end_to_end":
+        return {}, {}
+    unique_images = list(set(result.image for result in test_results))
+    available_images, _ = _get_available_images(unique_images)
+    manifests = extract_manifests_step(available_images)
+    suite_dict = {
+        "suite_name": "evaluation_suite",
+        "test_suite": [
+            {
+                "id": result.test_id,
+                "name": result.test_name,
+                "image": result.image,
+                "systems_under_test": [result.sut_name],
+            }
+            for result in test_results
+        ],
+    }
+    suite = SuiteConfig(**suite_dict)
+    test_id_to_image = {test.id: test.image for test in suite.test_suite}
+    return test_id_to_image, manifests
+
+
+def validate_technical_reports(
+    manifests: Dict[str, Manifest],
+    score_card: ScoreCard,
+    test_id_to_image: Dict[str, str],
+):
+    """
+    Validate that score card technical reports are defined in the test container manifests and match the expected structure
+
+    Args:
+        manifests: Dictionary linking each image to its manifest
+        score_card: Score card configuration to validate
+        test_id_to_image: Dictionary linking each test id to the image used
+
+    Raises:
+        TechnicalReportError: If validation fails
+    """
+    with console.status(
+        "[bold blue]Validating indicators display reports...", spinner="dots"
+    ):
+        validation_errors = validate_indicator_display_reports(
+            manifests, [score_card], test_id_to_image
+        )
+        if validation_errors:
+            errors = ", ".join(validation_errors)
+            raise TechnicalReportError(errors)
+
+
 def save_results_to_file_step(results: Dict[str, Any], output_path: str) -> None:
     """Save execution results to a JSON file."""
     try:
@@ -1208,43 +1298,6 @@ def save_container_results_to_file_step(
         console.print(f"[red]Failed to save container results:[/red] {e}")
     except (TypeError, ValueError) as e:
         console.print(f"[red]Invalid container results data for saving:[/red] {e}")
-
-
-def verify_score_card_reports_step(all_evaluations: List[Dict[str, Any]]) -> None:
-    """
-    Verifies that all technical reports referenced in the Score Card evaluations
-    exist on the local filesystem and logs the result to the console.
-
-    Args:
-        all_evaluations: List of score card evaluation results
-    """
-    if not all_evaluations:
-        return
-
-    console.print("\n[bold blue]Verifying technical reports...[/bold blue]")
-    reports_count = 0
-    for evaluation in all_evaluations:
-        indicator_id = evaluation.get("indicator_id", "unknown")
-        paths = evaluation.get("report_paths") or []
-        if paths:
-            for path_str in paths:
-                try:
-                    path = Path(path_str)
-                    if path.exists() and path.is_file():
-                        reports_count += 1
-                        console.print(
-                            f"Indicator id [bold]'{indicator_id}'[/bold]: Report saved to [bold]{path_str}[/bold]"
-                        )
-                    else:
-                        console.print(
-                            f"Indicator id [bold]'{indicator_id}'[/bold]: Report [red]{path.name}[/red] is missing. Current path: {path_str}"
-                        )
-                except (TypeError, ValueError, OSError) as e:
-                    console.print(
-                        f"Indicator id [bold]'{indicator_id}'[/bold]: Invalid report path [red]{path_str}[/red] ({str(e)})"
-                    )
-    if reports_count == 0:
-        console.print("No technical reports were generated")
 
 
 def start_test_execution(

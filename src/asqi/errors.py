@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 
 class DuplicateIDError(Exception):
@@ -134,3 +134,9 @@ class AuditResponsesRequiredError(Exception):
             lines.append("")
 
         return "\n".join(lines)
+
+
+class TechnicalReportError(Exception):
+    """Exception raised when validating a technical report fails."""
+
+    pass
