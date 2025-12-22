@@ -826,32 +826,36 @@ def validate_workflow_configurations(
     return errors
 
 
-def validate_score_cards_reports(
-    suite: SuiteConfig, manifests: Dict[str, Manifest], score_cards: List[ScoreCard]
+def validate_indicator_display_reports(
+    manifests: Dict[str, Manifest],
+    score_cards: List[ScoreCard],
+    test_id_to_image: Dict[str, str],
 ) -> List[str]:
     """
-    Validate score cards configurations against test suite and manifests.
-
-    Notes:
-        - No duplicate report names within each indicator's `display_reports`
-        - All requested `display_reports` exist in the corresponding test's manifest
+    Validate that all requested `display_reports` exist in the corresponding test container manifest and that there are no duplicate report names.
 
     Args:
-        suite: Test suite configuration
-        manifests: Dictionary mapping image names to their manifests
-        score_cards: List of score card configurations
+        manifests: Dictionary linking each image to its manifest
+        score_cards: List of score card configurations to validate
+        test_id_to_image: Dictionary linking each test id to the image used
 
     Returns:
-        List of validation error messages
+        List of validation error messages or empty list if none found
     """
     errors = []
-    test_id_to_image = {test.id: test.image for test in suite.test_suite}
+    if not score_cards:
+        return errors
 
     for score_card in score_cards:
         for indicator in score_card.indicators:
             if isinstance(indicator, AuditScoreCardIndicator):
                 continue
             test_id = indicator.apply_to.test_id
+            if test_id not in test_id_to_image:
+                errors.append(
+                    f"Indicator id '{indicator.id}': Referenced test id '{test_id}' does not exist in the test"
+                )
+                continue
             image = test_id_to_image[test_id]
             manifest = manifests.get(image)
             if not manifest:
@@ -863,7 +867,6 @@ def validate_score_cards_reports(
             available_reports = {
                 report.name for report in (manifest.output_reports or [])
             }
-
             # Check for duplicate report names in display_reports
             reports_set = set()
             for report_name in indicator.display_reports:
@@ -877,7 +880,43 @@ def validate_score_cards_reports(
             for requested_report in indicator.display_reports:
                 if requested_report not in available_reports:
                     errors.append(
-                        f"Indicator id '{indicator.id}': Requests display_report '{requested_report}' from test '{test_id}'. Manifest for image '{image}' only defines: {sorted(list(available_reports)) if available_reports else 'none'}"
+                        f"Indicator id '{indicator.id}': Requested display_report '{requested_report}' from test '{test_id}' not found with an exact case sensitive match. Manifest for image '{image}' only defines: {sorted(list(available_reports)) if available_reports else 'none'}"
                     )
 
     return errors
+
+
+def verify_score_card_reports(all_evaluations: List[Dict[str, Any]]) -> None:
+    """
+    Verifies that all technical reports referenced in the score card evaluations
+    exist on the local filesystem and logs the result to the console.
+
+    Args:
+        all_evaluations: List of score card evaluation results
+    """
+    if not all_evaluations:
+        return
+
+    console.print("\n[bold blue]Verifying technical reports...[/bold blue]")
+    reports_count = 0
+    for evaluation in all_evaluations:
+        indicator_id = evaluation.get("indicator_id", "")
+        report_paths = evaluation.get("report_paths") or []
+        for report_path_str in report_paths:
+            try:
+                path = Path(report_path_str)
+                if path.exists() and path.is_file():
+                    reports_count += 1
+                    console.print(
+                        f"Indicator id [bold]'{indicator_id}'[/bold]: Report saved to [bold]{report_path_str}[/bold]"
+                    )
+                else:
+                    console.print(
+                        f"Indicator id [bold]'{indicator_id}'[/bold]: Report [red]{path.name}[/red] is missing. Current path: {report_path_str}"
+                    )
+            except (TypeError, ValueError, OSError) as e:
+                console.print(
+                    f"Indicator id [bold]'{indicator_id}'[/bold]: Invalid report path [red]{report_path_str}[/red] ({str(e)})"
+                )
+    if reports_count == 0:
+        console.print("No technical reports were generated")

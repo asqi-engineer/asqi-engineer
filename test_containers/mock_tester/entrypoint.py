@@ -98,8 +98,10 @@ def main():
 def write_quick_summary_report(test_id, metrics):
     output_root = Path(os.environ["OUTPUT_MOUNT_PATH"])
     output_root.mkdir(parents=True, exist_ok=True)
+    reports_dir = output_root / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
     filename = "quick_summary.html"
-    file_path = output_root / "reports" / filename
+    file_path = reports_dir / filename
 
     df = pd.DataFrame(list(metrics.items()), columns=["Metric", "Value"])
 

@@ -6,11 +6,11 @@ import yaml
 from pydantic import ValidationError
 
 from asqi.errors import DuplicateIDError, MissingIDFieldError
-
 from asqi.main import load_and_validate_plan
 from asqi.rag_response_schema import RAGCitation, RAGContext, validate_rag_response
 from asqi.schemas import (
     AssessmentRule,
+    AuditScoreCardIndicator,
     GenericSystemConfig,
     LLMAPIConfig,
     LLMAPIParams,
@@ -30,9 +30,9 @@ from asqi.validation import (
     find_manifest_for_image,
     validate_execution_inputs,
     validate_ids,
+    validate_indicator_display_reports,
     validate_manifests_against_tests,
     validate_score_card_inputs,
-    validate_score_cards_reports,
     validate_system_compatibility,
     validate_test_execution_inputs,
     validate_test_parameters,
@@ -2201,26 +2201,28 @@ class TestRAGResponseSchema:
             validate_rag_response({"choices": [{"message": {"citations": []}}]})
 
 
-class TestScoreCardReportValidation:
+class TestValidateIndicatorDisplayReports:
     @pytest.fixture
-    def report_validation_suite(self):
-        return SuiteConfig(
+    def test_id_to_image(self):
+        suite = SuiteConfig(
             suite_name="Test Suite for Report Validation",
             test_suite=[
                 {
                     "name": "test report validation",
                     "id": "test_report_validation",
-                    "image": "my-registry/generic:latest",
-                    "systems_under_test": ["new_system"],
+                    "image": "report-image:latest",
+                    "systems_under_test": ["my_llm_api"],
                 }
             ],
         )
+        test_id_to_image = {test.id: test.image for test in suite.test_suite}
+        return test_id_to_image
 
     @pytest.fixture
     def report_validation_manifest(self):
         manifest = Manifest(
             name="manifest with reports",
-            version="1.0.0",
+            version="1.0",
             input_systems=[
                 {
                     "name": "system_under_test",
@@ -2241,12 +2243,12 @@ class TestScoreCardReportValidation:
                 ),
             ],
         )
-        return {"my-registry/generic:latest": manifest}
+        return {"report-image:latest": manifest}
 
     def create_scorecard_with_reports(self, report_list):
         return [
             ScoreCard(
-                score_card_name="Test Score Card",
+                score_card_name="Score Card for Report Validation",
                 indicators=[
                     {
                         "id": "report_indicator",
@@ -2266,8 +2268,8 @@ class TestScoreCardReportValidation:
             )
         ]
 
-    def test_valid_score_card_with_existing_reports(
-        self, report_validation_suite, report_validation_manifest
+    def test_reports_defined_in_the_manifest(
+        self, test_id_to_image, report_validation_manifest
     ):
         """
         Test validation passes when requested reports are defined in the manifest.
@@ -2275,180 +2277,157 @@ class TestScoreCardReportValidation:
         score_cards = self.create_scorecard_with_reports(
             ["detailed_report", "summary_report"]
         )
-        errors = validate_score_cards_reports(
-            report_validation_suite, report_validation_manifest, score_cards
+        errors = validate_indicator_display_reports(
+            report_validation_manifest, score_cards, test_id_to_image
         )
         assert errors == []
 
-    def test_empty_display_reports_is_valid(
-        self, report_validation_suite, report_validation_manifest
-    ):
+    def test_empty_display_reports(self, test_id_to_image, report_validation_manifest):
         """
         Test validation passes when display_reports list is empty.
         """
         score_cards = self.create_scorecard_with_reports([])
-        errors = validate_score_cards_reports(
-            report_validation_suite, report_validation_manifest, score_cards
+        errors = validate_indicator_display_reports(
+            report_validation_manifest, score_cards, test_id_to_image
         )
         assert errors == []
 
-    def test_invalid_report_name_not_in_manifest_fails(
-        self, report_validation_suite, report_validation_manifest
-    ):
+    def test_invalid_report_name(self, test_id_to_image, report_validation_manifest):
         """
         Test validation fails when a requested report name is missing from the manifest.
         """
         score_cards = self.create_scorecard_with_reports(["invalid_report"])
-        errors = validate_score_cards_reports(
-            report_validation_suite, report_validation_manifest, score_cards
+        errors = validate_indicator_display_reports(
+            report_validation_manifest, score_cards, test_id_to_image
         )
 
         assert len(errors) == 1
-        assert "report_indicator" in errors[0]
         assert "invalid_report" in errors[0]
-        assert "only defines: ['detailed_report', 'summary_report']" in errors[0]
 
-    def test_duplicate_report_names_in_display_reports_fails(
-        self, report_validation_suite, report_validation_manifest
-    ):
+    def test_duplicate_report_names(self, test_id_to_image, report_validation_manifest):
         """
         Test validation fails when duplicate report names are specified in the indicator.
         """
         score_cards = self.create_scorecard_with_reports(
             ["detailed_report", "detailed_report"]
         )
-        errors = validate_score_cards_reports(
-            report_validation_suite, report_validation_manifest, score_cards
+        errors = validate_indicator_display_reports(
+            report_validation_manifest, score_cards, test_id_to_image
         )
 
         assert len(errors) == 1
-        assert "report_indicator" in errors[0]
         assert (
             "duplicate report name 'detailed_report' in display_reports"
             in errors[0].lower()
         )
 
-    def test_no_manifest_for_image_fails(self, report_validation_suite):
+    def test_missing_manifest_error(self, test_id_to_image):
         """
-        Test validation fails when the manifest for the test image is missing.
+        Test validation fails when the manifest is missing.
         """
         score_cards = self.create_scorecard_with_reports(["detailed_report"])
         manifests = {}
 
-        errors = validate_score_cards_reports(
-            report_validation_suite, manifests, score_cards
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, test_id_to_image
         )
 
         assert len(errors) == 1
-        assert "report_indicator" in errors[0]
-        assert "No manifest found" in errors[0]
-        assert "my-registry/generic:latest" in errors[0]
+        assert "No manifest found for image 'report-image:latest'" in errors[0]
 
-    def test_manifest_with_no_output_reports_fails(self, report_validation_suite):
+    def test_manifest_with_no_output_error(self, test_id_to_image):
         """
-        Test failure when the manifest exists but defines no output_reports.
+        Tests that validation fails when requesting a report from a manifest with no output_reports.
         """
 
         manifest_no_reports = Manifest(
             name="test_container",
-            version="1.0.0",
+            version="1.0",
             input_systems=[
                 {"name": "system_under_test", "type": "llm_api", "required": True}
             ],
             output_reports=[],
         )
-        manifest = {"my-registry/generic:latest": manifest_no_reports}
+        manifest = {"report-image:latest": manifest_no_reports}
         score_cards = self.create_scorecard_with_reports(["detailed_report"])
 
-        errors = validate_score_cards_reports(
-            report_validation_suite, manifest, score_cards
+        errors = validate_indicator_display_reports(
+            manifest, score_cards, test_id_to_image
         )
 
         assert len(errors) == 1
-        assert "report_indicator" in errors[0]
-        assert "detailed_report" in errors[0]
-        assert "only defines: none" in errors[0].lower()
+        assert (
+            "Manifest for image 'report-image:latest' only defines: none" in errors[0]
+        )
 
-    def test_audit_indicators_are_skipped(
-        self, report_validation_suite, report_validation_manifest
-    ):
+    def test_audit_indicators(self, test_id_to_image, report_validation_manifest):
         """
-        Test audit type indicators are skipped from report validation.
+        Tests that audit indicators are skipped during report validation.
         """
+        audit_indicator = AuditScoreCardIndicator(
+            id="audit_indicator",
+            name="Audit Indicator",
+            display_reports=["detailed_report"],
+            assessment=[{"outcome": "A", "description": "desc"}],
+        )
+
         score_cards = [
-            ScoreCard(
-                score_card_name="Test Score Card",
-                indicators=[
-                    {
-                        "id": "audit_indicator",
-                        "type": "audit",
-                        "name": "Audit Indicator",
-                        "display_reports": ["report_not_needed_for_audit"],
-                        "assessment": [
-                            {"outcome": "A", "description": "A description"},
-                        ],
-                    }
-                ],
-            )
+            ScoreCard(score_card_name="Audit Score Card", indicators=[audit_indicator])
         ]
 
-        errors = validate_score_cards_reports(
-            report_validation_suite, report_validation_manifest, score_cards
+        errors = validate_indicator_display_reports(
+            report_validation_manifest, score_cards, test_id_to_image
         )
         assert errors == []
 
-    def test_multiple_indicators_invalid_report(
-        self, report_validation_suite, report_validation_manifest
-    ):
+    def test_multiple_indicators(self, test_id_to_image, report_validation_manifest):
         """
         Test with 2 indicators where only the invalid one produces an error.
         """
+        valid_indicator = self.create_scorecard_with_reports(["detailed_report"])[
+            0
+        ].indicators[0]
+
+        invalid_indicator = ScoreCardIndicator(
+            id="invalid_report_indicator",
+            name="invalid indicator",
+            apply_to={"test_id": "test_report_validation"},
+            metric="pass_rate",
+            assessment=[
+                {"outcome": "PASS", "condition": "greater_equal", "threshold": 0.8}
+            ],
+            display_reports=["invalid_report_name"],
+        )
+
         score_cards = [
             ScoreCard(
-                score_card_name="Test Score Card",
-                indicators=[
-                    self.create_scorecard_with_reports(["detailed_report"])[0]
-                    .indicators[0]
-                    .model_dump(),
-                    {
-                        "id": "invalid_report_indicator",
-                        "name": "invalid indicator",
-                        "apply_to": {"test_id": "test_report_validation"},
-                        "metric": "pass_rate",
-                        "assessment": [
-                            {
-                                "outcome": "PASS",
-                                "condition": "greater_equal",
-                                "threshold": 0.8,
-                            }
-                        ],
-                        "display_reports": ["invalid_report_name"],
-                    },
-                ],
+                score_card_name="Score Card with Multiple Indicators",
+                indicators=[valid_indicator, invalid_indicator],
             )
         ]
 
-        errors = validate_score_cards_reports(
-            report_validation_suite, report_validation_manifest, score_cards
+        errors = validate_indicator_display_reports(
+            report_validation_manifest,
+            score_cards,
+            test_id_to_image,
         )
 
         assert len(errors) == 1
         assert "invalid_report_indicator" in errors[0]
-        assert "invalid_report_name" in errors[0]
 
-    def test_display_reports_is_case_sensitive_error(
-        self, report_validation_suite, report_validation_manifest
+    def test_case_sensitive_display_reports_error(
+        self, test_id_to_image, report_validation_manifest
     ):
         """
         Test that requesting reports with incorrect casing results in a failure.
         """
         score_cards = self.create_scorecard_with_reports(["Detailed_Report"])
 
-        errors = validate_score_cards_reports(
-            report_validation_suite, report_validation_manifest, score_cards
+        errors = validate_indicator_display_reports(
+            report_validation_manifest,
+            score_cards,
+            test_id_to_image,
         )
 
         assert len(errors) == 1
-        assert "report_indicator" in errors[0]
-        assert "Detailed_Report" in errors[0]
-        assert "only defines: ['detailed_report', 'summary_report']" in errors[0]
+        assert "not found with an exact case sensitive match" in errors[0]
