@@ -173,6 +173,179 @@ RAG API systems must return responses in OpenAI-compatible chat completions form
   ]
 }
 ```
+
+### Image Generation API Systems
+
+`image_generation_api` systems support text-to-image generation using OpenAI-compatible APIs.
+
+#### System Configuration
+
+Configure image generation systems in your `litellm_config.yaml`:
+
+```yaml
+model_list:
+  # ... existing models ...
+
+  # Image Generation Systems (from OpenAI)
+  - model_name: "openai/*"
+    litellm_params:
+      model: "openai/*"
+      api_key: os.environ/OPENAI_API_KEY
+```
+
+Then reference it in your ASQI systems configuration:
+
+```yaml
+systems:
+  # LiteLLM proxy configuration
+  dalle3_generator:
+    type: "image_generation_api"
+    description: "OpenAI DALL-E 3 Image Generator"
+    params:
+      base_url: "http://localhost:4000/v1"
+      model: "openai/dall-e-3"
+      api_key: "sk-1234"
+```
+
+#### Expected Request Format
+
+ASQI sends OpenAI-compatible image generation requests:
+
+```json
+{
+  "model": "openai/dall-e-3",
+  "prompt": "A cute baby sea otter, in an animated style",
+  "n": 1,
+  "size": "1024x1024",
+  "response_format": "url"
+}
+```
+
+#### Expected Response Schema
+
+Image generation systems return OpenAI-compatible image generation responses:
+
+```json
+{
+  "created": 1703658209,
+  "data": [
+    {
+      "url": "https://example.com/generated_image.png",
+      "revised_prompt": "A cute baby sea otter..."
+    }
+  ]
+}
+```
+
+### Image Editing API Systems
+
+`image_editing_api` systems support image-to-image editing using OpenAI-compatible APIs.
+
+#### System Configuration
+
+Configure image editing systems in your `litellm_config.yaml`:
+
+```yaml
+model_list:
+  # ... existing models ...
+
+  # Image Editing Systems
+  - model_name: "openai/*"
+    litellm_params:
+      model: "openai/*"
+      api_key: os.environ/OPENAI_API_KEY
+```
+
+Then reference it in your ASQI systems configuration:
+
+```yaml
+systems:
+  # LiteLLM proxy configuration
+  dalle3_editor:
+    type: "image_editing_api"
+    description: "OpenAI DALL-E 3 Image Editor"
+    params:
+      base_url: "http://localhost:4000/v1"
+      model: "openai/dall-e-3"
+      api_key: "sk-1234"
+```
+
+#### Expected Request Format
+
+ASQI sends OpenAI-compatible image editing requests (multipart/form-data):
+
+```
+POST /v1/images/edits
+Content-Type: multipart/form-data
+
+image: <uploaded_image.png>
+prompt: "Change the background to a beach scene"
+model: "dall-e-3"
+n: 1
+size: "1024x1024"
+```
+
+#### Expected Response Schema
+
+Image editing systems return the same format as image generation APIs.
+
+### VLM API Systems
+
+`vlm_api` systems support vision language models that can process both text and images.
+
+#### System Configuration
+
+Configure VLM systems in your `litellm_config.yaml`:
+
+```yaml
+model_list:
+  # ... existing models ...
+
+  # Vision Language Models
+  - model_name: "openai/*"
+    litellm_params:
+      model: "openai/*"
+      api_key: os.environ/OPENAI_API_KEY
+```
+
+Then reference it in your ASQI systems configuration:
+
+```yaml
+systems:
+  # LiteLLM proxy configuration
+  gpt4_1_mini_vlm:
+    type: "vlm_api"
+    description: "OpenAI GPT-4.1-Mini VLM Evaluator"
+    params:
+      base_url: "http://localhost:4000/v1"
+      model: "openai/gpt-4.1-mini"
+      api_key: "sk-1234"
+```
+
+#### Expected Request Format
+
+ASQI sends multimodal chat completion requests:
+
+```json
+{
+  "model": "openai/gpt-4.1-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "Evaluate this image."},
+        {"type": "image_url", "image_url": {"url": "https://example.com/image.png"}}
+      ]
+    }
+  ],
+  "max_tokens": 150
+}
+```
+
+#### Expected Response Schema
+
+VLMs return standard chat completion format with text responses.
+
 ### Environment Variable Handling
 
 ASQI supports a three-level configuration hierarchy:
