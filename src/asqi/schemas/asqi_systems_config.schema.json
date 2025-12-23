@@ -283,6 +283,53 @@
       "title": "RAGAPIConfig",
       "type": "object"
     },
+    "VLMAPIConfig": {
+      "description": "Configuration for Vision Language Model API systems.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+          "title": "Provider"
+        },
+        "type": {
+          "const": "vlm_api",
+          "description": "Vision Language Model API system: vlm_api",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/VLMAPIParams",
+          "description": "Parameters specific to the VLM API system (e.g., base url, model name, API key, env file, and vision support)."
+        }
+      },
+      "required": [
+        "type",
+        "params"
+      ],
+      "title": "VLMAPIConfig",
+      "type": "object"
+    },
     "VLMAPIParams": {
       "description": "Parameters for Vision Language Model API systems.",
       "properties": {
@@ -335,53 +382,6 @@
         "model"
       ],
       "title": "VLMAPIParams",
-      "type": "object"
-    },
-    "VLMAPIConfig": {
-      "description": "Configuration for Vision Language Model API systems.",
-      "properties": {
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Description of the system being evaluated.",
-          "title": "Description"
-        },
-        "provider": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
-          "title": "Provider"
-        },
-        "type": {
-          "const": "vlm_api",
-          "description": "Vision Language Model API system: vlm_api",
-          "title": "Type",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/VLMAPIParams",
-          "description": "Parameters specific to the VLM API system (e.g., base url, model name, API key, env file, and vision support)."
-        }
-      },
-      "required": [
-        "type",
-        "params"
-      ],
-      "title": "VLMAPIConfig",
       "type": "object"
     }
   },
