@@ -13,6 +13,7 @@ from rich.console import Console
 
 from asqi.config import (
     ContainerConfig,
+    ExecutionMode,
     ExecutorConfig,
     interpolate_env_vars,
     merge_defaults_into_suite,
@@ -25,11 +26,11 @@ from asqi.errors import (
 )
 from asqi.logging_config import configure_logging
 from asqi.schemas import (
+    AuditResponses,
     Manifest,
+    ScoreCard,
     SuiteConfig,
     SystemsConfig,
-    ScoreCard,
-    AuditResponses,
 )
 from asqi.validation import validate_ids, validate_test_plan
 
@@ -471,7 +472,7 @@ def execute(
             systems_path=systems_config,
             output_path=output_file,
             score_card_configs=score_card_configs,
-            execution_mode="end_to_end",
+            execution_mode=ExecutionMode.END_TO_END,
             executor_config=executor_config,
             container_config=container_config,
             audit_responses_data=audit_responses_data,
@@ -572,7 +573,7 @@ def execute_tests(
             systems_path=systems_config,
             output_path=output_file,
             score_card_configs=None,
-            execution_mode="tests_only",
+            execution_mode=ExecutionMode.TESTS_ONLY,
             test_ids=test_ids,
             executor_config=executor_config,
             container_config=container_config,

@@ -591,6 +591,34 @@ indicators:
       - { outcome: "HIGH_RISK", condition: "greater_than", threshold: 2 }
 ```
 
+
+### Displaying Technical Reports in Score Cards
+
+To display technical reports in a score card, use the `display_reports` field in your indicator configuration. Each entry in `display_reports` must match the `name` of a report declared in the test container's manifest under `output_reports`.
+
+#### Selecting Reports for Display
+
+- In your score card, you can reference one or more of the test container reports by name using `display_reports`.
+- These reports will be displayed when evaluating and running e2e and will be logged in the output and console
+
+```yaml
+indicators:
+  - id: "garak_security_check"
+    name: "Garak Security Check"
+    apply_to:
+      test_id: "garak_prompt_injection"
+    display_reports: ["quick_summary", "detailed_metrics"]
+    metric: "attack_success_rate"
+    assessment:
+      - { outcome: "SECURE", condition: "equal_to", threshold: 0.0 }
+      - { outcome: "VULNERABLE", condition: "greater_than", threshold: 0.0 }
+```
+
+#### Report Validations
+
+- Every report listed in `display_reports` exists in the container manifest (`output_reports`).
+- There are no duplicate report names in `display_reports`.s
+
 ### Available Conditions
 
 - `equal_to`: Exact value matching (supports boolean and numeric)
@@ -909,6 +937,43 @@ def main():
     print(json.dumps(results))
 ```
 
+#### Entry Point Return Format
+
+Your test container should print a JSON object to stdout. There are two simple patterns:
+
+- **Just metrics:**
+  ```json
+  {
+    "success": true,
+    "score": 0.95,
+    "test_count": 10
+  }
+  ```
+  (All fields match your `output_metrics` in the manifest)
+
+- **Metrics and technical reports:**
+  ```json
+  {
+    "test_results": {
+      "success": true,
+      "score": 0.95,
+      "test_count": 10
+    },
+    "technical_reports": [
+      {
+        "report_name": "quick_summary",
+        "report_type": "html",
+        "report_path": "/output/quick_summary.html"
+      },
+      {
+        "report_name": "detailed_metrics",
+        "report_type": "pdf",
+        "report_path": "/output/detailed_metrics.pdf"
+      }
+    ]
+  }
+  ```
+  Learn how to add a technical report to the test container: [Technical reports](custom-test-containers.md#implementing-technical-reports-in-custom-test-containers)
 ### Manifest Declaration
 
 Each container includes a `manifest.yaml` describing its capabilities:
@@ -948,6 +1013,14 @@ output_metrics:
   - name: "attack_success_rate"
     type: "float"
     description: "Percentage of successful attacks (0.0 to 1.0)"
+
+output_reports:
+  - name: "quick_summary"
+    type: "html"
+    description: "A quick HTML summary report of the Advanced Security Tester"
+  - name: "detailed_metrics"
+    type: "pdf"
+    description: "PDF metrics report for the Advanced Security Tester"
 ```
 
 ## Validation and Error Handling

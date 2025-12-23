@@ -2,9 +2,11 @@
 Unit tests for output.py module, focusing on JSON parsing from container output.
 """
 
+from unittest.mock import patch
+
 import pytest
 
-from asqi.output import parse_container_json_output
+from asqi.output import parse_container_json_output, translate_report_paths
 
 
 class TestParseContainerJsonOutput:
@@ -344,3 +346,56 @@ Test completed"""
         assert "\t" in result["message"]
         assert "\\" in result["path"]
         assert '"' in result["quote"]
+
+
+class TestTranslateReportPaths:
+    @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
+    def test_report_path_inside_output_mount(self):
+        """
+        Test translating report paths that start with OUTPUT_MOUNT_PATH.
+        """
+        reports = [
+            {"report_path": "/output/reports/summary.html"},
+            {"report_path": "/output/reports/report.json"},
+        ]
+        translate_report_paths(reports, "/host/output")
+
+        assert reports[0]["report_path"] == "/host/output/reports/summary.html"
+        assert reports[1]["report_path"] == "/host/output/reports/report.json"
+
+    @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
+    def test_report_path_outside_output_mount(self):
+        """
+        Test translating report paths that do not start with OUTPUT_MOUNT_PATH.
+        """
+        reports = [{"report_path": "/different/reports/report.html"}]
+        translate_report_paths(reports, "/host/output")
+
+        assert reports[0]["report_path"] == "/host/output/different/reports/report.html"
+
+    @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
+    def test_edge_case(self):
+        """
+        Test translating report paths with edge case.
+        """
+        reports = [{"report_path": "/output/reports/report.html"}]
+        # Trailing slash
+        translate_report_paths(reports, "/host/output/")
+
+        assert reports[0]["report_path"] == "/host/output/reports/report.html"
+
+    @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
+    def test_invalid_paths(self):
+        """
+        Test handling reports with missing or empty report_path.
+        """
+        reports = [
+            {"report_path": ""},
+            {"other_key": "value"},
+            {"report_path": "/output/reports/report.html"},
+        ]
+        translate_report_paths(reports, "/host/output")
+
+        assert reports[0]["report_path"] == ""
+        assert "report_path" not in reports[1]
+        assert reports[2]["report_path"] == "/host/output/reports/report.html"

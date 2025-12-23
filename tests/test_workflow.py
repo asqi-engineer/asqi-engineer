@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from asqi.config import ContainerConfig, ExecutorConfig
-from asqi.schemas import Manifest, SystemInput
+from asqi.schemas import Manifest, OutputReports, SystemInput
 from asqi.workflow import (
     TestExecutionResult,
     add_score_cards_to_results,
@@ -16,11 +16,12 @@ from asqi.workflow import (
     save_results_to_file_step,
     start_score_card_evaluation,
     start_test_execution,
+    validate_test_container_technical_reports,
 )
 from asqi.workflow import (
     run_test_suite_workflow as _workflow,
 )
-from test_data import MOCK_SCORE_CARD_CONFIG, MOCK_AUDIT_RESPONSES
+from test_data import MOCK_AUDIT_RESPONSES, MOCK_SCORE_CARD_CONFIG
 
 
 def _call_inner_workflow(
@@ -104,13 +105,13 @@ def test_run_test_suite_workflow_success():
 
     with (
         patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
-        patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
+        patch("asqi.workflow.extract_manifests_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
         patch("asqi.workflow.create_test_execution_plan") as mock_plan,
         patch("asqi.workflow.Queue") as mock_queue_class,
     ):
         mock_avail.return_value = {"test/image:latest": True}
-        mock_extract.return_value = manifest
+        mock_extract.return_value = {"test/image:latest": manifest}
         mock_validate.return_value = []
         mock_plan.return_value = [
             {
@@ -178,7 +179,7 @@ def test_run_test_suite_workflow_validation_failure():
 
     with (
         patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
-        patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
+        patch("asqi.workflow.extract_manifests_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
     ):
         mock_avail.return_value = {"missing/image:latest": True}
@@ -404,6 +405,7 @@ def test_convert_test_results_to_objects():
                     "exit_code": 0,
                 },
                 "test_results": {"success": True, "score": 0.9},
+                "technical_reports": [],
             }
         ]
     }
@@ -432,6 +434,7 @@ def test_convert_test_results_to_objects():
     assert result.container_id == "abc123"
     assert result.exit_code == 0
     assert result.test_results == {"success": True, "score": 0.9}
+    assert result.technical_reports == []
 
 
 def test_add_score_cards_to_results():
@@ -641,6 +644,7 @@ def test_run_end_to_end_workflow():
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config,
+            score_card_configs,
         )
         mock_score_workflow.assert_called_once_with(
             test_results, test_container, score_card_configs, None
@@ -697,6 +701,7 @@ def test_run_end_to_end_workflow_with_audit_responses():
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config,
+            score_card_configs,
         )
 
         mock_score_workflow.assert_called_once_with(
@@ -911,7 +916,7 @@ def test_image_pulled_but_manifest_not_extracted_bug():
     with (
         patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
         patch("asqi.workflow.dbos_pull_images"),
-        patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
+        patch("asqi.workflow.extract_manifests_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
         patch("asqi.workflow.create_test_execution_plan") as mock_plan,
         patch("asqi.workflow.Queue") as mock_queue,
@@ -922,7 +927,7 @@ def test_image_pulled_but_manifest_not_extracted_bug():
             {"test/image:latest": True},  # After pull (our fix enables this)
         ]
 
-        mock_extract.return_value = manifest
+        mock_extract.return_value = {"test/image:latest": manifest}
         mock_validate.side_effect = (
             lambda s, sys, manifests: [] if manifests else ["No manifest"]
         )
@@ -996,13 +1001,13 @@ def test_run_test_suite_workflow_handle_exception():
 
     with (
         patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
-        patch("asqi.workflow.extract_manifest_from_image_step") as mock_extract,
+        patch("asqi.workflow.extract_manifests_step") as mock_extract,
         patch("asqi.workflow.validate_test_plan") as mock_validate,
         patch("asqi.workflow.create_test_execution_plan") as mock_plan,
         patch("asqi.workflow.Queue") as mock_queue_class,
     ):
         mock_avail.return_value = {"test/image:latest": True}
-        mock_extract.return_value = manifest
+        mock_extract.return_value = {"test/image:latest": manifest}
         mock_validate.return_value = []
         mock_plan.return_value = [
             {
@@ -1054,3 +1059,294 @@ def test_run_test_suite_workflow_handle_exception():
     assert result["metadata"]["test_name"] == "t1 systemA"
     assert result["metadata"]["test_id"] == "t1_systemA"
     assert result["metadata"]["image"] == "test/image:latest"
+
+
+class TestTechnicalReports:
+    def test_report_name_errors(self, tmp_path):
+        """
+        Test validation fails when report_name is missing, empty or invalid.
+        """
+        report_file = tmp_path / "report.html"
+        report_file.write_text("content")
+
+        manifests = {
+            "report-image:latest": Manifest(
+                name="test-manifest",
+                version="1.0",
+                input_systems=[],
+                output_reports=[OutputReports(name="valid_report", type="html")],
+            )
+        }
+
+        result_report_name_missing = TestExecutionResult(
+            "test report name missing",
+            "test_report_name_missing",
+            "sut",
+            "report-image:latest",
+        )
+        result_report_name_missing.success = True
+        result_report_name_missing.technical_reports = [
+            {"report_type": "html", "report_path": str(report_file)}
+        ]
+
+        result_report_name_empty = TestExecutionResult(
+            "test report name empty",
+            "test_report_name_empty",
+            "sut",
+            "report-image:latest",
+        )
+        result_report_name_empty.success = True
+        result_report_name_empty.technical_reports = [
+            {
+                "report_name": "",
+                "report_type": "html",
+                "report_path": str(report_file),
+            }
+        ]
+
+        result_report_name_invalid = TestExecutionResult(
+            "test report name invalid",
+            "test_report_name_invalid",
+            "sut",
+            "report-image:latest",
+        )
+        result_report_name_invalid.success = True
+        result_report_name_invalid.technical_reports = [
+            {
+                "report_name": "invalid",
+                "report_type": "html",
+                "report_path": str(report_file),
+            }
+        ]
+
+        errors = validate_test_container_technical_reports(
+            [
+                result_report_name_missing,
+                result_report_name_empty,
+                result_report_name_invalid,
+            ],
+            manifests,
+        )
+
+        assert len(errors) == 3
+        assert "Report missing valid 'report_name' field" in errors[0]
+        assert "Report missing valid 'report_name' field" in errors[1]
+        assert "Missing expected reports: [('valid_report', 'html')]" in errors[2]
+
+    def test_report_type_errors(self, tmp_path):
+        """
+        Test validation fails when report_type is missing, empty or invalid.
+        """
+        report_file = tmp_path / "report.html"
+        report_file.write_text("content")
+
+        manifests = {
+            "report-image:latest": Manifest(
+                name="test-manifest",
+                version="1.0",
+                input_systems=[],
+                output_reports=[OutputReports(name="valid_report", type="html")],
+            )
+        }
+
+        result_report_type_missing = TestExecutionResult(
+            "test report type missing",
+            "test_report_type_missing",
+            "sut",
+            "report-image:latest",
+        )
+        result_report_type_missing.success = True
+        result_report_type_missing.technical_reports = [
+            {"report_name": "valid_report", "report_path": str(report_file)}
+        ]
+
+        result_report_type_empty = TestExecutionResult(
+            "test report type empty",
+            "test_report_type_empty",
+            "sut",
+            "report-image:latest",
+        )
+        result_report_type_empty.success = True
+        result_report_type_empty.technical_reports = [
+            {
+                "report_name": "valid_report",
+                "report_type": "",
+                "report_path": str(report_file),
+            }
+        ]
+
+        result_report_type_invalid = TestExecutionResult(
+            "test report type invalid",
+            "test_report_type_invalid",
+            "sut",
+            "report-image:latest",
+        )
+        result_report_type_invalid.success = True
+        result_report_type_invalid.technical_reports = [
+            {
+                "report_name": "valid_report",
+                "report_type": "invalid",
+                "report_path": str(report_file),
+            }
+        ]
+
+        errors = validate_test_container_technical_reports(
+            [
+                result_report_type_missing,
+                result_report_type_empty,
+                result_report_type_invalid,
+            ],
+            manifests,
+        )
+
+        assert len(errors) == 3
+        assert (
+            "Report name 'valid_report' missing valid 'report_type' field" in errors[0]
+        )
+        assert (
+            "Report name 'valid_report' missing valid 'report_type' field" in errors[1]
+        )
+        assert "Missing expected reports: [('valid_report', 'html')]" in errors[2]
+
+    def test_report_path_errors(self, tmp_path):
+        """
+        Test validation fails when report_path is missing or empty.
+        """
+        report_file = tmp_path / "report.html"
+        report_file.write_text("content")
+
+        manifests = {
+            "report-image:latest": Manifest(
+                name="test-manifest",
+                version="1.0",
+                input_systems=[],
+                output_reports=[OutputReports(name="valid_report", type="html")],
+            )
+        }
+
+        result_report_path_missing = TestExecutionResult(
+            "test report path missing",
+            "test_report_path_missing",
+            "sut",
+            "report-image:latest",
+        )
+        result_report_path_missing.success = True
+        result_report_path_missing.technical_reports = [
+            {"report_name": "valid_report", "report_type": "html"}
+        ]
+
+        result_report_path_empty = TestExecutionResult(
+            "test report path empty",
+            "test_report_path_empty",
+            "sut",
+            "report-image:latest",
+        )
+        result_report_path_empty.success = True
+        result_report_path_empty.technical_reports = [
+            {
+                "report_name": "valid_report",
+                "report_type": "html",
+                "report_path": "",
+            }
+        ]
+
+        errors = validate_test_container_technical_reports(
+            [result_report_path_missing, result_report_path_empty], manifests
+        )
+
+        assert len(errors) == 2
+        assert (
+            "Report name 'valid_report' missing valid 'report_path' field" in errors[0]
+        )
+        assert (
+            "Report name 'valid_report' missing valid 'report_path' field" in errors[1]
+        )
+
+    def test_invalid_file_error(self, tmp_path):
+        """
+        Test validation fails when report file does not exist.
+        """
+        manifests = {}
+
+        result = TestExecutionResult(
+            "test report file not exist", "test_not_exist", "sut", "report-image:latest"
+        )
+        result.success = True
+        result.technical_reports = [
+            {
+                "report_name": "test_report",
+                "report_type": "html",
+                "report_path": str(tmp_path / "invalid.html"),
+            }
+        ]
+
+        errors = validate_test_container_technical_reports([result], manifests)
+
+        assert len(errors) == 1
+        assert result.success is False
+        assert (
+            "Report name 'test_report' does not exist at path" in result.error_message
+        )
+
+    def test_validate_test_container_technical_reports_success(self, tmp_path):
+        """
+        Test validation passes when the report returned by the test container matches the manifest definitions
+        """
+        report_file_html = tmp_path / "valid_report.html"
+        report_file_html.write_text("some content")
+        report_file_pdf = tmp_path / "valid_report.pdf"
+        report_file_pdf.write_text("some content")
+        manifests = {
+            "report-image:latest": Manifest(
+                name="report-manifest",
+                version="1.0",
+                input_systems=[],
+                output_reports=[
+                    OutputReports(name="valid_report", type="html"),
+                    OutputReports(name="another_report", type="pdf"),
+                ],
+            )
+        }
+
+        result = TestExecutionResult(
+            "test success", "test_success", "sut", "report-image:latest"
+        )
+        result.success = True
+        result.technical_reports = [
+            {
+                "report_name": "valid_report",
+                "report_type": "html",
+                "report_path": str(report_file_html),
+            },
+            {
+                "report_name": "another_report",
+                "report_type": "pdf",
+                "report_path": str(report_file_pdf),
+            },
+        ]
+        errors = validate_test_container_technical_reports([result], manifests)
+        assert len(errors) == 0
+        assert result.success is True
+
+    def test_skips_failed_tests(self):
+        """
+        Test that validation skips tests that already failed.
+        """
+        manifests = {}
+
+        result = TestExecutionResult("test", "test_error", "sut", "report-image:latest")
+        result.success = False
+        result.error_message = "Test failed for other reasons"
+        result.technical_reports = [
+            {
+                "report_name": "summary",
+                "report_type": "html",
+                "report_path": "report.html",
+            }
+        ]
+
+        errors = validate_test_container_technical_reports([result], manifests)
+
+        assert len(errors) == 0
+        assert result.success is False
+        assert result.error_message == "Test failed for other reasons"

@@ -7,9 +7,9 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from asqi.config import ContainerConfig, ExecutorConfig
+from asqi.config import ContainerConfig, ExecutionMode, ExecutorConfig
 from asqi.main import app, load_score_card_file, load_yaml_file
-from test_data import MOCK_SCORE_CARD_CONFIG, MOCK_AUDIT_RESPONSES
+from test_data import MOCK_AUDIT_RESPONSES, MOCK_SCORE_CARD_CONFIG
 
 
 class TestMainCLI:
@@ -123,7 +123,7 @@ class TestMainCLI:
             systems_path="systems.yaml",
             output_path="output.json",
             score_card_configs=None,
-            execution_mode="tests_only",
+            execution_mode=ExecutionMode.TESTS_ONLY,
             test_ids=None,
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
@@ -164,7 +164,7 @@ class TestMainCLI:
             systems_path="systems.yaml",
             output_path="output.json",
             score_card_configs=[{"score_card_name": "Test scorecard"}],
-            execution_mode="end_to_end",
+            execution_mode=ExecutionMode.END_TO_END,
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
@@ -215,7 +215,7 @@ class TestMainCLI:
             systems_path="systems.yaml",
             output_path="output_scorecard.json",
             score_card_configs=[MOCK_SCORE_CARD_CONFIG],
-            execution_mode="end_to_end",
+            execution_mode=ExecutionMode.END_TO_END,
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
@@ -519,7 +519,7 @@ class TestMainCLI:
             systems_path="systems.yaml",
             output_path="output.json",
             score_card_configs=None,
-            execution_mode="tests_only",
+            execution_mode=ExecutionMode.TESTS_ONLY,
             test_ids=None,
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
@@ -549,7 +549,7 @@ class TestMainCLI:
             systems_path="systems.yaml",
             output_path="output_scorecard.json",
             score_card_configs=[{"score_card_name": "Test"}],
-            execution_mode="end_to_end",
+            execution_mode=ExecutionMode.END_TO_END,
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
                 "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
@@ -612,7 +612,7 @@ class TestMainCLI:
             systems_path="systems.yaml",
             output_path="out.json",
             score_card_configs=None,
-            execution_mode="tests_only",
+            execution_mode=ExecutionMode.TESTS_ONLY,
             test_ids=["t1"],
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
@@ -652,7 +652,7 @@ class TestMainCLI:
             systems_path="systems.yaml",
             output_path="out.json",
             score_card_configs=None,
-            execution_mode="tests_only",
+            execution_mode=ExecutionMode.TESTS_ONLY,
             test_ids=["tes1"],
             executor_config={
                 "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
