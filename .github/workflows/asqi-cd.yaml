@@ -48,9 +48,16 @@ jobs:
 
       - name: 🔍 Verify git state
         run: |
-          git describe --tags --always
+          echo "=== Git Description ==="
+          git describe --tags --always --dirty
+          echo "=== Current Commit ==="
           git log -1 --oneline
+          echo "=== Tags at HEAD ==="
           git tag --points-at HEAD
+          echo "=== Distance from tag ==="
+          git describe --tags --long
+          echo "=== setuptools-scm version detection ==="
+          python -m setuptools_scm || echo "setuptools-scm not available yet"
 
       - name: 📦 Install uv
         run: |
