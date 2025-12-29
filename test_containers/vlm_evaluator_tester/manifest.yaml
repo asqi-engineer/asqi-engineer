@@ -30,6 +30,3 @@ output_metrics:
   - name: "model"
     type: "string"
     description: "The model name that was used"
-  - name: "supports_vision"
-    type: "boolean"
-    description: "Whether the VLM system supports vision/image inputs"

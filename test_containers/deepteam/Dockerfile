@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.cache \
     curl https://sh.rustup.rs -sSf | sh -s -- -y && \
     . "$HOME/.cargo/env" && \
     rustup default stable && \
-    uv pip install deepteam==0.2.4 deepeval==3.3.9 litellm==1.76.0
+    uv pip install deepteam==1.0.4 deepeval==3.7.5 litellm==1.76.0
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim

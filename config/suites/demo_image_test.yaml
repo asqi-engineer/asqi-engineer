@@ -28,7 +28,7 @@ test_suite:
     name: "VLM Image Evaluation Test"
     description: "Test VLM evaluation capabilities with mock container"
     image: "asqiengineer/test-container:vlm_evaluator_tester-latest"
-    systems_under_test: ["gpt4o_vision"]
+    systems_under_test: ["gpt4_1_mini_vlm"]
     params:
       delay_seconds: 1
 

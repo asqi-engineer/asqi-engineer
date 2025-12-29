@@ -283,54 +283,7 @@
       "title": "RAGAPIConfig",
       "type": "object"
     },
-    "VLMAPIParams": {
-      "description": "Parameters for Vision Language Model API systems.",
-      "properties": {
-        "base_url": {
-          "description": "Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
-          "title": "Base Url",
-          "type": "string"
-        },
-        "model": {
-          "description": "Model name to use with the API",
-          "title": "Model",
-          "type": "string"
-        },
-        "env_file": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Path to .env file containing environment variables for authentication",
-          "title": "Env File"
-        },
-        "api_key": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Direct API key for authentication (alternative to env_file)",
-          "title": "Api Key"
-        }
-      },
-      "required": [
-        "base_url",
-        "model"
-      ],
-      "title": "VLMAPIParams",
-      "type": "object"
-    },
-    "VLMApiConfig": {
+    "VLMAPIConfig": {
       "description": "Configuration for Vision Language Model API systems.",
       "properties": {
         "description": {
@@ -374,7 +327,61 @@
         "type",
         "params"
       ],
-      "title": "VLMApiConfig",
+      "title": "VLMAPIConfig",
+      "type": "object"
+    },
+    "VLMAPIParams": {
+      "description": "Parameters for Vision Language Model API systems.",
+      "properties": {
+        "base_url": {
+          "description": "Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "model": {
+          "description": "Model name to use with the API",
+          "title": "Model",
+          "type": "string"
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to .env file containing environment variables for authentication",
+          "title": "Env File"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Direct API key for authentication (alternative to env_file)",
+          "title": "Api Key"
+        },
+        "supports_vision": {
+          "const": true,
+          "default": true,
+          "description": "Whether the VLM system supports vision. Forced to True for vlm_api type.",
+          "title": "Supports Vision",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "base_url",
+        "model"
+      ],
+      "title": "VLMAPIParams",
       "type": "object"
     }
   },
@@ -396,7 +403,7 @@
             "$ref": "#/$defs/ImageEditingAPIConfig"
           },
           {
-            "$ref": "#/$defs/VLMApiConfig"
+            "$ref": "#/$defs/VLMAPIConfig"
           },
           {
             "$ref": "#/$defs/GenericSystemConfig"

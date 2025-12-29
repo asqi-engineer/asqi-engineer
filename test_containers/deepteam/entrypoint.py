@@ -6,8 +6,10 @@ import sys
 from typing import Any, Dict, List, Optional, Union
 
 import openai
+
 from deepeval.models import DeepEvalBaseLLM
-from deepeval.models.llms.openai_model import log_retry_error, retryable_exceptions
+
+from deepeval.confident.api import log_retry_error
 from deepteam.attacks.multi_turn import (
     BadLikertJudge,
     CrescendoJailbreaking,
@@ -16,7 +18,7 @@ from deepteam.attacks.multi_turn import (
     TreeJailbreaking,
 )
 from deepteam.attacks.single_turn import (
-    ROT13,
+    AdversarialPoetry,
     Base64,
     GrayBox,
     Leetspeak,
@@ -25,6 +27,13 @@ from deepteam.attacks.single_turn import (
     PromptInjection,
     PromptProbing,
     Roleplay,
+    ROT13,
+    SystemOverride,
+    PermissionEscalation,
+    LinguisticConfusion,
+    InputBypass,
+    ContextPoisoning,
+    GoalRedirection,
 )
 from deepteam.red_teamer import RedTeamer
 from deepteam.vulnerabilities import (
@@ -33,6 +42,11 @@ from deepteam.vulnerabilities import (
     RBAC,
     SSRF,
     Bias,
+    Ethics,
+    Fairness,
+    ChildProtection,
+    Misinformation,
+    Toxicity,
     Competition,
     DebugAccess,
     ExcessiveAgency,
@@ -40,7 +54,6 @@ from deepteam.vulnerabilities import (
     GraphicContent,
     IllegalActivity,
     IntellectualProperty,
-    Misinformation,
     PersonalSafety,
     PIILeakage,
     PromptLeakage,
@@ -48,8 +61,8 @@ from deepteam.vulnerabilities import (
     Robustness,
     ShellInjection,
     SQLInjection,
-    Toxicity,
 )
+
 from openai import AsyncOpenAI, OpenAI
 from pydantic import BaseModel
 from tenacity import (
@@ -57,6 +70,24 @@ from tenacity import (
     retry_if_exception_type,
     wait_exponential_jitter,
 )
+
+# Define retryable exceptions for OpenAI
+try:
+    from openai import (
+        RateLimitError,
+        APIConnectionError,
+        APITimeoutError,
+        APIStatusError,
+    )
+
+    retryable_exceptions = (
+        RateLimitError,
+        APIConnectionError,
+        APITimeoutError,
+        APIStatusError,
+    )
+except ImportError:
+    retryable_exceptions = (Exception,)
 
 
 class CustomOpenAIModel(DeepEvalBaseLLM):
@@ -163,6 +194,9 @@ class DeepTeamRedTeamTester:
         # Responsible AI
         "bias": Bias,
         "toxicity": Toxicity,
+        "ethics": Ethics,
+        "fairness": Fairness,
+        "child_protection": ChildProtection,
         # Security
         "bfla": BFLA,
         "bola": BOLA,
@@ -188,15 +222,22 @@ class DeepTeamRedTeamTester:
 
     # Single-turn attack methods
     SINGLE_TURN_ATTACKS = {
+        "adversarial_poetry": AdversarialPoetry,
+        "context_poisoning": ContextPoisoning,
         "base64": Base64,
+        "goal_redirection": GoalRedirection,
         "graybox": GrayBox,
+        "input_bypass": InputBypass,
         "leetspeak": Leetspeak,
+        "linguistic_confusion": LinguisticConfusion,
         "math_problem": MathProblem,
         "multilingual": Multilingual,
+        "permission_escalation": PermissionEscalation,
         "prompt_injection": PromptInjection,
         "prompt_probing": PromptProbing,
         "roleplay": Roleplay,
         "rot13": ROT13,
+        "system_override": SystemOverride,
     }
 
     # Multi-turn attack methods
@@ -250,16 +291,24 @@ class DeepTeamRedTeamTester:
             temperature=system_config.get("temperature", 0),
         )
 
-    async def _model_callback(self, input_text: str) -> str:
+    async def _model_callback(self, input_text: str, turns: list = None) -> str:
         """Model callback function for DeepTeam red teaming"""
-        try:
-            response = self.client.chat.completions.create(
-                model=self.sut_params["model"],
-                messages=[{"role": "user", "content": input_text}],
-            )
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            return f"Error: {str(e)}"
+        # Build message history from turns if provided (for multi-turn attacks)
+        messages = []
+        if turns:
+            for turn in turns:
+                messages.append({"role": "user", "content": turn.user_input})
+                if turn.model_output:
+                    messages.append({"role": "assistant", "content": turn.model_output})
+
+        # Add current input
+        messages.append({"role": "user", "content": input_text})
+
+        response = self.client.chat.completions.create(
+            model=self.sut_params["model"],
+            messages=messages,
+        )
+        return response.choices[0].message.content or ""
 
     def _create_vulnerabilities(self, vuln_configs: List[Dict[str, Any]]) -> List[Any]:
         """Create vulnerability objects from configuration"""
@@ -297,6 +346,66 @@ class DeepTeamRedTeamTester:
                 print(f"Warning: Unknown attack '{attack_name}'. Skipping.")
 
         return attacks
+
+    def _extract_detailed_test_cases(
+        self, risk_assessment: Any, output_dir: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Extract detailed test case information from risk_assessment and save to JSON file
+
+        Args:
+            risk_assessment: The risk assessment object from DeepTeam red_team() call
+            output_dir: Directory to save the detailed test cases JSON file (optional)
+
+        Returns:
+            List of detailed test case dictionaries
+        """
+        detailed_test_cases = []
+
+        for test_case in risk_assessment.test_cases:
+            case_detail = {
+                "vulnerability": test_case.vulnerability,
+                "vulnerability_type": test_case.vulnerability_type.value
+                if test_case.vulnerability_type
+                else None,
+                "attack_method": test_case.attack_method,
+                "risk_category": test_case.risk_category,
+                "input": test_case.input,
+                "actual_output": test_case.actual_output,
+                "score": test_case.score,
+                "reason": test_case.reason,
+                "error": test_case.error,
+                "status": "passed"
+                if (test_case.score and test_case.score > 0)
+                else ("errored" if test_case.error else "failed"),
+            }
+
+            # Include turns for multi-turn conversations if present
+            if test_case.turns:
+                case_detail["turns"] = [
+                    {
+                        "role": turn.role,
+                        "content": turn.content,
+                    }
+                    for turn in test_case.turns
+                ]
+
+            detailed_test_cases.append(case_detail)
+
+        # Save to JSON file if output directory is provided
+        if output_dir:
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+                output_file = os.path.join(output_dir, "results.json")
+                with open(output_file, "w") as f:
+                    json.dump(detailed_test_cases, f, indent=2)
+                print(f"Detailed test cases saved to {output_file}", file=sys.stderr)
+            except Exception as e:
+                print(
+                    f"Warning: Failed to save detailed test cases to file: {e}",
+                    file=sys.stderr,
+                )
+
+        return detailed_test_cases
 
     async def run_red_team_test(self, test_params: Dict[str, Any]) -> Dict[str, Any]:
         """Execute red team testing using DeepTeam"""
@@ -357,13 +466,26 @@ class DeepTeamRedTeamTester:
 
             # Run red team assessment
             print("Starting red team assessment...")
-            risk_assessment = red_teamer.red_team(
-                model_callback=self._model_callback,  # type: ignore
-                vulnerabilities=vulnerabilities,
-                attacks=attacks,
-                attacks_per_vulnerability_type=attacks_per_vulnerability_type,
-                ignore_errors=False,
-            )
+            try:
+                risk_assessment = red_teamer.red_team(
+                    model_callback=self._model_callback,  # type: ignore
+                    vulnerabilities=vulnerabilities,
+                    attacks=attacks,
+                    attacks_per_vulnerability_type=attacks_per_vulnerability_type,
+                    ignore_errors=False,
+                    _upload_to_confident=False,
+                )
+            except Exception as e:
+                # Silently skip Confident AI upload errors
+                if "Invalid API key" in str(e) or "ConfidentApiError" in str(
+                    type(e).__name__
+                ):
+                    if hasattr(red_teamer, "risk_assessment"):
+                        risk_assessment = red_teamer.risk_assessment
+                    else:
+                        raise
+                else:
+                    raise
 
             # Extract statistics from risk assessment overview
             vulnerability_stats = {}
@@ -458,6 +580,31 @@ class DeepTeamRedTeamTester:
             pass_rate = total_passing / total_tests if total_tests > 0 else 0.0
             failure_rate = total_failing / total_tests if total_tests > 0 else 0.0
 
+            # Determine output directory for detailed results
+            persistent_log_dir = None
+            volumes = test_params.get("volumes", {})
+            if "output" in volumes:
+                # Construct test name from vulnerabilities
+                vuln_names = "_".join(
+                    list(vulnerability_stats.keys())[:3]
+                ).lower()  # Use up to 3 vulnerability names
+                if not vuln_names:
+                    vuln_names = "unknown"
+
+                # Make model name safe for file paths
+                safe_model_name = (
+                    self.sut_params["model"]
+                    .replace("/", "_")
+                    .replace(":", "_")
+                    .replace(".", "_")
+                )
+                persistent_log_dir = f"/output/deepteam_{vuln_names}_{safe_model_name}"
+
+            # Extract and save detailed test case information
+            self._extract_detailed_test_cases(
+                risk_assessment, output_dir=persistent_log_dir
+            )
+
             return {
                 "success": True,
                 "pass_rate": pass_rate,
@@ -474,6 +621,10 @@ class DeepTeamRedTeamTester:
             }
 
         except Exception as e:
+            import traceback
+
+            error_traceback = traceback.format_exc()
+            print(f"Error during red team testing: {error_traceback}", file=sys.stderr)
             return {
                 "success": False,
                 "error": f"Red team testing failed: {str(e)}",

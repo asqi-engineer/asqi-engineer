@@ -587,6 +587,53 @@ docker build -t my-registry/resaro_judge:latest .
 
 ---
 
+##  Image VLM Tester (Minimal proof of concept)
+
+**Purpose**: Generates images and uses Vision Language Models (VLMs) to evaluate aesthetic quality and other image attributes (currently a proof of concept).
+
+**Framework**: Custom async image generation and VLM evaluation framework
+**Location**: `test_containers/image_vlm_tester/`
+
+### System Requirements
+- **System Under Test**: `image_generation_api` (required) - The image generation system being tested
+- **Evaluator System**: `vlm_api` (required) - The Vision Language Model used to evaluate the generated images
+
+### Input Parameters
+- `prompt` (string, required): The text prompt for image generation
+- `score_instruction` (string, optional): Instructions for the VLM evaluator (default provides aesthetic scoring)
+
+### Output Metrics
+- `success` (boolean): Whether the test execution completed successfully
+- `aesthetic_score` (float): Numerical score from the VLM evaluation (0.0 to 10.0)
+- `image_url` (string): URL of the generated image
+
+### Example Configuration
+```yaml
+suite_name: "Image Generation and VLM Evaluation Suite"
+test_suite:
+  - id: "image_vlm_test_1"
+    name: "Generate and Evaluate Sea Otter Image"
+    image: "asqiengineer/test-container:image_vlm_tester-latest"
+    systems_under_test:
+      - "dalle3_generator"
+    systems:
+      system_under_test: "dalle3_generator"
+      evaluator_system: "gpt4_1_mini_vlm"
+    params:
+      prompt: "A cute baby sea otter, in an animated style"
+      score_instruction: "Please evaluate the photo-realism of this image and provide a score between 1 and 10, just the number."
+    volumes:
+      output: /workspaces/asqi/output
+```
+
+### Build Instructions
+```bash
+cd test_containers/image_vlm_tester
+docker build -t my-registry/image_vlm_tester:latest .
+```
+
+---
+
 ## Computer Vision Test Containers
 
 While ASQI's primary focus is LLM testing, it also includes specialized containers for computer vision evaluation:

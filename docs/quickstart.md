@@ -122,6 +122,9 @@ With all configurations downloaded, you can immediately try different testing sc
 
   # Red team testing
   asqi execute-tests -t config/suites/deepteam_test.yaml -s config/systems/demo_systems.yaml
+
+  # Image generation and VLM evaluation
+  asqi execute-tests -t config/suites/image_vlm_test.yaml -s config/systems/image_systems.yaml
   ```
 
 ## Next Steps
