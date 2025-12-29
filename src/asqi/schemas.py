@@ -1,6 +1,6 @@
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 # This is necessary because pydantic prefers Annotated types outside classes
 IDsStringPattern = Annotated[str, StringConstraints(pattern="^[0-9a-z_]{1,32}$")]
@@ -312,8 +312,42 @@ class SystemsConfig(BaseModel):
 # ----------------------------------------------------------------------------
 
 
+class DatasetLoaderParams(BaseModel):
+    """Parameters for loading a HuggingFace dataset from the mounted folder in the container."""
+
+    builder_name: Literal[
+        "json",
+        "csv",
+        "parquet",
+        "arrow",
+        "text",
+        "xml",
+        "webdataset",
+        "imagefolder",
+        "audiofolder",
+        "videofolder",
+    ] = Field(
+        ...,
+        description="The dataset builder name. Gets passed to datasets.load_dataset() as the path argument.",
+    )
+    data_dir: Optional[str] = Field(
+        None,
+        description="Directory containing dataset files, relative to the input mount.",
+    )
+    data_files: Optional[Union[str, list[str]]] = Field(
+        None,
+        description="Single file path or list of file paths, relative to the input mount.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_data_source(self) -> "DatasetLoaderParams":
+        if (self.data_dir is None) == (self.data_files is None):
+            raise ValueError("Exactly one of data_dir or data_files must be provided.")
+        return self
+
+
 class DatasetConfig(BaseModel):
-    loader_params: dict[str, str] = Field(
+    loader_params: DatasetLoaderParams = Field(
         ...,
         description="Keyword arguments for HuggingFace datasets.load_dataset function to load dataset.",
     )
