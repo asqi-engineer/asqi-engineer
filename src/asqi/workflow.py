@@ -14,6 +14,7 @@ from rich.console import Console
 
 from asqi.config import (
     ContainerConfig,
+    ExecutionMode,
     interpolate_env_vars,
     load_config_file,
     merge_defaults_into_suite,
@@ -28,22 +29,33 @@ from asqi.container_manager import (
     pull_images,
     run_container_with_args,
 )
+from asqi.errors import ReportValidationError
 from asqi.output import (
     create_test_execution_progress,
     create_workflow_summary,
+    extract_container_json_output_fields,
     format_execution_summary,
     format_failure_summary,
     parse_container_json_output,
+    translate_report_paths,
 )
-from asqi.schemas import Manifest, ScoreCard, SuiteConfig, SystemsConfig, AuditResponses
+from asqi.schemas import (
+    AuditResponses,
+    Manifest,
+    ScoreCard,
+    SuiteConfig,
+    SystemsConfig,
+)
 from asqi.validation import (
     build_env_var_error_message,
     create_test_execution_plan,
     validate_execution_inputs,
+    validate_indicator_display_reports,
     validate_score_card_inputs,
     validate_test_execution_inputs,
     validate_test_volumes,
     validate_workflow_configurations,
+    verify_score_card_reports,
 )
 
 load_dotenv()
@@ -66,6 +78,50 @@ DBOS(config=config)
 
 # Initialize Rich console and execution queue
 console = Console()
+
+
+def _get_available_images(
+    unique_images: List[str],
+) -> Tuple[List[str], Dict[str, bool]]:
+    """
+    Get the list of available Docker images, pulling missing ones as needed.
+
+    Args:
+        unique_images: List of docker image names
+
+    Returns:
+        List of valid available images and a dictionary of their availability status
+
+    """
+    DBOS.logger.info(f"Found {len(unique_images)} unique images")
+
+    # Check image availability
+    with console.status("[bold blue]Checking image availability...", spinner="dots"):
+        image_availability = dbos_check_images_availability(unique_images)
+
+    # Try to pull missing images from Docker Hub/registries
+    missing_images = [
+        img for img, available in image_availability.items() if not available
+    ]
+    if missing_images:
+        console.print(
+            f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally"
+        )
+        with console.status(
+            "[bold blue]Pulling missing images from registry...", spinner="dots"
+        ):
+            dbos_pull_images(missing_images)
+
+    # After pulling, we need to check availability again to include newly pulled images
+    if missing_images:
+        updated_image_availability = dbos_check_images_availability(unique_images)
+        image_availability.update(updated_image_availability)
+
+    # Now get all available images including ones that were just pulled
+    available_images = [
+        img for img, available in image_availability.items() if available
+    ]
+    return available_images, image_availability
 
 
 def _get_docker_socket_path(env_vars: dict[str, str]) -> str:
@@ -102,6 +158,7 @@ class TestExecutionResult:
         self.container_output: str = ""
         self.test_results: Dict[str, Any] = {}
         self.error_message: str = ""
+        self.generated_reports: List[Dict[str, Any]] = []
 
     @property
     def execution_time(self) -> float:
@@ -127,6 +184,7 @@ class TestExecutionResult:
                 "success": self.success,
             },
             "test_results": self.test_results,
+            "generated_reports": self.generated_reports,
         }
 
     def container_dict(self) -> Dict[str, Any]:
@@ -151,14 +209,27 @@ def dbos_pull_images(images: List[str]):
 
 
 @DBOS.step()
-def extract_manifest_from_image_step(image: str) -> Optional[Manifest]:
-    """Extract and parse manifest.yaml from a Docker image."""
-    manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
+def extract_manifests_step(images: List[str]) -> Dict[str, Manifest]:
+    """
+    Extract and parse manifests from a list of Docker images.
 
-    if not manifest:
-        DBOS.logger.warning(f"Failed to extract manifest from {image}")
+    Args:
+        images: List of Docker image names
 
-    return manifest
+    Returns:
+        Dictionary mapping Image name to Manifest
+    """
+    manifests = {}
+
+    with console.status("[bold blue]Extracting manifests...", spinner="dots"):
+        for image in images:
+            manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
+            if manifest:
+                manifests[image] = manifest
+            else:
+                DBOS.logger.warning(f"Failed to extract manifest from {image}")
+
+    return manifests
 
 
 @DBOS.step()
@@ -181,6 +252,29 @@ def validate_test_plan(
     """
     # Delegate to the comprehensive validation function
     return validate_workflow_configurations(suite, systems, manifests)
+
+
+@DBOS.step()
+def validate_indicator_display_reports_step(
+    suite: SuiteConfig, manifests: Dict[str, Manifest], score_cards: List[ScoreCard]
+) -> List[str]:
+    """
+    DBOS step wrapper for comprehensive score card report validation.
+
+    Delegates to validation.py for the actual validation logic.
+    This step exists to provide DBOS durability for validation results.
+
+    Args:
+        suite: Test suite configuration (pre-validated)
+        manifests: Available manifests (pre-validated)
+        score_cards: List of score card configurations (pre-validated)
+
+    Returns:
+        List of validation error messages
+    """
+    test_id_to_image = {test.id: test.image for test in suite.test_suite}
+
+    return validate_indicator_display_reports(manifests, score_cards, test_id_to_image)
 
 
 @DBOS.step()
@@ -414,10 +508,23 @@ def execute_single_test(
     result.container_output = container_result["output"]
     result.error_message = container_result["error"]
 
+    test_results = {}
+    generated_reports = []
+
     # Parse JSON output from container
     if container_result["success"]:
         try:
-            result.test_results = parse_container_json_output(result.container_output)
+            parsed_container_results = parse_container_json_output(
+                result.container_output
+            )
+            test_results, generated_reports = extract_container_json_output_fields(
+                parsed_container_results
+            )
+            result.test_results = test_results
+            result.generated_reports = generated_reports
+
+            host_output_volume = test_params.get("volumes", {}).get("output", "")
+            translate_report_paths(generated_reports, host_output_volume)
             result.success = result.test_results.get("success", False)
         except ValueError as e:
             result.error_message = (
@@ -442,11 +549,13 @@ def evaluate_score_card(
     test_results: List[TestExecutionResult],
     score_card_configs: List[Dict[str, Any]],
     audit_responses_data: Optional[Dict[str, Any]] = None,
+    execution_mode: ExecutionMode = ExecutionMode.END_TO_END,
 ) -> List[Dict[str, Any]]:
     """Evaluate score cards against test execution results."""
     from asqi.score_card_engine import ScoreCardEngine
 
     if not score_card_configs:
+        DBOS.logger.warning("No score card configurations provided")
         return []
 
     score_card_engine = ScoreCardEngine()
@@ -460,10 +569,38 @@ def evaluate_score_card(
             DBOS.logger.error(f"Audit responses validation failed: {e}")
             audit_responses = None
 
+    score_cards = []
     for score_card_config in score_card_configs:
         try:
-            # Parse score card configuration
-            score_card = ScoreCard(**score_card_config)
+            score_cards.append(ScoreCard(**score_card_config))
+        except ValidationError as e:
+            error_result = {
+                "score_card_name": score_card_config.get("score_card_name", "unknown"),
+                "error": f"Score card validation failed: {e}",
+                "indicator_id": "score_card_validation_error",
+                "indicator_name": "SCORE CARD VALIDATION ERROR",
+                "test_name": "N/A",
+                "test_id": "N/A",
+                "sut_name": "N/A",
+                "outcome": None,
+                "metric_value": None,
+            }
+            all_evaluations.append(error_result)
+            DBOS.logger.error(f"Score card validation failed: {e}")
+            continue
+
+    if not score_cards:
+        return all_evaluations
+
+    test_id_to_image, manifests = _resolve_display_reports_inputs(
+        test_results, execution_mode
+    )
+
+    for score_card in score_cards:
+        try:
+            # Validate score card display reports (ExecutionMode.END_TO_END is validated before test execution)
+            if execution_mode == ExecutionMode.EVALUATE_ONLY:
+                validate_display_reports(manifests, score_card, test_id_to_image)
 
             # Evaluate score card against test results
             score_card_evaluations = score_card_engine.evaluate_scorecard(
@@ -480,23 +617,15 @@ def evaluate_score_card(
                 f"Evaluated score card '{score_card.score_card_name}' with {len(score_card_evaluations)} individual evaluations"
             )
 
-        except ValidationError as e:
+        except (
+            KeyError,
+            AttributeError,
+            TypeError,
+            ValueError,
+            ReportValidationError,
+        ) as e:
             error_result = {
-                "score_card_name": score_card_config.get("score_card_name", "unknown"),
-                "error": f"Score card validation failed: {e}",
-                "indicator_id": "score_card_validation_error",
-                "indicator_name": "SCORE CARD VALIDATION ERROR",
-                "test_name": "N/A",
-                "test_id": "N/A",
-                "sut_name": "N/A",
-                "outcome": None,
-                "metric_value": None,
-            }
-            all_evaluations.append(error_result)
-            DBOS.logger.error(f"Score card validation failed: {e}")
-        except (KeyError, AttributeError, TypeError, ValueError) as e:
-            error_result = {
-                "score_card_name": score_card_config.get("score_card_name", "unknown"),
+                "score_card_name": score_card.score_card_name,
                 "error": f"Score card evaluation error: {e}",
                 "indicator_id": "score_card_evaluation_error",
                 "indicator_name": "SCORE CARD EVALUATION ERROR",
@@ -509,6 +638,7 @@ def evaluate_score_card(
             all_evaluations.append(error_result)
             DBOS.logger.error(f"Score card evaluation error: {e}")
 
+    verify_score_card_reports(all_evaluations)
     return all_evaluations
 
 
@@ -518,6 +648,7 @@ def run_test_suite_workflow(
     systems_config: Dict[str, Any],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
+    score_card_configs: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
@@ -533,6 +664,7 @@ def run_test_suite_workflow(
         systems_config: Serialized SystemsConfig containing system configurations
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
+        score_card_configs: Optional list of score card configurations
 
     Returns:
         Execution summary with metadata and individual test results (no score cards) and container results
@@ -548,6 +680,9 @@ def run_test_suite_workflow(
     try:
         suite = SuiteConfig(**suite_config)
         systems = SystemsConfig(**systems_config)
+        score_cards = []
+        for score_card_config in score_card_configs or []:
+            score_cards.append(ScoreCard(**score_card_config))
     except ValidationError as e:
         error_msg = f"Configuration validation failed: {e}"
         DBOS.logger.error(error_msg)
@@ -603,50 +738,24 @@ def run_test_suite_workflow(
 
     console.print(f"\n[bold blue]Executing Test Suite:[/bold blue] {suite.suite_name}")
 
-    # Collect all unique images from test suite
+    """Get the list of available Docker images for the test suite."""
     unique_images = list(set(test.image for test in suite.test_suite))
-    DBOS.logger.info(f"Found {len(unique_images)} unique images")
-
-    # Check image availability
-    with console.status("[bold blue]Checking image availability...", spinner="dots"):
-        image_availability = dbos_check_images_availability(unique_images)
-
-    # Try to pull missing images from Docker Hub/registries
-    missing_images = [
-        img for img, available in image_availability.items() if not available
-    ]
-    if missing_images:
-        console.print(
-            f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally"
-        )
-        with console.status(
-            "[bold blue]Pulling missing images from registry...", spinner="dots"
-        ):
-            dbos_pull_images(missing_images)
+    available_images, image_availability = _get_available_images(unique_images)
 
     # Extract manifests from available images (post-pull)
-    manifests = {}
-
-    # After pulling, we need to check availability again to include newly pulled images
-    if missing_images:
-        updated_image_availability = dbos_check_images_availability(unique_images)
-        image_availability.update(updated_image_availability)
-
-    # Now get all available images including ones that were just pulled
-    available_images = [
-        img for img, available in image_availability.items() if available
-    ]
-
-    if available_images:
-        with console.status("[bold blue]Extracting manifests...", spinner="dots"):
-            for image in available_images:
-                manifest = extract_manifest_from_image_step(image)
-                if manifest:
-                    manifests[image] = manifest
+    manifests = extract_manifests_step(available_images)
 
     # Validate test plan
     with console.status("[bold blue]Validating test plan...", spinner="dots"):
         validation_errors = validate_test_plan(suite, systems, manifests)
+
+    # Validate score cards reports
+    with console.status(
+        "[bold blue]Validating indicators display reports...", spinner="dots"
+    ):
+        validation_errors.extend(
+            validate_indicator_display_reports_step(suite, manifests, score_cards)
+        )
 
     if validation_errors:
         console.print("[red]Validation failed:[/red]")
@@ -792,6 +901,8 @@ def run_test_suite_workflow(
             if i % progress_interval == 0 or i == test_count:
                 console.print(f"[dim]Completed {i}/{test_count} tests[/dim]")
 
+    validation_errors = validate_test_container_reports(all_results, manifests)
+
     workflow_end_time = time.time()
 
     # Generate summary
@@ -809,7 +920,7 @@ def run_test_suite_workflow(
         execution_time=workflow_end_time - workflow_start_time,
         images_checked=len(unique_images),
         manifests_extracted=len(manifests),
-        validation_errors=[],
+        validation_errors=validation_errors,
     )
 
     # Display results
@@ -865,6 +976,7 @@ def convert_test_results_to_objects(
         result.container_id = metadata["container_id"]
         result.exit_code = metadata["exit_code"]
         result.test_results = result_dict["test_results"]
+        result.generated_reports = result_dict["generated_reports"]
         # case where the logs file was moved and test_container_data is empty
         if id < len(test_container_data):
             result.container_output = test_container_data[id]["container_output"]
@@ -923,6 +1035,7 @@ def evaluate_score_cards_workflow(
     test_container_data: List[Dict[str, Any]],
     score_card_configs: List[Dict[str, Any]],
     audit_responses_data: Optional[Dict[str, Any]] = None,
+    execution_mode: ExecutionMode = ExecutionMode.END_TO_END,
 ) -> Dict[str, Any]:
     """
     Evaluate score cards against existing test results.
@@ -932,6 +1045,9 @@ def evaluate_score_cards_workflow(
         test_container_data: Test container results containing container output and error message
         score_card_configs: List of score card configurations to evaluate
         audit_responses_data: Optional dict with manual audit responses
+        execution_mode: Execution mode, expected modes:
+            - `ExecutionMode.EVALUATE_ONLY`
+            - `ExecutionMode.END_TO_END`
 
     Returns:
         Updated results with score card evaluation data
@@ -944,7 +1060,7 @@ def evaluate_score_cards_workflow(
     # 2. Evaluate score cards using existing step
     console.print("\n[bold blue]Evaluating score cards...[/bold blue]")
     score_card_evaluation = evaluate_score_card(
-        test_results, score_card_configs, audit_responses_data
+        test_results, score_card_configs, audit_responses_data, execution_mode
     )
 
     # 3. Add score card results to test data
@@ -975,7 +1091,11 @@ def run_end_to_end_workflow(
         Complete execution results with test results, score card evaluations and container results
     """
     test_results, container_results = run_test_suite_workflow(
-        suite_config, systems_config, executor_config, container_config
+        suite_config,
+        systems_config,
+        executor_config,
+        container_config,
+        score_card_configs,
     )
 
     final_results = evaluate_score_cards_workflow(
@@ -985,11 +1105,176 @@ def run_end_to_end_workflow(
     return final_results, container_results
 
 
+def validate_test_container_reports(
+    all_results: List[TestExecutionResult], manifests: Dict[str, Manifest]
+) -> List[str]:
+    """
+    Validates that the reports returned by the test container exactly match the test container manifest `output_reports` definitions.
+
+    Args:
+        all_results: List of test execution results
+        manifests: Dictionary linking each image to its manifest
+
+    Returns:
+        List of validation error messages or empty list if none found
+    """
+    validation_errors = []
+
+    for result in all_results:
+        if not result.success:
+            continue
+
+        result_errors = []
+
+        if not isinstance(result.generated_reports, list):
+            result_errors.append("'generated_reports' must be a list")
+        else:
+            for report in result.generated_reports:
+                if not isinstance(report, dict):
+                    result_errors.append(
+                        "Each report in 'generated_reports' must be a dictionary"
+                    )
+                    continue
+
+                report_name = report.get("report_name")
+                report_type = report.get("report_type")
+                report_path_str = report.get("report_path")
+
+                if not report_name or not isinstance(report_name, str):
+                    result_errors.append("Report missing valid 'report_name' field")
+                    continue
+                if not report_type or not isinstance(report_type, str):
+                    result_errors.append(
+                        f"Report name '{report_name}' missing valid 'report_type' field"
+                    )
+                    continue
+                if not report_path_str or not isinstance(report_path_str, str):
+                    result_errors.append(
+                        f"Report name '{report_name}' missing valid 'report_path' field"
+                    )
+                    continue
+                try:
+                    report_path = Path(report_path_str)
+                    if not report_path.exists():
+                        result_errors.append(
+                            f"Report name '{report_name}' does not exist at path '{report_path_str}'"
+                        )
+                except (TypeError, ValueError, OSError) as error:
+                    result_errors.append(
+                        f"Report name '{report_name}' file validation error: {str(error)}"
+                    )
+            if not result_errors:
+                if result.image not in manifests:
+                    DBOS.logger.warning(
+                        f"No manifest found for image '{result.image}', skipping 'generated_reports' validation for test {result.test_id}"
+                    )
+                else:
+                    manifest = manifests[result.image]
+                    manifest_reports = {
+                        (report.name, report.type)
+                        for report in (manifest.output_reports or [])
+                    }
+                    container_reports = {
+                        (report["report_name"], report["report_type"])
+                        for report in result.generated_reports
+                    }
+                    missing_reports = manifest_reports - container_reports
+                    extra_reports = container_reports - manifest_reports
+
+                    if missing_reports or extra_reports:
+                        missing_reports = sorted(list(missing_reports))
+                        extra_reports = sorted(list(extra_reports))
+                        result_errors.append(
+                            f"Mismatch between manifest and returned 'generated_reports' for image '{result.image}'. Missing expected reports: {missing_reports}. Extra reports: {extra_reports}."
+                        )
+
+                        result.test_results["success"] = False
+                        result.test_results["error"] = (
+                            "Test results invalidated due to 'generated_reports' mismatch"
+                        )
+                        result.test_results["missing_reports"] = missing_reports
+                        result.test_results["extra_reports"] = extra_reports
+
+        if result_errors:
+            result.success = False
+            error_message = "| ".join(result_errors)
+            result.error_message = error_message
+            validation_errors.append(f"Test {result.test_id}: {error_message}")
+            DBOS.logger.error(f"Test {result.test_id}: {error_message}")
+
+    return validation_errors
+
+
+def _resolve_display_reports_inputs(
+    test_results: List[TestExecutionResult],
+    execution_mode: ExecutionMode,
+) -> Tuple[Dict[str, str], Dict[str, Manifest]]:
+    """
+    Prepares input data needed for display report validation.
+
+    Args:
+        test_results: List of test execution results
+        execution_mode: Execution mode, expected modes:
+            - `ExecutionMode.EVALUATE_ONLY`
+            - `ExecutionMode.END_TO_END`
+
+    Returns:
+        Links test ids to their image names and manifests by image name
+    """
+    if execution_mode == ExecutionMode.END_TO_END:
+        return {}, {}
+    unique_images = list(set(result.image for result in test_results))
+    available_images, _ = _get_available_images(unique_images)
+    manifests = extract_manifests_step(available_images)
+    suite_dict = {
+        "suite_name": "evaluation_suite",
+        "test_suite": [
+            {
+                "id": result.test_id,
+                "name": result.test_name,
+                "image": result.image,
+                "systems_under_test": [result.sut_name],
+            }
+            for result in test_results
+        ],
+    }
+    suite = SuiteConfig(**suite_dict)
+    test_id_to_image = {test.id: test.image for test in suite.test_suite}
+    return test_id_to_image, manifests
+
+
+def validate_display_reports(
+    manifests: Dict[str, Manifest],
+    score_card: ScoreCard,
+    test_id_to_image: Dict[str, str],
+):
+    """
+    Validate that score card 'display_reports' are defined in the test container manifests and match the expected structure
+
+    Args:
+        manifests: Dictionary linking each image to its manifest
+        score_card: Score card configuration to validate
+        test_id_to_image: Dictionary linking each test id to the image used
+
+    Raises:
+        ReportValidationError: If validation fails
+    """
+    with console.status(
+        "[bold blue]Validating indicators display reports...", spinner="dots"
+    ):
+        validation_errors = validate_indicator_display_reports(
+            manifests, [score_card], test_id_to_image
+        )
+        if validation_errors:
+            errors = ", ".join(validation_errors)
+            raise ReportValidationError(errors)
+
+
 def save_results_to_file_step(results: Dict[str, Any], output_path: str) -> None:
     """Save execution results to a JSON file."""
     try:
         save_results_to_file(results, output_path)
-        console.print(f"Results saved to [bold]{output_path}[/bold]")
+        console.print(f"\nResults saved to [bold]{output_path}[/bold]")
     except (IOError, OSError, PermissionError) as e:
         console.print(f"[red]Failed to save results:[/red] {e}")
     except (TypeError, ValueError) as e:
@@ -1026,7 +1311,7 @@ def start_test_execution(
     audit_responses_data: Optional[Dict[str, Any]] = None,
     output_path: Optional[str] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
-    execution_mode: str = "end_to_end",
+    execution_mode: ExecutionMode = ExecutionMode.END_TO_END,
     test_ids: Optional[List[str]] = None,
 ) -> str:
     """
@@ -1046,7 +1331,9 @@ def start_test_execution(
         audit_responses_data: Optional dictionary of audit responses data
         output_path: Optional path to save results JSON file
         score_card_configs: Optional list of score card configurations to evaluate
-        execution_mode: "tests_only" or "end_to_end"
+        execution_mode: Execution mode, expected modes:
+            - `ExecutionMode.TESTS_ONLY`
+            - `ExecutionMode.END_TO_END`
         test_ids: Optional list of test ids to filter from suite
 
     Returns:
@@ -1105,7 +1392,7 @@ def start_test_execution(
             ]
 
         # Start appropriate workflow based on execution mode
-        if execution_mode == "tests_only":
+        if execution_mode == ExecutionMode.TESTS_ONLY:
             handle = DBOS.start_workflow(
                 run_test_suite_workflow,
                 suite_config,
@@ -1113,7 +1400,7 @@ def start_test_execution(
                 executor_config,
                 container_config,
             )
-        elif execution_mode == "end_to_end":
+        elif execution_mode == ExecutionMode.END_TO_END:
             if not score_card_configs:
                 # Fall back to tests only if no score cards provided
                 handle = DBOS.start_workflow(
@@ -1136,12 +1423,10 @@ def start_test_execution(
         else:
             raise ValueError(f"Invalid execution mode: {execution_mode}")
 
+        results, container_results = handle.get_result()
         if output_path:
-            results, container_results = handle.get_result()
             save_results_to_file_step(results, output_path)
             save_container_results_to_file_step(container_results, output_path)
-        else:
-            handle.get_result()
 
         return handle.get_workflow_id()
 
@@ -1199,14 +1484,12 @@ def start_score_card_evaluation(
             test_container_data,
             score_card_configs,
             audit_responses_data,
+            ExecutionMode.EVALUATE_ONLY,
         )
 
-        # Wait for completion and optionally save results
+        results = handle.get_result()
         if output_path:
-            results = handle.get_result()
             save_results_to_file_step(results, output_path)
-        else:
-            handle.get_result()  # Wait for completion
 
         return handle.get_workflow_id()
 

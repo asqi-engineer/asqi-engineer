@@ -5,23 +5,25 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from asqi.config import ExecutionMode
 from asqi.errors import DuplicateIDError, MissingIDFieldError
-
 from asqi.main import load_and_validate_plan
 from asqi.rag_response_schema import RAGCitation, RAGContext, validate_rag_response
 from asqi.schemas import (
     AssessmentRule,
+    AuditScoreCardIndicator,
     GenericSystemConfig,
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
+    OutputReports,
     RAGAPIConfig,
-    VLMAPIConfig,
     ScoreCard,
     ScoreCardFilter,
     ScoreCardIndicator,
     SuiteConfig,
     SystemsConfig,
+    VLMAPIConfig,
 )
 from asqi.score_card_engine import ScoreCardEngine
 from asqi.validation import (
@@ -29,6 +31,7 @@ from asqi.validation import (
     find_manifest_for_image,
     validate_execution_inputs,
     validate_ids,
+    validate_indicator_display_reports,
     validate_manifests_against_tests,
     validate_score_card_inputs,
     validate_system_compatibility,
@@ -1243,13 +1246,13 @@ class TestValidationInputFunctions:
         validate_execution_inputs(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
-            execution_mode="tests_only",
+            execution_mode=ExecutionMode.TESTS_ONLY,
             output_path="output.json",
         )
         validate_execution_inputs(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
-            execution_mode="end_to_end",
+            execution_mode=ExecutionMode.END_TO_END,
             output_path=None,
         )
 
@@ -1257,15 +1260,17 @@ class TestValidationInputFunctions:
         """Test invalid execution inputs."""
         # Invalid suite_path - empty string
         with pytest.raises(ValueError, match="Invalid suite_path"):
-            validate_execution_inputs("", "systems.yaml", "tests_only")
+            validate_execution_inputs("", "systems.yaml", ExecutionMode.TESTS_ONLY)
 
         # Invalid systems_path - empty string
         with pytest.raises(ValueError, match="Invalid systems_path"):
-            validate_execution_inputs("suite.yaml", "", "tests_only")
+            validate_execution_inputs("suite.yaml", "", ExecutionMode.TESTS_ONLY)
 
-        # Invalid execution_mode
+        # Invalid execution_mode - only TESTS_ONLY and END_TO_END are valid
         with pytest.raises(ValueError, match="Invalid execution_mode"):
-            validate_execution_inputs("suite.yaml", "systems.yaml", "invalid_mode")
+            validate_execution_inputs(
+                "suite.yaml", "systems.yaml", ExecutionMode.EVALUATE_ONLY
+            )
 
     def test_validate_score_card_inputs_valid(self):
         """Test valid score card inputs."""
@@ -1328,16 +1333,16 @@ class TestValidationInputFunctions:
         validate_execution_inputs(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
-            execution_mode="tests_only",
+            execution_mode=ExecutionMode.TESTS_ONLY,
             audit_responses_data=MOCK_AUDIT_RESPONSES,
             output_path="output.json",
         )
 
-        # Also verify it works with end_to_end mode
+        # Also verify it works with ExecutionMode.END_TO_END
         validate_execution_inputs(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
-            execution_mode="end_to_end",
+            execution_mode=ExecutionMode.END_TO_END,
             audit_responses_data=MOCK_AUDIT_RESPONSES,
             output_path=None,
         )
@@ -1349,7 +1354,7 @@ class TestValidationInputFunctions:
             validate_execution_inputs(
                 suite_path="suite.yaml",
                 systems_path="systems.yaml",
-                execution_mode="tests_only",
+                execution_mode=ExecutionMode.TESTS_ONLY,
                 audit_responses_data=["not", "a", "dict"],  # type: ignore[arg-type]
             )
 
@@ -1358,7 +1363,7 @@ class TestValidationInputFunctions:
             validate_execution_inputs(
                 suite_path="suite.yaml",
                 systems_path="systems.yaml",
-                execution_mode="tests_only",
+                execution_mode=ExecutionMode.TESTS_ONLY,
                 audit_responses_data="not-a-dict",  # type: ignore[arg-type]
             )
 
@@ -2197,3 +2202,235 @@ class TestRAGResponseSchema:
         # Missing context
         with pytest.raises(KeyError, match="context"):
             validate_rag_response({"choices": [{"message": {"citations": []}}]})
+
+
+class TestValidateIndicatorDisplayReports:
+    @pytest.fixture
+    def test_id_to_image(self):
+        suite = SuiteConfig(
+            suite_name="Test Suite for Report Validation",
+            test_suite=[
+                {
+                    "name": "test report validation",
+                    "id": "test_report_validation",
+                    "image": "report-image:latest",
+                    "systems_under_test": ["my_llm_api"],
+                }
+            ],
+        )
+        test_id_to_image = {test.id: test.image for test in suite.test_suite}
+        return test_id_to_image
+
+    @pytest.fixture
+    def report_validation_manifest(self):
+        manifest = Manifest(
+            name="manifest with reports",
+            version="1.0",
+            input_systems=[
+                {
+                    "name": "system_under_test",
+                    "type": "llm_api",
+                    "required": True,
+                }
+            ],
+            output_reports=[
+                OutputReports(
+                    name="detailed_report",
+                    type="pdf",
+                    description="Detailed test report",
+                ),
+                OutputReports(
+                    name="summary_report",
+                    type="html",
+                    description="Summary report",
+                ),
+            ],
+        )
+        return {"report-image:latest": manifest}
+
+    def create_scorecard_with_reports(self, report_list):
+        return [
+            ScoreCard(
+                score_card_name="Score Card for Report Validation",
+                indicators=[
+                    {
+                        "id": "report_indicator",
+                        "name": "Indicator for report validation",
+                        "apply_to": {"test_id": "test_report_validation"},
+                        "metric": "accuracy",
+                        "assessment": [
+                            {
+                                "outcome": "PASS",
+                                "condition": "greater_equal",
+                                "threshold": 0.9,
+                            }
+                        ],
+                        "display_reports": report_list,
+                    }
+                ],
+            )
+        ]
+
+    def test_reports_defined_in_the_manifest(
+        self, test_id_to_image, report_validation_manifest
+    ):
+        """
+        Test validation passes when requested reports are defined in the manifest.
+        """
+        score_cards = self.create_scorecard_with_reports(
+            ["detailed_report", "summary_report"]
+        )
+        errors = validate_indicator_display_reports(
+            report_validation_manifest, score_cards, test_id_to_image
+        )
+        assert errors == []
+
+    def test_empty_display_reports(self, test_id_to_image, report_validation_manifest):
+        """
+        Test validation passes when display_reports list is empty.
+        """
+        score_cards = self.create_scorecard_with_reports([])
+        errors = validate_indicator_display_reports(
+            report_validation_manifest, score_cards, test_id_to_image
+        )
+        assert errors == []
+
+    def test_invalid_report_name(self, test_id_to_image, report_validation_manifest):
+        """
+        Test validation fails when a requested report name is missing from the manifest.
+        """
+        score_cards = self.create_scorecard_with_reports(["invalid_report"])
+        errors = validate_indicator_display_reports(
+            report_validation_manifest, score_cards, test_id_to_image
+        )
+
+        assert len(errors) == 1
+        assert "invalid_report" in errors[0]
+
+    def test_duplicate_report_names(self, test_id_to_image, report_validation_manifest):
+        """
+        Test validation fails when duplicate report names are specified in the indicator.
+        """
+        score_cards = self.create_scorecard_with_reports(
+            ["detailed_report", "detailed_report"]
+        )
+        errors = validate_indicator_display_reports(
+            report_validation_manifest, score_cards, test_id_to_image
+        )
+
+        assert len(errors) == 1
+        assert (
+            "duplicate report name 'detailed_report' in display_reports"
+            in errors[0].lower()
+        )
+
+    def test_missing_manifest_error(self, test_id_to_image):
+        """
+        Test validation fails when the manifest is missing.
+        """
+        score_cards = self.create_scorecard_with_reports(["detailed_report"])
+        manifests = {}
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, test_id_to_image
+        )
+
+        assert len(errors) == 1
+        assert "No manifest found for image 'report-image:latest'" in errors[0]
+
+    def test_manifest_with_no_output_error(self, test_id_to_image):
+        """
+        Tests that validation fails when requesting a report from a manifest with no output_reports.
+        """
+
+        manifest_no_reports = Manifest(
+            name="test_container",
+            version="1.0",
+            input_systems=[
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            output_reports=[],
+        )
+        manifest = {"report-image:latest": manifest_no_reports}
+        score_cards = self.create_scorecard_with_reports(["detailed_report"])
+
+        errors = validate_indicator_display_reports(
+            manifest, score_cards, test_id_to_image
+        )
+
+        assert len(errors) == 1
+        assert (
+            "Manifest for image 'report-image:latest' only defines: none" in errors[0]
+        )
+
+    def test_audit_indicators(self, test_id_to_image, report_validation_manifest):
+        """
+        Tests that audit indicators are skipped during report validation.
+        """
+        audit_indicator = AuditScoreCardIndicator(
+            id="audit_indicator",
+            name="Audit Indicator",
+            display_reports=["detailed_report"],
+            assessment=[{"outcome": "A", "description": "desc"}],
+        )
+
+        score_cards = [
+            ScoreCard(score_card_name="Audit Score Card", indicators=[audit_indicator])
+        ]
+
+        errors = validate_indicator_display_reports(
+            report_validation_manifest, score_cards, test_id_to_image
+        )
+        assert errors == []
+
+    def test_multiple_indicators(self, test_id_to_image, report_validation_manifest):
+        """
+        Test with 2 indicators where only the invalid one produces an error.
+        """
+        valid_indicator = self.create_scorecard_with_reports(["detailed_report"])[
+            0
+        ].indicators[0]
+
+        invalid_indicator = ScoreCardIndicator(
+            id="invalid_report_indicator",
+            name="invalid indicator",
+            apply_to={"test_id": "test_report_validation"},
+            metric="pass_rate",
+            assessment=[
+                {"outcome": "PASS", "condition": "greater_equal", "threshold": 0.8}
+            ],
+            display_reports=["invalid_report_name"],
+        )
+
+        score_cards = [
+            ScoreCard(
+                score_card_name="Score Card with Multiple Indicators",
+                indicators=[valid_indicator, invalid_indicator],
+            )
+        ]
+
+        errors = validate_indicator_display_reports(
+            report_validation_manifest,
+            score_cards,
+            test_id_to_image,
+        )
+
+        assert len(errors) == 1
+        assert "invalid_report_indicator" in errors[0]
+
+    def test_case_sensitive_display_reports_error(
+        self, test_id_to_image, report_validation_manifest
+    ):
+        """
+        Test that requesting reports with incorrect casing results in a failure.
+        """
+        score_cards = self.create_scorecard_with_reports(["Detailed_Report"])
+
+        errors = validate_indicator_display_reports(
+            report_validation_manifest,
+            score_cards,
+            test_id_to_image,
+        )
+
+        assert len(errors) == 1
+        assert "not found with an exact case sensitive match" in errors[0]
