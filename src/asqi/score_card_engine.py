@@ -514,7 +514,7 @@ class ScoreCardEngine:
                 eval_result.test_result_id = (
                     f"{test_result.test_id}_{test_result.sut_name}"
                 )
-                test_reports = test_result.technical_reports or []
+                test_reports = test_result.generated_reports or []
                 requested_reports = indicator.display_reports or []
                 eval_result.report_paths = [
                     str(report["report_path"])

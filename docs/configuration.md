@@ -598,8 +598,7 @@ To display technical reports in a score card, use the `display_reports` field in
 
 #### Selecting Reports for Display
 
-- In your score card, you can reference one or more of the test container reports by name using `display_reports`.
-- These reports will be displayed when evaluating and running e2e and will be logged in the output and console
+- In your indicator, you can reference one or more of the test reports by name using `display_reports`.
 
 ```yaml
 indicators:
@@ -617,7 +616,7 @@ indicators:
 #### Report Validations
 
 - Every report listed in `display_reports` exists in the container manifest (`output_reports`).
-- There are no duplicate report names in `display_reports`.s
+- There are no duplicate report names in `display_reports`.
 
 ### Available Conditions
 
@@ -939,7 +938,7 @@ def main():
 
 #### Entry Point Return Format
 
-Your test container should print a JSON object to stdout. There are two simple patterns:
+Your test container should print a JSON to stdout. There are two simple options:
 
 - **Just metrics:**
   ```json
@@ -951,7 +950,7 @@ Your test container should print a JSON object to stdout. There are two simple p
   ```
   (All fields match your `output_metrics` in the manifest)
 
-- **Metrics and technical reports:**
+- **Metrics and Reports:**
   ```json
   {
     "test_results": {
@@ -959,7 +958,7 @@ Your test container should print a JSON object to stdout. There are two simple p
       "score": 0.95,
       "test_count": 10
     },
-    "technical_reports": [
+    "generated_reports": [
       {
         "report_name": "quick_summary",
         "report_type": "html",
@@ -973,7 +972,8 @@ Your test container should print a JSON object to stdout. There are two simple p
     ]
   }
   ```
-  Learn how to add a technical report to the test container: [Technical reports](custom-test-containers.md#implementing-technical-reports-in-custom-test-containers)
+  Learn how to add a report to the test container: [Technical reports](custom-test-containers.md#implementing-technical-reports-in-custom-test-containers)
+
 ### Manifest Declaration
 
 Each container includes a `manifest.yaml` describing its capabilities:

@@ -136,7 +136,7 @@ class AuditResponsesRequiredError(Exception):
         return "\n".join(lines)
 
 
-class TechnicalReportError(Exception):
-    """Exception raised when validating a technical report fails."""
+class ReportValidationError(Exception):
+    """Exception raised when validating a generated report fails."""
 
     pass

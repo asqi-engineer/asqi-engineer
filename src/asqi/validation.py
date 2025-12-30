@@ -647,7 +647,7 @@ def validate_execution_inputs(
 
     if execution_mode not in [ExecutionMode.TESTS_ONLY, ExecutionMode.END_TO_END]:
         raise ValueError(
-            f"Invalid execution_mode '{execution_mode}': must be 'tests_only' or 'end_to_end'"
+            f"Invalid execution_mode '{execution_mode}': must be 'ExecutionMode.TESTS_ONLY' or 'ExecutionMode.END_TO_END'"
         )
     if audit_responses_data is not None and not isinstance(audit_responses_data, dict):
         raise ValueError("Invalid audit_responses_data: must be a dictionary or None")
@@ -888,8 +888,8 @@ def validate_indicator_display_reports(
 
 def verify_score_card_reports(all_evaluations: List[Dict[str, Any]]) -> None:
     """
-    Verifies that all technical reports referenced in the score card evaluations
-    exist on the local filesystem and logs the result to the console.
+    Verifies that all generated reports referenced in the score card evaluations
+    exist on the local filesystem and logs the results to the console.
 
     Args:
         all_evaluations: List of score card evaluation results
@@ -897,7 +897,7 @@ def verify_score_card_reports(all_evaluations: List[Dict[str, Any]]) -> None:
     if not all_evaluations:
         return
 
-    console.print("\n[bold blue]Verifying technical reports...[/bold blue]")
+    console.print("\n[bold blue]Verifying generated reports...[/bold blue]")
     reports_count = 0
     for evaluation in all_evaluations:
         indicator_id = evaluation.get("indicator_id", "")
@@ -919,4 +919,4 @@ def verify_score_card_reports(all_evaluations: List[Dict[str, Any]]) -> None:
                     f"Indicator id [bold]'{indicator_id}'[/bold]: Invalid report path [red]{report_path_str}[/red] ({str(e)})"
                 )
     if reports_count == 0:
-        console.print("No technical reports were generated")
+        console.print("No reports were generated")

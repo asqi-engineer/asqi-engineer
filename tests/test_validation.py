@@ -18,12 +18,12 @@ from asqi.schemas import (
     Manifest,
     OutputReports,
     RAGAPIConfig,
-    VLMAPIConfig,
     ScoreCard,
     ScoreCardFilter,
     ScoreCardIndicator,
     SuiteConfig,
     SystemsConfig,
+    VLMAPIConfig,
 )
 from asqi.score_card_engine import ScoreCardEngine
 from asqi.validation import (
@@ -1260,15 +1260,17 @@ class TestValidationInputFunctions:
         """Test invalid execution inputs."""
         # Invalid suite_path - empty string
         with pytest.raises(ValueError, match="Invalid suite_path"):
-            validate_execution_inputs("", "systems.yaml", "tests_only")
+            validate_execution_inputs("", "systems.yaml", ExecutionMode.TESTS_ONLY)
 
         # Invalid systems_path - empty string
         with pytest.raises(ValueError, match="Invalid systems_path"):
-            validate_execution_inputs("suite.yaml", "", "tests_only")
+            validate_execution_inputs("suite.yaml", "", ExecutionMode.TESTS_ONLY)
 
-        # Invalid execution_mode
+        # Invalid execution_mode - only TESTS_ONLY and END_TO_END are valid
         with pytest.raises(ValueError, match="Invalid execution_mode"):
-            validate_execution_inputs("suite.yaml", "systems.yaml", "invalid_mode")
+            validate_execution_inputs(
+                "suite.yaml", "systems.yaml", ExecutionMode.EVALUATE_ONLY
+            )
 
     def test_validate_score_card_inputs_valid(self):
         """Test valid score card inputs."""
@@ -1336,7 +1338,7 @@ class TestValidationInputFunctions:
             output_path="output.json",
         )
 
-        # Also verify it works with end_to_end mode
+        # Also verify it works with ExecutionMode.END_TO_END
         validate_execution_inputs(
             suite_path="suite.yaml",
             systems_path="systems.yaml",

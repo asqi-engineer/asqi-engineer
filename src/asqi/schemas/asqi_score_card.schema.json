@@ -222,7 +222,7 @@
           "type": "array"
         },
         "display_reports": {
-          "description": "List of technical report names to include from the test container manifest.",
+          "description": "List of report names to include from the test container manifest.",
           "items": {
             "type": "string"
           },

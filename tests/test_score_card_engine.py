@@ -1458,7 +1458,7 @@ class TestMetricExpressions:
         assert audit_eval["error"] is None
 
 
-class TestDisplayTechnicalReports:
+class TestDisplayGeneratedReports:
     @pytest.fixture
     def test_execution_result(self) -> TestExecutionResult:
         test_result = TestExecutionResult(
@@ -1485,10 +1485,10 @@ class TestDisplayTechnicalReports:
 
     def test_display_reports(self, test_execution_result, indicator):
         """
-        Test that the ScoreCardEngine returns only the technical report paths explicitly listed in display_reports.
+        Test that the ScoreCardEngine returns only the reports explicitly listed in display_reports.
         """
         engine = ScoreCardEngine()
-        test_execution_result.technical_reports = [
+        test_execution_result.generated_reports = [
             {
                 "report_name": "detailed_report",
                 "report_type": "html",
@@ -1513,7 +1513,7 @@ class TestDisplayTechnicalReports:
         """
         engine = ScoreCardEngine()
 
-        test_execution_result.technical_reports = [
+        test_execution_result.generated_reports = [
             {
                 "report_name": "valid_report",
                 "report_type": "pdf",

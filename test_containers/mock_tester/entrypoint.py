@@ -68,7 +68,7 @@ def main():
 
         output = {
             "test_results": metrics_data,
-            "technical_reports": [write_quick_summary_report(test_id, metrics_data)],
+            "generated_reports": [write_quick_summary_report(test_id, metrics_data)],
         }
         # Output results as JSON
         print(json.dumps(output, indent=2))

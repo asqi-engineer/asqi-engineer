@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from asqi.config import ContainerConfig, ExecutorConfig
+from asqi.config import ContainerConfig, ExecutionMode, ExecutorConfig
 from asqi.schemas import Manifest, OutputReports, SystemInput
 from asqi.workflow import (
     TestExecutionResult,
@@ -16,7 +16,7 @@ from asqi.workflow import (
     save_results_to_file_step,
     start_score_card_evaluation,
     start_test_execution,
-    validate_test_container_technical_reports,
+    validate_test_container_reports,
 )
 from asqi.workflow import (
     run_test_suite_workflow as _workflow,
@@ -405,7 +405,7 @@ def test_convert_test_results_to_objects():
                     "exit_code": 0,
                 },
                 "test_results": {"success": True, "score": 0.9},
-                "technical_reports": [],
+                "generated_reports": [],
             }
         ]
     }
@@ -434,7 +434,7 @@ def test_convert_test_results_to_objects():
     assert result.container_id == "abc123"
     assert result.exit_code == 0
     assert result.test_results == {"success": True, "score": 0.9}
-    assert result.technical_reports == []
+    assert result.generated_reports == []
 
 
 def test_add_score_cards_to_results():
@@ -711,7 +711,7 @@ def test_run_end_to_end_workflow_with_audit_responses():
 
 
 def test_start_test_execution_tests_only_mode():
-    """Test start_test_execution with tests_only mode."""
+    """Test start_test_execution with `ExecutionMode.TESTS_ONLY`."""
 
     mock_handle = DummyHandle({"summary": {"status": "COMPLETED"}}, return_tuple=True)
 
@@ -734,18 +734,18 @@ def test_start_test_execution_tests_only_mode():
             None,
             "output.json",
             None,
-            "tests_only",
+            ExecutionMode.TESTS_ONLY,
         )
 
         assert workflow_id == mock_handle.get_workflow_id()
         mock_start.assert_called_once()
-        # Should call run_test_suite_workflow for tests_only mode
+        # Should call run_test_suite_workflow for ExecutionMode.TESTS_ONLY
         call_args = mock_start.call_args[0]
         assert call_args[0].__name__ == "run_test_suite_workflow"
 
 
 def test_start_test_execution_end_to_end_mode():
-    """Test start_test_execution with end_to_end mode."""
+    """Test start_test_execution with `ExecutionMode.END_TO_END`."""
 
     mock_handle = DummyHandle({"summary": {"status": "COMPLETED"}}, return_tuple=True)
     score_card_configs = [{"score_card_name": "test"}]
@@ -769,7 +769,7 @@ def test_start_test_execution_end_to_end_mode():
             None,
             "output.json",
             score_card_configs,
-            "end_to_end",
+            ExecutionMode.END_TO_END,
         )
 
         assert workflow_id == mock_handle.get_workflow_id()
@@ -780,7 +780,7 @@ def test_start_test_execution_end_to_end_mode():
 
 
 def test_start_test_execution_end_to_end_mode_with_audit_responses():
-    """start_test_execution should pass audit_responses_data down for end_to_end mode."""
+    """start_test_execution should pass audit_responses_data down for `ExecutionMode.END_TO_END`."""
 
     mock_handle = DummyHandle({"summary": {"status": "COMPLETED"}}, return_tuple=True)
     score_card_configs = [MOCK_SCORE_CARD_CONFIG]
@@ -805,7 +805,7 @@ def test_start_test_execution_end_to_end_mode_with_audit_responses():
             audit_responses_data,
             "output.json",
             score_card_configs,
-            "end_to_end",
+            ExecutionMode.END_TO_END,
         )
 
         assert workflow_id == mock_handle.get_workflow_id()
@@ -1061,7 +1061,7 @@ def test_run_test_suite_workflow_handle_exception():
     assert result["metadata"]["image"] == "test/image:latest"
 
 
-class TestTechnicalReports:
+class TestContainerReports:
     def test_report_name_errors(self, tmp_path):
         """
         Test validation fails when report_name is missing, empty or invalid.
@@ -1085,7 +1085,7 @@ class TestTechnicalReports:
             "report-image:latest",
         )
         result_report_name_missing.success = True
-        result_report_name_missing.technical_reports = [
+        result_report_name_missing.generated_reports = [
             {"report_type": "html", "report_path": str(report_file)}
         ]
 
@@ -1096,7 +1096,7 @@ class TestTechnicalReports:
             "report-image:latest",
         )
         result_report_name_empty.success = True
-        result_report_name_empty.technical_reports = [
+        result_report_name_empty.generated_reports = [
             {
                 "report_name": "",
                 "report_type": "html",
@@ -1111,7 +1111,7 @@ class TestTechnicalReports:
             "report-image:latest",
         )
         result_report_name_invalid.success = True
-        result_report_name_invalid.technical_reports = [
+        result_report_name_invalid.generated_reports = [
             {
                 "report_name": "invalid",
                 "report_type": "html",
@@ -1119,7 +1119,7 @@ class TestTechnicalReports:
             }
         ]
 
-        errors = validate_test_container_technical_reports(
+        errors = validate_test_container_reports(
             [
                 result_report_name_missing,
                 result_report_name_empty,
@@ -1156,7 +1156,7 @@ class TestTechnicalReports:
             "report-image:latest",
         )
         result_report_type_missing.success = True
-        result_report_type_missing.technical_reports = [
+        result_report_type_missing.generated_reports = [
             {"report_name": "valid_report", "report_path": str(report_file)}
         ]
 
@@ -1167,7 +1167,7 @@ class TestTechnicalReports:
             "report-image:latest",
         )
         result_report_type_empty.success = True
-        result_report_type_empty.technical_reports = [
+        result_report_type_empty.generated_reports = [
             {
                 "report_name": "valid_report",
                 "report_type": "",
@@ -1182,7 +1182,7 @@ class TestTechnicalReports:
             "report-image:latest",
         )
         result_report_type_invalid.success = True
-        result_report_type_invalid.technical_reports = [
+        result_report_type_invalid.generated_reports = [
             {
                 "report_name": "valid_report",
                 "report_type": "invalid",
@@ -1190,7 +1190,7 @@ class TestTechnicalReports:
             }
         ]
 
-        errors = validate_test_container_technical_reports(
+        errors = validate_test_container_reports(
             [
                 result_report_type_missing,
                 result_report_type_empty,
@@ -1231,7 +1231,7 @@ class TestTechnicalReports:
             "report-image:latest",
         )
         result_report_path_missing.success = True
-        result_report_path_missing.technical_reports = [
+        result_report_path_missing.generated_reports = [
             {"report_name": "valid_report", "report_type": "html"}
         ]
 
@@ -1242,7 +1242,7 @@ class TestTechnicalReports:
             "report-image:latest",
         )
         result_report_path_empty.success = True
-        result_report_path_empty.technical_reports = [
+        result_report_path_empty.generated_reports = [
             {
                 "report_name": "valid_report",
                 "report_type": "html",
@@ -1250,7 +1250,7 @@ class TestTechnicalReports:
             }
         ]
 
-        errors = validate_test_container_technical_reports(
+        errors = validate_test_container_reports(
             [result_report_path_missing, result_report_path_empty], manifests
         )
 
@@ -1272,7 +1272,7 @@ class TestTechnicalReports:
             "test report file not exist", "test_not_exist", "sut", "report-image:latest"
         )
         result.success = True
-        result.technical_reports = [
+        result.generated_reports = [
             {
                 "report_name": "test_report",
                 "report_type": "html",
@@ -1280,7 +1280,7 @@ class TestTechnicalReports:
             }
         ]
 
-        errors = validate_test_container_technical_reports([result], manifests)
+        errors = validate_test_container_reports([result], manifests)
 
         assert len(errors) == 1
         assert result.success is False
@@ -1288,7 +1288,41 @@ class TestTechnicalReports:
             "Report name 'test_report' does not exist at path" in result.error_message
         )
 
-    def test_validate_test_container_technical_reports_success(self, tmp_path):
+    def test_multiple_report_errors(self, tmp_path):
+        """
+        Test that errors from multiple reports are all collected.
+        """
+        manifests = {}
+
+        result = TestExecutionResult(
+            "test report file not exist", "test_not_exist", "sut", "report-image:latest"
+        )
+        result.success = True
+        result.generated_reports = [
+            {
+                "report_name": "first_report",
+                "report_type": "html",
+                "report_path": str(tmp_path / "invalid.html"),
+            },
+            {
+                "report_name": "second_report",
+                "report_type": "html",
+                "report_path": str(tmp_path / "invalid.html"),
+            },
+        ]
+
+        errors = validate_test_container_reports([result], manifests)
+
+        assert len(errors) == 1
+        assert result.success is False
+        assert (
+            "Report name 'first_report' does not exist at path" in result.error_message
+        )
+        assert (
+            "Report name 'second_report' does not exist at path" in result.error_message
+        )
+
+    def test_validate_test_container_reports_success(self, tmp_path):
         """
         Test validation passes when the report returned by the test container matches the manifest definitions
         """
@@ -1312,7 +1346,7 @@ class TestTechnicalReports:
             "test success", "test_success", "sut", "report-image:latest"
         )
         result.success = True
-        result.technical_reports = [
+        result.generated_reports = [
             {
                 "report_name": "valid_report",
                 "report_type": "html",
@@ -1324,7 +1358,7 @@ class TestTechnicalReports:
                 "report_path": str(report_file_pdf),
             },
         ]
-        errors = validate_test_container_technical_reports([result], manifests)
+        errors = validate_test_container_reports([result], manifests)
         assert len(errors) == 0
         assert result.success is True
 
@@ -1337,7 +1371,7 @@ class TestTechnicalReports:
         result = TestExecutionResult("test", "test_error", "sut", "report-image:latest")
         result.success = False
         result.error_message = "Test failed for other reasons"
-        result.technical_reports = [
+        result.generated_reports = [
             {
                 "report_name": "summary",
                 "report_type": "html",
@@ -1345,7 +1379,7 @@ class TestTechnicalReports:
             }
         ]
 
-        errors = validate_test_container_technical_reports([result], manifests)
+        errors = validate_test_container_reports([result], manifests)
 
         assert len(errors) == 0
         assert result.success is False
