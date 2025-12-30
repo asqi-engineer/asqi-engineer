@@ -598,7 +598,7 @@ To display technical reports in a score card, use the `display_reports` field in
 
 #### Selecting Reports for Display
 
-- In your indicator, you can reference one or more of the test reports by name using `display_reports`.
+- In your indicator, you can reference one or more of the test reports by name using `display_reports`
 
 ```yaml
 indicators:
@@ -972,7 +972,7 @@ Your test container should print a JSON to stdout. There are two simple options:
     ]
   }
   ```
-  Learn how to add a report to the test container: [Technical reports](custom-test-containers.md#implementing-technical-reports-in-custom-test-containers)
+  Learn how to add a report to the test container: [Technical reports](custom-test-containers.md#adding-technical-reports-in-custom-test-containers)
 
 ### Manifest Declaration
 
