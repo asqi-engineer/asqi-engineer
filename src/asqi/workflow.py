@@ -1274,7 +1274,7 @@ def save_results_to_file_step(results: Dict[str, Any], output_path: str) -> None
     """Save execution results to a JSON file."""
     try:
         save_results_to_file(results, output_path)
-        console.print(f"Results saved to [bold]{output_path}[/bold]")
+        console.print(f"\nResults saved to [bold]{output_path}[/bold]")
     except (IOError, OSError, PermissionError) as e:
         console.print(f"[red]Failed to save results:[/red] {e}")
     except (TypeError, ValueError) as e:

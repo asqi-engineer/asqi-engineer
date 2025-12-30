@@ -399,7 +399,7 @@ print(json.dumps(output))
 Each report generated in `generated_reports` **MUST** return:
 
 - `report_name`: (string) The name of the report, matching the manifest.
-- `report_type`: (string) The type of the report (`html` or `json`).
+- `report_type`: (string) The type of the report (`html` or `pdf`).
 - `report_path`: (string) The absolute path to the report file.
 
 ## 2. Report Generation
@@ -429,7 +429,7 @@ output_reports:
 
 When running a test in `ASQI Engineer` and once the container has finished executing, the system automatically validates the generated reports against the manifest.
 
-- The name and type of every report returned by your container matches the `output_reports` section of the manifest.
+- The name and type of every report returned by your container match the `output_reports` section of the manifest.
 - If the container output does not match the manifest by returning extra, missing or mislabeled reports, the entire test will fail.
 
 ## 5. Backward Compatibility
