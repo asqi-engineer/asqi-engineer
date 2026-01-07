@@ -3,12 +3,8 @@
     "DatasetConfig": {
       "properties": {
         "loader_params": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Keyword arguments for HuggingFace datasets.load_dataset function to load dataset.",
-          "title": "Loader Params",
-          "type": "object"
+          "$ref": "#/$defs/DatasetLoaderParams",
+          "description": "Keyword arguments for HuggingFace datasets.load_dataset function to load dataset."
         },
         "mapping": {
           "additionalProperties": {
@@ -24,6 +20,65 @@
         "loader_params"
       ],
       "title": "DatasetConfig",
+      "type": "object"
+    },
+    "DatasetLoaderParams": {
+      "description": "Parameters for loading a HuggingFace dataset from the mounted folder in the container.",
+      "properties": {
+        "builder_name": {
+          "description": "The dataset builder name. Gets passed to datasets.load_dataset() as the path argument.",
+          "enum": [
+            "json",
+            "csv",
+            "parquet",
+            "arrow",
+            "text",
+            "xml",
+            "webdataset",
+            "imagefolder",
+            "audiofolder",
+            "videofolder"
+          ],
+          "title": "Builder Name",
+          "type": "string"
+        },
+        "data_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Directory containing dataset files, relative to the input mount.",
+          "title": "Data Dir"
+        },
+        "data_files": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Single file path or list of file paths, relative to the input mount.",
+          "title": "Data Files"
+        }
+      },
+      "required": [
+        "builder_name"
+      ],
+      "title": "DatasetLoaderParams",
       "type": "object"
     },
     "TestDefinition": {

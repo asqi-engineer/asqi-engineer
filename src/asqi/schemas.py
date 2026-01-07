@@ -75,7 +75,7 @@ class DatasetFeature(BaseModel):
         ...,
         description="The name of the feature.",
     )
-    # TODO: Perhaps add type checking for feature data types
+    type: Literal["hf_data_types"]
     description: Optional[str] = Field(
         None, description="Description of the feature - data type, purpose etc."
     )
@@ -90,6 +90,10 @@ class InputDataset(BaseModel):
     )
     required: bool = Field(
         True, description="Whether this dataset is mandatory for execution."
+    )
+    type: Literal["huggingface", "pdf", "txt"] = Field(
+        ...,
+        description="The dataset type, e.g., 'huggingface' for HF datasets, 'pdf' for PDF documents, 'txt' for .txt files.",
     )
     description: Optional[str] = Field(
         None, description="Description of the dataset's role in the test."
