@@ -9,8 +9,11 @@ from rich.console import Console
 from asqi.config import ExecutionMode, load_config_file
 from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.schemas import (
+    HF_DATASET_TYPE,
     AuditScoreCardIndicator,
     EnvironmentVariable,
+    FileDatasetConfig,
+    HFDatasetConfig,
     Manifest,
     ScoreCard,
     SuiteConfig,
@@ -264,6 +267,18 @@ def validate_dataset_configs(test: TestDefinition, manifest: Manifest) -> List[s
             errors.append(
                 f"Test '{test.name}': Missing required dataset '{schema_dataset.name}' (description: {schema_dataset.description or 'none'})"
             )
+
+        elif schema_dataset.name in test_datasets:
+            if schema_dataset.type == HF_DATASET_TYPE and not isinstance(
+                test_datasets[schema_dataset.name], HFDatasetConfig
+            ):
+                errors.append(
+                    f"Test '{test.name}':  Dataset '{schema_dataset.name}' of type {HF_DATASET_TYPE} must be of type HFDatasetConfig."
+                )
+            elif not isinstance(test_datasets[schema_dataset.name], FileDatasetConfig):
+                errors.append(
+                    f"Test '{test.name}': Dataset '{schema_dataset.name}' of type {schema_dataset.type} must be of type FileDatasetConfig."
+                )
 
     # Check for unknown dataset names or unknown mapped fields
     schema_datasets = {d.name: d for d in manifest.input_datasets}
