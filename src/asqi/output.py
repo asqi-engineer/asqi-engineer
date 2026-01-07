@@ -1,7 +1,9 @@
 import json
 from datetime import datetime
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
+from dbos import DBOS
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -11,6 +13,8 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
+
+from asqi.container_manager import OUTPUT_MOUNT_PATH
 
 
 def parse_container_json_output(output: str) -> Dict[str, Any]:
@@ -62,6 +66,33 @@ def parse_container_json_output(output: str) -> Dict[str, Any]:
     raise ValueError(
         f"No valid JSON found in container output. Output preview: '{output[:100]}{'...' if len(output) > 100 else ''}'"
     )
+
+
+def extract_container_json_output_fields(
+    container_json_output: Dict[str, Any],
+) -> Tuple[Dict[str, Any], List[Any]]:
+    """
+    Extract test results and generated reports from container results.
+
+    Args:
+        container_results: Parsed JSON dictionary from container output
+
+    Notes:
+        Provides backward compatibility for container outputs that do not include the `generated_reports` field
+
+    Returns:
+        A dictionary containing the test results and a list of generated reports
+    """
+    if (
+        "test_results" in container_json_output
+        and "generated_reports" in container_json_output
+    ):
+        test_results = container_json_output.get("test_results") or {}
+        generated_reports = container_json_output.get("generated_reports") or []
+    else:
+        test_results = container_json_output
+        generated_reports = []
+    return test_results, generated_reports
 
 
 def create_test_execution_progress(console: Console) -> Progress:
@@ -190,3 +221,34 @@ def create_workflow_summary(
     summary.update(kwargs)
 
     return summary
+
+
+def translate_report_paths(generated_reports: list, host_output_volume: str) -> None:
+    """
+    Translate the test container report path to the host path for each report.
+
+    Args:
+        generated_reports: List of generated report dictionaries with `report_path`
+        host_output_volume: String path to the host output volume
+    """
+    if not host_output_volume:
+        return
+
+    output_mount_path = Path(OUTPUT_MOUNT_PATH)
+    host_output_volume_path = Path(host_output_volume)
+    for report in generated_reports:
+        report_path_str = report.get("report_path", "")
+        if not report_path_str:
+            continue
+        report_path = Path(report_path_str)
+        try:
+            relative_report_path = report_path.relative_to(output_mount_path)
+            report["report_path"] = str(host_output_volume_path / relative_report_path)
+        except ValueError:
+            # Fallback when the report path is outside OUTPUT_MOUNT_PATH.
+            report_path_str = report_path_str.lstrip("/")
+            translated_report_path_str = str(host_output_volume_path / report_path_str)
+            report["report_path"] = translated_report_path_str
+            DBOS.logger.warning(
+                f"Report path '{report_path}' is outside the container output mount path '{OUTPUT_MOUNT_PATH}', using '{translated_report_path_str}'"
+            )

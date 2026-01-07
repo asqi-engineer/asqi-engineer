@@ -6,11 +6,13 @@ import yaml
 from pydantic import BaseModel
 from rich.console import Console
 
-from asqi.config import load_config_file
+from asqi.config import ExecutionMode, load_config_file
 from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.schemas import (
+    AuditScoreCardIndicator,
     EnvironmentVariable,
     Manifest,
+    ScoreCard,
     SuiteConfig,
     SystemsConfig,
     TestDefinition,
@@ -673,7 +675,7 @@ def validate_test_plan(
 def validate_execution_inputs(
     suite_path: str,
     systems_path: str,
-    execution_mode: str,
+    execution_mode: ExecutionMode,
     audit_responses_data: Optional[Dict[str, Any]] = None,
     output_path: Optional[str] = None,
 ) -> None:
@@ -683,7 +685,7 @@ def validate_execution_inputs(
     Args:
         suite_path: Path to test suite YAML file
         systems_path: Path to systems YAML file
-        execution_mode: Execution mode string
+        execution_mode: Execution mode
         audit_responses_data: Optional dictionary of audit responses data
         output_path: Optional output file path
 
@@ -696,9 +698,9 @@ def validate_execution_inputs(
     if not systems_path or not isinstance(systems_path, str):
         raise ValueError("Invalid systems_path: must be non-empty string")
 
-    if execution_mode not in ["tests_only", "end_to_end"]:
+    if execution_mode not in [ExecutionMode.TESTS_ONLY, ExecutionMode.END_TO_END]:
         raise ValueError(
-            f"Invalid execution_mode '{execution_mode}': must be 'tests_only' or 'end_to_end'"
+            f"Invalid execution_mode '{execution_mode}': must be 'ExecutionMode.TESTS_ONLY' or 'ExecutionMode.END_TO_END'"
         )
     if audit_responses_data is not None and not isinstance(audit_responses_data, dict):
         raise ValueError("Invalid audit_responses_data: must be a dictionary or None")
@@ -875,3 +877,99 @@ def validate_workflow_configurations(
         errors.extend(validate_manifests_against_tests(suite, systems, manifests))
 
     return errors
+
+
+def validate_indicator_display_reports(
+    manifests: Dict[str, Manifest],
+    score_cards: List[ScoreCard],
+    test_id_to_image: Dict[str, str],
+) -> List[str]:
+    """
+    Validate that all requested `display_reports` exist in the corresponding test container manifest and that there are no duplicate report names.
+
+    Args:
+        manifests: Dictionary linking each image to its manifest
+        score_cards: List of score card configurations to validate
+        test_id_to_image: Dictionary linking each test id to the image used
+
+    Returns:
+        List of validation error messages or empty list if none found
+    """
+    errors = []
+    if not score_cards:
+        return errors
+
+    for score_card in score_cards:
+        for indicator in score_card.indicators:
+            if isinstance(indicator, AuditScoreCardIndicator):
+                continue
+            test_id = indicator.apply_to.test_id
+            if test_id not in test_id_to_image:
+                errors.append(
+                    f"Indicator id '{indicator.id}': Referenced test id '{test_id}' does not exist in the test"
+                )
+                continue
+            image = test_id_to_image[test_id]
+            manifest = manifests.get(image)
+            if not manifest:
+                errors.append(
+                    f"Indicator id '{indicator.id}': No manifest found for image '{image}' (test '{test_id}')"
+                )
+                continue
+
+            available_reports = {
+                report.name for report in (manifest.output_reports or [])
+            }
+            # Check for duplicate report names in display_reports
+            reports_set = set()
+            for report_name in indicator.display_reports:
+                if report_name in reports_set:
+                    errors.append(
+                        f"Indicator id '{indicator.id}': Duplicate report name '{report_name}' in display_reports"
+                    )
+                reports_set.add(report_name)
+
+            # Validate that the reports are declared in the test container manifest
+            for requested_report in indicator.display_reports:
+                if requested_report not in available_reports:
+                    errors.append(
+                        f"Indicator id '{indicator.id}': Requested display_report '{requested_report}' from test '{test_id}' not found with an exact case sensitive match. Manifest for image '{image}' only defines: {sorted(list(available_reports)) if available_reports else 'none'}"
+                    )
+
+    return errors
+
+
+def verify_score_card_reports(all_evaluations: List[Dict[str, Any]]) -> None:
+    """
+    Verifies that all generated reports referenced in the score card evaluations
+    exist on the local filesystem and logs the results to the console.
+
+    Args:
+        all_evaluations: List of score card evaluation results
+    """
+    if not all_evaluations:
+        return
+
+    console.print("\n[bold blue]Verifying generated reports...[/bold blue]")
+    reports_count = 0
+    for evaluation in all_evaluations:
+        indicator_id = evaluation.get("indicator_id", "")
+        report_paths = evaluation.get("report_paths") or []
+        for report_path_str in report_paths:
+            try:
+                path = Path(report_path_str)
+                if path.exists() and path.is_file():
+                    reports_count += 1
+                    console.print(
+                        f"Indicator id [bold]'{indicator_id}'[/bold]: Report saved to [bold]{report_path_str}[/bold]"
+                    )
+                else:
+                    console.print(
+                        f"Indicator id [bold]'{indicator_id}'[/bold]: Report [red]{path.name}[/red] is missing. Current path: {report_path_str}"
+                    )
+            except (TypeError, ValueError, OSError) as e:
+                console.print(
+                    f"Indicator id [bold]'{indicator_id}'[/bold]: Invalid report path [red]{report_path_str}[/red] ({str(e)})"
+                )
+    if reports_count == 0:
+        console.print("No reports were generated")

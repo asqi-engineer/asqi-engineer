@@ -2,6 +2,7 @@ import copy
 import os
 import re
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, ClassVar, Dict, List, Optional
 
 import yaml
@@ -262,3 +263,14 @@ def save_container_results_to_file(
     with open(logs_path, "w") as f:
         json.dump(container_results, f, indent=2)
     return logs_path
+
+
+class ExecutionMode(str, Enum):
+    """
+    Enumeration representing the supported execution modes.
+    """
+
+    END_TO_END = "end_to_end"
+    TESTS_ONLY = "tests_only"
+    EVALUATE_ONLY = "evaluate_only"
+    VALIDATE_ONLY = "validate_only"
