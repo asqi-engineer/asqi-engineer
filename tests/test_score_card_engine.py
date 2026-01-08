@@ -1694,3 +1694,62 @@ class TestScoreCardSystemTypeFiltering:
         assert "sut_llm" in sut_names
         assert "sut_vlm" in sut_names
         assert all(r.outcome == "PASS" for r in eval_results)
+
+    def test_error_message_distinguishes_system_type_mismatch(self):
+        """Test that error messages distinguish between missing test_id and system type mismatch."""
+        engine = ScoreCardEngine()
+
+        # Create test results with LLM and VLM system types
+        results = [
+            TestExecutionResult("test1", "test1", "sut_llm", "image1", "llm_api"),
+            TestExecutionResult("test1", "test1", "sut_vlm", "image1", "vlm_api"),
+        ]
+
+        for r in results:
+            r.success = True
+            r.test_results = {"success": True}
+
+        # Case 1: Filter for RAG (no results, system type mismatch)
+        indicator_rag = ScoreCardIndicator(
+            id="rag_check",
+            name="RAG Success Check",
+            apply_to=ScoreCardFilter(test_id="test1", target_system_type="rag_api"),
+            metric="success",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="equal_to", threshold=True)
+            ],
+        )
+
+        eval_results = engine.evaluate_indicator(results, indicator_rag)
+        assert len(eval_results) == 1
+        assert eval_results[0].error is not None
+        # Should mention that test1 exists but with different system types
+        assert "test_id 'test1' with system type(s) [rag_api]" in eval_results[0].error
+        assert (
+            "has results for system type(s): llm_api, vlm_api" in eval_results[0].error
+            or "has results for system type(s): vlm_api, llm_api"
+            in eval_results[0].error
+        )
+
+        # Case 2: Filter for non-existent test (no results, test_id doesn't exist)
+        indicator_missing = ScoreCardIndicator(
+            id="missing_check",
+            name="Missing Test Check",
+            apply_to=ScoreCardFilter(
+                test_id="test_does_not_exist", target_system_type="llm_api"
+            ),
+            metric="success",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="equal_to", threshold=True)
+            ],
+        )
+
+        eval_results = engine.evaluate_indicator(results, indicator_missing)
+        assert len(eval_results) == 1
+        assert eval_results[0].error is not None
+        # Should mention available tests
+        assert (
+            "No test results found for test_id 'test_does_not_exist'"
+            in eval_results[0].error
+        )
+        assert "Available tests: test1" in eval_results[0].error

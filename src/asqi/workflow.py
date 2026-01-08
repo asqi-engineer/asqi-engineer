@@ -979,6 +979,7 @@ def convert_test_results_to_objects(
             metadata["test_id"],
             metadata["sut_name"],
             metadata["image"],
+            metadata.get("system_type"),  # Extract system_type from metadata
         )
         result.start_time = metadata["start_time"]
         result.end_time = metadata["end_time"]
