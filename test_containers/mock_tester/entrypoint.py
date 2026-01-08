@@ -36,7 +36,7 @@ def main():
 
         # Validate SUT type
         sut_type = sut_params.get("type")
-        if sut_type not in ["llm_api"]:
+        if sut_type not in ["llm_api", "rag_api", "vlm_api"]:
             raise ValueError(f"Unsupported system_under_test type: {sut_type}")
 
         # Extract SUT parameters (flattened structure)
