@@ -539,7 +539,16 @@ def create_test_execution_plan(
                     vols  # Also pass volumes directly for container access
                 )
             if datasets:
-                _params["datasets"] = datasets
+                _params["datasets"] = {
+                    name: (
+                        config.model_dump()
+                        if hasattr(config, "model_dump")
+                        else config.dict()
+                        if hasattr(config, "dict")
+                        else config
+                    )
+                    for name, config in datasets.items()
+                }
             test_params = _params
         else:
             test_params = base_params or {}
