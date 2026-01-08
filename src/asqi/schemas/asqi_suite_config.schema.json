@@ -1,27 +1,5 @@
 {
   "$defs": {
-    "DatasetConfig": {
-      "properties": {
-        "loader_params": {
-          "$ref": "#/$defs/DatasetLoaderParams",
-          "description": "Keyword arguments for HuggingFace datasets.load_dataset function to load dataset."
-        },
-        "mapping": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {},
-          "description": "Mapping from expected feature names in container manifest to dataset fields.",
-          "title": "Mapping",
-          "type": "object"
-        }
-      },
-      "required": [
-        "loader_params"
-      ],
-      "title": "DatasetConfig",
-      "type": "object"
-    },
     "DatasetLoaderParams": {
       "description": "Parameters for loading a HuggingFace dataset from the mounted folder in the container.",
       "properties": {
@@ -79,6 +57,42 @@
         "builder_name"
       ],
       "title": "DatasetLoaderParams",
+      "type": "object"
+    },
+    "FileDatasetConfig": {
+      "properties": {
+        "file_path": {
+          "description": "Path to the input file, relative to the input mount.",
+          "title": "File Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path"
+      ],
+      "title": "FileDatasetConfig",
+      "type": "object"
+    },
+    "HFDatasetConfig": {
+      "properties": {
+        "loader_params": {
+          "$ref": "#/$defs/DatasetLoaderParams",
+          "description": "Keyword arguments for HuggingFace datasets.load_dataset function to load dataset."
+        },
+        "mapping": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Mapping from expected feature names in container manifest to dataset fields.",
+          "title": "Mapping",
+          "type": "object"
+        }
+      },
+      "required": [
+        "loader_params"
+      ],
+      "title": "HFDatasetConfig",
       "type": "object"
     },
     "TestDefinition": {
@@ -150,7 +164,14 @@
           "anyOf": [
             {
               "additionalProperties": {
-                "$ref": "#/$defs/DatasetConfig"
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/HFDatasetConfig"
+                  },
+                  {
+                    "$ref": "#/$defs/FileDatasetConfig"
+                  }
+                ]
               },
               "type": "object"
             },
@@ -319,7 +340,14 @@
           "anyOf": [
             {
               "additionalProperties": {
-                "$ref": "#/$defs/DatasetConfig"
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/HFDatasetConfig"
+                  },
+                  {
+                    "$ref": "#/$defs/FileDatasetConfig"
+                  }
+                ]
               },
               "type": "object"
             },

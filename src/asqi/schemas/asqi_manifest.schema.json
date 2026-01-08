@@ -8,6 +8,11 @@
           "title": "Name",
           "type": "string"
         },
+        "type": {
+          "description": "The data type of the feature compatible with , e.g., string, int64, float32, etc.",
+          "title": "Type",
+          "type": "string"
+        },
         "description": {
           "anyOf": [
             {
@@ -23,7 +28,8 @@
         }
       },
       "required": [
-        "name"
+        "name",
+        "type"
       ],
       "title": "DatasetFeature",
       "type": "object"
@@ -76,6 +82,11 @@
           "title": "Required",
           "type": "boolean"
         },
+        "type": {
+          "description": "The supported dataset type, e.g., 'huggingface' for HF datasets, 'pdf' for PDF documents, 'txt' for .txt files.",
+          "title": "Type",
+          "type": "string"
+        },
         "description": {
           "anyOf": [
             {
@@ -90,17 +101,25 @@
           "title": "Description"
         },
         "features": {
-          "default": [],
-          "description": "List of required features within the dataset. Required feature names can be mapped to a different feature name in the dataset. The default without a mapping is to require the same feature name.",
-          "items": {
-            "$ref": "#/$defs/DatasetFeature"
-          },
-          "title": "Features",
-          "type": "array"
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DatasetFeature"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "List of required features within a HuggingFace dataset (not required for other dataset types). Actual dataset's feature names, if different, can be mapped to required feature names in the test config.",
+          "title": "Features"
         }
       },
       "required": [
-        "name"
+        "name",
+        "type",
+        "features"
       ],
       "title": "InputDataset",
       "type": "object"
