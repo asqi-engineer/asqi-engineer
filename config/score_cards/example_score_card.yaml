@@ -5,6 +5,7 @@ indicators:
     name: "Mock test success requirement"
     apply_to:
       test_id: "run_mock_on_compatible_sut"
+      target_system_type: ["llm_api", "rag_api", "vlm_api"]
     metric: "success"
     assessment:
       - {
@@ -19,13 +20,12 @@ indicators:
           threshold: false,
           description: "It seems that the mock test might have failed",
         }
-    display_reports:
-      - "quick_summary"
 
   - id: "example_second_indicator"
     name: "Example of 2nd indicator"
     apply_to:
       test_id: "run_mock_on_compatible_sut"
+      target_system_type: ["llm_api", "rag_api", "vlm_api"]
     metric: "score"
     assessment:
       - { outcome: "A", condition: "greater_equal", threshold: 0.9 }
