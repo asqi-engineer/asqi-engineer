@@ -16,6 +16,7 @@ from asqi.schemas import (
     ScoreCardIndicator,
 )
 from asqi.workflow import TestExecutionResult
+from asqi.validation import normalize_system_types
 
 logger = logging.getLogger(__name__)
 
@@ -523,10 +524,8 @@ class ScoreCardEngine:
         results = []
 
         try:
-            # Normalize target_system_type to list (using helper from validation.py)
-            from asqi.validation import normalize_system_types
-
             target_types = None
+            # For backward compatibility - score cards without target_system_type match all types
             if (
                 hasattr(indicator.apply_to, "target_system_type")
                 and indicator.apply_to.target_system_type
