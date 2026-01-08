@@ -63,11 +63,11 @@ raw-options = { version_scheme = "no-guess-dev" }
 package = true
 
 [tool.uv.sources]
-torchcodec = { index = "pytorch_nightly" }
+# Use nightly index for torchcodec, which otherwise doesn't have a Linux Arch64 build. See https://github.com/meta-pytorch/torchcodec/issues/569#issuecomment-3637002460
+torchcodec = { index = "pytorch_nightly", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'"}
 
 [[tool.uv.index]]
 name = "pytorch_nightly"
-# Use nightly index for torchcodec, which otherwise doesn't have a Linux Arch64 build. See https://github.com/meta-pytorch/torchcodec/issues/569#issuecomment-3637002460
 url = "https://download.pytorch.org/whl/nightly/cu128"
 # Only use this index when explicitly specified
 explicit = true
