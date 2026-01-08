@@ -1529,3 +1529,168 @@ class TestDisplayGeneratedReports:
         ]
         results = engine.evaluate_indicator([test_execution_result], indicator)
         assert results[0].report_paths == ["/reports/valid_report.pdf"]
+
+
+class TestScoreCardSystemTypeFiltering:
+    """Test score card filtering by system type (Issue #288)."""
+
+    def test_filter_by_single_system_type(self):
+        """Test filtering results by a single system type."""
+        engine = ScoreCardEngine()
+
+        # Create test results with different system types
+        results = [
+            TestExecutionResult("test1", "test1", "sut_llm", "image1", "llm_api"),
+            TestExecutionResult("test1", "test1", "sut_vlm", "image1", "vlm_api"),
+            TestExecutionResult("test1", "test1", "sut_rag", "image1", "rag_api"),
+        ]
+
+        # Filter for llm_api only
+        filtered = engine.filter_results_by_test_and_type(results, "test1", ["llm_api"])
+
+        assert len(filtered) == 1
+        assert filtered[0].system_type == "llm_api"
+        assert filtered[0].sut_name == "sut_llm"
+
+    def test_filter_by_multiple_system_types(self):
+        """Test filtering results by multiple system types."""
+        engine = ScoreCardEngine()
+
+        # Create test results with different system types
+        results = [
+            TestExecutionResult("test1", "test1", "sut_llm", "image1", "llm_api"),
+            TestExecutionResult("test1", "test1", "sut_vlm", "image1", "vlm_api"),
+            TestExecutionResult("test1", "test1", "sut_rag", "image1", "rag_api"),
+        ]
+
+        # Filter for llm_api and vlm_api
+        filtered = engine.filter_results_by_test_and_type(
+            results, "test1", ["llm_api", "vlm_api"]
+        )
+
+        assert len(filtered) == 2
+        system_types = [r.system_type for r in filtered]
+        assert "llm_api" in system_types
+        assert "vlm_api" in system_types
+        assert "rag_api" not in system_types
+
+    def test_no_system_type_filter_matches_all(self):
+        """Test that omitting system_type filter matches all system types."""
+        engine = ScoreCardEngine()
+
+        # Create test results with different system types
+        results = [
+            TestExecutionResult("test1", "test1", "sut_llm", "image1", "llm_api"),
+            TestExecutionResult("test1", "test1", "sut_vlm", "image1", "vlm_api"),
+            TestExecutionResult("test1", "test1", "sut_rag", "image1", "rag_api"),
+        ]
+
+        # Filter without system_type (None = all types)
+        filtered = engine.filter_results_by_test_and_type(results, "test1", None)
+
+        assert len(filtered) == 3
+
+    def test_system_type_stored_in_test_result(self):
+        """Test that TestExecutionResult correctly stores and exposes system_type."""
+        result = TestExecutionResult(
+            "my_test", "my_test_id", "my_sut", "my_image", "llm_api"
+        )
+
+        assert result.system_type == "llm_api"
+
+        # Verify it appears in to_dict() output
+        result_dict = result.result_dict()
+        assert result_dict["metadata"]["system_type"] == "llm_api"
+
+    def test_backward_compatibility_no_system_type(self):
+        """Test that old test results without system_type field still work."""
+        engine = ScoreCardEngine()
+
+        # Create result without system_type (defaults to None)
+        result_old = TestExecutionResult("test1", "test1", "sut_old", "image1")
+
+        # Verify system_type is None
+        assert result_old.system_type is None
+
+        # Filter should not match when system_type is specified
+        filtered = engine.filter_results_by_test_and_type(
+            [result_old], "test1", ["llm_api"]
+        )
+        assert len(filtered) == 0
+
+        # But should match when no system_type filter
+        filtered_all = engine.filter_results_by_test_and_type(
+            [result_old], "test1", None
+        )
+        assert len(filtered_all) == 1
+
+    def test_evaluate_indicator_with_system_type_filter(self):
+        """Test that score card indicators filter by system type correctly."""
+        engine = ScoreCardEngine()
+
+        # Create test results with different system types
+        results = [
+            TestExecutionResult("test1", "test1", "sut_llm", "image1", "llm_api"),
+            TestExecutionResult("test1", "test1", "sut_vlm", "image1", "vlm_api"),
+        ]
+
+        # Set test results for evaluation
+        for r in results:
+            r.success = True
+            r.test_results = {"success": True, "score": 0.9}
+
+        # Create score card indicator with system type filter
+        indicator = ScoreCardIndicator(
+            id="llm_only",
+            name="LLM Only Success Check",
+            apply_to=ScoreCardFilter(test_id="test1", target_system_type="llm_api"),
+            metric="success",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="equal_to", threshold=True)
+            ],
+        )
+
+        # Evaluate - should only match LLM result
+        eval_results = engine.evaluate_indicator(results, indicator)
+
+        assert len(eval_results) == 1
+        assert eval_results[0].sut_name == "sut_llm"
+        assert eval_results[0].outcome == "PASS"
+
+    def test_evaluate_indicator_with_multiple_system_type_filter(self):
+        """Test that score card indicators can filter by multiple system types."""
+        engine = ScoreCardEngine()
+
+        # Create test results with different system types
+        results = [
+            TestExecutionResult("test1", "test1", "sut_llm", "image1", "llm_api"),
+            TestExecutionResult("test1", "test1", "sut_vlm", "image1", "vlm_api"),
+            TestExecutionResult("test1", "test1", "sut_rag", "image1", "rag_api"),
+        ]
+
+        # Set test results for evaluation
+        for r in results:
+            r.success = True
+            r.test_results = {"success": True, "score": 0.9}
+
+        # Create score card indicator with multiple system types
+        indicator = ScoreCardIndicator(
+            id="llm_vlm_check",
+            name="LLM and VLM Success Check",
+            apply_to=ScoreCardFilter(
+                test_id="test1", target_system_type=["llm_api", "vlm_api"]
+            ),
+            metric="success",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="equal_to", threshold=True)
+            ],
+        )
+
+        # Evaluate - should match both LLM and VLM results
+        eval_results = engine.evaluate_indicator(results, indicator)
+
+        assert len(eval_results) == 2
+        sut_names = [r.sut_name for r in eval_results]
+        assert "sut_llm" in sut_names
+        assert "sut_vlm" in sut_names
+        assert all(r.outcome == "PASS" for r in eval_results)
