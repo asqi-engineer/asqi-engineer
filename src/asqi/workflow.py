@@ -331,7 +331,7 @@ def execute_single_test(
     systems_params_with_fallbacks = systems_params.copy()
 
     # Load environment variables and merge into system parameters if env_file specified
-    sut_params = systems_params_with_fallbacks["system_under_test"]
+    sut_params = systems_params_with_fallbacks.get("system_under_test", {})
     if "env_file" in sut_params and sut_params["env_file"]:
         env_file_path = sut_params["env_file"]
         if os.path.exists(env_file_path):
