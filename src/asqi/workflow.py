@@ -488,6 +488,8 @@ def execute_single_test(
     result.start_time = time.time()
 
     # Generate container name: {sut}-{test_id}-{short_uuid}
+    if not sut_name:
+        sut_name = "data_generation"
     truncated_sut = sut_name.lower().replace(" ", "_")[:25]
     truncated_test_id = test_id.lower()[:25]
     prefix = f"{truncated_sut}-{truncated_test_id}"
