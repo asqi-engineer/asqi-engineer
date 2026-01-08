@@ -112,7 +112,7 @@ class InputDataset(BaseModel):
         None, description="Description of the dataset's role in the test."
     )
     features: Optional[list[DatasetFeature]] = Field(
-        ...,
+        None,
         description="List of required features within a HuggingFace dataset (not required for other dataset types). Actual dataset's feature names, if different, can be mapped to required feature names in the test config.",
     )
 
