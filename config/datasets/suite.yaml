@@ -7,8 +7,8 @@ generation_jobs:
       generation_system: openai_gpt4o_mini
       simulator_system: openai_embedding
     volumes:
-      input: config/
-      output: out/
+      input: input/
+      output: output/
     params:
       output_dataset_path: "wf_123"
       chunk_size: 600
@@ -19,4 +19,4 @@ generation_jobs:
     
     input_datasets:
       source_documents_pdf:
-        file_path: "datasets/sample.pdf"
+        file_path: "sample.pdf"

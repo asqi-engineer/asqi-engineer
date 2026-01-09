@@ -2098,7 +2098,7 @@ def run_data_generation_workflow(
         format_failure_summary(failed_results, console, executor_config["max_failures"])
 
     DBOS.logger.info(
-        f"Workflow completed: {successful_tests}/{total_tests} tests passed"
+        f"Workflow completed: {successful_tests}/{total_tests} jobs are succesful"
     )
     return {
         "summary": summary,
