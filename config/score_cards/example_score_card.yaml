@@ -20,6 +20,8 @@ indicators:
           threshold: false,
           description: "It seems that the mock test might have failed",
         }
+    display_reports:
+      - "quick_summary"
 
   - id: "example_second_indicator"
     name: "Example of 2nd indicator"
