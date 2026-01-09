@@ -3,7 +3,7 @@ from datasets import Dataset, load_dataset
 from asqi.schemas import DatasetLoaderParams
 
 
-def load_hf_dataset(loader_params: DatasetLoaderParams) -> Dataset:
+def load_hf_dataset(loader_params: DatasetLoaderParams, mapping: dict[str, str]) -> Dataset:
     # TODO: consider using load_from_disk for caching purposes
     """Load a HuggingFace dataset using the provided loader parameters.
 
@@ -20,6 +20,7 @@ def load_hf_dataset(loader_params: DatasetLoaderParams) -> Dataset:
         data_files=loader_params.data_files,
         split="train",
     )
+    dataset = dataset.rename_columns(mapping)
     return dataset
 
 
