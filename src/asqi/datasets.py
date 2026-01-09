@@ -2,7 +2,7 @@ from datasets import Dataset, load_dataset
 
 from asqi.schemas import HFDatasetConfig
 
-def load_hf_dataset(dataset_config: HFDatasetConfig) -> Dataset:
+def load_hf_dataset(dataset_config: dict) -> Dataset:
     # TODO: consider using load_from_disk for caching purposes
     """Load a HuggingFace dataset using the provided loader parameters.
 
@@ -12,6 +12,7 @@ def load_hf_dataset(dataset_config: HFDatasetConfig) -> Dataset:
     Returns:
         Dataset: Loaded HuggingFace dataset.
     """
+    dataset_config = HFDatasetConfig(**dataset_config)
     loader_params = dataset_config.loader_params
     mapping = dataset_config.mapping
     dataset = load_dataset(
