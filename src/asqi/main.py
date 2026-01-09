@@ -591,6 +591,94 @@ def execute_tests(
         console.print(f"[red]❌ Test execution failed: {e}[/red]")
         raise typer.Exit(1)
 
+@app.command(name="generate-dataset")
+def generate_dataset(
+    generation_config: str = typer.Option(
+        ..., "--generation-config", "-t", help="Path to the Generation YAML file."
+    ),
+    systems_config: str = typer.Option(
+        ..., "--systems-config", "-s", help="Path to the systems YAML file."
+    ),
+    output_file: Optional[str] = typer.Option(
+        "output.json",
+        "--output-file",
+        "-o",
+        help="Path to save execution results JSON file.",
+    ),
+    concurrent_tests: int = typer.Option(
+        ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+        "--concurrent-tests",
+        "-c",
+        min=1,
+        max=20,
+        help=f"Number of tests to run concurrently (must be between 1 and 20, default: {ExecutorConfig.DEFAULT_CONCURRENT_TESTS})",
+    ),
+    max_failures: int = typer.Option(
+        ExecutorConfig.MAX_FAILURES_DISPLAYED,
+        "--max-failures",
+        "-m",
+        min=1,
+        max=10,
+        help=f"Maximum number of failures to display (must be between 1 and 10, default: {ExecutorConfig.MAX_FAILURES_DISPLAYED}).",
+    ),
+    progress_interval: int = typer.Option(
+        ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+        "--progress-interval",
+        "-p",
+        min=1,
+        max=10,
+        help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
+    ),
+    container_config_file: Optional[str] = typer.Option(
+        None,
+        "--container-config",
+        help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
+    ),
+):
+    """Generate synthetic data"""
+    console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
+
+    try:
+        from asqi.workflow import DBOS, start_data_generation
+
+        # Load container configuration
+        if container_config_file is not None:
+            container_config = ContainerConfig.load_from_yaml(container_config_file)
+        else:
+            container_config = ContainerConfig()
+
+        # Update ExecutorConfig from CLI args
+        executor_config = {
+            "concurrent_tests": concurrent_tests,
+            "max_failures": max_failures,
+            "progress_interval": progress_interval,
+        }
+
+        # Launch DBOS if not already launched
+        try:
+            DBOS.launch()
+        except Exception as e:
+            console.print(f"[yellow]Warning: Error launching DBOS: {e}[/yellow]")
+
+        workflow_id = start_data_generation(
+            generation_config_path=generation_config,
+            systems_path=systems_config,
+            container_config=container_config,
+            executor_config=executor_config,
+            output_path=output_file
+        )
+
+        console.print(
+            f"\n[green]✨ Data Generation Completed! Workflow ID: {workflow_id}[/green]"
+        )
+
+    except ImportError:
+        console.print("[red]❌ Error: DBOS workflow dependencies not available.[/red]")
+        console.print("[yellow]Install with: pip install dbos[/yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]❌ Test execution failed: {e}[/red]")
+        raise typer.Exit(1)
 
 @app.command(name="evaluate-score-cards")
 def evaluate_score_cards(

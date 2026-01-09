@@ -386,7 +386,10 @@ def _extract_mounts_from_args(
     mounts: List[Mount] = []
 
     try:
-        idx = next(i for i, v in enumerate(new_args) if v == "--test-params")
+        PARAM_FLAGS = ("--test-params", "--generation-params")
+        idx = next(
+            i for i, v in enumerate(new_args) if v in PARAM_FLAGS
+        )
         raw = new_args[idx + 1]
         tp = json.loads(raw)
 

@@ -657,3 +657,46 @@ class AuditResponse(BaseModel):
 
 class AuditResponses(BaseModel):
     responses: List[AuditResponse]
+
+# ----------------------------------------------------------------------------
+# Schema for Data Generation Jobs
+# ----------------------------------------------------------------------------
+class GenerationJobConfig(BaseModel):
+    id: str = Field(..., description="Unique identifier for the generation job")
+    systems: Dict[str, str] = Field(
+        ...,
+        description="Mapping of system alias to system identifier"
+    )
+    name: str = Field(..., description="Human-readable data generation job name")
+    image: str = Field(..., description="Container image to run the data generation job")
+    input_datasets: Optional[Dict[str, DatasetConfig]] = Field(
+        None,
+        description="Input dataset names mapped to their loading and mapping configurations.",
+    )
+    output_datasets: Optional[Dict[str, Dict]] = Field(
+        None,
+        description="Mapping of output dataset names to their configs",
+    )
+    params: Optional[Dict[str, Any]] = Field(
+        None, description="Parameters to be passed to the test container's entrypoint."
+    )
+    volumes: Optional[Dict[str, Any]] = Field(
+        None, description="Optional input/output mounts."
+    )
+    env_file: Optional[str] = Field(
+        None,
+        description="Path to .env file containing environment variables for this test's container execution (e.g., '.env', 'test.env').",
+    )
+    environment: Optional[Dict[str, str]] = Field(
+        None,
+        description="Dictionary of environment variables to pass to the test container. Supports interpolation syntax (e.g., {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
+    )
+
+
+class DataGenerationConfig(BaseModel):
+    """Schema for the data generation configuration manifest."""
+
+    job_name: str = Field(..., description="Name of the data generation job")
+    generation_jobs: List[GenerationJobConfig] = Field(
+        ..., description="List of generation jobs to execute"
+    )

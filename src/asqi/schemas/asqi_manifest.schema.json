@@ -112,14 +112,14 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "List of required features within a HuggingFace dataset (not required for other dataset types). Actual dataset's feature names, if different, can be mapped to required feature names in the test config.",
           "title": "Features"
         }
       },
       "required": [
         "name",
-        "type",
-        "features"
+        "type"
       ],
       "title": "InputDataset",
       "type": "object"
