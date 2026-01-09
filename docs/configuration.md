@@ -640,6 +640,72 @@ indicators:
       - { outcome: "VULNERABLE", condition: "greater_than", threshold: 0.0 }
 ```
 
+### Enforcing Certain System Type
+
+Score card indicators can additional specify that the test results should be from certain system types using the `target_system_type` field. This is useful when a indicator only applies to one or multiple system types and should not be used for other types.
+
+**Single System Type:**
+```yaml
+indicators:
+  - id: "llm_accuracy_check"
+    name: "LLM Accuracy Check"
+    apply_to:
+      test_id: "multi_modal_test"
+      target_system_type: "llm_api"  # Only applies to LLM systems
+    metric: "accuracy"
+    assessment:
+      - { outcome: "PASS", condition: "greater_equal", threshold: 0.85 }
+      - { outcome: "FAIL", condition: "less_than", threshold: 0.85 }
+
+  - id: "vlm_accuracy_check"
+    name: "VLM Accuracy Check"
+    apply_to:
+      test_id: "multi_modal_test"
+      target_system_type: "vlm_api"  # Only applies to VLM systems
+    metric: "accuracy"
+    assessment:
+      - { outcome: "PASS", condition: "greater_equal", threshold: 0.75 }  # Different threshold
+      - { outcome: "FAIL", condition: "less_than", threshold: 0.75 }
+```
+
+**Multiple System Types:**
+```yaml
+indicators:
+  - id: "general_accuracy_check"
+    name: "General Accuracy Check"
+    apply_to:
+      test_id: "multi_modal_test"
+      target_system_type: ["llm_api", "vlm_api"]  # Applies to both types
+    metric: "accuracy"
+    assessment:
+      - { outcome: "PASS", condition: "greater_equal", threshold: 0.70 }
+      - { outcome: "FAIL", condition: "less_than", threshold: 0.70 }
+```
+
+**No System Type Filter (Default):**
+
+If `target_system_type` is omitted, the indicator applies to all system types for the specified test:
+
+```yaml
+indicators:
+  - id: "success_check"
+    name: "Success Check"
+    apply_to:
+      test_id: "compatibility_test"
+      # No target_system_type - applies to all system types
+    metric: "success"
+    assessment:
+      - { outcome: "PASS", condition: "equal_to", threshold: true }
+```
+
+**System Types:**
+- `llm_api` - Language models
+- `vlm_api` - Vision-language models
+- `rag_api` - RAG systems
+- `rest_api` - REST API endpoints
+- `image_generation_api` - Image generation models
+- `image_editing_api` - Image editing models
+
 ### Metric Expressions
 
 Combine multiple metrics using mathematical operations and functions for sophisticated composite scoring.

@@ -167,6 +167,25 @@
           "description": "Test id to filter by, e.g., 'run_mock_on_compatible_sut'",
           "title": "Test Id",
           "type": "string"
+        },
+        "target_system_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional: Filter by system type(s). Can be a single type (e.g., 'llm_api') or a list of types (e.g., ['llm_api', 'vlm_api']). If omitted, applies to all system types.",
+          "title": "Target System Type"
         }
       },
       "required": [

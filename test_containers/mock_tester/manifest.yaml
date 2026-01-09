@@ -5,7 +5,7 @@ description: "A lightweight mock container for testing the executor logic."
 
 input_systems:
   - name: "system_under_test"
-    type: "llm_api"
+    type: ["llm_api", "rag_api", "vlm_api"]
     required: true
     description: "The LLM system being tested"
 

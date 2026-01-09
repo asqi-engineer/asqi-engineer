@@ -33,10 +33,19 @@ version: "1.0.0"
 description: "Custom testing framework for specific AI system evaluation"
 
 input_systems:
+  # Single system type
   - name: "system_under_test"
     type: "llm_api"
     required: true
     description: "The primary system being tested"
+
+  # Multiple system types (supports both LLM and VLM)
+  # Uncomment to allow container to accept multiple system types:
+  # - name: "system_under_test"
+  #   type: ["llm_api", "vlm_api"]
+  #   required: true
+  #   description: "System that accepts both text and vision models"
+
   - name: "evaluator_system"
     type: "llm_api"
     required: false
