@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
 from pydantic import BaseModel
@@ -26,6 +26,30 @@ logger = logging.getLogger()
 
 # Initialize Rich console and execution queue
 console = Console()
+
+
+def normalize_system_types(system_input_type: Union[str, List[str]]) -> List[str]:
+    """
+    Normalize SystemInput type field to always return a list of types.
+
+    This helper is used for both manifest validation and score card filtering
+    to handle the Union[str, List[str]] type consistently.
+
+    Args:
+        system_input_type: Either a single type string or a list of type strings
+
+    Returns:
+        List of type strings
+
+    Examples:
+        >>> normalize_system_types("llm_api")
+        ["llm_api"]
+        >>> normalize_system_types(["llm_api", "vlm_api"])
+        ["llm_api", "vlm_api"]
+    """
+    if isinstance(system_input_type, list):
+        return system_input_type
+    return [system_input_type]
 
 
 def validate_ids(*config_paths: str) -> None:
@@ -334,16 +358,20 @@ def validate_system_compatibility(
     optional_systems = {}
 
     for system_input in manifest.input_systems:
+        # Normalize type to list for consistent handling
+        types = normalize_system_types(system_input.type)
         if system_input.required:
-            required_systems[system_input.name] = system_input.type
+            required_systems[system_input.name] = types
         else:
-            optional_systems[system_input.name] = system_input.type
+            optional_systems[system_input.name] = types
 
     # Validate systems_under_test (maps to system_under_test in manifest)
     # Get all supported types for system_under_test from manifest
-    supported_types_for_system = [
-        s.type for s in manifest.input_systems if s.name == "system_under_test"
-    ]
+    supported_types_for_system = []
+    for s in manifest.input_systems:
+        if s.name == "system_under_test":
+            types = normalize_system_types(s.type)
+            supported_types_for_system.extend(types)
 
     target_systems = test.systems_under_test
 
@@ -396,11 +424,12 @@ def validate_system_compatibility(
                 )
                 continue
 
-            # Check if system type matches expected type
+            # Check if system type matches expected type (expected_type is now a list)
             system_def = system_definitions[system_name]
-            if system_def.type != expected_type:
+            if system_def.type not in expected_type:
+                expected_types_str = ", ".join(expected_type)
                 errors.append(
-                    f"Test '{test.name}' {system_role} '{system_name}': Expected type '{expected_type}', got '{system_def.type}'"
+                    f"Test '{test.name}' {system_role} '{system_name}': Expected type in [{expected_types_str}], got '{system_def.type}'"
                 )
 
     return errors
@@ -653,9 +682,11 @@ def validate_test_plan(
                 f"Test '{test.name}': Image '{test.image}' does not have a loaded manifest."
             )
             continue  # Cannot perform further validation for this test
-        supported_system_types = [
-            s.type for s in manifest.input_systems if s.name == "system_under_test"
-        ]
+        supported_system_types = []
+        for s in manifest.input_systems:
+            if s.name == "system_under_test":
+                types = normalize_system_types(s.type)
+                supported_system_types.extend(types)
 
         # 2. Check parameters against the manifest's input_schema
         schema_params = {p.name: p for p in manifest.input_schema}

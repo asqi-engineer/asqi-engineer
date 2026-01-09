@@ -151,11 +151,19 @@ def _get_docker_socket_path(env_vars: dict[str, str]) -> str:
 class TestExecutionResult:
     """Represents the result of a single test execution."""
 
-    def __init__(self, test_name: str, test_id: str, sut_name: str, image: str):
+    def __init__(
+        self,
+        test_name: str,
+        test_id: str,
+        sut_name: str,
+        image: str,
+        system_type: Optional[str] = None,
+    ):
         self.test_id = test_id
         self.test_name = test_name
         self.sut_name = sut_name
         self.image = image
+        self.system_type = system_type
         self.start_time: float = 0
         self.end_time: float = 0
         self.success: bool = False
@@ -180,6 +188,7 @@ class TestExecutionResult:
                 "test_id": self.test_id,
                 "test_name": self.test_name,
                 "sut_name": self.sut_name,
+                "system_type": self.system_type,
                 "image": self.image,
                 "start_time": self.start_time,
                 "end_time": self.end_time,
@@ -318,10 +327,11 @@ def execute_single_test(
         ValueError: If inputs fail validation or JSON output cannot be parsed
         RuntimeError: If container execution fails
     """
-    result = TestExecutionResult(test_name, test_id, sut_name, image)
-
     # Extract system_under_test for validation and environment handling
     sut_params = systems_params.get("system_under_test", {})
+    system_type = sut_params.get("type")
+
+    result = TestExecutionResult(test_name, test_id, sut_name, image, system_type)
 
     try:
         validate_test_execution_inputs(
@@ -975,6 +985,7 @@ def convert_test_results_to_objects(
             metadata["test_id"],
             metadata["sut_name"],
             metadata["image"],
+            metadata.get("system_type"),  # Extract system_type from metadata
         )
         result.start_time = metadata["start_time"]
         result.end_time = metadata["end_time"]

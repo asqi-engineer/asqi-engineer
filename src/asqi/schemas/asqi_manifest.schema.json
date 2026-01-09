@@ -285,9 +285,19 @@
           "type": "string"
         },
         "type": {
-          "description": "The system type, e.g., 'llm_api','rest_api', 'rag_api', 'image_generation_api', 'image_editing_api', or 'vlm_api'.",
-          "title": "Type",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "The system type(s) accepted. Can be a single string (e.g., 'llm_api') or a list of strings (e.g., ['llm_api', 'vlm_api']) for containers that support multiple system types. Valid types: 'llm_api', 'rest_api', 'rag_api', 'image_generation_api', 'image_editing_api', 'vlm_api'.",
+          "title": "Type"
         },
         "required": {
           "default": true,

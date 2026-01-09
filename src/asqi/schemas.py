@@ -18,9 +18,9 @@ class SystemInput(BaseModel):
         ...,
         description="The system input name, e.g., 'system_under_test', 'simulator_system', 'evaluator_system'.",
     )
-    type: str = Field(
+    type: Union[str, List[str]] = Field(
         ...,
-        description="The system type, e.g., 'llm_api','rest_api', 'rag_api', 'image_generation_api', 'image_editing_api', or 'vlm_api'.",
+        description="The system type(s) accepted. Can be a single string (e.g., 'llm_api') or a list of strings (e.g., ['llm_api', 'vlm_api']) for containers that support multiple system types. Valid types: 'llm_api', 'rest_api', 'rag_api', 'image_generation_api', 'image_editing_api', 'vlm_api'.",
     )
     required: bool = Field(True, description="Whether this system input is required.")
     description: Optional[str] = Field(
@@ -506,6 +506,10 @@ class ScoreCardFilter(BaseModel):
     test_id: str = Field(
         ...,
         description="Test id to filter by, e.g., 'run_mock_on_compatible_sut'",
+    )
+    target_system_type: Optional[Union[str, List[str]]] = Field(
+        None,
+        description="Optional: Filter by system type(s). Can be a single type (e.g., 'llm_api') or a list of types (e.g., ['llm_api', 'vlm_api']). If omitted, applies to all system types.",
     )
 
 

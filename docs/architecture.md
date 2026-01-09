@@ -38,6 +38,7 @@ ASQI Engineer is built around a modular, fault-tolerant architecture that enable
 
 ### Validation Engine (`src/asqi/validation.py`)
 - **Cross-Validation**: Ensures systems, test definitions, and container capabilities are compatible
+- **Multi-Type Support**: Test containers can declare support for multiple system types (e.g., `["llm_api", "vlm_api"]`)
 - **Execution Planning**: Creates optimized execution plans matching tests to available systems
 - **Centralized Functions**:
   - `validate_execution_inputs()` - Validates workflow parameters
@@ -47,9 +48,11 @@ ASQI Engineer is built around a modular, fault-tolerant architecture that enable
 
 ### Score Card Engine (`src/asqi/score_card_engine.py`)
 - **Individual Test Assessment**: Evaluates each test execution separately (no aggregation)
+- **System Type Filtering**: Filter test results by system type using `target_system_type` in indicators
 - **Flexible Criteria**: Configurable assessment conditions and thresholds
 - **Multiple Outcomes**: Support for complex grading schemes (PASS/FAIL, A/B/C, custom outcomes)
 - **Metric Extraction**: Works with any field from test container JSON output
+- **Detailed Error Messages**: Distinguishes between missing tests and system type mismatches
 
 ## Key Concepts
 

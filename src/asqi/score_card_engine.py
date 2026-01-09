@@ -16,6 +16,7 @@ from asqi.schemas import (
     ScoreCardIndicator,
 )
 from asqi.workflow import TestExecutionResult
+from asqi.validation import normalize_system_types
 
 logger = logging.getLogger(__name__)
 
@@ -265,6 +266,42 @@ class ScoreCardEngine:
         )
         return filtered
 
+    def filter_results_by_test_and_type(
+        self,
+        test_results: List[TestExecutionResult],
+        target_test_id: str,
+        target_system_types: Optional[List[str]] = None,
+    ) -> List[TestExecutionResult]:
+        """
+        Filter test results by test_id and optionally by system type.
+
+        Args:
+            test_results: List of test execution results
+            target_test_id: Test ID to match
+            target_system_types: Optional list of system types to match (None = all types)
+
+        Returns:
+            Filtered list of test results
+        """
+        filtered = []
+        for result in test_results:
+            # Must match test_id
+            if result.test_id != target_test_id:
+                continue
+
+            # If system types specified, must match one of them
+            if target_system_types is not None:
+                if result.system_type not in target_system_types:
+                    continue
+
+            filtered.append(result)
+
+        logger.debug(
+            f"Filtered {len(test_results)} results to {len(filtered)} for test_id '{target_test_id}' "
+            f"and system_types {target_system_types}"
+        )
+        return filtered
+
     def validate_scorecard_test_ids(
         self,
         test_results: List[TestExecutionResult],
@@ -487,9 +524,19 @@ class ScoreCardEngine:
         results = []
 
         try:
-            # Filter results by test id
-            filtered_results = self.filter_results_by_test_id(
-                test_results, indicator.apply_to.test_id
+            target_types = None
+            # For backward compatibility - score cards without target_system_type match all types
+            if (
+                hasattr(indicator.apply_to, "target_system_type")
+                and indicator.apply_to.target_system_type
+            ):
+                target_types = normalize_system_types(
+                    indicator.apply_to.target_system_type
+                )
+
+            # Filter results by test id and optionally by system type
+            filtered_results = self.filter_results_by_test_and_type(
+                test_results, indicator.apply_to.test_id, target_types
             )
 
             if not filtered_results:
@@ -497,12 +544,37 @@ class ScoreCardEngine:
                 error_result = ScoreCardEvaluationResult(
                     indicator.id, indicator.name, indicator.apply_to.test_id
                 )
-                available_tests = (
-                    ", ".join(set(r.test_id for r in test_results))
-                    if test_results
-                    else "none"
-                )
-                error_result.error = f"No test results found for test_id '{indicator.apply_to.test_id}'. Available tests: {available_tests}"
+
+                # Check if test_id exists but with different system types
+                test_id_matches = [
+                    r for r in test_results if r.test_id == indicator.apply_to.test_id
+                ]
+
+                if test_id_matches and target_types:
+                    # Test ID exists but filtered out by system type
+                    available_types = ", ".join(
+                        set(r.system_type or "unknown" for r in test_id_matches)
+                    )
+                    target_types_str = ", ".join(target_types)
+                    error_result.error = (
+                        f"No test results found for test_id '{indicator.apply_to.test_id}' "
+                        f"with system type(s) [{target_types_str}]. "
+                        f"Test '{indicator.apply_to.test_id}' has results for system type(s): {available_types}"
+                    )
+                elif test_id_matches:
+                    # Test ID exists but all filtered out (shouldn't happen without target_types)
+                    error_result.error = f"Test '{indicator.apply_to.test_id}' found but no results matched filters"
+                else:
+                    # Test ID doesn't exist at all
+                    available_tests = (
+                        ", ".join(set(r.test_id for r in test_results))
+                        if test_results
+                        else "none"
+                    )
+                    error_result.error = (
+                        f"No test results found for test_id '{indicator.apply_to.test_id}'. "
+                        f"Available tests: {available_tests}"
+                    )
                 return [error_result]
 
             # Evaluate each individual test result

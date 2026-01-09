@@ -2434,3 +2434,214 @@ class TestValidateIndicatorDisplayReports:
 
         assert len(errors) == 1
         assert "not found with an exact case sensitive match" in errors[0]
+
+
+class TestMultipleSystemTypes:
+    """Test validation with manifests that support multiple system types (Issue #287)."""
+
+    MOCK_MULTI_TYPE_MANIFEST = {
+        "name": "multi_type_tester",
+        "version": "1.0.0",
+        "description": "Container that supports both LLM and VLM systems",
+        "input_systems": [
+            {
+                "name": "system_under_test",
+                "type": ["llm_api", "vlm_api"],
+                "required": True,
+            },
+        ],
+        "input_schema": [],
+        "output_metrics": ["success"],
+    }
+
+    MULTI_TYPE_SUITE_LLM = """
+suite_name: "Multi-type test with LLM"
+test_suite:
+  - name: "test_with_llm"
+    id: "test_with_llm"
+    image: "my-registry/multi_type_tester:latest"
+    systems_under_test:
+      - "my_llm_service"
+"""
+
+    MULTI_TYPE_SUITE_VLM = """
+suite_name: "Multi-type test with VLM"
+test_suite:
+  - name: "test_with_vlm"
+    id: "test_with_vlm"
+    image: "my-registry/multi_type_tester:latest"
+    systems_under_test:
+      - "my_vlm_service"
+"""
+
+    MULTI_TYPE_SUITE_INCOMPATIBLE = """
+suite_name: "Multi-type test with RAG (incompatible)"
+test_suite:
+  - name: "test_with_rag"
+    id: "test_with_rag"
+    image: "my-registry/multi_type_tester:latest"
+    systems_under_test:
+      - "my_rag_service"
+"""
+
+    def test_multi_type_manifest_with_llm_system(self):
+        """LLM system should be compatible with manifest supporting ['llm_api', 'vlm_api']."""
+        manifest = Manifest(**self.MOCK_MULTI_TYPE_MANIFEST)
+        suite_config = SuiteConfig.model_validate(
+            yaml.safe_load(self.MULTI_TYPE_SUITE_LLM)
+        )
+        test = suite_config.test_suite[0]
+
+        # Create systems dict with LLM system
+        systems_dict = {
+            "my_llm_service": LLMAPIConfig(
+                type="llm_api",
+                params=LLMAPIParams(
+                    model="test", base_url="http://test", api_key="key"
+                ),
+            ),
+        }
+
+        errors = validate_system_compatibility(test, systems_dict, manifest)
+
+        assert len(errors) == 0, f"Expected no errors, got: {errors}"
+
+    def test_multi_type_manifest_with_vlm_system(self):
+        """VLM system should be compatible with manifest supporting ['llm_api', 'vlm_api']."""
+        manifest = Manifest(**self.MOCK_MULTI_TYPE_MANIFEST)
+
+        suite_config = SuiteConfig.model_validate(
+            yaml.safe_load(self.MULTI_TYPE_SUITE_VLM)
+        )
+        test = suite_config.test_suite[0]
+
+        # Create systems dict with VLM system
+        systems_dict = {
+            "my_vlm_service": VLMAPIConfig(
+                type="vlm_api",
+                params={
+                    "model": "test-vlm",
+                    "base_url": "http://test",
+                    "api_key": "key",
+                },
+            ),
+        }
+
+        errors = validate_system_compatibility(test, systems_dict, manifest)
+
+        assert len(errors) == 0, f"Expected no errors, got: {errors}"
+
+    def test_multi_type_manifest_with_incompatible_system(self):
+        """RAG system should NOT be compatible with manifest supporting ['llm_api', 'vlm_api']."""
+        manifest = Manifest(**self.MOCK_MULTI_TYPE_MANIFEST)
+
+        suite_config = SuiteConfig.model_validate(
+            yaml.safe_load(self.MULTI_TYPE_SUITE_INCOMPATIBLE)
+        )
+        test = suite_config.test_suite[0]
+
+        # Create systems dict with RAG system
+        systems_dict = {
+            "my_rag_service": RAGAPIConfig(
+                type="rag_api",
+                params={
+                    "model": "test-rag",
+                    "base_url": "http://test",
+                    "api_key": "key",
+                },
+            ),
+        }
+
+        errors = validate_system_compatibility(test, systems_dict, manifest)
+
+        assert len(errors) == 1
+        assert "does not support system type 'rag_api'" in errors[0]
+        assert "llm_api, vlm_api" in errors[0]
+
+    def test_backward_compatibility_single_type(self):
+        """Existing single-string manifests should still work."""
+        # Use the existing MOCK_TESTER_MANIFEST which has single type
+        manifest = Manifest(**MOCK_TESTER_MANIFEST)
+
+        # Create a simple test suite that uses my_llm_service
+        SIMPLE_SUITE = """
+suite_name: "Backward Compat Test"
+test_suite:
+  - name: "simple_test"
+    id: "simple_test"
+    image: "my-registry/mock_tester:latest"
+    systems_under_test:
+      - "my_llm_service"
+"""
+        suite_config = SuiteConfig.model_validate(yaml.safe_load(SIMPLE_SUITE))
+        test = suite_config.test_suite[0]
+
+        # Create systems dict with LLM system
+        systems_dict = {
+            "my_llm_service": LLMAPIConfig(
+                type="llm_api",
+                params=LLMAPIParams(
+                    model="test", base_url="http://test", api_key="key"
+                ),
+            ),
+        }
+
+        errors = validate_system_compatibility(test, systems_dict, manifest)
+
+        assert len(errors) == 0, f"Expected no errors, got: {errors}"
+
+    def test_evaluator_system_with_multi_type(self):
+        """Optional evaluator_system with multiple accepted types."""
+        MULTI_EVALUATOR_MANIFEST = {
+            "name": "multi_evaluator",
+            "version": "1.0.0",
+            "description": "Test with multi-type evaluator",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True},
+                {
+                    "name": "evaluator_system",
+                    "type": ["llm_api", "vlm_api"],
+                    "required": False,
+                },
+            ],
+            "input_schema": [],
+            "output_metrics": ["success"],
+        }
+
+        SUITE_WITH_EVALUATOR = """
+suite_name: "Test with evaluator"
+test_suite:
+  - name: "test_with_evaluator"
+    id: "test_with_evaluator"
+    image: "my-registry/multi_evaluator:latest"
+    systems_under_test:
+      - "my_llm_api"
+    systems:
+      evaluator_system: "my_vlm_api"
+"""
+
+        manifest = Manifest(**MULTI_EVALUATOR_MANIFEST)
+        suite_config = SuiteConfig.model_validate(yaml.safe_load(SUITE_WITH_EVALUATOR))
+        test = suite_config.test_suite[0]
+
+        # Create systems dict with VLM evaluator
+        systems_dict = {
+            "my_llm_api": LLMAPIConfig(
+                type="llm_api",
+                params=LLMAPIParams(
+                    model="test", base_url="http://test", api_key="key"
+                ),
+            ),
+            "my_vlm_api": VLMAPIConfig(
+                type="vlm_api",
+                params={
+                    "model": "test-vlm",
+                    "base_url": "http://test",
+                    "api_key": "key",
+                },
+            ),
+        }
+
+        errors = validate_system_compatibility(test, systems_dict, manifest)
+
+        assert len(errors) == 0, f"Expected no errors, got: {errors}"

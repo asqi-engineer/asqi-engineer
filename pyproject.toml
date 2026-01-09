@@ -13,8 +13,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "rich>=14.1.0",
     "typer>=0.16.0",
-    "urllib3>=2.6.0",
-    # "torchcodec=0.9.1"
+    "urllib3>=2.6.3",
 ]
 
 [project.scripts]
@@ -36,12 +35,20 @@ dev = [
     "sphinx-copybutton>=0.5.2",
     "sphinx-design>=0.6.1",
     "sphinxcontrib-typer>=0.5.1",
-    "sphinx-new-tab-link>=0.8.0"
+    "sphinx-new-tab-link>=0.8.0",
 ]
 containers = ["deepteam==1.0.4", "litellm>=1.76.0", "openevals>=0.1.0"]
 
 [tool.bandit]
-exclude_dirs = [".venv", "tests", "test_containers/mock_tester", "test_containers/mock_rag_tester", "test_containers/mock_image_generation_tester", "test_containers/mock_image_editing_tester", "test_containers/vlm_evaluator_tester"]
+exclude_dirs = [
+    ".venv",
+    "tests",
+    "test_containers/mock_tester",
+    "test_containers/mock_rag_tester",
+    "test_containers/mock_image_generation_tester",
+    "test_containers/mock_image_editing_tester",
+    "test_containers/vlm_evaluator_tester",
+]
 skips = ["B404", "B603"]
 
 [build-system]
