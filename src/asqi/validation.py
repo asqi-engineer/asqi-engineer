@@ -531,13 +531,10 @@ def create_test_execution_plan(
         datasets = getattr(test, "datasets", None)
         base_params = getattr(test, "params", None)
 
-        if vols or datasets:
+        if vols:
             _params = dict(base_params or {})
-            if vols:
-                _params["__volumes"] = vols  # reserved key
-                _params["volumes"] = (
-                    vols  # Also pass volumes directly for container access
-                )
+            _params["__volumes"] = vols  # reserved key
+            _params["volumes"] = vols  # Also pass volumes directly for container access
             if datasets:
                 _params["datasets"] = {
                     name: (
@@ -551,6 +548,10 @@ def create_test_execution_plan(
                 }
             test_params = _params
         else:
+            if datasets:
+                raise ValueError(
+                    f"Test config for {test.name} provided with datasets {datasets} but without volumes; datasets must be passed in via mounted volumes."
+                )
             test_params = base_params or {}
 
         systems_params = {}
