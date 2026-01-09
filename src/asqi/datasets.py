@@ -1,19 +1,19 @@
 from datasets import Dataset, load_dataset
 
-from asqi.schemas import DatasetLoaderParams
+from asqi.schemas import HFDatasetConfig
 
-
-def load_hf_dataset(loader_params: DatasetLoaderParams, mapping: dict[str, str]) -> Dataset:
+def load_hf_dataset(dataset_config: HFDatasetConfig) -> Dataset:
     # TODO: consider using load_from_disk for caching purposes
     """Load a HuggingFace dataset using the provided loader parameters.
 
     Args:
-        loader_params (dict[str, str]): Keyword arguments for datasets.load_dataset function.
+        dataset_config (HFDatasetConfig): Configuration for loading the HuggingFace dataset.
 
     Returns:
         Dataset: Loaded HuggingFace dataset.
     """
-
+    loader_params = dataset_config.loader_params
+    mapping = dataset_config.mapping
     dataset = load_dataset(
         path=loader_params.builder_name,
         data_dir=loader_params.data_dir,
