@@ -458,6 +458,10 @@ class DatasetLoaderParams(BaseModel):
 class HFDatasetDefinition(BaseModel):
     """Defines a reusable HuggingFace dataset that can be referenced by name in test suites and generation jobs."""
 
+    type: Literal["huggingface"] = Field(
+        ...,
+        description="Dataset type identifier for HuggingFace datasets.",
+    )
     description: Optional[str] = Field(
         None,
         description="Human-readable description of the dataset's purpose and contents.",
@@ -476,8 +480,8 @@ class HFDatasetDefinition(BaseModel):
     )
 
 
-class FileDatasetDefinition(BaseModel):
-    """Defines a file-based dataset that can be referenced by name in test suites and generation jobs."""
+class FileDatasetBase(BaseModel):
+    """Base class for file-based dataset definitions."""
 
     description: Optional[str] = Field(
         None,
@@ -485,7 +489,7 @@ class FileDatasetDefinition(BaseModel):
     )
     file_path: str = Field(
         ...,
-        description="Path to the input file, relative to the input mount.",
+        description="Path to the input file, relative to the input mount. Can be a local path or remote URL depending on container support.",
     )
     tags: list[str] = Field(
         default_factory=list,
@@ -493,19 +497,43 @@ class FileDatasetDefinition(BaseModel):
     )
 
 
-DatasetDefinition = Union[HFDatasetDefinition, FileDatasetDefinition]
+class PDFDatasetDefinition(FileDatasetBase):
+    """Defines a PDF document dataset that can be referenced by name in test suites and generation jobs."""
+
+    type: Literal["pdf"] = Field(
+        ...,
+        description="Dataset type identifier for PDF documents.",
+    )
+
+
+class TXTDatasetDefinition(FileDatasetBase):
+    """Defines a plain text file dataset that can be referenced by name in test suites and generation jobs."""
+
+    type: Literal["txt"] = Field(
+        ...,
+        description="Dataset type identifier for plain text files.",
+    )
+
+
+DatasetDefinition = Annotated[
+    Union[HFDatasetDefinition, PDFDatasetDefinition, TXTDatasetDefinition],
+    Field(discriminator="type"),
+]
 
 
 class DatasetsConfig(BaseModel):
     """Schema for datasets configuration file.
 
     Datasets are defined in a dictionary where keys are dataset names.
-    Each dataset can be either a HuggingFace dataset (with loader_params) or a file dataset (with file_path).
+    Each dataset must specify a 'type' field that determines its schema:
+    - 'huggingface': HuggingFace datasets with loader_params
+    - 'pdf': PDF document datasets with file_path
+    - 'txt': Plain text file datasets with file_path
     """
 
     datasets: Dict[str, DatasetDefinition] = Field(
         ...,
-        description="Dictionary of dataset definitions, keyed by dataset name. Each definition can be either HFDatasetDefinition or FileDatasetDefinition.",
+        description="Dictionary of dataset definitions, keyed by dataset name. Each definition can be HFDatasetDefinition, PDFDatasetDefinition, or TXTDatasetDefinition (discriminated by 'type' field).",
     )
 
 
