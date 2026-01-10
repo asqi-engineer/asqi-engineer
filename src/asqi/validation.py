@@ -1054,7 +1054,7 @@ def validate_data_generation_input(
         ValueError: If any input is invalid
     """
     if not generation_config_path or not isinstance(generation_config_path, str):
-        raise ValueError("Invalid suite_path: must be non-empty string")
+        raise ValueError("Invalid generation_config_path: must be non-empty string")
 
     if systems_path is not None and not isinstance(systems_path, str):
         raise ValueError("Invalid systems_path: must be string or None")

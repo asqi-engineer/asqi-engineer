@@ -12,7 +12,10 @@ from asqi.rag_response_schema import RAGCitation, RAGContext, validate_rag_respo
 from asqi.schemas import (
     AssessmentRule,
     AuditScoreCardIndicator,
+    DataGenerationConfig,
+    GenerationJobConfig,
     GenericSystemConfig,
+    InputParameter,
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
@@ -22,13 +25,17 @@ from asqi.schemas import (
     ScoreCardFilter,
     ScoreCardIndicator,
     SuiteConfig,
+    SystemInput,
     SystemsConfig,
     VLMAPIConfig,
 )
 from asqi.score_card_engine import ScoreCardEngine
 from asqi.validation import (
+    create_data_generation_plan,
     create_test_execution_plan,
     find_manifest_for_image,
+    validate_data_generation_input,
+    validate_data_generation_plan,
     validate_execution_inputs,
     validate_ids,
     validate_indicator_display_reports,
@@ -2645,3 +2652,437 @@ test_suite:
         errors = validate_system_compatibility(test, systems_dict, manifest)
 
         assert len(errors) == 0, f"Expected no errors, got: {errors}"
+
+
+# =============================================================================
+# Data Generation Validation Tests
+# =============================================================================
+
+
+class TestGenerationJobConfigSchema:
+    """Test that GenerationJobConfig.systems is optional."""
+
+    def test_job_with_systems(self):
+        """Test creating a job config with systems."""
+        job = GenerationJobConfig(
+            id="test1",
+            name="Test Job",
+            systems={"generation_system": "gpt4o"},
+            image="my-registry/sdg:latest",
+            params={"num_samples": 10},
+        )
+        assert job.systems == {"generation_system": "gpt4o"}
+
+    def test_job_without_systems(self):
+        """Test creating a job config without systems (None)."""
+        job = GenerationJobConfig(
+            id="test2",
+            name="Test Job",
+            image="my-registry/template:latest",
+            params={"template": "simple"},
+        )
+        assert job.systems is None
+
+    def test_job_with_empty_systems_dict(self):
+        """Test creating a job config with empty systems dict."""
+        job = GenerationJobConfig(
+            id="test3",
+            name="Test Job",
+            systems={},
+            image="my-registry/template:latest",
+            params={"template": "simple"},
+        )
+        assert job.systems == {}
+
+
+class TestValidateDataGenerationInput:
+    """Test validation of input parameters for data generation."""
+
+    def test_valid_inputs_with_systems(self):
+        """Test validation passes with valid systems path."""
+        # Should not raise
+        validate_data_generation_input(
+            generation_config_path="config/generation.yaml",
+            systems_path="config/systems.yaml",
+            output_path="output.json",
+        )
+
+    def test_valid_inputs_without_systems(self):
+        """Test validation passes with None systems path."""
+        # Should not raise
+        validate_data_generation_input(
+            generation_config_path="config/generation.yaml",
+            systems_path=None,
+            output_path="output.json",
+        )
+
+    def test_invalid_generation_config_path(self):
+        """Test validation fails with invalid generation config path."""
+        with pytest.raises(ValueError, match="Invalid suite_path"):
+            validate_data_generation_input(
+                generation_config_path="",
+                systems_path="config/systems.yaml",
+            )
+
+    def test_invalid_systems_path_type(self):
+        """Test validation fails with invalid systems path type."""
+        with pytest.raises(ValueError, match="Invalid systems_path"):
+            validate_data_generation_input(
+                generation_config_path="config/generation.yaml",
+                systems_path=123,  # Invalid type
+            )
+
+
+class TestCreateDataGenerationPlan:
+    """Test creation of execution plans with optional systems."""
+
+    def create_test_manifest(
+        self, supported_types: list[str] | None = None
+    ) -> Manifest:
+        """Helper to create a test manifest."""
+        if supported_types is None:
+            supported_types = ["llm_api"]
+
+        return Manifest(
+            name="test-manifest",
+            version="1.0",
+            input_systems=[
+                SystemInput(
+                    name="generation_system",
+                    type=system_type,
+                    required=False,
+                )
+                for system_type in supported_types
+            ],
+            input_schema=[
+                InputParameter(
+                    name="num_samples",
+                    type="integer",
+                    required=False,
+                ),
+            ],
+        )
+
+    def test_plan_with_systems(self):
+        """Test creating execution plan when systems are provided."""
+        generation_config = DataGenerationConfig(
+            job_name="Test",
+            generation_jobs=[
+                GenerationJobConfig(
+                    id="job1",
+                    name="Test Job",
+                    systems={"generation_system": "gpt4o"},
+                    image="my-registry/sdg:latest",
+                    params={"num_samples": 10},
+                )
+            ],
+        )
+
+        systems_config = SystemsConfig(
+            systems={
+                "gpt4o": LLMAPIConfig(
+                    type="llm_api",
+                    params=LLMAPIParams(
+                        model="gpt-4o",
+                        base_url="https://api.openai.com/v1",
+                    ),
+                )
+            }
+        )
+
+        image_availability = {"my-registry/sdg:latest": True}
+
+        plan = create_data_generation_plan(
+            generation_config, systems_config, image_availability
+        )
+
+        assert len(plan) == 1
+        assert plan[0]["job_id"] == "job1"
+        assert "generation_system" in plan[0]["systems_params"]
+        assert plan[0]["systems_params"]["generation_system"]["model"] == "gpt-4o"
+        assert plan[0]["generation_params"]["num_samples"] == 10
+
+    def test_plan_without_systems_config(self):
+        """Test creating execution plan when no systems config provided."""
+        generation_config = DataGenerationConfig(
+            job_name="Test",
+            generation_jobs=[
+                GenerationJobConfig(
+                    id="job2",
+                    name="Template Job",
+                    image="my-registry/template:latest",
+                    params={"template": "simple"},
+                )
+            ],
+        )
+
+        # No systems config
+        systems_config = None
+        image_availability = {"my-registry/template:latest": True}
+
+        plan = create_data_generation_plan(
+            generation_config, systems_config, image_availability
+        )
+
+        assert len(plan) == 1
+        assert plan[0]["job_id"] == "job2"
+        assert plan[0]["systems_params"] == {}
+        assert plan[0]["generation_params"]["template"] == "simple"
+
+    def test_plan_with_job_without_systems_field(self):
+        """Test creating plan when job has no systems field (None)."""
+        generation_config = DataGenerationConfig(
+            job_name="Test",
+            generation_jobs=[
+                GenerationJobConfig(
+                    id="job3",
+                    name="No Systems Job",
+                    systems=None,
+                    image="my-registry/nosys:latest",
+                    params={"option": "value"},
+                )
+            ],
+        )
+
+        systems_config = SystemsConfig(systems={})
+        image_availability = {"my-registry/nosys:latest": True}
+
+        plan = create_data_generation_plan(
+            generation_config, systems_config, image_availability
+        )
+
+        assert len(plan) == 1
+        assert plan[0]["systems_params"] == {}
+
+    def test_plan_with_unavailable_image(self):
+        """Test that jobs with unavailable images are skipped."""
+        generation_config = DataGenerationConfig(
+            job_name="Test",
+            generation_jobs=[
+                GenerationJobConfig(
+                    id="job4",
+                    name="Unavailable Job",
+                    image="my-registry/unavailable:latest",
+                    params={},
+                )
+            ],
+        )
+
+        systems_config = None
+        image_availability = {"my-registry/unavailable:latest": False}
+
+        plan = create_data_generation_plan(
+            generation_config, systems_config, image_availability
+        )
+
+        assert len(plan) == 0
+
+
+class TestValidateDataGenerationPlan:
+    """Test validation of data generation plans."""
+
+    def create_test_manifest(
+        self,
+        supported_types: list[str] | None = None,
+        required_params: list[str] | None = None,
+    ) -> Manifest:
+        """Helper to create a test manifest."""
+        if supported_types is None:
+            supported_types = ["llm_api"]
+        if required_params is None:
+            required_params = []
+
+        input_schema = [
+            InputParameter(
+                name=param_name,
+                type="string",
+                required=True,
+            )
+            for param_name in required_params
+        ]
+
+        return Manifest(
+            name="test-manifest",
+            version="1.0",
+            input_systems=[
+                SystemInput(
+                    name="generation_system",
+                    type=system_type,
+                    required=False,
+                )
+                for system_type in supported_types
+            ],
+            input_schema=input_schema,
+        )
+
+    def test_validate_with_systems(self):
+        """Test validation passes when systems are properly configured."""
+        generation_config = DataGenerationConfig(
+            job_name="Test",
+            generation_jobs=[
+                GenerationJobConfig(
+                    id="job1",
+                    name="Test Job",
+                    systems={"generation_system": "gpt4o"},
+                    image="my-registry/sdg:latest",
+                )
+            ],
+        )
+
+        systems_config = SystemsConfig(
+            systems={
+                "gpt4o": LLMAPIConfig(
+                    type="llm_api",
+                    params=LLMAPIParams(
+                        model="gpt-4o", base_url="https://api.openai.com/v1"
+                    ),
+                )
+            }
+        )
+
+        manifests = {"my-registry/sdg:latest": self.create_test_manifest()}
+
+        errors = validate_data_generation_plan(
+            generation_config, systems_config, manifests
+        )
+
+        assert len(errors) == 0
+
+    def test_validate_without_systems_config(self):
+        """Test validation passes when no systems config provided and job needs no systems."""
+        generation_config = DataGenerationConfig(
+            job_name="Test",
+            generation_jobs=[
+                GenerationJobConfig(
+                    id="job2",
+                    name="Template Job",
+                    image="my-registry/template:latest",
+                )
+            ],
+        )
+
+        # No systems config
+        systems_config = None
+
+        manifests = {"my-registry/template:latest": self.create_test_manifest()}
+
+        errors = validate_data_generation_plan(
+            generation_config, systems_config, manifests
+        )
+
+        assert len(errors) == 0
+
+    def test_validate_missing_system_definition(self):
+        """Test validation fails when referenced system doesn't exist."""
+        generation_config = DataGenerationConfig(
+            job_name="Test",
+            generation_jobs=[
+                GenerationJobConfig(
+                    id="job3",
+                    name="Bad Job",
+                    systems={"generation_system": "missing_system"},
+                    image="my-registry/sdg:latest",
+                )
+            ],
+        )
+
+        systems_config = SystemsConfig(systems={})
+
+        manifests = {"my-registry/sdg:latest": self.create_test_manifest()}
+
+        errors = validate_data_generation_plan(
+            generation_config, systems_config, manifests
+        )
+
+        assert len(errors) == 1
+        assert "missing_system" in errors[0]
+        assert "not defined" in errors[0]
+
+    def test_validate_incompatible_system_type(self):
+        """Test validation fails when system type doesn't match manifest."""
+        generation_config = DataGenerationConfig(
+            job_name="Test",
+            generation_jobs=[
+                GenerationJobConfig(
+                    id="job4",
+                    name="Incompatible Job",
+                    systems={"generation_system": "wrong_type_system"},
+                    image="my-registry/sdg:latest",
+                )
+            ],
+        )
+
+        systems_config = SystemsConfig(
+            systems={
+                "wrong_type_system": GenericSystemConfig(
+                    type="rest_api",  # Manifest expects llm_api
+                    params={"model": "test", "base_url": "https://api.test.com/v1"},
+                )
+            }
+        )
+
+        manifests = {
+            "my-registry/sdg:latest": self.create_test_manifest(
+                supported_types=["llm_api"]
+            )
+        }
+
+        errors = validate_data_generation_plan(
+            generation_config, systems_config, manifests
+        )
+
+        assert len(errors) == 1
+        assert "not compatible" in errors[0]
+
+    def test_validate_missing_required_param(self):
+        """Test validation fails when required parameter is missing."""
+        generation_config = DataGenerationConfig(
+            job_name="Test",
+            generation_jobs=[
+                GenerationJobConfig(
+                    id="job5",
+                    name="Missing Param Job",
+                    image="my-registry/sdg:latest",
+                    params={},  # Missing required param
+                )
+            ],
+        )
+
+        systems_config = None
+
+        manifests = {
+            "my-registry/sdg:latest": self.create_test_manifest(
+                required_params=["required_param"]
+            )
+        }
+
+        errors = validate_data_generation_plan(
+            generation_config, systems_config, manifests
+        )
+
+        assert len(errors) == 1
+        assert "required_param" in errors[0]
+        assert "missing" in errors[0].lower()
+
+    def test_validate_missing_manifest(self):
+        """Test validation fails when manifest is missing for image."""
+        generation_config = DataGenerationConfig(
+            job_name="Test",
+            generation_jobs=[
+                GenerationJobConfig(
+                    id="job6",
+                    name="No Manifest Job",
+                    image="my-registry/no-manifest:latest",
+                )
+            ],
+        )
+
+        systems_config = None
+        manifests = {}  # No manifest for the image
+
+        errors = validate_data_generation_plan(
+            generation_config, systems_config, manifests
+        )
+
+        assert len(errors) == 1
+        assert "does not have a loaded manifest" in errors[0]
