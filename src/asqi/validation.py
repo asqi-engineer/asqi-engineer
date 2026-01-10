@@ -11,6 +11,8 @@ from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.schemas import (
     HF_DATASET_TYPE,
     AuditScoreCardIndicator,
+    DataGenerationConfig,
+    DatasetsConfig,
     EnvironmentVariable,
     FileDatasetConfig,
     HFDatasetConfig,
@@ -19,7 +21,6 @@ from asqi.schemas import (
     SuiteConfig,
     SystemsConfig,
     TestDefinition,
-    DataGenerationConfig
 )
 
 logger = logging.getLogger()
@@ -185,12 +186,13 @@ def get_duplicate_ids(all_ids: Dict[str, Any]) -> Dict[str, Any]:
             duplicate_ids[k] = duplicate
     return duplicate_ids
 
+
 def validate_volumes(
     name: str,
     vols: Optional[dict],
-    allowed:  set[str],
-    require_at_least_one: bool = True
-    ) -> None:
+    allowed: set[str],
+    require_at_least_one: bool = True,
+) -> None:
     if not vols:
         return
 
@@ -244,8 +246,13 @@ def validate_test_volumes(
 
     for test in suite.test_suite:
         vols = getattr(test, "volumes", None)
-        validate_volumes(name=test.name, vols=vols, allowed=allowed, require_at_least_one=require_at_least_one)
-        
+        validate_volumes(
+            name=test.name,
+            vols=vols,
+            allowed=allowed,
+            require_at_least_one=require_at_least_one,
+        )
+
 
 def validate_test_parameters(test, manifest: Manifest) -> List[str]:
     """
@@ -1070,6 +1077,7 @@ def validate_data_generation_input(
     if output_path is not None and not isinstance(output_path, str):
         raise ValueError("Invalid output_path: must be string or None")
 
+
 def validate_data_gen_execution_inputs(
     job_id: str,
     image: str,
@@ -1095,15 +1103,18 @@ def validate_data_gen_execution_inputs(
 
     if not image or not isinstance(image, str):
         raise ValueError("Invalid image: must be non-empty string")
-    
+
     if not isinstance(system_params, dict):
         raise ValueError("Invalid system parameters: must be dictionary")
 
     if not isinstance(generation_params, dict):
         raise ValueError("Invalid test parameters: must be dictionary")
 
+
 def create_data_generation_plan(
-    data_generation_config: DataGenerationConfig, systems: SystemsConfig, image_availability: Dict[str, bool]
+    data_generation_config: DataGenerationConfig,
+    systems: SystemsConfig,
+    image_availability: Dict[str, bool],
 ) -> List[Dict[str, Any]]:
     """
     Create execution plan for all valid test combinations.
@@ -1195,18 +1206,18 @@ def create_data_generation_plan(
                 }.items()
                 if v is not None
             }
-        
+
         plan.append(
-                {
-                    "job_name": job.name,
-                    "job_id": job.id,
-                    "image": image,
-                    "systems_params": systems_params,
-                    "generation_params": generation_params,
-                    "env_file": job.env_file,
-                    "environment": job.environment,
-                }
-            )
+            {
+                "job_name": job.name,
+                "job_id": job.id,
+                "image": image,
+                "systems_params": systems_params,
+                "generation_params": generation_params,
+                "env_file": job.env_file,
+                "environment": job.environment,
+            }
+        )
 
         if not systems:
             # No target systems, just add the test with its params
@@ -1223,8 +1234,11 @@ def create_data_generation_plan(
             )
     return plan
 
+
 def validate_data_generation_plan(
-    data_generation_config: DataGenerationConfig, systems: SystemsConfig, manifests: Dict[str, Manifest]
+    data_generation_config: DataGenerationConfig,
+    systems: SystemsConfig,
+    manifests: Dict[str, Manifest],
 ) -> List[str]:
     """
     Validates the entire test plan by cross-referencing the suite, systems, and manifests.
@@ -1249,9 +1263,7 @@ def validate_data_generation_plan(
                 f"Job '{job.name}': Image '{job.image}' does not have a loaded manifest."
             )
             continue  # Cannot perform further validation for this test
-        supported_system_types = [
-            s.type for s in manifest.input_systems
-        ]
+        supported_system_types = [s.type for s in manifest.input_systems]
 
         # 2. Check parameters against the manifest's input_schema
         schema_params = {p.name: p for p in manifest.input_schema}
@@ -1292,6 +1304,7 @@ def validate_data_generation_plan(
                 )
     return errors
 
+
 def validate_data_generation_volumes(
     generation_config: DataGenerationConfig,
     allowed_keys: tuple[str, ...] = ("input", "output"),
@@ -1311,5 +1324,109 @@ def validate_data_generation_volumes(
 
     for job in generation_config.generation_jobs:
         vols = getattr(job, "volumes", None)
-        validate_volumes(name=job.name, vols=vols, allowed=allowed, require_at_least_one=require_at_least_one)
-        
+        validate_volumes(
+            name=job.name,
+            vols=vols,
+            allowed=allowed,
+            require_at_least_one=require_at_least_one,
+        )
+
+
+def resolve_dataset_references(
+    config: Union[dict, SuiteConfig, DataGenerationConfig],
+    datasets_config: DatasetsConfig,
+) -> Union[dict, SuiteConfig, DataGenerationConfig]:
+    """
+    Resolve dataset name references to actual dataset configurations.
+
+    For each test/job with datasets field:
+    1. Look up dataset name in datasets_config
+    2. Convert DatasetDefinition to HFDatasetConfig format
+    3. Replace string reference with actual config
+
+    Args:
+        config: Suite or generation config (dict or pydantic model)
+        datasets_config: Datasets configuration to resolve from
+
+    Returns:
+        Config with resolved dataset references
+
+    Raises:
+        ValueError: If referenced dataset not found in datasets_config
+    """
+    # Handle dict format (before pydantic parsing)
+    if isinstance(config, dict):
+        if "test_suite" in config:
+            # Test suite config
+            for test in config.get("test_suite", []):
+                if "datasets" in test and test["datasets"]:
+                    test["datasets"] = _resolve_dataset_dict(
+                        test["datasets"], datasets_config
+                    )
+        elif "generation_jobs" in config:
+            # Generation config
+            for job in config.get("generation_jobs", []):
+                if "input_datasets" in job and job["input_datasets"]:
+                    job["input_datasets"] = _resolve_dataset_dict(
+                        job["input_datasets"], datasets_config
+                    )
+        return config
+
+    # Handle pydantic models
+    if isinstance(config, SuiteConfig):
+        for test in config.test_suite:
+            if test.datasets:
+                test.datasets = _resolve_dataset_dict(test.datasets, datasets_config)
+
+    elif isinstance(config, DataGenerationConfig):
+        for job in config.generation_jobs:
+            if job.input_datasets:
+                job.input_datasets = _resolve_dataset_dict(
+                    job.input_datasets, datasets_config
+                )
+
+    return config
+
+
+def _resolve_dataset_dict(
+    datasets: Dict[str, str],
+    datasets_config: DatasetsConfig,
+) -> Dict[str, HFDatasetConfig]:
+    """
+    Resolve dataset name references to HFDatasetConfig objects.
+
+    Args:
+        datasets: Dict mapping manifest names to dataset references (strings)
+        datasets_config: Datasets configuration
+
+    Returns:
+        Dict mapping manifest names to resolved HFDatasetConfig objects
+
+    Raises:
+        ValueError: If dataset reference not found
+    """
+    resolved = {}
+
+    for manifest_name, dataset_ref in datasets.items():
+        if not isinstance(dataset_ref, str):
+            raise ValueError(
+                f"Dataset reference for '{manifest_name}' must be a string, "
+                f"got {type(dataset_ref).__name__}"
+            )
+
+        # Look up in datasets config
+        dataset_def = datasets_config.datasets.get(dataset_ref)
+        if dataset_def is None:
+            available = ", ".join(datasets_config.datasets.keys())
+            raise ValueError(
+                f"Dataset '{dataset_ref}' not found in datasets config. "
+                f"Available datasets: {available if available else 'none'}"
+            )
+
+        # Convert DatasetDefinition to HFDatasetConfig format
+        resolved[manifest_name] = HFDatasetConfig(
+            loader_params=dataset_def.loader_params,
+            mapping=dataset_def.mapping,
+        )
+
+    return resolved

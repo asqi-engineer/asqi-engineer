@@ -417,6 +417,12 @@ def execute(
         "--container-config",
         help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
     ),
+    datasets_config: Optional[str] = typer.Option(
+        None,
+        "--datasets-config",
+        "-d",
+        help="Path to the datasets registry YAML file containing reusable dataset definitions.",
+    ),
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
     console.print("[blue]--- 🚀 Executing End-to-End Workflow ---[/blue]")
@@ -470,6 +476,7 @@ def execute(
         workflow_id = start_test_execution(
             suite_path=test_suite_config,
             systems_path=systems_config,
+            datasets_config_path=datasets_config,
             output_path=output_file,
             score_card_configs=score_card_configs,
             execution_mode=ExecutionMode.END_TO_END,
@@ -540,6 +547,12 @@ def execute_tests(
         "--container-config",
         help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
     ),
+    datasets_config: Optional[str] = typer.Option(
+        None,
+        "--datasets-config",
+        "-d",
+        help="Path to the datasets registry YAML file containing reusable dataset definitions.",
+    ),
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
@@ -571,6 +584,7 @@ def execute_tests(
         workflow_id = start_test_execution(
             suite_path=test_suite_config,
             systems_path=systems_config,
+            datasets_config_path=datasets_config,
             output_path=output_file,
             score_card_configs=None,
             execution_mode=ExecutionMode.TESTS_ONLY,
@@ -590,6 +604,7 @@ def execute_tests(
     except Exception as e:
         console.print(f"[red]❌ Test execution failed: {e}[/red]")
         raise typer.Exit(1)
+
 
 @app.command(name="generate-dataset")
 def generate_dataset(
@@ -634,8 +649,14 @@ def generate_dataset(
         "--container-config",
         help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
     ),
+    datasets_config: Optional[str] = typer.Option(
+        None,
+        "--datasets-config",
+        "-d",
+        help="Path to the datasets registry YAML file containing reusable dataset definitions.",
+    ),
 ):
-    """Generate synthetic data"""
+    """Generate synthetic data using data generation containers."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
 
     try:
@@ -663,9 +684,10 @@ def generate_dataset(
         workflow_id = start_data_generation(
             generation_config_path=generation_config,
             systems_path=systems_config,
+            datasets_config_path=datasets_config,
             container_config=container_config,
             executor_config=executor_config,
-            output_path=output_file
+            output_path=output_file,
         )
 
         console.print(
@@ -679,6 +701,7 @@ def generate_dataset(
     except Exception as e:
         console.print(f"[red]❌ Test execution failed: {e}[/red]")
         raise typer.Exit(1)
+
 
 @app.command(name="evaluate-score-cards")
 def evaluate_score_cards(

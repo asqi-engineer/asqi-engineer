@@ -41,15 +41,17 @@ from asqi.output import (
 )
 from asqi.schemas import (
     AuditResponses,
+    DataGenerationConfig,
+    DatasetsConfig,
     Manifest,
     ScoreCard,
     SuiteConfig,
     SystemsConfig,
-    DataGenerationConfig
 )
 from asqi.validation import (
     build_env_var_error_message,
     create_test_execution_plan,
+    resolve_dataset_references,
     validate_execution_inputs,
     validate_indicator_display_reports,
     validate_score_card_inputs,
@@ -61,7 +63,7 @@ from asqi.validation import (
     validate_data_generation_plan,
     create_data_generation_plan,
     validate_data_generation_volumes,
-    validate_data_gen_execution_inputs
+    validate_data_gen_execution_inputs,
 )
 
 load_dotenv()
@@ -1330,6 +1332,7 @@ def start_test_execution(
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
     execution_mode: ExecutionMode = ExecutionMode.END_TO_END,
     test_ids: Optional[List[str]] = None,
+    datasets_config_path: Optional[str] = None,
 ) -> str:
     """
     Orchestrate test suite execution workflow.
@@ -1352,6 +1355,7 @@ def start_test_execution(
             - `ExecutionMode.TESTS_ONLY`
             - `ExecutionMode.END_TO_END`
         test_ids: Optional list of test ids to filter from suite
+        datasets_config_path: Optional path to datasets configuration YAML file
 
     Returns:
         Workflow ID for tracking execution
@@ -1369,6 +1373,16 @@ def start_test_execution(
         # Load configurations
         suite_config = merge_defaults_into_suite(load_config_file(suite_path))
         systems_config = load_config_file(systems_path)
+
+        # Load datasets config if provided
+        datasets_config = None
+        if datasets_config_path:
+            datasets_data = load_config_file(datasets_config_path)
+            datasets_config = DatasetsConfig(**datasets_data)
+
+        # Resolve dataset references in suite config
+        if datasets_config:
+            suite_config = resolve_dataset_references(suite_config, datasets_config)
 
         # if test_ids provided, filter suite_config
         if test_ids:
@@ -1533,28 +1547,24 @@ def start_data_generation(
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
     output_path: Optional[str] = None,
+    datasets_config_path: Optional[str] = None,
 ) -> str:
     """
-    Orchestrate test suite execution workflow.
+    Orchestrate data generation workflow.
 
     Handles input validation, configuration loading, and workflow delegation.
     Actual execution logic is handled by dedicated workflow functions.
 
     Args:
-        suite_path: Path to test suite YAML file
+        generation_config_path: Path to generation config YAML file
         systems_path: Path to systems YAML file
         executor_config: Executor configuration dictionary. Expected keys:
             - "concurrent_tests": int, number of concurrent tests
             - "max_failures": int, max number of failures to display
             - "progress_interval": int, interval for progress updates
         container_config: Container execution configurations
-        audit_responses_data: Optional dictionary of audit responses data
         output_path: Optional path to save results JSON file
-        score_card_configs: Optional list of score card configurations to evaluate
-        execution_mode: Execution mode, expected modes:
-            - `ExecutionMode.TESTS_ONLY`
-            - `ExecutionMode.END_TO_END`
-        test_ids: Optional list of test ids to filter from suite
+        datasets_config_path: Optional path to datasets configuration YAML file
 
     Returns:
         Workflow ID for tracking execution
@@ -1570,13 +1580,23 @@ def start_data_generation(
         # Load configurations
         generation_config = load_config_file(generation_config_path)
         systems_config = load_config_file(systems_path)
-        handle = DBOS.start_workflow(
-                run_data_generation_workflow,
-                generation_config,
-                systems_config,
-                executor_config,
-                container_config,
+        datasets_config = None
+        if datasets_config_path:
+            datasets_data = load_config_file(datasets_config_path)
+            datasets_config = DatasetsConfig(**datasets_data)
+
+        # Resolve dataset references in generation config
+        if datasets_config:
+            generation_config = resolve_dataset_references(
+                generation_config, datasets_config
             )
+        handle = DBOS.start_workflow(
+            run_data_generation_workflow,
+            generation_config,
+            systems_config,
+            executor_config,
+            container_config,
+        )
 
         results, container_results = handle.get_result()
         if output_path:
@@ -1591,6 +1611,7 @@ def start_data_generation(
 
 
 ## Data Generation
+
 
 @DBOS.step()
 def execute_data_generation(
@@ -1659,14 +1680,16 @@ def execute_data_generation(
     }
 
     # Load environment variables from system_under_test env_file (backward compatibility)
-    for _system_value in systems_params.values(): 
+    for _system_value in systems_params.values():
         if "env_file" in _system_value and _system_value["env_file"]:
             env_file_path = _system_value["env_file"]
             if os.path.exists(env_file_path):
                 try:
                     env_vars = dotenv_values(env_file_path)
                     # Filter out None values to ensure all env vars are strings
-                    filtered_env_vars = {k: v for k, v in env_vars.items() if v is not None}
+                    filtered_env_vars = {
+                        k: v for k, v in env_vars.items() if v is not None
+                    }
                     container_env.update(filtered_env_vars)
                     DBOS.logger.info(
                         f"Loaded environment variables from system-level env_file: {env_file_path}"
@@ -1709,7 +1732,6 @@ def execute_data_generation(
                 DBOS.logger.info(f"Interpolated environment variable: {key}")
             else:
                 DBOS.logger.info(f"Set environment variable: {key}")
-
 
     # Extract manifest to check for host access requirements and validate environment variables
     manifest = None
@@ -1794,8 +1816,6 @@ def execute_data_generation(
     test_results = {}
     generated_reports = []
 
-    
-
     # Parse JSON output from container
     if container_result["success"]:
         try:
@@ -1824,7 +1844,9 @@ def execute_data_generation(
 
     # Log failures for debugging
     if not result.success:
-        DBOS.logger.error(f"Data Generation Job failed, id: {job_id} - {result.error_message}")
+        DBOS.logger.error(
+            f"Data Generation Job failed, id: {job_id} - {result.error_message}"
+        )
 
     return result
 
@@ -1919,7 +1941,9 @@ def run_data_generation_workflow(
             "results": [],
         }, []
 
-    console.print(f"\n[bold blue]Executing Test Suite:[/bold blue] {generation_config.job_name}")
+    console.print(
+        f"\n[bold blue]Executing Test Suite:[/bold blue] {generation_config.job_name}"
+    )
 
     """Get the list of available Docker images for the test suite."""
     unique_images = list(set(job.image for job in generation_config.generation_jobs))
@@ -1930,7 +1954,9 @@ def run_data_generation_workflow(
 
     # Validate test plan
     with console.status("[bold blue]Validating test plan...", spinner="dots"):
-        validation_errors = validate_data_generation_plan(generation_config, systems, manifests)
+        validation_errors = validate_data_generation_plan(
+            generation_config, systems, manifests
+        )
 
     if validation_errors:
         console.print("[red]Validation failed:[/red]")
@@ -1956,7 +1982,9 @@ def run_data_generation_workflow(
         }, []
 
     # Prepare test execution plan
-    data_gen_plan = create_data_generation_plan(generation_config, systems, image_availability)
+    data_gen_plan = create_data_generation_plan(
+        generation_config, systems, image_availability
+    )
     data_gen_count = len(data_gen_plan)
 
     if data_gen_count == 0:
@@ -1978,7 +2006,9 @@ def run_data_generation_workflow(
     console.print(f"\n[bold]Running {data_gen_count} Generations...[/bold]")
     try:
         with create_test_execution_progress(console) as progress:
-            task = progress.add_task("Executing Data Generation Workflows", total=data_gen_count)
+            task = progress.add_task(
+                "Executing Data Generation Workflows", total=data_gen_count
+            )
             # Enqueue all tests for concurrent execution
             generation_handles = []
             for plan in data_gen_plan:
@@ -2049,7 +2079,9 @@ def run_data_generation_workflow(
 
         # Collect results as they complete
         all_results = []
-        progress_interval = max(1, data_gen_count // executor_config["progress_interval"])
+        progress_interval = max(
+            1, data_gen_count // executor_config["progress_interval"]
+        )
         for i, (handle, plan) in enumerate(test_handles, 1):
             try:
                 result = handle.get_result()
@@ -2115,7 +2147,6 @@ def run_data_generation_workflow(
         "summary": summary,
         "results": [result.result_dict() for result in all_results],
     }, [result.container_dict() for result in all_results]
-
 
 
 if __name__ == "__main__":
