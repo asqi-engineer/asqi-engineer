@@ -33,10 +33,13 @@ from asqi.errors import ReportValidationError
 from asqi.output import (
     create_test_execution_progress,
     create_workflow_summary,
+    display_generated_datasets,
+    display_score_card_reports,
     extract_container_json_output_fields,
     format_execution_summary,
     format_failure_summary,
     parse_container_json_output,
+    translate_dataset_paths,
     translate_report_paths,
 )
 from asqi.schemas import (
@@ -63,7 +66,6 @@ from asqi.validation import (
     validate_test_execution_inputs,
     validate_test_volumes,
     validate_workflow_configurations,
-    verify_score_card_reports,
 )
 
 load_dotenv()
@@ -174,6 +176,7 @@ class TestExecutionResult:
         self.test_results: Dict[str, Any] = {}
         self.error_message: str = ""
         self.generated_reports: List[Dict[str, Any]] = []
+        self.generated_datasets: List[Dict[str, Any]] = []
 
     @property
     def execution_time(self) -> float:
@@ -201,6 +204,7 @@ class TestExecutionResult:
             },
             "test_results": self.test_results,
             "generated_reports": self.generated_reports,
+            "generated_datasets": self.generated_datasets,
         }
 
     def container_dict(self) -> Dict[str, Any]:
@@ -534,14 +538,16 @@ def execute_single_test(
             parsed_container_results = parse_container_json_output(
                 result.container_output
             )
-            test_results, generated_reports = extract_container_json_output_fields(
-                parsed_container_results
+            test_results, generated_reports, generated_datasets = (
+                extract_container_json_output_fields(parsed_container_results)
             )
             result.test_results = test_results
             result.generated_reports = generated_reports
+            result.generated_datasets = generated_datasets
 
             host_output_volume = test_params.get("volumes", {}).get("output", "")
             translate_report_paths(generated_reports, host_output_volume)
+            translate_dataset_paths(generated_datasets, host_output_volume)
             result.success = result.test_results.get("success", False)
         except ValueError as e:
             result.error_message = (
@@ -655,7 +661,7 @@ def evaluate_score_card(
             all_evaluations.append(error_result)
             DBOS.logger.error(f"Score card evaluation error: {e}")
 
-    verify_score_card_reports(all_evaluations)
+    display_score_card_reports(all_evaluations)
     return all_evaluations
 
 
@@ -1461,6 +1467,14 @@ def start_test_execution(
 
         results, container_results = handle.get_result()
         if output_path:
+            # Display generated datasets before saving results
+            test_results = results.get("results", [])
+            if test_results:
+                console.print(
+                    "\n[bold blue]Verifying generated datasets...[/bold blue]"
+                )
+                display_generated_datasets(test_results)
+
             save_results_to_file_step(results, output_path)
             save_container_results_to_file_step(container_results, output_path)
 
@@ -1601,6 +1615,14 @@ def start_data_generation(
 
         results, container_results = handle.get_result()
         if output_path:
+            # Display generated datasets before saving results
+            generation_results = results.get("results", [])
+            if generation_results:
+                console.print(
+                    "\n[bold blue]Verifying generated datasets...[/bold blue]"
+                )
+                display_generated_datasets(generation_results)
+
             save_results_to_file_step(results, output_path)
             save_container_results_to_file_step(container_results, output_path)
 
@@ -1820,14 +1842,16 @@ def execute_data_generation(
             parsed_container_results = parse_container_json_output(
                 result.container_output
             )
-            test_results, generated_reports = extract_container_json_output_fields(
-                parsed_container_results
+            test_results, generated_reports, generated_datasets = (
+                extract_container_json_output_fields(parsed_container_results)
             )
             result.test_results = test_results
             result.generated_reports = generated_reports
+            result.generated_datasets = generated_datasets
 
             host_output_volume = generation_params.get("volumes", {}).get("output", "")
             translate_report_paths(generated_reports, host_output_volume)
+            translate_dataset_paths(generated_datasets, host_output_volume)
             result.success = result.test_results.get("success", False)
         except ValueError as e:
             result.error_message = (

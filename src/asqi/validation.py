@@ -1006,42 +1006,6 @@ def validate_indicator_display_reports(
     return errors
 
 
-def verify_score_card_reports(all_evaluations: List[Dict[str, Any]]) -> None:
-    """
-    Verifies that all generated reports referenced in the score card evaluations
-    exist on the local filesystem and logs the results to the console.
-
-    Args:
-        all_evaluations: List of score card evaluation results
-    """
-    if not all_evaluations:
-        return
-
-    console.print("\n[bold blue]Verifying generated reports...[/bold blue]")
-    reports_count = 0
-    for evaluation in all_evaluations:
-        indicator_id = evaluation.get("indicator_id", "")
-        report_paths = evaluation.get("report_paths") or []
-        for report_path_str in report_paths:
-            try:
-                path = Path(report_path_str)
-                if path.exists() and path.is_file():
-                    reports_count += 1
-                    console.print(
-                        f"Indicator id [bold]'{indicator_id}'[/bold]: Report saved to [bold]{report_path_str}[/bold]"
-                    )
-                else:
-                    console.print(
-                        f"Indicator id [bold]'{indicator_id}'[/bold]: Report [red]{path.name}[/red] is missing. Current path: {report_path_str}"
-                    )
-            except (TypeError, ValueError, OSError) as e:
-                console.print(
-                    f"Indicator id [bold]'{indicator_id}'[/bold]: Invalid report path [red]{report_path_str}[/red] ({str(e)})"
-                )
-    if reports_count == 0:
-        console.print("No reports were generated")
-
-
 ## Data Generation Functions
 def validate_data_generation_input(
     generation_config_path: str,

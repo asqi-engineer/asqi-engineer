@@ -1437,7 +1437,7 @@ systems:
         # Mock DBOS workflow
         mock_result = {"summary": {"status": "COMPLETED"}, "results": []}
         mock_handle = DummyHandle(
-            (mock_result, []), workflow_id="test-gen-123", return_tuple=True
+            mock_result, workflow_id="test-gen-123", return_tuple=True
         )
 
         with patch("asqi.workflow.DBOS") as mock_dbos:
@@ -1485,7 +1485,7 @@ generation_jobs:
         # Mock DBOS workflow
         mock_result = {"summary": {"status": "COMPLETED"}, "results": []}
         mock_handle = DummyHandle(
-            (mock_result, []), workflow_id="test-gen-456", return_tuple=True
+            mock_result, workflow_id="test-gen-456", return_tuple=True
         )
 
         with patch("asqi.workflow.DBOS") as mock_dbos:
