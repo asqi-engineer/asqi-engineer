@@ -12,14 +12,24 @@ def load_hf_dataset(dataset_config: dict) -> Dataset:
 
     Returns:
         Dataset: Loaded HuggingFace dataset.
+
+    Security Note:
+        This function uses local file loaders (json, csv, parquet, etc.) via
+        builder_name constrained by Literal types in DatasetLoaderParams.
+        The revision parameter is provided for forward compatibility with HF Hub
+        datasets, but current usage is limited to local files only.
     """
     dataset_config = HFDatasetConfig(**dataset_config)
     loader_params = dataset_config.loader_params
     mapping = dataset_config.mapping
-    dataset = load_dataset(
+    # B615: Only local file loaders (json, csv, parquet, etc.) are used via
+    # builder_name constrained by Literal type. revision provided for future
+    # compatibility with HF Hub datasets but not required for local files.
+    dataset = load_dataset(  # nosec B615
         path=loader_params.builder_name,
         data_dir=loader_params.data_dir,
         data_files=loader_params.data_files,
+        revision=loader_params.revision,
         split="train",
     )
     dataset = dataset.rename_columns(mapping)

@@ -390,6 +390,12 @@ class DatasetLoaderParams(BaseModel):
         None,
         description="Single file path or list of file paths, relative to the input mount.",
     )
+    revision: Optional[str] = Field(
+        None,
+        description="Git revision (commit hash, tag, or branch) for HuggingFace Hub datasets. "
+        "Required for security when loading datasets from the Hub. "
+        "Not needed for local file loaders (json, csv, parquet, etc.).",
+    )
 
     @model_validator(mode="after")
     def _validate_data_source(self) -> "DatasetLoaderParams":
