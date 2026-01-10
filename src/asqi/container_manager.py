@@ -331,9 +331,12 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
         Host path string corresponding to the given path, or a normalized fallback.
     """
     try:
+        # First resolve to absolute path to handle relative paths
+        abs_path = _resolve_abs(maybe_dev_path)
+
         # Short-circuit if it's clearly a host path (macOS /Users, Windows drive, etc.)
-        if not maybe_dev_path.startswith("/workspaces/"):
-            return _resolve_abs(maybe_dev_path)
+        if not abs_path.startswith("/workspaces/"):
+            return abs_path
 
         # Inspect *this* container, then map Destination -> Source
         cid = Path("/etc/hostname").read_text().strip()
@@ -341,8 +344,8 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
         for m in info.get("Mounts", []):
             dest = m.get("Destination") or m.get("Target")
             src = m.get("Source")
-            if dest and src and maybe_dev_path.startswith(dest):
-                rel = maybe_dev_path[len(dest) :]
+            if dest and src and abs_path.startswith(dest):
+                rel = abs_path[len(dest) :]
                 return _resolve_abs(src + rel)
     except Exception as e:
         logger.error("Failed to resolve devcontainer path '%s': %s", maybe_dev_path, e)
