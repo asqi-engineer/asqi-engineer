@@ -1,100 +1,5 @@
 {
   "$defs": {
-    "DatasetLoaderParams": {
-      "description": "Parameters for loading a HuggingFace dataset from the mounted folder in the container.",
-      "properties": {
-        "builder_name": {
-          "description": "The dataset builder name. Gets passed to datasets.load_dataset() as the path argument.",
-          "enum": [
-            "json",
-            "csv",
-            "parquet",
-            "arrow",
-            "text",
-            "xml",
-            "webdataset",
-            "imagefolder",
-            "audiofolder",
-            "videofolder"
-          ],
-          "title": "Builder Name",
-          "type": "string"
-        },
-        "data_dir": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Directory containing dataset files, relative to the input mount.",
-          "title": "Data Dir"
-        },
-        "data_files": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Single file path or list of file paths, relative to the input mount.",
-          "title": "Data Files"
-        }
-      },
-      "required": [
-        "builder_name"
-      ],
-      "title": "DatasetLoaderParams",
-      "type": "object"
-    },
-    "FileDatasetConfig": {
-      "properties": {
-        "file_path": {
-          "description": "Path to the input file, relative to the input mount.",
-          "title": "File Path",
-          "type": "string"
-        }
-      },
-      "required": [
-        "file_path"
-      ],
-      "title": "FileDatasetConfig",
-      "type": "object"
-    },
-    "HFDatasetConfig": {
-      "properties": {
-        "loader_params": {
-          "$ref": "#/$defs/DatasetLoaderParams",
-          "description": "Keyword arguments for HuggingFace datasets.load_dataset function to load dataset."
-        },
-        "mapping": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {},
-          "description": "Mapping from expected feature names in container manifest to dataset fields.",
-          "title": "Mapping",
-          "type": "object"
-        }
-      },
-      "required": [
-        "loader_params"
-      ],
-      "title": "HFDatasetConfig",
-      "type": "object"
-    },
     "TestDefinition": {
       "description": "A single test to be executed.",
       "properties": {
@@ -164,14 +69,7 @@
           "anyOf": [
             {
               "additionalProperties": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/HFDatasetConfig"
-                  },
-                  {
-                    "$ref": "#/$defs/FileDatasetConfig"
-                  }
-                ]
+                "type": "string"
               },
               "type": "object"
             },
@@ -180,7 +78,7 @@
             }
           ],
           "default": null,
-          "description": "Input dataset names mapped to their loading and mapping configurations.",
+          "description": "Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
           "title": "Datasets"
         },
         "volumes": {
@@ -340,14 +238,7 @@
           "anyOf": [
             {
               "additionalProperties": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/HFDatasetConfig"
-                  },
-                  {
-                    "$ref": "#/$defs/FileDatasetConfig"
-                  }
-                ]
+                "type": "string"
               },
               "type": "object"
             },
@@ -356,7 +247,7 @@
             }
           ],
           "default": null,
-          "description": "Input dataset names mapped to their loading and mapping configurations.",
+          "description": "Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
           "title": "Datasets"
         },
         "volumes": {
