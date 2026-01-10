@@ -50,8 +50,13 @@ from asqi.schemas import (
 )
 from asqi.validation import (
     build_env_var_error_message,
+    create_data_generation_plan,
     create_test_execution_plan,
     resolve_dataset_references,
+    validate_data_gen_execution_inputs,
+    validate_data_generation_input,
+    validate_data_generation_plan,
+    validate_data_generation_volumes,
     validate_execution_inputs,
     validate_indicator_display_reports,
     validate_score_card_inputs,
@@ -59,11 +64,6 @@ from asqi.validation import (
     validate_test_volumes,
     validate_workflow_configurations,
     verify_score_card_reports,
-    validate_data_generation_input,
-    validate_data_generation_plan,
-    create_data_generation_plan,
-    validate_data_generation_volumes,
-    validate_data_gen_execution_inputs,
 )
 
 load_dotenv()
@@ -81,7 +81,6 @@ config: DBOSConfig = {
 if oltp_endpoint:
     config["enable_otlp"] = True
     config["otlp_traces_endpoints"] = [oltp_endpoint]
-    config["otlp_logs_endpoints"] = [oltp_endpoint]
 DBOS(config=config)
 
 # Initialize Rich console and execution queue
