@@ -1,16 +1,53 @@
 {
   "$defs": {
     "DatasetFeature": {
-      "description": "Defines a feature/column within a dataset.",
+      "description": "Defines a feature/column within a dataset.\n\nThe dtype field uses HuggingFace datasets dtype values.\nCommon types: 'string', 'int64', 'float32', 'bool'.",
       "properties": {
         "name": {
           "description": "The name of the feature.",
           "title": "Name",
           "type": "string"
         },
-        "type": {
-          "description": "The data type of the feature compatible with , e.g., string, int64, float32, etc.",
-          "title": "Type",
+        "dtype": {
+          "description": "The data type of the feature. Common types: 'string', 'int64', 'int32', 'float64', 'float32', 'bool'. See: https://huggingface.co/docs/datasets/about_dataset_features",
+          "enum": [
+            "null",
+            "bool",
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+            "float16",
+            "float32",
+            "float",
+            "float64",
+            "double",
+            "time32[s]",
+            "time32[ms]",
+            "time64[us]",
+            "time64[ns]",
+            "timestamp[s]",
+            "timestamp[ms]",
+            "timestamp[us]",
+            "timestamp[ns]",
+            "date32",
+            "date64",
+            "duration[s]",
+            "duration[ms]",
+            "duration[us]",
+            "duration[ns]",
+            "binary",
+            "large_binary",
+            "binary_view",
+            "string",
+            "large_string",
+            "string_view"
+          ],
+          "title": "Dtype",
           "type": "string"
         },
         "description": {
@@ -29,10 +66,20 @@
       },
       "required": [
         "name",
-        "type"
+        "dtype"
       ],
       "title": "DatasetFeature",
       "type": "object"
+    },
+    "DatasetType": {
+      "description": "Supported dataset types for InputDataset.",
+      "enum": [
+        "huggingface",
+        "pdf",
+        "txt"
+      ],
+      "title": "DatasetType",
+      "type": "string"
     },
     "EnvironmentVariable": {
       "description": "Defines an environment variable required by the test container.",
@@ -69,7 +116,7 @@
       "type": "object"
     },
     "InputDataset": {
-      "description": "Defines a dataset input that the container requires.",
+      "description": "Defines a dataset input that the container requires.\n\nSupported dataset types:\n- 'huggingface': HuggingFace datasets (requires features to be defined)\n- 'pdf': PDF documents\n- 'txt': Plain text files",
       "properties": {
         "name": {
           "description": "The dataset name, e.g., 'evaluation_data', 'test_prompts'.",
@@ -83,9 +130,8 @@
           "type": "boolean"
         },
         "type": {
-          "description": "The supported dataset type, e.g., 'huggingface' for HF datasets, 'pdf' for PDF documents, 'txt' for .txt files.",
-          "title": "Type",
-          "type": "string"
+          "$ref": "#/$defs/DatasetType",
+          "description": "The dataset type: 'huggingface' for HF datasets with features, 'pdf' for PDF documents, 'txt' for text files."
         },
         "description": {
           "anyOf": [
@@ -113,7 +159,7 @@
             }
           ],
           "default": null,
-          "description": "List of required features within a HuggingFace dataset (not required for other dataset types). Actual dataset's feature names, if different, can be mapped to required feature names in the test config.",
+          "description": "List of required features within a HuggingFace dataset (required for 'huggingface' type, ignored for others). Actual dataset feature names can be mapped to these required names in the test config.",
           "title": "Features"
         }
       },
