@@ -11,16 +11,17 @@ from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.schemas import (
     AuditScoreCardIndicator,
     DataGenerationConfig,
-    DatasetType,
     DatasetsConfig,
+    DatasetType,
     EnvironmentVariable,
-    FileDatasetDefinition,
     HFDatasetDefinition,
     Manifest,
+    PDFDatasetDefinition,
     ScoreCard,
     SuiteConfig,
     SystemsConfig,
     TestDefinition,
+    TXTDatasetDefinition,
 )
 
 logger = logging.getLogger()
@@ -309,20 +310,18 @@ def validate_dataset_configs(test: TestDefinition, manifest: Manifest) -> List[s
             )
 
         elif schema_dataset.name in test_datasets:
+            dataset_def = test_datasets[schema_dataset.name]
+
             if schema_dataset.type == DatasetType.HUGGINGFACE:
-                if not isinstance(
-                    test_datasets[schema_dataset.name], HFDatasetDefinition
-                ):
+                if not isinstance(dataset_def, HFDatasetDefinition):
                     errors.append(
-                        f"Test '{test.name}':  Dataset '{schema_dataset.name}' of type '{DatasetType.HUGGINGFACE}' must have config of type HFDatasetDefinition."
+                        f"Test '{test.name}': Dataset '{schema_dataset.name}' of type '{DatasetType.HUGGINGFACE}' must have config of type HFDatasetDefinition (with type='huggingface')."
                     )
                 else:
                     # Check for unknown mapped fields.
                     expected_features = {f.name for f in schema_dataset.features}
                     unknown_mappings: list[str] = []
-                    for mapped_feature in test_datasets[
-                        schema_dataset.name
-                    ].mapping.keys():
+                    for mapped_feature in dataset_def.mapping.keys():
                         if mapped_feature not in expected_features:
                             unknown_mappings.append(mapped_feature)
                     if unknown_mappings:
@@ -330,12 +329,17 @@ def validate_dataset_configs(test: TestDefinition, manifest: Manifest) -> List[s
                             f"Test '{test.name}': Unknown feature mappings '{', '.join(unknown_mappings)}' in dataset '{schema_dataset.name}'. Valid features: {', '.join(expected_features) if expected_features else 'none'}"
                         )
 
-            elif not isinstance(
-                test_datasets[schema_dataset.name], FileDatasetDefinition
-            ):
-                errors.append(
-                    f"Test '{test.name}': Dataset '{schema_dataset.name}' of type {schema_dataset.type} must have config of type FileDatasetDefinition."
-                )
+            elif schema_dataset.type == DatasetType.PDF:
+                if not isinstance(dataset_def, PDFDatasetDefinition):
+                    errors.append(
+                        f"Test '{test.name}': Dataset '{schema_dataset.name}' of type '{DatasetType.PDF}' must have config of type PDFDatasetDefinition (with type='pdf')."
+                    )
+
+            elif schema_dataset.type == DatasetType.TXT:
+                if not isinstance(dataset_def, TXTDatasetDefinition):
+                    errors.append(
+                        f"Test '{test.name}': Dataset '{schema_dataset.name}' of type '{DatasetType.TXT}' must have config of type TXTDatasetDefinition (with type='txt')."
+                    )
 
     # Check for unknown dataset names
     schema_datasets = {d.name: d for d in manifest.input_datasets}
@@ -1365,7 +1369,7 @@ def resolve_dataset_references(
 def _resolve_dataset_dict(
     datasets: Dict[str, str],
     datasets_config: DatasetsConfig,
-) -> Dict[str, Union[HFDatasetDefinition, FileDatasetDefinition]]:
+) -> Dict[str, Union[HFDatasetDefinition, PDFDatasetDefinition, TXTDatasetDefinition]]:
     """
     Resolve dataset name references to dataset definition objects.
 
@@ -1374,7 +1378,7 @@ def _resolve_dataset_dict(
         datasets_config: Datasets configuration
 
     Returns:
-        Dict mapping manifest names to resolved dataset definition objects (HFDatasetDefinition or FileDatasetDefinition)
+        Dict mapping manifest names to resolved dataset definition objects (HFDatasetDefinition, PDFDatasetDefinition, or TXTDatasetDefinition)
 
     Raises:
         ValueError: If dataset reference not found
