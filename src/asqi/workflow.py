@@ -41,6 +41,8 @@ from asqi.output import (
 )
 from asqi.schemas import (
     AuditResponses,
+    DataGenerationConfig,
+    DatasetsConfig,
     Manifest,
     ScoreCard,
     SuiteConfig,
@@ -48,7 +50,13 @@ from asqi.schemas import (
 )
 from asqi.validation import (
     build_env_var_error_message,
+    create_data_generation_plan,
     create_test_execution_plan,
+    resolve_dataset_references,
+    validate_data_gen_execution_inputs,
+    validate_data_generation_input,
+    validate_data_generation_plan,
+    validate_data_generation_volumes,
     validate_execution_inputs,
     validate_indicator_display_reports,
     validate_score_card_inputs,
@@ -73,7 +81,6 @@ config: DBOSConfig = {
 if oltp_endpoint:
     config["enable_otlp"] = True
     config["otlp_traces_endpoints"] = [oltp_endpoint]
-    config["otlp_logs_endpoints"] = [oltp_endpoint]
 DBOS(config=config)
 
 # Initialize Rich console and execution queue
@@ -341,7 +348,7 @@ def execute_single_test(
     systems_params_with_fallbacks = systems_params.copy()
 
     # Load environment variables and merge into system parameters if env_file specified
-    sut_params = systems_params_with_fallbacks["system_under_test"]
+    sut_params = systems_params_with_fallbacks.get("system_under_test", {})
     if "env_file" in sut_params and sut_params["env_file"]:
         env_file_path = sut_params["env_file"]
         if os.path.exists(env_file_path):
@@ -658,6 +665,7 @@ def run_test_suite_workflow(
     systems_config: Dict[str, Any],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
+    datasets_config: Optional[Dict[str, Any]] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
@@ -674,6 +682,7 @@ def run_test_suite_workflow(
         systems_config: Serialized SystemsConfig containing system configurations
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
+        datasets_config: Optional datasets configuration for resolving dataset references
         score_card_configs: Optional list of score card configurations
 
     Returns:
@@ -690,6 +699,9 @@ def run_test_suite_workflow(
     try:
         suite = SuiteConfig(**suite_config)
         systems = SystemsConfig(**systems_config)
+        if datasets_config:
+            datasets = DatasetsConfig(**datasets_config)
+            suite = resolve_dataset_references(suite, datasets)
         score_cards = []
         for score_card_config in score_card_configs or []:
             score_cards.append(ScoreCard(**score_card_config))
@@ -1086,6 +1098,7 @@ def run_end_to_end_workflow(
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
     audit_responses_data: Optional[Dict[str, Any]] = None,
+    datasets_config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a complete end-to-end workflow: test execution + score card evaluation.
@@ -1097,6 +1110,7 @@ def run_end_to_end_workflow(
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
         audit_responses_data: Optional dict with manual audit responses
+        datasets_config: Optional datasets configuration for resolving dataset references
 
     Returns:
         Complete execution results with test results, score card evaluations and container results
@@ -1106,6 +1120,7 @@ def run_end_to_end_workflow(
         systems_config,
         executor_config,
         container_config,
+        datasets_config,
         score_card_configs,
     )
 
@@ -1324,6 +1339,7 @@ def start_test_execution(
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
     execution_mode: ExecutionMode = ExecutionMode.END_TO_END,
     test_ids: Optional[List[str]] = None,
+    datasets_config_path: Optional[str] = None,
 ) -> str:
     """
     Orchestrate test suite execution workflow.
@@ -1346,6 +1362,7 @@ def start_test_execution(
             - `ExecutionMode.TESTS_ONLY`
             - `ExecutionMode.END_TO_END`
         test_ids: Optional list of test ids to filter from suite
+        datasets_config_path: Optional path to datasets configuration YAML file
 
     Returns:
         Workflow ID for tracking execution
@@ -1363,6 +1380,11 @@ def start_test_execution(
         # Load configurations
         suite_config = merge_defaults_into_suite(load_config_file(suite_path))
         systems_config = load_config_file(systems_path)
+
+        # Load datasets config if provided (pass to workflow for resolution after validation)
+        datasets_config = None
+        if datasets_config_path:
+            datasets_config = load_config_file(datasets_config_path)
 
         # if test_ids provided, filter suite_config
         if test_ids:
@@ -1410,6 +1432,7 @@ def start_test_execution(
                 systems_config,
                 executor_config,
                 container_config,
+                datasets_config,
             )
         elif execution_mode == ExecutionMode.END_TO_END:
             if not score_card_configs:
@@ -1420,6 +1443,7 @@ def start_test_execution(
                     systems_config,
                     executor_config,
                     container_config,
+                    datasets_config,
                 )
             else:
                 handle = DBOS.start_workflow(
@@ -1430,6 +1454,7 @@ def start_test_execution(
                     executor_config,
                     container_config,
                     audit_responses_data,
+                    datasets_config,
                 )
         else:
             raise ValueError(f"Invalid execution mode: {execution_mode}")
@@ -1519,6 +1544,613 @@ def start_score_card_evaluation(
     except RuntimeError as e:
         console.print(f"[red]Workflow execution failed:[/red] {e}")
         raise
+
+
+def start_data_generation(
+    generation_config_path: str,
+    systems_path: Optional[str],
+    executor_config: Dict[str, Any],
+    container_config: ContainerConfig,
+    output_path: Optional[str] = None,
+    datasets_config_path: Optional[str] = None,
+) -> str:
+    """
+    Orchestrate data generation workflow.
+
+    Handles input validation, configuration loading, and workflow delegation.
+    Actual execution logic is handled by dedicated workflow functions.
+
+    Args:
+        generation_config_path: Path to generation config YAML file
+        systems_path: Path to systems YAML file (optional)
+        executor_config: Executor configuration dictionary. Expected keys:
+            - "concurrent_tests": int, number of concurrent tests
+            - "max_failures": int, max number of failures to display
+            - "progress_interval": int, interval for progress updates
+        container_config: Container execution configurations
+        output_path: Optional path to save results JSON file
+        datasets_config_path: Optional path to datasets configuration YAML file
+
+    Returns:
+        Workflow ID for tracking execution
+
+    Raises:
+        ValueError: If inputs are invalid
+        FileNotFoundError: If configuration files don't exist
+        PermissionError: If configuration files cannot be read
+    """
+    validate_data_generation_input(generation_config_path, systems_path, output_path)
+
+    try:
+        # Load configurations
+        generation_config = load_config_file(generation_config_path)
+        systems_config = load_config_file(systems_path) if systems_path else None
+        datasets_config = None
+        if datasets_config_path:
+            datasets_config = load_config_file(datasets_config_path)
+
+        # Pass datasets_config to workflow for resolution after validation
+        handle = DBOS.start_workflow(
+            run_data_generation_workflow,
+            generation_config,
+            systems_config,
+            executor_config,
+            container_config,
+            datasets_config,
+        )
+
+        results, container_results = handle.get_result()
+        if output_path:
+            save_results_to_file_step(results, output_path)
+            save_container_results_to_file_step(container_results, output_path)
+
+        return handle.get_workflow_id()
+
+    except FileNotFoundError as e:
+        console.print(f"[red]Configuration file not found:[/red] {e}")
+        raise
+
+
+## Data Generation
+
+
+@DBOS.step()
+def execute_data_generation(
+    job_name: str,
+    job_id: str,
+    image: str,
+    systems_params: Dict[str, Any],
+    generation_params: Dict[str, Any],
+    container_config: ContainerConfig,
+    env_file: Optional[str] = None,
+    environment: Optional[Dict[str, str]] = None,
+) -> TestExecutionResult:
+    """Execute a single data generation job in a Docker container.
+
+    Args:
+        job_name: Name of the generation job to execute (pre-validated)
+        job_id: Unique ID of the generation job to execute (pre-validated)
+        image: Docker image to run (pre-validated)
+        systems_params: Dictionary containing generation systems and their configurations (pre-validated)
+        generation_params: Parameters for the generation job (pre-validated)
+        container_config: Container execution configurations
+        env_file: Optional path to .env file for job-level environment variables
+        environment: Optional dictionary of environment variables for the generation job
+
+    Returns:
+        TestExecutionResult containing execution metadata and results
+
+    Raises:
+        ValueError: If inputs fail validation or JSON output cannot be parsed
+        RuntimeError: If container execution fails
+    """
+    result = TestExecutionResult(job_name, job_id, job_name, image)
+    # Extract system_under_test for validation and environment handling
+    try:
+        validate_data_gen_execution_inputs(
+            job_id, image, systems_params, generation_params
+        )
+    except ValueError as e:
+        result.error_message = str(e)
+        result.success = False
+        return result
+
+    # Prepare command line arguments
+    try:
+        systems_params_json = json.dumps(systems_params)
+        generation_params_json = json.dumps(generation_params)
+        command_args = [
+            "--systems-params",
+            systems_params_json,
+            "--generation-params",
+            generation_params_json,
+        ]
+    except (TypeError, ValueError) as e:
+        result.error_message = f"Failed to serialize configuration to JSON: {e}"
+        result.success = False
+        return result
+
+    # Prepare environment variables - multi-level priority:
+    # Base paths, System-level env_file, Test-level env_file, Test-level environment dict
+    container_env = {
+        "OUTPUT_MOUNT_PATH": str(OUTPUT_MOUNT_PATH),
+        "INPUT_MOUNT_PATH": str(INPUT_MOUNT_PATH),
+    }
+
+    # Load environment variables from system_under_test env_file (backward compatibility)
+    for _system_value in systems_params.values():
+        if "env_file" in _system_value and _system_value["env_file"]:
+            env_file_path = _system_value["env_file"]
+            if os.path.exists(env_file_path):
+                try:
+                    env_vars = dotenv_values(env_file_path)
+                    # Filter out None values to ensure all env vars are strings
+                    filtered_env_vars = {
+                        k: v for k, v in env_vars.items() if v is not None
+                    }
+                    container_env.update(filtered_env_vars)
+                    DBOS.logger.info(
+                        f"Loaded environment variables from system-level env_file: {env_file_path}"
+                    )
+                except Exception as e:
+                    DBOS.logger.warning(
+                        f"Failed to load system-level environment file {env_file_path}: {e}"
+                    )
+            else:
+                DBOS.logger.warning(
+                    f"System-level environment file {env_file_path} not found"
+                )
+
+    # Load environment variables from job-level env_file
+    if env_file:
+        if os.path.exists(env_file):
+            try:
+                test_env_vars = dotenv_values(env_file)
+                # Filter out None values
+                filtered_test_env_vars = {
+                    k: v for k, v in test_env_vars.items() if v is not None
+                }
+                container_env.update(filtered_test_env_vars)
+                DBOS.logger.info(
+                    f"Loaded environment variables from test-level env_file: {env_file}"
+                )
+            except Exception as e:
+                DBOS.logger.warning(
+                    f"Failed to load test-level environment file {env_file}: {e}"
+                )
+        else:
+            DBOS.logger.warning(f"Test-level environment file {env_file} not found")
+
+    # Merge test-level environment dict (with interpolation support)
+    if environment:
+        interpolated_env = interpolate_env_vars(environment)
+        for key, value in interpolated_env.items():
+            container_env[key] = value
+            if environment.get(key) != value:
+                DBOS.logger.info(f"Interpolated environment variable: {key}")
+            else:
+                DBOS.logger.info(f"Set environment variable: {key}")
+
+    # Extract manifest to check for host access requirements and validate environment variables
+    manifest = None
+    try:
+        manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
+    except Exception as e:
+        # Log warning but continue - manifest extraction failure shouldn't stop test execution
+        DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
+
+    # Validate environment variables against manifest requirements
+    if manifest and manifest.environment_variables:
+        missing_required = []
+        missing_optional = []
+
+        for env_var in manifest.environment_variables:
+            if env_var.name not in container_env:
+                if env_var.required:
+                    missing_required.append(env_var)
+                else:
+                    missing_optional.append(env_var)
+
+        # Fail immediately if required environment variables are missing
+        if missing_required:
+            error_msg = build_env_var_error_message(missing_required, job_name, image)
+            result.error_message = error_msg
+            result.success = False
+            return result
+
+        # Log warnings for optional missing environment variables
+        if missing_optional:
+            for env_var in missing_optional:
+                DBOS.logger.warning(
+                    f"Optional environment variable '{env_var.name}' not provided for data generation job '{job_name}'. "
+                    f"{env_var.description or 'No description provided.'}"
+                )
+
+    # Configure Docker-in-Docker for containers that require host access
+    if manifest and manifest.host_access:
+        docker_socket_path = _get_docker_socket_path(env_vars=container_env)
+        container_config.run_params.update(
+            {
+                "cap_drop": ["ALL"],
+                "cap_add": ["SYS_ADMIN"],
+                "volumes": {
+                    docker_socket_path: {
+                        "bind": "/var/run/docker.sock",
+                        "mode": "rw",
+                    }
+                },
+            }
+        )
+        # Remove env variable DOCKER_HOST to avoid container looking for host path inside container
+        del container_env["DOCKER_HOST"]
+        DBOS.logger.info(
+            f"Configured Docker-in-Docker for test id: {job_id} (image: {image}) using host socket: {docker_socket_path}"
+        )
+
+    # Execute container
+    result.start_time = time.time()
+
+    # Generate container name: {sut}-{test_id}-{short_uuid}
+    truncated_job_name = job_name.lower().replace(" ", "_")[:25]
+    truncated_job_id = job_id.lower()[:25]
+    prefix = f"{truncated_job_name}-{truncated_job_id}"
+    container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
+
+    container_result = run_container_with_args(
+        image=image,
+        args=command_args,
+        environment=container_env,
+        container_config=container_config,
+        name=container_name,
+        workflow_id=DBOS.workflow_id or "",
+    )
+
+    result.end_time = time.time()
+    result.container_id = container_result["container_id"]
+    result.exit_code = container_result["exit_code"]
+    result.container_output = container_result["output"]
+    result.error_message = container_result["error"]
+
+    test_results = {}
+    generated_reports = []
+
+    # Parse JSON output from container
+    if container_result["success"]:
+        try:
+            parsed_container_results = parse_container_json_output(
+                result.container_output
+            )
+            test_results, generated_reports = extract_container_json_output_fields(
+                parsed_container_results
+            )
+            result.test_results = test_results
+            result.generated_reports = generated_reports
+
+            host_output_volume = generation_params.get("volumes", {}).get("output", "")
+            translate_report_paths(generated_reports, host_output_volume)
+            result.success = result.test_results.get("success", False)
+        except ValueError as e:
+            result.error_message = (
+                f"Failed to parse JSON output from job id '{job_id}': {e}"
+            )
+            result.success = False
+            DBOS.logger.error(
+                f"JSON parsing failed for job id {job_id}: {result.container_output[:200]}..."
+            )
+    else:
+        result.success = False
+
+    # Log failures for debugging
+    if not result.success:
+        DBOS.logger.error(
+            f"Data Generation Job failed, id: {job_id} - {result.error_message}"
+        )
+
+    return result
+
+
+@DBOS.workflow()
+def run_data_generation_workflow(
+    generation_config: Dict[str, Any],
+    systems_config: Optional[Dict[str, Any]],
+    executor_config: Dict[str, Any],
+    container_config: ContainerConfig,
+    datasets_config: Optional[Dict[str, Any]] = None,
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    """
+    Execute a test suite with DBOS durability (tests only, no score card evaluation).
+
+    This workflow:
+    1. Validates image availability and extracts manifests
+    2. Performs cross-validation of tests, systems, and manifests
+    3. Executes tests concurrently with progress tracking
+    4. Aggregates results with detailed error reporting
+
+    Args:
+        suite_config: Serialized SuiteConfig containing test definitions
+        systems_config: Serialized SystemsConfig containing system configurations (optional)
+        executor_config: Execution parameters controlling concurrency and reporting
+        container_config: Container execution configurations
+        datasets_config: Optional datasets configuration for resolving dataset references
+
+    Returns:
+        Execution summary with metadata and individual test results (no score cards) and container results
+    """
+    workflow_start_time = time.time()
+
+    # unique per-workflow execution
+    queue_name = f"data_generation_{DBOS.workflow_id}"
+
+    test_queue = Queue(queue_name, concurrency=executor_config["concurrent_tests"])
+
+    # Parse configurations
+    try:
+        generation_config = DataGenerationConfig(**generation_config)
+        systems = SystemsConfig(**systems_config) if systems_config else None
+
+        # Resolve dataset references after validation
+        if datasets_config:
+            datasets = DatasetsConfig(**datasets_config)
+            generation_config = resolve_dataset_references(generation_config, datasets)
+    except ValidationError as e:
+        error_msg = f"Configuration validation failed: {e}"
+        DBOS.logger.error(error_msg)
+        return {
+            "summary": create_workflow_summary(
+                suite_name="unknown",
+                workflow_id=DBOS.workflow_id or "",
+                status="CONFIG_ERROR",
+                total_tests=0,
+                successful_tests=0,
+                failed_tests=0,
+                execution_time=time.time() - workflow_start_time,
+                error=error_msg,
+            ),
+            "results": [],
+        }, []
+    except (TypeError, AttributeError) as e:
+        error_msg = f"Configuration structure error: {e}"
+        DBOS.logger.error(error_msg)
+        return {
+            "summary": create_workflow_summary(
+                suite_name="unknown",
+                workflow_id=DBOS.workflow_id or "",
+                status="CONFIG_ERROR",
+                total_tests=0,
+                successful_tests=0,
+                failed_tests=0,
+                execution_time=time.time() - workflow_start_time,
+                error=error_msg,
+            ),
+            "results": [],
+        }, []
+
+    try:
+        validate_data_generation_volumes(generation_config)
+
+    except ValueError as e:
+        error_msg = f"Volume validation failed: {e}"
+        DBOS.logger.error(error_msg)
+        return {
+            "summary": create_workflow_summary(
+                suite_name=generation_config.job_name,
+                workflow_id=DBOS.workflow_id or "",
+                status="VALIDATION_FAILED",
+                total_tests=0,
+                successful_tests=0,
+                failed_tests=0,
+                execution_time=time.time() - workflow_start_time,
+                error=error_msg,
+            ),
+            "results": [],
+        }, []
+
+    console.print(
+        f"\n[bold blue]Executing Test Suite:[/bold blue] {generation_config.job_name}"
+    )
+
+    """Get the list of available Docker images for the test suite."""
+    unique_images = list(set(job.image for job in generation_config.generation_jobs))
+    available_images, image_availability = _get_available_images(unique_images)
+
+    # Extract manifests from available images (post-pull)
+    manifests = extract_manifests_step(available_images)
+
+    # Validate test plan
+    with console.status("[bold blue]Validating test plan...", spinner="dots"):
+        validation_errors = validate_data_generation_plan(
+            generation_config, systems, manifests
+        )
+
+    if validation_errors:
+        console.print("[red]Validation failed:[/red]")
+        for error in validation_errors[: executor_config["max_failures"]]:
+            console.print(f"  • {error}")
+        if len(validation_errors) > executor_config["max_failures"]:
+            remaining = len(validation_errors) - executor_config["max_failures"]
+            console.print(f"  • ... and {remaining} more errors")
+
+        DBOS.logger.error(f"Validation failed with {len(validation_errors)} errors")
+        return {
+            "summary": create_workflow_summary(
+                suite_name=generation_config.job_name,
+                workflow_id=DBOS.workflow_id or "",
+                status="VALIDATION_FAILED",
+                total_tests=0,
+                successful_tests=0,
+                failed_tests=0,
+                execution_time=time.time() - workflow_start_time,
+                validation_errors=validation_errors,
+            ),
+            "results": [],
+        }, []
+
+    # Prepare test execution plan
+    data_gen_plan = create_data_generation_plan(
+        generation_config, systems, image_availability
+    )
+    data_gen_count = len(data_gen_plan)
+
+    if data_gen_count == 0:
+        console.print("[yellow]No Data generation flows to execute[/yellow]")
+        return {
+            "summary": create_workflow_summary(
+                suite_name=generation_config.job_name,
+                workflow_id=DBOS.workflow_id or "",
+                status="NO_TESTS",
+                total_tests=0,
+                successful_tests=0,
+                failed_tests=0,
+                execution_time=time.time() - workflow_start_time,
+            ),
+            "results": [],
+        }, []
+
+    # Execute tests concurrently
+    console.print(f"\n[bold]Running {data_gen_count} Generations...[/bold]")
+    try:
+        with create_test_execution_progress(console) as progress:
+            task = progress.add_task(
+                "Executing Data Generation Workflows", total=data_gen_count
+            )
+            # Enqueue all tests for concurrent execution
+            generation_handles = []
+            for plan in data_gen_plan:
+                handle = test_queue.enqueue(
+                    execute_data_generation,
+                    plan["job_name"],
+                    plan["job_id"],
+                    plan["image"],
+                    plan["systems_params"],
+                    plan["generation_params"],
+                    container_config,
+                    plan.get("env_file"),
+                    plan.get("environment"),
+                )
+                generation_handles.append((handle, plan))
+
+            # Collect results as they complete
+            all_results = []
+            for handle, plan in generation_handles:
+                try:
+                    result = handle.get_result()
+                except Exception as e:  # Gracefully handle DBOS/HTTP timeouts per test
+                    DBOS.logger.error(
+                        f"Test execution handle failed for {plan['job_id']} (image: {plan['image']}): {e}"
+                    )
+                    # Synthesize a failed TestExecutionResult with timeout semantics
+                    result = TestExecutionResult(
+                        plan["job_name"],
+                        plan["job_id"],
+                        None,
+                        plan["image"],
+                    )
+                    now = time.time()
+                    result.start_time = now
+                    result.end_time = now
+                    result.exit_code = 137  # convention for forced termination/timeout
+                    result.success = False
+                    result.error_message = f"Test execution failed: {e}"
+                    result.container_output = ""
+                all_results.append(result)
+                try:
+                    progress.advance(task)
+                except (AttributeError, RuntimeError) as e:
+                    DBOS.logger.warning(f"Progress update failed: {e}")
+
+    except (ImportError, AttributeError) as e:
+        # Fallback to simple execution without progress bar if Rich components fail
+        DBOS.logger.warning(
+            f"Progress bar unavailable, falling back to simple execution: {e}"
+        )
+        console.print("[yellow]Running tests without progress bar...[/yellow]")
+
+        # Enqueue all tests for concurrent execution
+        test_handles = []
+        for plan in data_gen_plan:
+            handle = test_queue.enqueue(
+                execute_data_generation,
+                plan["job_name"],
+                plan["job_id"],
+                plan["image"],
+                plan["systems_params"],
+                plan["generation_params"],
+                container_config,
+                plan.get("env_file"),
+                plan.get("environment"),
+            )
+            test_handles.append((handle, plan))
+
+        # Collect results as they complete
+        all_results = []
+        progress_interval = max(
+            1, data_gen_count // executor_config["progress_interval"]
+        )
+        for i, (handle, plan) in enumerate(test_handles, 1):
+            try:
+                result = handle.get_result()
+            except Exception as e:
+                DBOS.logger.error(
+                    f"Test execution handle failed for {plan['job_id']} (image: {plan['image']}): {e}"
+                )
+                result = TestExecutionResult(
+                    plan["job_name"],
+                    plan["job_id"],
+                    None,
+                    plan["image"],
+                )
+                now = time.time()
+                result.start_time = now
+                result.end_time = now
+                result.exit_code = 137
+                result.success = False
+                result.error_message = f"Test execution failed: {e}"
+                result.container_output = ""
+            all_results.append(result)
+            if i % progress_interval == 0 or i == data_gen_count:
+                console.print(f"[dim]Completed {i}/{data_gen_count} tests[/dim]")
+
+    validation_errors = validate_test_container_reports(all_results, manifests)
+
+    workflow_end_time = time.time()
+
+    # Generate summary
+    total_tests = len(all_results)
+    print(all_results)
+    successful_tests = sum(1 for r in all_results if r.success)
+    failed_tests = total_tests - successful_tests
+
+    summary = create_workflow_summary(
+        suite_name=generation_config.job_name,
+        workflow_id=DBOS.workflow_id or "",
+        status="COMPLETED",
+        total_tests=total_tests,
+        successful_tests=successful_tests,
+        failed_tests=failed_tests,
+        execution_time=workflow_end_time - workflow_start_time,
+        images_checked=len(unique_images),
+        manifests_extracted=len(manifests),
+        validation_errors=validation_errors,
+    )
+
+    # Display results
+    status_color, message = format_execution_summary(
+        total_tests, successful_tests, failed_tests, summary["total_execution_time"]
+    )
+    console.print(f"\n[{status_color}]Results:[/{status_color}] {message}")
+
+    # Show failed tests if any
+    if failed_tests > 0:
+        failed_results = [r for r in all_results if not r.success]
+        format_failure_summary(failed_results, console, executor_config["max_failures"])
+
+    DBOS.logger.info(
+        f"Workflow completed: {successful_tests}/{total_tests} jobs are succesful"
+    )
+    return {
+        "summary": summary,
+        "results": [result.result_dict() for result in all_results],
+    }, [result.container_dict() for result in all_results]
 
 
 if __name__ == "__main__":

@@ -1,0 +1,247 @@
+{
+  "$defs": {
+    "DatasetLoaderParams": {
+      "description": "Parameters for loading a HuggingFace dataset from the mounted folder in the container.",
+      "properties": {
+        "builder_name": {
+          "description": "The dataset builder name. Gets passed to datasets.load_dataset() as the path argument.",
+          "enum": [
+            "json",
+            "csv",
+            "parquet",
+            "arrow",
+            "text",
+            "xml",
+            "webdataset",
+            "imagefolder",
+            "audiofolder",
+            "videofolder"
+          ],
+          "title": "Builder Name",
+          "type": "string"
+        },
+        "data_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Directory containing dataset files, relative to the input mount.",
+          "title": "Data Dir"
+        },
+        "data_files": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Single file path or list of file paths, relative to the input mount.",
+          "title": "Data Files"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Git revision (commit hash, tag, or branch) for HuggingFace Hub datasets. Required for security when loading datasets from the Hub. Not needed for local file loaders (json, csv, parquet, etc.).",
+          "title": "Revision"
+        }
+      },
+      "required": [
+        "builder_name"
+      ],
+      "title": "DatasetLoaderParams",
+      "type": "object"
+    },
+    "HFDatasetDefinition": {
+      "description": "Defines a reusable HuggingFace dataset that can be referenced by name in test suites and generation jobs.",
+      "properties": {
+        "type": {
+          "const": "huggingface",
+          "description": "Dataset type identifier for HuggingFace datasets.",
+          "title": "Type",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable description of the dataset's purpose and contents.",
+          "title": "Description"
+        },
+        "loader_params": {
+          "$ref": "#/$defs/DatasetLoaderParams",
+          "description": "Configuration for loading the dataset from files or directories."
+        },
+        "mapping": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Optional mapping from manifest feature names to actual dataset column names.",
+          "title": "Mapping",
+          "type": "object"
+        },
+        "tags": {
+          "description": "Optional tags for categorization (e.g., ['evaluation', 'en']).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "loader_params"
+      ],
+      "title": "HFDatasetDefinition",
+      "type": "object"
+    },
+    "PDFDatasetDefinition": {
+      "description": "Defines a PDF document dataset that can be referenced by name in test suites and generation jobs.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable description of the dataset's purpose and contents.",
+          "title": "Description"
+        },
+        "file_path": {
+          "description": "Path to the input file, relative to the input mount. Can be a local path or remote URL depending on container support.",
+          "title": "File Path",
+          "type": "string"
+        },
+        "tags": {
+          "description": "Optional tags for categorization (e.g., ['evaluation', 'en']).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "type": {
+          "const": "pdf",
+          "description": "Dataset type identifier for PDF documents.",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path",
+        "type"
+      ],
+      "title": "PDFDatasetDefinition",
+      "type": "object"
+    },
+    "TXTDatasetDefinition": {
+      "description": "Defines a plain text file dataset that can be referenced by name in test suites and generation jobs.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable description of the dataset's purpose and contents.",
+          "title": "Description"
+        },
+        "file_path": {
+          "description": "Path to the input file, relative to the input mount. Can be a local path or remote URL depending on container support.",
+          "title": "File Path",
+          "type": "string"
+        },
+        "tags": {
+          "description": "Optional tags for categorization (e.g., ['evaluation', 'en']).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "type": {
+          "const": "txt",
+          "description": "Dataset type identifier for plain text files.",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path",
+        "type"
+      ],
+      "title": "TXTDatasetDefinition",
+      "type": "object"
+    }
+  },
+  "description": "Schema for datasets configuration file.\n\nDatasets are defined in a dictionary where keys are dataset names.\nEach dataset must specify a 'type' field that determines its schema:\n- 'huggingface': HuggingFace datasets with loader_params\n- 'pdf': PDF document datasets with file_path\n- 'txt': Plain text file datasets with file_path",
+  "properties": {
+    "datasets": {
+      "additionalProperties": {
+        "discriminator": {
+          "mapping": {
+            "huggingface": "#/$defs/HFDatasetDefinition",
+            "pdf": "#/$defs/PDFDatasetDefinition",
+            "txt": "#/$defs/TXTDatasetDefinition"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/HFDatasetDefinition"
+          },
+          {
+            "$ref": "#/$defs/PDFDatasetDefinition"
+          },
+          {
+            "$ref": "#/$defs/TXTDatasetDefinition"
+          }
+        ]
+      },
+      "description": "Dictionary of dataset definitions, keyed by dataset name. Each definition can be HFDatasetDefinition, PDFDatasetDefinition, or TXTDatasetDefinition (discriminated by 'type' field).",
+      "title": "Datasets",
+      "type": "object"
+    }
+  },
+  "required": [
+    "datasets"
+  ],
+  "title": "ASQI DatasetsConfig",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

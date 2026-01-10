@@ -10,11 +10,18 @@ from asqi.config import ExecutionMode, load_config_file
 from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.schemas import (
     AuditScoreCardIndicator,
+    DataGenerationConfig,
+    DatasetsConfig,
+    DatasetType,
     EnvironmentVariable,
+    HFDatasetDefinition,
     Manifest,
+    PDFDatasetDefinition,
     ScoreCard,
     SuiteConfig,
     SystemsConfig,
+    TestDefinition,
+    TXTDatasetDefinition,
 )
 
 logger = logging.getLogger()
@@ -181,6 +188,46 @@ def get_duplicate_ids(all_ids: Dict[str, Any]) -> Dict[str, Any]:
     return duplicate_ids
 
 
+def validate_volumes(
+    name: str,
+    vols: Optional[dict],
+    allowed: set[str],
+    require_at_least_one: bool = True,
+) -> None:
+    if not vols:
+        return
+
+    if not isinstance(vols, dict):
+        raise ValueError(
+            f"'volumes' for '{name}' must be a dict, got {type(vols).__name__}"
+        )
+
+    present = allowed & vols.keys()
+    if require_at_least_one and not present:
+        raise ValueError(
+            f"Test '{name}' must specify at least one of: {', '.join(sorted(allowed))}"
+        )
+
+    for key in present:
+        raw_path = vols[key]
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise ValueError(
+                f"Invalid '{key}' volume path in test '{name}': must be a non-empty string."
+            )
+
+        path = Path(raw_path).expanduser().resolve()
+
+        if not path.exists():
+            raise ValueError(
+                f"Configured '{key}' volume does not exist for test '{name}': {path}"
+            )
+
+        if not path.is_dir():
+            raise ValueError(
+                f"Configured '{key}' volume is not a directory for test '{name}': {path}"
+            )
+
+
 def validate_test_volumes(
     suite: SuiteConfig,
     allowed_keys: tuple[str, ...] = ("input", "output"),
@@ -200,38 +247,12 @@ def validate_test_volumes(
 
     for test in suite.test_suite:
         vols = getattr(test, "volumes", None)
-        if not vols:
-            continue
-
-        if not isinstance(vols, dict):
-            raise ValueError(
-                f"'volumes' for test '{test.name}' must be a dict, got {type(vols).__name__}"
-            )
-
-        present = allowed & vols.keys()
-        if require_at_least_one and not present:
-            raise ValueError(
-                f"Test '{test.name}' must specify at least one of: {', '.join(sorted(allowed))}"
-            )
-
-        for key in present:
-            raw_path = vols[key]
-            if not isinstance(raw_path, str) or not raw_path.strip():
-                raise ValueError(
-                    f"Invalid '{key}' volume path in test '{test.name}': must be a non-empty string."
-                )
-
-            path = Path(raw_path).expanduser().resolve()
-
-            if not path.exists():
-                raise ValueError(
-                    f"Configured '{key}' volume does not exist for test '{test.name}': {path}"
-                )
-
-            if not path.is_dir():
-                raise ValueError(
-                    f"Configured '{key}' volume is not a directory for test '{test.name}': {path}"
-                )
+        validate_volumes(
+            name=test.name,
+            vols=vols,
+            allowed=allowed,
+            require_at_least_one=require_at_least_one,
+        )
 
 
 def validate_test_parameters(test, manifest: Manifest) -> List[str]:
@@ -262,6 +283,70 @@ def validate_test_parameters(test, manifest: Manifest) -> List[str]:
             valid_params = ", ".join(schema_params.keys()) if schema_params else "none"
             errors.append(
                 f"Test '{test.name}': Unknown parameter '{provided_param}'. Valid parameters: {valid_params}"
+            )
+
+    return errors
+
+
+def validate_dataset_configs(test: TestDefinition, manifest: Manifest) -> List[str]:
+    """
+    Validate test.datasets against the manifest's input_datasets schema.
+
+    - Ensures required datasets in input_datasets are provided.
+    - Ensures no unknown dataset names are provided in test.datasets.
+    - Ensures feature mappings for each of test.datasets do not include unknown features.
+    """
+    errors = []
+    if test.datasets is None:
+        test_datasets = {}
+    else:
+        test_datasets = test.datasets
+
+    # Check for required but missing datasets
+    for schema_dataset in manifest.input_datasets:
+        if schema_dataset.required and schema_dataset.name not in test_datasets:
+            errors.append(
+                f"Test '{test.name}': Missing required dataset '{schema_dataset.name}' (description: {schema_dataset.description or 'none'})"
+            )
+
+        elif schema_dataset.name in test_datasets:
+            dataset_def = test_datasets[schema_dataset.name]
+
+            if schema_dataset.type == DatasetType.HUGGINGFACE:
+                if not isinstance(dataset_def, HFDatasetDefinition):
+                    errors.append(
+                        f"Test '{test.name}': Dataset '{schema_dataset.name}' of type '{DatasetType.HUGGINGFACE}' must have config of type HFDatasetDefinition (with type='huggingface')."
+                    )
+                else:
+                    # Check for unknown mapped fields.
+                    expected_features = {f.name for f in schema_dataset.features}
+                    unknown_mappings: list[str] = []
+                    for mapped_feature in dataset_def.mapping.keys():
+                        if mapped_feature not in expected_features:
+                            unknown_mappings.append(mapped_feature)
+                    if unknown_mappings:
+                        errors.append(
+                            f"Test '{test.name}': Unknown feature mappings '{', '.join(unknown_mappings)}' in dataset '{schema_dataset.name}'. Valid features: {', '.join(expected_features) if expected_features else 'none'}"
+                        )
+
+            elif schema_dataset.type == DatasetType.PDF:
+                if not isinstance(dataset_def, PDFDatasetDefinition):
+                    errors.append(
+                        f"Test '{test.name}': Dataset '{schema_dataset.name}' of type '{DatasetType.PDF}' must have config of type PDFDatasetDefinition (with type='pdf')."
+                    )
+
+            elif schema_dataset.type == DatasetType.TXT:
+                if not isinstance(dataset_def, TXTDatasetDefinition):
+                    errors.append(
+                        f"Test '{test.name}': Dataset '{schema_dataset.name}' of type '{DatasetType.TXT}' must have config of type TXTDatasetDefinition (with type='txt')."
+                    )
+
+    # Check for unknown dataset names
+    schema_datasets = {d.name: d for d in manifest.input_datasets}
+    for provided_dataset_name in test_datasets:
+        if provided_dataset_name not in schema_datasets:
+            errors.append(
+                f"Test '{test.name}': Unknown dataset '{provided_dataset_name}'. Valid datasets: {', '.join(schema_datasets.keys()) if schema_datasets else 'none'}"
             )
 
     return errors
@@ -432,6 +517,10 @@ def validate_manifests_against_tests(
         param_errors = validate_test_parameters(test, manifest)
         errors.extend(param_errors)
 
+        # Validate provided dataset configs
+        dataset_errors = validate_dataset_configs(test, manifest)
+        errors.extend(dataset_errors)
+
         # Validate system compatibility
         system_errors = validate_system_compatibility(
             test, system_definitions, manifest
@@ -490,12 +579,48 @@ def create_test_execution_plan(
         if image not in available_images:
             continue
 
-        # Get the target systems
-        target_systems = test.systems_under_test
+        vols = getattr(test, "volumes", None)
+        datasets = getattr(test, "datasets", None)
+        base_params = getattr(test, "params", None)
 
-        if not target_systems:
-            logger.warning(f"Skipping test '{test.name}' with no target systems")
-            continue
+        if vols:
+            _params = dict(base_params or {})
+            _params["__volumes"] = vols  # reserved key
+            _params["volumes"] = vols  # Also pass volumes directly for container access
+            if datasets:
+                _params["datasets"] = {
+                    name: (
+                        config.model_dump()
+                        if hasattr(config, "model_dump")
+                        else config.dict()
+                        if hasattr(config, "dict")
+                        else config
+                    )
+                    for name, config in datasets.items()
+                }
+            test_params = _params
+        else:
+            if datasets:
+                raise ValueError(
+                    f"Test config for {test.name} provided with datasets {datasets} but without volumes; datasets must be passed in via mounted volumes."
+                )
+            test_params = base_params or {}
+
+        systems_params = {}
+        # Add additional systems if specified
+        if hasattr(test, "systems") and test.systems:
+            for system_role, referenced_system_name in test.systems.items():
+                referenced_system_def = system_definitions.get(referenced_system_name)
+                if referenced_system_def:
+                    systems_params[system_role] = {
+                        "type": referenced_system_def.type,
+                        "description": referenced_system_def.description,
+                        "provider": referenced_system_def.provider,
+                        **get_system_params_dict(referenced_system_def.params),
+                    }
+
+        # Get the target systems
+        target_systems = test.systems_under_test or []
 
         # Process valid combinations
         for system_name in target_systems:
@@ -503,46 +628,17 @@ def create_test_execution_plan(
             if not system_def or not getattr(system_def, "type", None):
                 continue
 
-            vols = getattr(test, "volumes", None)
-            base_params = getattr(test, "params", None)
-
-            if vols:
-                _params = dict(base_params or {})
-                _params["__volumes"] = vols  # reserved key
-                _params["volumes"] = (
-                    vols  # Also pass volumes directly for container access
-                )
-                test_params = _params
-            else:
-                test_params = base_params or {}
-
             # Build unified systems_params with system_under_test and additional systems
-            systems_params = {
-                "system_under_test": {
-                    k: v
-                    for k, v in {
-                        "type": system_def.type,
-                        "description": system_def.description,
-                        "provider": system_def.provider,
-                        **get_system_params_dict(system_def.params),
-                    }.items()
-                    if v is not None
-                }
+            systems_params["system_under_test"] = {
+                k: v
+                for k, v in {
+                    "type": system_def.type,
+                    "description": system_def.description,
+                    "provider": system_def.provider,
+                    **get_system_params_dict(system_def.params),
+                }.items()
+                if v is not None
             }
-
-            # Add additional systems if specified
-            if hasattr(test, "systems") and test.systems:
-                for system_role, referenced_system_name in test.systems.items():
-                    referenced_system_def = system_definitions.get(
-                        referenced_system_name
-                    )
-                    if referenced_system_def:
-                        systems_params[system_role] = {
-                            "type": referenced_system_def.type,
-                            "description": referenced_system_def.description,
-                            "provider": referenced_system_def.provider,
-                            **get_system_params_dict(referenced_system_def.params),
-                        }
 
             plan.append(
                 {
@@ -612,7 +708,7 @@ def validate_test_plan(
 
         # 3. For each target system, perform validation
         # Get the target systems
-        target_systems = test.systems_under_test or []
+        target_systems = test.systems_under_test
 
         for system_name in target_systems:
             # 3a. Check if the system exists in the systems config
@@ -838,13 +934,6 @@ def validate_workflow_configurations(
     if not suite.test_suite:
         errors.append("Test suite is empty: no tests to validate")
 
-    # Validate that each test has systems_under_test after defaults merging
-    for test in suite.test_suite:
-        if not test.systems_under_test:
-            errors.append(
-                f"Test '{test.name}': systems_under_test is required but not provided in test definition or test_suite_default"
-            )
-
     # Get the system definitions
     system_definitions = systems.systems
     if not system_definitions:
@@ -951,3 +1040,368 @@ def verify_score_card_reports(all_evaluations: List[Dict[str, Any]]) -> None:
                 )
     if reports_count == 0:
         console.print("No reports were generated")
+
+
+## Data Generation Functions
+def validate_data_generation_input(
+    generation_config_path: str,
+    systems_path: Optional[str],
+    output_path: Optional[str] = None,
+) -> None:
+    """
+    Validate inputs for test execution workflows.
+
+    Args:
+        suite_path: Path to test suite YAML file
+        systems_path: Path to systems YAML file
+        execution_mode: Execution mode
+        audit_responses_data: Optional dictionary of audit responses data
+        output_path: Optional output file path
+
+    Raises:
+        ValueError: If any input is invalid
+    """
+    if not generation_config_path or not isinstance(generation_config_path, str):
+        raise ValueError("Invalid generation_config_path: must be non-empty string")
+
+    if systems_path is not None and not isinstance(systems_path, str):
+        raise ValueError("Invalid systems_path: must be string or None")
+
+    if output_path is not None and not isinstance(output_path, str):
+        raise ValueError("Invalid output_path: must be string or None")
+
+
+def validate_data_gen_execution_inputs(
+    job_id: str,
+    image: str,
+    system_params: Dict[str, Any],
+    generation_params: Dict[str, Any],
+) -> None:
+    """
+    Validate inputs for individual test execution.
+
+    Args:
+        test_id: ID of the test
+        image: Docker image name
+        system_name: Name of the system
+        system_params: System parameters dictionary (flattened configuration)
+        test_params: Test parameters dictionary
+
+    Raises:
+        ValueError: If any input is invalid
+    """
+
+    if not job_id or not isinstance(job_id, str):
+        raise ValueError("Invalid test id: must be non-empty string")
+
+    if not image or not isinstance(image, str):
+        raise ValueError("Invalid image: must be non-empty string")
+
+    if not isinstance(system_params, dict):
+        raise ValueError("Invalid system parameters: must be dictionary")
+
+    if not isinstance(generation_params, dict):
+        raise ValueError("Invalid test parameters: must be dictionary")
+
+
+def create_data_generation_plan(
+    data_generation_config: DataGenerationConfig,
+    systems: Optional[SystemsConfig],
+    image_availability: Dict[str, bool],
+) -> List[Dict[str, Any]]:
+    """
+    Create execution plan for all valid test combinations.
+
+    Args:
+        suite: Test suite configuration
+        systems: Systems configuration (optional)
+        image_availability: Dictionary of image availability status
+
+    Returns:
+        List of test execution plans
+    """
+
+    def get_system_params_dict(params):
+        """
+        Returns a dict of a system's params
+        Handles GenericSystemConfig and Pydantic models
+
+        Args:
+            params: System params
+
+        Returns:
+             Dict with the system params
+        """
+        if isinstance(params, BaseModel):
+            return params.model_dump()
+        return params
+
+    if not data_generation_config or not data_generation_config.generation_jobs:
+        return []
+
+    # Get the system definitions (empty dict if no systems provided)
+    system_definitions = systems.systems if systems else {}
+
+    plan: List[Dict[str, Any]] = []
+    available_images = {img for img, ok in image_availability.items() if ok}
+
+    for job in data_generation_config.generation_jobs:
+        if not (image := getattr(job, "image", None)):
+            logger.warning(f"Skipping test with missing image: {job}")
+            continue
+
+        if image not in available_images:
+            continue
+
+        vols = getattr(job, "volumes", None)
+        input_datasets = getattr(job, "input_datasets", None)
+        base_params = getattr(job, "params", None)
+
+        if vols:
+            _params = dict(base_params or {})
+            _params["__volumes"] = vols  # reserved key
+            _params["volumes"] = vols  # Also pass volumes directly for container access
+            if input_datasets:
+                _params["input_datasets"] = {
+                    name: (
+                        config.model_dump()
+                        if hasattr(config, "model_dump")
+                        else config.dict()
+                        if hasattr(config, "dict")
+                        else config
+                    )
+                    for name, config in input_datasets.items()
+                }
+            generation_params = _params
+        else:
+            if input_datasets:
+                raise ValueError(
+                    f"Job config for {job.name} provided with datasets but without volumes; datasets must be passed in via mounted volumes."
+                )
+            generation_params = base_params or {}
+
+        systems_params = {}
+        # Get the target systems (if any)
+        job_systems = job.systems or {}
+        for _system_type, _system_name in job_systems.items():
+            system_def = system_definitions.get(_system_name)
+            if not system_def or not getattr(system_def, "type", None):
+                continue
+            systems_params[_system_type] = {
+                k: v
+                for k, v in {
+                    "type": system_def.type,
+                    "description": system_def.description,
+                    "provider": system_def.provider,
+                    **get_system_params_dict(system_def.params),
+                }.items()
+                if v is not None
+            }
+
+        plan.append(
+            {
+                "job_name": job.name,
+                "job_id": job.id,
+                "image": image,
+                "systems_params": systems_params,
+                "generation_params": generation_params,
+                "env_file": job.env_file,
+                "environment": job.environment,
+            }
+        )
+
+    return plan
+
+
+def validate_data_generation_plan(
+    data_generation_config: DataGenerationConfig,
+    systems: Optional[SystemsConfig],
+    manifests: Dict[str, Manifest],
+) -> List[str]:
+    """
+    Validates the entire test plan by cross-referencing the suite, systems, and manifests.
+
+    Args:
+        suite: The parsed SuiteConfig object.
+        systems: The parsed systems configuration object (optional).
+        manifests: A dictionary mapping image names to their parsed Manifest objects.
+
+    Returns:
+        A list of error strings. An empty list indicates successful validation.
+    """
+    errors = []
+    # Get the system definitions (empty dict if no systems config provided)
+    system_definitions = systems.systems if systems else {}
+
+    for job in data_generation_config.generation_jobs:
+        # 1. Check if the test's image has a corresponding manifest
+        manifest = find_manifest_for_image(job.image, manifests)
+        if manifest is None:
+            errors.append(
+                f"Job '{job.name}': Image '{job.image}' does not have a loaded manifest."
+            )
+            continue  # Cannot perform further validation for this test
+        supported_system_types = [s.type for s in manifest.input_systems]
+
+        # 2. Check parameters against the manifest's input_schema
+        schema_params = {p.name: p for p in manifest.input_schema}
+
+        # Check for required but missing params
+        test_params = job.params or {}
+        for schema_param in manifest.input_schema:
+            if schema_param.required and schema_param.name not in test_params:
+                errors.append(
+                    f"Job '{job.name}': Required parameter '{schema_param.name}' is missing."
+                )
+
+        # Check for unknown params
+        for provided_param in test_params:
+            if provided_param not in schema_params:
+                errors.append(
+                    f"Job '{job.name}': Unknown parameter '{provided_param}' is not defined in manifest for '{job.image}'."
+                )
+
+        # 3. For each target system, perform validation
+        # Get the target systems (skip if job has no systems)
+        job_systems = job.systems or {}
+        for system_name in job_systems.values():
+            # 3a. Check if the system exists in the systems config
+            if system_name not in system_definitions:
+                errors.append(
+                    f"Job '{job.name}': System '{system_name}' is not defined in the systems file."
+                )
+                continue  # Cannot perform further validation for this system
+
+            system_def = system_definitions[system_name]
+
+            # 3b. Check if the container supports the system's type
+            if system_def.type not in supported_system_types:
+                errors.append(
+                    f"Job '{job.name}' on system '{system_name}': Image '{job.image}' "
+                    f"(supports: {supported_system_types}) is not compatible with system type '{system_def.type}'."
+                )
+    return errors
+
+
+def validate_data_generation_volumes(
+    generation_config: DataGenerationConfig,
+    allowed_keys: tuple[str, ...] = ("input", "output"),
+    require_at_least_one: bool = True,
+) -> None:
+    """
+    Validate per-test volumes and raise ValueError on the first problem.
+
+    Rules:
+    - volumes may be omitted entirely (skip)
+    - if present, must be a dict
+    - require_at_least_one=True => at least one of allowed_keys must be present
+    - only validate keys that are present
+    - each provided path must be a non-empty string, exist, and be a directory
+    """
+    allowed = set(allowed_keys)
+
+    for job in generation_config.generation_jobs:
+        vols = getattr(job, "volumes", None)
+        validate_volumes(
+            name=job.name,
+            vols=vols,
+            allowed=allowed,
+            require_at_least_one=require_at_least_one,
+        )
+
+
+def resolve_dataset_references(
+    config: Union[dict, SuiteConfig, DataGenerationConfig],
+    datasets_config: DatasetsConfig,
+) -> Union[dict, SuiteConfig, DataGenerationConfig]:
+    """
+    Resolve dataset name references to actual dataset configurations.
+
+    For each test/job with datasets field:
+    1. Look up dataset name in datasets_config
+    2. Replace string reference with actual dataset definition
+    3. Dataset definition is used directly (no conversion needed)
+
+    Args:
+        config: Suite or generation config (dict or pydantic model)
+        datasets_config: Datasets configuration to resolve from
+
+    Returns:
+        Config with resolved dataset references
+
+    Raises:
+        ValueError: If referenced dataset not found in datasets_config
+    """
+    # Handle dict format (before pydantic parsing)
+    if isinstance(config, dict):
+        if "test_suite" in config:
+            # Test suite config
+            for test in config.get("test_suite", []):
+                if "datasets" in test and test["datasets"]:
+                    test["datasets"] = _resolve_dataset_dict(
+                        test["datasets"], datasets_config
+                    )
+        elif "generation_jobs" in config:
+            # Generation config
+            for job in config.get("generation_jobs", []):
+                if "input_datasets" in job and job["input_datasets"]:
+                    job["input_datasets"] = _resolve_dataset_dict(
+                        job["input_datasets"], datasets_config
+                    )
+        return config
+
+    # Handle pydantic models
+    if isinstance(config, SuiteConfig):
+        for test in config.test_suite:
+            if test.datasets:
+                test.datasets = _resolve_dataset_dict(test.datasets, datasets_config)
+
+    elif isinstance(config, DataGenerationConfig):
+        for job in config.generation_jobs:
+            if job.input_datasets:
+                job.input_datasets = _resolve_dataset_dict(
+                    job.input_datasets, datasets_config
+                )
+
+    return config
+
+
+def _resolve_dataset_dict(
+    datasets: Dict[str, str],
+    datasets_config: DatasetsConfig,
+) -> Dict[str, Union[HFDatasetDefinition, PDFDatasetDefinition, TXTDatasetDefinition]]:
+    """
+    Resolve dataset name references to dataset definition objects.
+
+    Args:
+        datasets: Dict mapping manifest names to dataset references (strings)
+        datasets_config: Datasets configuration
+
+    Returns:
+        Dict mapping manifest names to resolved dataset definition objects (HFDatasetDefinition, PDFDatasetDefinition, or TXTDatasetDefinition)
+
+    Raises:
+        ValueError: If dataset reference not found
+    """
+    resolved = {}
+
+    for manifest_name, dataset_ref in datasets.items():
+        if not isinstance(dataset_ref, str):
+            raise ValueError(
+                f"Dataset reference for '{manifest_name}' must be a string, "
+                f"got {type(dataset_ref).__name__}"
+            )
+
+        # Look up in datasets config
+        dataset_def = datasets_config.datasets.get(dataset_ref)
+        if dataset_def is None:
+            available = ", ".join(datasets_config.datasets.keys())
+            raise ValueError(
+                f"Dataset '{dataset_ref}' not found in datasets config. "
+                f"Available datasets: {available if available else 'none'}"
+            )
+
+        # Return the dataset definition directly (no conversion needed)
+        resolved[manifest_name] = dataset_def
+
+    return resolved
