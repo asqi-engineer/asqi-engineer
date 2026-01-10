@@ -611,8 +611,8 @@ def generate_dataset(
     generation_config: str = typer.Option(
         ..., "--generation-config", "-t", help="Path to the Generation YAML file."
     ),
-    systems_config: str = typer.Option(
-        ..., "--systems-config", "-s", help="Path to the systems YAML file."
+    systems_config: Optional[str] = typer.Option(
+        None, "--systems-config", "-s", help="Path to the systems YAML file."
     ),
     output_file: Optional[str] = typer.Option(
         "output.json",

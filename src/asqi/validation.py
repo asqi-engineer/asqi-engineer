@@ -1037,7 +1037,7 @@ def verify_score_card_reports(all_evaluations: List[Dict[str, Any]]) -> None:
 ## Data Generation Functions
 def validate_data_generation_input(
     generation_config_path: str,
-    systems_path: str,
+    systems_path: Optional[str],
     output_path: Optional[str] = None,
 ) -> None:
     """
@@ -1056,8 +1056,8 @@ def validate_data_generation_input(
     if not generation_config_path or not isinstance(generation_config_path, str):
         raise ValueError("Invalid suite_path: must be non-empty string")
 
-    if not systems_path or not isinstance(systems_path, str):
-        raise ValueError("Invalid systems_path: must be non-empty string")
+    if systems_path is not None and not isinstance(systems_path, str):
+        raise ValueError("Invalid systems_path: must be string or None")
 
     if output_path is not None and not isinstance(output_path, str):
         raise ValueError("Invalid output_path: must be string or None")
@@ -1098,7 +1098,7 @@ def validate_data_gen_execution_inputs(
 
 def create_data_generation_plan(
     data_generation_config: DataGenerationConfig,
-    systems: SystemsConfig,
+    systems: Optional[SystemsConfig],
     image_availability: Dict[str, bool],
 ) -> List[Dict[str, Any]]:
     """
@@ -1106,7 +1106,7 @@ def create_data_generation_plan(
 
     Args:
         suite: Test suite configuration
-        systems: Systems configuration
+        systems: Systems configuration (optional)
         image_availability: Dictionary of image availability status
 
     Returns:
@@ -1131,10 +1131,8 @@ def create_data_generation_plan(
     if not data_generation_config or not data_generation_config.generation_jobs:
         return []
 
-    # Get the system definitions
-    system_definitions = systems.systems
-    if not systems or not system_definitions:
-        return []
+    # Get the system definitions (empty dict if no systems provided)
+    system_definitions = systems.systems if systems else {}
 
     plan: List[Dict[str, Any]] = []
     available_images = {img for img, ok in image_availability.items() if ok}
@@ -1175,9 +1173,9 @@ def create_data_generation_plan(
             generation_params = base_params or {}
 
         systems_params = {}
-        # Get the target systems
-        systems = job.systems
-        for _system_type, _system_name in systems.items():
+        # Get the target systems (if any)
+        job_systems = job.systems or {}
+        for _system_type, _system_name in job_systems.items():
             system_def = system_definitions.get(_system_name)
             if not system_def or not getattr(system_def, "type", None):
                 continue
@@ -1204,25 +1202,12 @@ def create_data_generation_plan(
             }
         )
 
-        if not systems:
-            # No target systems, just add the test with its params
-            plan.append(
-                {
-                    "job_name": job.name,
-                    "job_id": job.id,
-                    "image": image,
-                    "systems_params": systems_params,
-                    "generation_params": generation_params,
-                    "env_file": job.env_file,
-                    "environment": job.environment,
-                }
-            )
     return plan
 
 
 def validate_data_generation_plan(
     data_generation_config: DataGenerationConfig,
-    systems: SystemsConfig,
+    systems: Optional[SystemsConfig],
     manifests: Dict[str, Manifest],
 ) -> List[str]:
     """
@@ -1230,15 +1215,15 @@ def validate_data_generation_plan(
 
     Args:
         suite: The parsed SuiteConfig object.
-        systems: The parsed systems configuration object.
+        systems: The parsed systems configuration object (optional).
         manifests: A dictionary mapping image names to their parsed Manifest objects.
 
     Returns:
         A list of error strings. An empty list indicates successful validation.
     """
     errors = []
-    # Get the system definitions
-    system_definitions = systems.systems
+    # Get the system definitions (empty dict if no systems config provided)
+    system_definitions = systems.systems if systems else {}
 
     for job in data_generation_config.generation_jobs:
         # 1. Check if the test's image has a corresponding manifest
@@ -1269,8 +1254,8 @@ def validate_data_generation_plan(
                 )
 
         # 3. For each target system, perform validation
-        # Get the target systems
-        job_systems = job.systems
+        # Get the target systems (skip if job has no systems)
+        job_systems = job.systems or {}
         for system_name in job_systems.values():
             # 3a. Check if the system exists in the systems config
             if system_name not in system_definitions:

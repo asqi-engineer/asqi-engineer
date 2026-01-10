@@ -1548,7 +1548,7 @@ def start_score_card_evaluation(
 
 def start_data_generation(
     generation_config_path: str,
-    systems_path: str,
+    systems_path: Optional[str],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
     output_path: Optional[str] = None,
@@ -1562,7 +1562,7 @@ def start_data_generation(
 
     Args:
         generation_config_path: Path to generation config YAML file
-        systems_path: Path to systems YAML file
+        systems_path: Path to systems YAML file (optional)
         executor_config: Executor configuration dictionary. Expected keys:
             - "concurrent_tests": int, number of concurrent tests
             - "max_failures": int, max number of failures to display
@@ -1584,7 +1584,7 @@ def start_data_generation(
     try:
         # Load configurations
         generation_config = load_config_file(generation_config_path)
-        systems_config = load_config_file(systems_path)
+        systems_config = load_config_file(systems_path) if systems_path else None
         datasets_config = None
         if datasets_config_path:
             datasets_config = load_config_file(datasets_config_path)
@@ -1855,7 +1855,7 @@ def execute_data_generation(
 @DBOS.workflow()
 def run_data_generation_workflow(
     generation_config: Dict[str, Any],
-    systems_config: Dict[str, Any],
+    systems_config: Optional[Dict[str, Any]],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
     datasets_config: Optional[Dict[str, Any]] = None,
@@ -1871,7 +1871,7 @@ def run_data_generation_workflow(
 
     Args:
         suite_config: Serialized SuiteConfig containing test definitions
-        systems_config: Serialized SystemsConfig containing system configurations
+        systems_config: Serialized SystemsConfig containing system configurations (optional)
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
         datasets_config: Optional datasets configuration for resolving dataset references
@@ -1889,7 +1889,7 @@ def run_data_generation_workflow(
     # Parse configurations
     try:
         generation_config = DataGenerationConfig(**generation_config)
-        systems = SystemsConfig(**systems_config)
+        systems = SystemsConfig(**systems_config) if systems_config else None
 
         # Resolve dataset references after validation
         if datasets_config:

@@ -719,8 +719,8 @@ class AuditResponses(BaseModel):
 # ----------------------------------------------------------------------------
 class GenerationJobConfig(BaseModel):
     id: str = Field(..., description="Unique identifier for the generation job")
-    systems: Dict[str, str] = Field(
-        ..., description="Mapping of system alias to system identifier"
+    systems: Optional[Dict[str, str]] = Field(
+        None, description="Mapping of system alias to system identifier"
     )
     name: str = Field(..., description="Human-readable data generation job name")
     image: str = Field(
