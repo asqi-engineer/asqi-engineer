@@ -644,6 +644,7 @@ def test_run_end_to_end_workflow():
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config,
+            None,  # datasets_config
             score_card_configs,
         )
         mock_score_workflow.assert_called_once_with(
@@ -701,6 +702,7 @@ def test_run_end_to_end_workflow_with_audit_responses():
                 "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
             },
             container_config,
+            None,  # datasets_config
             score_card_configs,
         )
 
@@ -814,8 +816,8 @@ def test_start_test_execution_end_to_end_mode_with_audit_responses():
         call_args = mock_start.call_args[0]
         # Should call run_end_to_end_workflow
         assert call_args[0].__name__ == "run_end_to_end_workflow"
-        # audit_responses_data is the last positional arg passed into the workflow
-        assert call_args[-1] == audit_responses_data
+        # audit_responses_data is the second-to-last positional arg
+        assert call_args[-2] == audit_responses_data
 
 
 def test_start_score_card_evaluation(tmp_path):

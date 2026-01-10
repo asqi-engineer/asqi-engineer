@@ -665,6 +665,7 @@ def run_test_suite_workflow(
     systems_config: Dict[str, Any],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
+    datasets_config: Optional[Dict[str, Any]] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
@@ -681,6 +682,7 @@ def run_test_suite_workflow(
         systems_config: Serialized SystemsConfig containing system configurations
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
+        datasets_config: Optional datasets configuration for resolving dataset references
         score_card_configs: Optional list of score card configurations
 
     Returns:
@@ -697,6 +699,9 @@ def run_test_suite_workflow(
     try:
         suite = SuiteConfig(**suite_config)
         systems = SystemsConfig(**systems_config)
+        if datasets_config:
+            datasets = DatasetsConfig(**datasets_config)
+            suite = resolve_dataset_references(suite, datasets)
         score_cards = []
         for score_card_config in score_card_configs or []:
             score_cards.append(ScoreCard(**score_card_config))
@@ -1093,6 +1098,7 @@ def run_end_to_end_workflow(
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
     audit_responses_data: Optional[Dict[str, Any]] = None,
+    datasets_config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a complete end-to-end workflow: test execution + score card evaluation.
@@ -1104,6 +1110,7 @@ def run_end_to_end_workflow(
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
         audit_responses_data: Optional dict with manual audit responses
+        datasets_config: Optional datasets configuration for resolving dataset references
 
     Returns:
         Complete execution results with test results, score card evaluations and container results
@@ -1113,6 +1120,7 @@ def run_end_to_end_workflow(
         systems_config,
         executor_config,
         container_config,
+        datasets_config,
         score_card_configs,
     )
 
@@ -1373,15 +1381,10 @@ def start_test_execution(
         suite_config = merge_defaults_into_suite(load_config_file(suite_path))
         systems_config = load_config_file(systems_path)
 
-        # Load datasets config if provided
+        # Load datasets config if provided (pass to workflow for resolution after validation)
         datasets_config = None
         if datasets_config_path:
-            datasets_data = load_config_file(datasets_config_path)
-            datasets_config = DatasetsConfig(**datasets_data)
-
-        # Resolve dataset references in suite config
-        if datasets_config:
-            suite_config = resolve_dataset_references(suite_config, datasets_config)
+            datasets_config = load_config_file(datasets_config_path)
 
         # if test_ids provided, filter suite_config
         if test_ids:
@@ -1429,6 +1432,7 @@ def start_test_execution(
                 systems_config,
                 executor_config,
                 container_config,
+                datasets_config,
             )
         elif execution_mode == ExecutionMode.END_TO_END:
             if not score_card_configs:
@@ -1439,6 +1443,7 @@ def start_test_execution(
                     systems_config,
                     executor_config,
                     container_config,
+                    datasets_config,
                 )
             else:
                 handle = DBOS.start_workflow(
@@ -1449,6 +1454,7 @@ def start_test_execution(
                     executor_config,
                     container_config,
                     audit_responses_data,
+                    datasets_config,
                 )
         else:
             raise ValueError(f"Invalid execution mode: {execution_mode}")
@@ -1581,20 +1587,16 @@ def start_data_generation(
         systems_config = load_config_file(systems_path)
         datasets_config = None
         if datasets_config_path:
-            datasets_data = load_config_file(datasets_config_path)
-            datasets_config = DatasetsConfig(**datasets_data)
+            datasets_config = load_config_file(datasets_config_path)
 
-        # Resolve dataset references in generation config
-        if datasets_config:
-            generation_config = resolve_dataset_references(
-                generation_config, datasets_config
-            )
+        # Pass datasets_config to workflow for resolution after validation
         handle = DBOS.start_workflow(
             run_data_generation_workflow,
             generation_config,
             systems_config,
             executor_config,
             container_config,
+            datasets_config,
         )
 
         results, container_results = handle.get_result()
@@ -1856,6 +1858,7 @@ def run_data_generation_workflow(
     systems_config: Dict[str, Any],
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
+    datasets_config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
@@ -1871,7 +1874,7 @@ def run_data_generation_workflow(
         systems_config: Serialized SystemsConfig containing system configurations
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
-        score_card_configs: Optional list of score card configurations
+        datasets_config: Optional datasets configuration for resolving dataset references
 
     Returns:
         Execution summary with metadata and individual test results (no score cards) and container results
@@ -1887,6 +1890,11 @@ def run_data_generation_workflow(
     try:
         generation_config = DataGenerationConfig(**generation_config)
         systems = SystemsConfig(**systems_config)
+
+        # Resolve dataset references after validation
+        if datasets_config:
+            datasets = DatasetsConfig(**datasets_config)
+            generation_config = resolve_dataset_references(generation_config, datasets)
     except ValidationError as e:
         error_msg = f"Configuration validation failed: {e}"
         DBOS.logger.error(error_msg)
