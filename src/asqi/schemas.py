@@ -1,10 +1,55 @@
 from enum import StrEnum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 # This is necessary because pydantic prefers Annotated types outside classes
 IDsStringPattern = Annotated[str, StringConstraints(pattern="^[0-9a-z_]{1,32}$")]
+
+# HuggingFace dataset dtypes as a Literal for better JSON schema support
+# Complete list from: https://huggingface.co/docs/datasets/v4.4.2/en/package_reference/main_classes#datasets.Value
+HFDtype = Literal[
+    "null",
+    "bool",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "float16",
+    "float32",
+    "float",  # alias for float32
+    "float64",
+    "double",  # alias for float64
+    "time32[s]",
+    "time32[ms]",
+    "time64[us]",
+    "time64[ns]",
+    "timestamp[s]",
+    "timestamp[ms]",
+    "timestamp[us]",
+    "timestamp[ns]",
+    "date32",
+    "date64",
+    "duration[s]",
+    "duration[ms]",
+    "duration[us]",
+    "duration[ns]",
+    "binary",
+    "large_binary",
+    "binary_view",
+    "string",
+    "large_string",
+    "string_view",
+]
 
 # ----------------------------------------------------------------------------
 # Schemas for manifest.yaml (Embedded in Test Containers)
@@ -70,32 +115,43 @@ class EnvironmentVariable(BaseModel):
 
 
 class DatasetFeature(BaseModel):
-    """Defines a feature/column within a dataset."""
+    """Defines a feature/column within a dataset.
+
+    The dtype field uses HuggingFace datasets dtype values.
+    Common types: 'string', 'int64', 'float32', 'bool'.
+    """
 
     name: str = Field(
         ...,
         description="The name of the feature.",
     )
-    # Add validation for this field to ensure the provided dataset schema matches this. For now, no validation performed (i.e. this is just documentation).
-    type: str = Field(
+    dtype: HFDtype = Field(
         ...,
-        description="The data type of the feature compatible with , e.g., string, int64, float32, etc.",
+        description="The data type of the feature. "
+        "Common types: 'string', 'int64', 'int32', 'float64', 'float32', 'bool'. "
+        "See: https://huggingface.co/docs/datasets/about_dataset_features",
     )
     description: Optional[str] = Field(
         None, description="Description of the feature - data type, purpose etc."
     )
 
 
-class AcceptedFileTypes(StrEnum):
+class DatasetType(StrEnum):
+    """Supported dataset types for InputDataset."""
+
+    HUGGINGFACE = "huggingface"
     PDF = "pdf"
     TXT = "txt"
 
 
-HF_DATASET_TYPE = "huggingface"
-
-
 class InputDataset(BaseModel):
-    """Defines a dataset input that the container requires."""
+    """Defines a dataset input that the container requires.
+
+    Supported dataset types:
+    - 'huggingface': HuggingFace datasets (requires features to be defined)
+    - 'pdf': PDF documents
+    - 'txt': Plain text files
+    """
 
     name: str = Field(
         ...,
@@ -104,31 +160,26 @@ class InputDataset(BaseModel):
     required: bool = Field(
         True, description="Whether this dataset is mandatory for execution."
     )
-    # Doesn't accept a list for ease of further validation. If multiple types are allowed, define multiple InputDataset entries.
-    type: str = Field(
+    type: DatasetType = Field(
         ...,
-        description="The supported dataset type, e.g., 'huggingface' for HF datasets, 'pdf' for PDF documents, 'txt' for .txt files.",
+        description="The dataset type: 'huggingface' for HF datasets with features, 'pdf' for PDF documents, 'txt' for text files.",
     )
     description: Optional[str] = Field(
         None, description="Description of the dataset's role in the test."
     )
     features: Optional[list[DatasetFeature]] = Field(
         None,
-        description="List of required features within a HuggingFace dataset (not required for other dataset types). Actual dataset's feature names, if different, can be mapped to required feature names in the test config.",
+        description="List of required features within a HuggingFace dataset (required for 'huggingface' type, ignored for others). "
+        "Actual dataset feature names can be mapped to these required names in the test config.",
     )
 
     @model_validator(mode="after")
     def _validate_features_for_huggingface(self) -> "InputDataset":
-        if self.type == "huggingface" and not self.features:
-            raise ValueError("Features must be defined for HuggingFace dataset inputs.")
-        return self
-
-    @model_validator(mode="after")
-    def _validate_accepted_types(self) -> "InputDataset":
-        allowed = [e.value for e in AcceptedFileTypes] + ["huggingface"]
-        if self.type not in allowed:
+        """Ensure HuggingFace datasets have features defined."""
+        if self.type == DatasetType.HUGGINGFACE and not self.features:
             raise ValueError(
-                f"Dataset type {self.type} must be among accepted types: {', '.join(allowed)}."
+                "Features must be defined for HuggingFace dataset inputs. "
+                "Specify the expected feature names and dtypes in the features list."
             )
         return self
 
@@ -360,7 +411,7 @@ class SystemsConfig(BaseModel):
 
 
 # ----------------------------------------------------------------------------
-# Schema for test_suite.yaml (User-provided)
+# Schema for Dataset Registry (User-provided)
 # ----------------------------------------------------------------------------
 
 
@@ -404,34 +455,8 @@ class DatasetLoaderParams(BaseModel):
         return self
 
 
-class HFDatasetConfig(BaseModel):
-    loader_params: DatasetLoaderParams = Field(
-        ...,
-        description="Keyword arguments for HuggingFace datasets.load_dataset function to load dataset.",
-    )
-    mapping: dict[str, str] = Field(
-        {},
-        description="Mapping from expected feature names in container manifest to dataset fields.",
-    )
-
-
-class FileDatasetConfig(BaseModel):
-    file_path: str = Field(
-        ...,
-        description="Path to the input file, relative to the input mount.",
-    )
-
-
-DatasetConfig = Union[HFDatasetConfig, FileDatasetConfig]
-
-
-# ----------------------------------------------------------------------------
-# Schema for Dataset Registry (User-provided)
-# ----------------------------------------------------------------------------
-
-
-class DatasetDefinition(BaseModel):
-    """Defines a reusable dataset that can be referenced by name in test suites and generation jobs."""
+class HFDatasetDefinition(BaseModel):
+    """Defines a reusable HuggingFace dataset that can be referenced by name in test suites and generation jobs."""
 
     description: Optional[str] = Field(
         None,
@@ -442,7 +467,7 @@ class DatasetDefinition(BaseModel):
         description="Configuration for loading the dataset from files or directories.",
     )
     mapping: dict[str, str] = Field(
-        {},
+        default_factory=dict,
         description="Optional mapping from manifest feature names to actual dataset column names.",
     )
     tags: list[str] = Field(
@@ -451,15 +476,36 @@ class DatasetDefinition(BaseModel):
     )
 
 
-class DatasetsConfig(BaseModel):
-    """Schema for datasets configuration file (config/datasets/*.yaml).
+class FileDatasetDefinition(BaseModel):
+    """Defines a file-based dataset that can be referenced by name in test suites and generation jobs."""
 
-    Similar to SystemsConfig, datasets are defined in a dictionary where keys are dataset names.
+    description: Optional[str] = Field(
+        None,
+        description="Human-readable description of the dataset's purpose and contents.",
+    )
+    file_path: str = Field(
+        ...,
+        description="Path to the input file, relative to the input mount.",
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Optional tags for categorization (e.g., ['evaluation', 'en']).",
+    )
+
+
+DatasetDefinition = Union[HFDatasetDefinition, FileDatasetDefinition]
+
+
+class DatasetsConfig(BaseModel):
+    """Schema for datasets configuration file.
+
+    Datasets are defined in a dictionary where keys are dataset names.
+    Each dataset can be either a HuggingFace dataset (with loader_params) or a file dataset (with file_path).
     """
 
     datasets: Dict[str, DatasetDefinition] = Field(
         ...,
-        description="Dictionary of dataset definitions, keyed by dataset name.",
+        description="Dictionary of dataset definitions, keyed by dataset name. Each definition can be either HFDatasetDefinition or FileDatasetDefinition.",
     )
 
 

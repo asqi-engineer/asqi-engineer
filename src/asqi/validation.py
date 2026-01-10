@@ -9,13 +9,13 @@ from rich.console import Console
 from asqi.config import ExecutionMode, load_config_file
 from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.schemas import (
-    HF_DATASET_TYPE,
     AuditScoreCardIndicator,
     DataGenerationConfig,
+    DatasetType,
     DatasetsConfig,
     EnvironmentVariable,
-    FileDatasetConfig,
-    HFDatasetConfig,
+    FileDatasetDefinition,
+    HFDatasetDefinition,
     Manifest,
     ScoreCard,
     SuiteConfig,
@@ -309,10 +309,12 @@ def validate_dataset_configs(test: TestDefinition, manifest: Manifest) -> List[s
             )
 
         elif schema_dataset.name in test_datasets:
-            if schema_dataset.type == HF_DATASET_TYPE:
-                if not isinstance(test_datasets[schema_dataset.name], HFDatasetConfig):
+            if schema_dataset.type == DatasetType.HUGGINGFACE:
+                if not isinstance(
+                    test_datasets[schema_dataset.name], HFDatasetDefinition
+                ):
                     errors.append(
-                        f"Test '{test.name}':  Dataset '{schema_dataset.name}' of type {HF_DATASET_TYPE} must have config of type HFDatasetConfig."
+                        f"Test '{test.name}':  Dataset '{schema_dataset.name}' of type '{DatasetType.HUGGINGFACE}' must have config of type HFDatasetDefinition."
                     )
                 else:
                     # Check for unknown mapped fields.
@@ -328,9 +330,11 @@ def validate_dataset_configs(test: TestDefinition, manifest: Manifest) -> List[s
                             f"Test '{test.name}': Unknown feature mappings '{', '.join(unknown_mappings)}' in dataset '{schema_dataset.name}'. Valid features: {', '.join(expected_features) if expected_features else 'none'}"
                         )
 
-            elif not isinstance(test_datasets[schema_dataset.name], FileDatasetConfig):
+            elif not isinstance(
+                test_datasets[schema_dataset.name], FileDatasetDefinition
+            ):
                 errors.append(
-                    f"Test '{test.name}': Dataset '{schema_dataset.name}' of type {schema_dataset.type} must have config of type FileDatasetConfig."
+                    f"Test '{test.name}': Dataset '{schema_dataset.name}' of type {schema_dataset.type} must have config of type FileDatasetDefinition."
                 )
 
     # Check for unknown dataset names
@@ -1311,8 +1315,8 @@ def resolve_dataset_references(
 
     For each test/job with datasets field:
     1. Look up dataset name in datasets_config
-    2. Convert DatasetDefinition to HFDatasetConfig format
-    3. Replace string reference with actual config
+    2. Replace string reference with actual dataset definition
+    3. Dataset definition is used directly (no conversion needed)
 
     Args:
         config: Suite or generation config (dict or pydantic model)
@@ -1361,16 +1365,16 @@ def resolve_dataset_references(
 def _resolve_dataset_dict(
     datasets: Dict[str, str],
     datasets_config: DatasetsConfig,
-) -> Dict[str, HFDatasetConfig]:
+) -> Dict[str, Union[HFDatasetDefinition, FileDatasetDefinition]]:
     """
-    Resolve dataset name references to HFDatasetConfig objects.
+    Resolve dataset name references to dataset definition objects.
 
     Args:
         datasets: Dict mapping manifest names to dataset references (strings)
         datasets_config: Datasets configuration
 
     Returns:
-        Dict mapping manifest names to resolved HFDatasetConfig objects
+        Dict mapping manifest names to resolved dataset definition objects (HFDatasetDefinition or FileDatasetDefinition)
 
     Raises:
         ValueError: If dataset reference not found
@@ -1393,10 +1397,7 @@ def _resolve_dataset_dict(
                 f"Available datasets: {available if available else 'none'}"
             )
 
-        # Convert DatasetDefinition to HFDatasetConfig format
-        resolved[manifest_name] = HFDatasetConfig(
-            loader_params=dataset_def.loader_params,
-            mapping=dataset_def.mapping,
-        )
+        # Return the dataset definition directly (no conversion needed)
+        resolved[manifest_name] = dataset_def
 
     return resolved

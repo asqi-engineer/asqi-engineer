@@ -1,6 +1,6 @@
 from datasets import Dataset, load_dataset
 
-from asqi.schemas import HFDatasetConfig
+from asqi.schemas import HFDatasetDefinition
 
 
 def load_hf_dataset(dataset_config: dict) -> Dataset:
@@ -8,7 +8,8 @@ def load_hf_dataset(dataset_config: dict) -> Dataset:
     """Load a HuggingFace dataset using the provided loader parameters.
 
     Args:
-        dataset_config (HFDatasetConfig): Configuration for loading the HuggingFace dataset.
+        dataset_config (dict): Configuration dict for loading the HuggingFace dataset,
+                              will be parsed as HFDatasetDefinition.
 
     Returns:
         Dataset: Loaded HuggingFace dataset.
@@ -19,7 +20,7 @@ def load_hf_dataset(dataset_config: dict) -> Dataset:
         The revision parameter is provided for forward compatibility with HF Hub
         datasets, but current usage is limited to local files only.
     """
-    dataset_config = HFDatasetConfig(**dataset_config)
+    dataset_config = HFDatasetDefinition(**dataset_config)
     loader_params = dataset_config.loader_params
     mapping = dataset_config.mapping
     # B615: Only local file loaders (json, csv, parquet, etc.) are used via
