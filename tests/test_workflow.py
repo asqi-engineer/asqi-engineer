@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from asqi.config import ContainerConfig, ExecutionMode, ExecutorConfig
-from asqi.schemas import Manifest, OutputReports, SystemInput
+from asqi.schemas import Manifest, OutputReports, ScoreCard, SystemInput
 from asqi.workflow import (
     TestExecutionResult,
     add_score_cards_to_results,
@@ -1386,3 +1386,737 @@ class TestContainerReports:
         assert len(errors) == 0
         assert result.success is False
         assert result.error_message == "Test failed for other reasons"
+
+
+# =============================================================================
+# Data Generation Workflow Tests
+# =============================================================================
+
+
+class TestDataGenerationWorkflow:
+    """Test data generation workflow with optional systems config."""
+
+    def test_start_data_generation_with_systems(self, tmp_path):
+        """Test start_data_generation with systems config provided."""
+        from asqi.workflow import start_data_generation
+
+        # Create test config files
+        generation_config_file = tmp_path / "generation.yaml"
+        generation_config_file.write_text("""
+job_name: "Test Generation Job"
+generation_jobs:
+  - id: "job1"
+    name: "Test Job"
+    systems:
+      generation_system: "gpt4o"
+    image: "my-registry/sdg:latest"
+    params:
+      num_samples: 10
+""")
+
+        systems_config_file = tmp_path / "systems.yaml"
+        systems_config_file.write_text("""
+systems:
+  gpt4o:
+    type: "llm_api"
+    params:
+      model: "gpt-4o"
+      base_url: "https://api.openai.com/v1"
+      api_key: "test-key"
+""")
+
+        output_file = tmp_path / "output.json"
+
+        executor_config = {
+            "concurrent_tests": 1,
+            "max_failures": 1,
+            "progress_interval": 1,
+        }
+        container_config = ContainerConfig()
+
+        # Mock DBOS workflow
+        mock_result = {"summary": {"status": "COMPLETED"}, "results": []}
+        mock_handle = DummyHandle(
+            (mock_result, []), workflow_id="test-gen-123", return_tuple=True
+        )
+
+        with patch("asqi.workflow.DBOS") as mock_dbos:
+            mock_dbos.start_workflow.return_value = mock_handle
+            mock_dbos.workflow_id = "test-gen-123"
+
+            workflow_id = start_data_generation(
+                generation_config_path=str(generation_config_file),
+                systems_path=str(systems_config_file),
+                executor_config=executor_config,
+                container_config=container_config,
+                output_path=str(output_file),
+            )
+
+            assert workflow_id == "test-gen-123"
+            # Verify workflow was called with non-None systems config
+            call_args = mock_dbos.start_workflow.call_args
+            assert call_args[0][1] is not None  # systems_config arg
+
+    def test_start_data_generation_without_systems(self, tmp_path):
+        """Test start_data_generation with None systems config."""
+        from asqi.workflow import start_data_generation
+
+        # Create test config file
+        generation_config_file = tmp_path / "generation.yaml"
+        generation_config_file.write_text("""
+job_name: "Template Generation Job"
+generation_jobs:
+  - id: "job2"
+    name: "Template Job"
+    image: "my-registry/template:latest"
+    params:
+      template: "simple"
+""")
+
+        output_file = tmp_path / "output.json"
+
+        executor_config = {
+            "concurrent_tests": 1,
+            "max_failures": 1,
+            "progress_interval": 1,
+        }
+        container_config = ContainerConfig()
+
+        # Mock DBOS workflow
+        mock_result = {"summary": {"status": "COMPLETED"}, "results": []}
+        mock_handle = DummyHandle(
+            (mock_result, []), workflow_id="test-gen-456", return_tuple=True
+        )
+
+        with patch("asqi.workflow.DBOS") as mock_dbos:
+            mock_dbos.start_workflow.return_value = mock_handle
+            mock_dbos.workflow_id = "test-gen-456"
+
+            workflow_id = start_data_generation(
+                generation_config_path=str(generation_config_file),
+                systems_path=None,  # No systems config
+                executor_config=executor_config,
+                container_config=container_config,
+                output_path=str(output_file),
+            )
+
+            assert workflow_id == "test-gen-456"
+            # Verify start_workflow was called
+            assert mock_dbos.start_workflow.called
+
+    def test_start_data_generation_validation_error(self):
+        """Test start_data_generation with invalid inputs."""
+        from asqi.workflow import start_data_generation
+
+        executor_config = {
+            "concurrent_tests": 1,
+            "max_failures": 1,
+            "progress_interval": 1,
+        }
+        container_config = ContainerConfig()
+
+        # Test with empty generation config path
+        with pytest.raises(ValueError, match="Invalid generation_config_path"):
+            start_data_generation(
+                generation_config_path="",
+                systems_path=None,
+                executor_config=executor_config,
+                container_config=container_config,
+            )
+
+        # Test with invalid systems path type
+        with pytest.raises(ValueError, match="Invalid systems_path"):
+            start_data_generation(
+                generation_config_path="valid.yaml",
+                systems_path=123,  # type: ignore[arg-type]  # Intentionally invalid type for testing
+                executor_config=executor_config,
+                container_config=container_config,
+            )
+
+    def test_run_data_generation_workflow_parses_systems_config(self):
+        """Test that run_data_generation_workflow correctly parses systems config."""
+        from asqi.schemas import DataGenerationConfig, SystemsConfig
+
+        generation_config_dict = {
+            "job_name": "Test",
+            "generation_jobs": [
+                {
+                    "id": "job1",
+                    "name": "Test Job",
+                    "systems": {"generation_system": "gpt4o"},
+                    "image": "my-registry/sdg:latest",
+                    "params": {"num_samples": 10},
+                }
+            ],
+        }
+
+        systems_config_dict = {
+            "systems": {
+                "gpt4o": {
+                    "type": "llm_api",
+                    "params": {
+                        "model": "gpt-4o",
+                        "base_url": "https://api.openai.com/v1",
+                    },
+                }
+            }
+        }
+
+        # Test that configs can be parsed successfully
+        gen_config = DataGenerationConfig(**generation_config_dict)
+        sys_config = SystemsConfig(**systems_config_dict)
+
+        assert gen_config.job_name == "Test"
+        assert len(gen_config.generation_jobs) == 1
+        assert gen_config.generation_jobs[0].systems == {"generation_system": "gpt4o"}
+        assert "gpt4o" in sys_config.systems
+
+    def test_run_data_generation_workflow_parses_no_systems_config(self):
+        """Test that run_data_generation_workflow handles None systems config."""
+        from asqi.schemas import DataGenerationConfig
+
+        generation_config_dict = {
+            "job_name": "Template Test",
+            "generation_jobs": [
+                {
+                    "id": "job2",
+                    "name": "Template Job",
+                    "image": "my-registry/template:latest",
+                    "params": {"template": "simple"},
+                }
+            ],
+        }
+
+        # Test that config can be parsed without systems
+        gen_config = DataGenerationConfig(**generation_config_dict)
+
+        assert gen_config.job_name == "Template Test"
+        assert len(gen_config.generation_jobs) == 1
+        assert gen_config.generation_jobs[0].systems is None
+
+
+# =============================================================================
+# Helper Functions Tests
+# =============================================================================
+
+
+class TestHelperFunctions:
+    """Tests for utility and helper functions."""
+
+    def test_get_docker_socket_path_with_custom_env(self):
+        """Test _get_docker_socket_path with custom DOCKER_HOST environment variable."""
+        from asqi.workflow import _get_docker_socket_path
+
+        env_vars = {"DOCKER_HOST": "unix:///custom/docker.sock"}
+        socket_path = _get_docker_socket_path(env_vars)
+        assert socket_path == "/custom/docker.sock"
+
+    def test_get_docker_socket_path_with_default(self):
+        """Test _get_docker_socket_path with default socket path when no env var."""
+        from asqi.workflow import _get_docker_socket_path
+
+        socket_path = _get_docker_socket_path({})
+        assert socket_path == "/var/run/docker.sock"
+
+    def test_get_docker_socket_path_empty_env_var(self):
+        """Test _get_docker_socket_path with empty DOCKER_HOST."""
+        from asqi.workflow import _get_docker_socket_path
+
+        env_vars = {"DOCKER_HOST": ""}
+        socket_path = _get_docker_socket_path(env_vars)
+        assert socket_path == "/var/run/docker.sock"
+
+    def test_get_available_images_all_local(self):
+        """Test _get_available_images when all images are available locally."""
+        from asqi.workflow import _get_available_images
+
+        images = ["test/image1:latest", "test/image2:latest"]
+
+        with patch("asqi.workflow.dbos_check_images_availability") as mock_check:
+            mock_check.return_value = {img: True for img in images}
+
+            available, availability = _get_available_images(images)
+
+            assert len(available) == 2
+            assert "test/image1:latest" in available
+            assert "test/image2:latest" in available
+            assert all(availability.values())
+            mock_check.assert_called_once_with(images)
+
+    def test_get_available_images_some_missing(self):
+        """Test _get_available_images when some images need to be pulled."""
+        from asqi.workflow import _get_available_images
+
+        images = ["local/image:v1", "remote/image:v1"]
+
+        with (
+            patch("asqi.workflow.dbos_check_images_availability") as mock_check,
+            patch("asqi.workflow.dbos_pull_images") as mock_pull,
+        ):
+            # First check: one missing, second check: both available after pull
+            mock_check.side_effect = [
+                {"local/image:v1": True, "remote/image:v1": False},
+                {"local/image:v1": True, "remote/image:v1": True},
+            ]
+
+            available, availability = _get_available_images(images)
+
+            assert len(available) == 2
+            assert all(availability.values())
+            mock_pull.assert_called_once_with(["remote/image:v1"])
+            assert mock_check.call_count == 2
+
+    def test_get_available_images_all_missing(self):
+        """Test _get_available_images when all images need to be pulled."""
+        from asqi.workflow import _get_available_images
+
+        images = ["remote/image1:latest", "remote/image2:latest"]
+
+        with (
+            patch("asqi.workflow.dbos_check_images_availability") as mock_check,
+            patch("asqi.workflow.dbos_pull_images") as mock_pull,
+        ):
+            # First check: all missing, second check: all available after pull
+            mock_check.side_effect = [
+                {img: False for img in images},
+                {img: True for img in images},
+            ]
+
+            available, availability = _get_available_images(images)
+
+            assert len(available) == 2
+            mock_pull.assert_called_once_with(images)
+
+    def test_get_available_images_empty_list(self):
+        """Test _get_available_images with empty image list."""
+        from asqi.workflow import _get_available_images
+
+        with patch("asqi.workflow.dbos_check_images_availability") as mock_check:
+            mock_check.return_value = {}
+
+            available, availability = _get_available_images([])
+
+            assert len(available) == 0
+            assert len(availability) == 0
+
+    def test_get_available_images_pull_fails(self):
+        """Test _get_available_images when pull fails (images remain unavailable)."""
+        from asqi.workflow import _get_available_images
+
+        images = ["nonexistent/image:latest"]
+
+        with (
+            patch("asqi.workflow.dbos_check_images_availability") as mock_check,
+            patch("asqi.workflow.dbos_pull_images") as mock_pull,
+        ):
+            # Both checks return unavailable (pull failed)
+            mock_check.side_effect = [
+                {"nonexistent/image:latest": False},
+                {"nonexistent/image:latest": False},
+            ]
+
+            available, availability = _get_available_images(images)
+
+            assert len(available) == 0
+            assert not availability["nonexistent/image:latest"]
+            mock_pull.assert_called_once()
+
+
+# =============================================================================
+# Environment Variable and Multi-System Tests
+# =============================================================================
+
+
+class TestEnvironmentVariablesAndSystems:
+    """Tests for environment variable handling and multiple systems."""
+
+    def test_execute_single_test_env_var_merging(self, tmp_path):
+        """Test that test-level env vars override system-level."""
+        # Create test env files
+        system_env_file = tmp_path / "system.env"
+        system_env_file.write_text("SHARED_VAR=system_value\nSYSTEM_ONLY=sys_val")
+
+        test_env_file = tmp_path / "test.env"
+        test_env_file.write_text("SHARED_VAR=test_value\nTEST_ONLY=test_val")
+
+        fake_output = '{"success": true}'
+        with patch("asqi.workflow.run_container_with_args") as run_mock:
+            run_mock.return_value = {
+                "success": True,
+                "exit_code": 0,
+                "output": fake_output,
+                "error": "",
+                "container_id": "abc",
+            }
+
+            inner_step = getattr(
+                execute_single_test, "__wrapped__", execute_single_test
+            )
+            result = inner_step(
+                test_id="env_test",
+                test_name="env test",
+                image="test/image:latest",
+                sut_name="systemA",
+                systems_params={
+                    "system_under_test": {
+                        "type": "llm_api",
+                        "env_file": str(system_env_file),
+                    }
+                },
+                test_params={},
+                container_config=ContainerConfig(),
+                env_file=str(test_env_file),  # Test level (should override)
+                environment={"OVERRIDE_VAR": "explicit_value"},
+            )
+
+            assert result.success is True
+            # Verify container was called with merged env vars
+            call_args = run_mock.call_args
+            env_vars = call_args[1]["environment"]
+
+            # Test-level should override system-level
+            assert env_vars.get("SHARED_VAR") == "test_value"
+            # Both should be present
+            assert "SYSTEM_ONLY" in env_vars
+            assert "TEST_ONLY" in env_vars
+            # Explicit environment dict has highest priority
+            assert env_vars.get("OVERRIDE_VAR") == "explicit_value"
+
+    def test_execute_single_test_multiple_systems(self):
+        """Test execution with multiple system roles (system_under_test + additional systems)."""
+        fake_output = '{"success": true, "evaluation_score": 0.95}'
+        with patch("asqi.workflow.run_container_with_args") as run_mock:
+            run_mock.return_value = {
+                "success": True,
+                "exit_code": 0,
+                "output": fake_output,
+                "error": "",
+                "container_id": "multi_sys_123",
+            }
+
+            systems_params = {
+                "system_under_test": {
+                    "type": "llm_api",
+                    "model": "my-chatbot",
+                    "base_url": "http://localhost:8000",
+                },
+                "simulator_system": {
+                    "type": "llm_api",
+                    "model": "gpt-4o",
+                    "base_url": "https://api.openai.com/v1",
+                },
+                "evaluator_system": {
+                    "type": "llm_api",
+                    "model": "claude-3-5-sonnet-20241022",
+                    "base_url": "https://api.anthropic.com/v1",
+                },
+            }
+
+            inner_step = getattr(
+                execute_single_test, "__wrapped__", execute_single_test
+            )
+            result = inner_step(
+                test_id="multi_sys_test",
+                test_name="multi system test",
+                image="test/chatbot_simulator:latest",
+                sut_name="my_chatbot",
+                systems_params=systems_params,
+                test_params={"num_conversations": 5},
+                container_config=ContainerConfig(),
+            )
+
+            assert result.success is True
+            # Verify all systems were passed to container
+            call_kwargs = run_mock.call_args[1]
+            # Args are passed as a list with --systems-params flag
+            args_list = call_kwargs["args"]
+
+            # Find the systems-params JSON in the args
+            systems_json_idx = args_list.index("--systems-params") + 1
+            systems_json = args_list[systems_json_idx]
+            systems_dict = json.loads(systems_json)
+
+            assert "system_under_test" in systems_dict
+            assert "simulator_system" in systems_dict
+            assert "evaluator_system" in systems_dict
+            assert systems_dict["system_under_test"]["model"] == "my-chatbot"
+            assert systems_dict["simulator_system"]["model"] == "gpt-4o"
+            assert (
+                systems_dict["evaluator_system"]["model"]
+                == "claude-3-5-sonnet-20241022"
+            )
+
+    def test_execute_single_test_env_interpolation(self, monkeypatch):
+        """Test environment variable interpolation with ${VAR} syntax."""
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-openai-key")
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+
+        fake_output = '{"success": true}'
+        with patch("asqi.workflow.run_container_with_args") as run_mock:
+            run_mock.return_value = {
+                "success": True,
+                "exit_code": 0,
+                "output": fake_output,
+                "error": "",
+                "container_id": "interp_123",
+            }
+
+            inner_step = getattr(
+                execute_single_test, "__wrapped__", execute_single_test
+            )
+            result = inner_step(
+                test_id="interp_test",
+                test_name="interpolation test",
+                image="test/image:latest",
+                sut_name="systemA",
+                systems_params={"system_under_test": {"type": "llm_api"}},
+                test_params={},
+                container_config=ContainerConfig(),
+                environment={
+                    "API_KEY": "${OPENAI_API_KEY}",
+                    "LOG_LEVEL": "${LOG_LEVEL:-INFO}",  # Default value
+                    "MISSING_VAR": "${MISSING:-default_value}",
+                },
+            )
+
+            assert result.success is True
+            call_args = run_mock.call_args
+            env_vars = call_args[1]["environment"]
+
+            # Check interpolation worked
+            assert env_vars.get("API_KEY") == "sk-test-openai-key"
+            assert env_vars.get("LOG_LEVEL") == "DEBUG"
+            assert env_vars.get("MISSING_VAR") == "default_value"
+
+    def test_execute_single_test_missing_required_env_vars(self, tmp_path):
+        """Test handling of missing required environment variables."""
+        # This would typically be validated before execution
+        # Test that validation catches missing required env vars
+        from asqi.schemas import EnvironmentVariable, Manifest, SystemInput
+
+        manifest = Manifest(
+            name="test-manifest",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+            environment_variables=[
+                EnvironmentVariable(
+                    name="REQUIRED_API_KEY",
+                    required=True,
+                    description="Required API key for the service",
+                )
+            ],
+        )
+
+        # Test that error message is helpful
+        from asqi.validation import build_env_var_error_message
+
+        missing_vars = [manifest.environment_variables[0]]
+        error_msg = build_env_var_error_message(
+            missing_vars, "my_test", "test/image:latest"
+        )
+
+        assert "REQUIRED_API_KEY" in error_msg
+        assert "Required API key for the service" in error_msg
+        assert "env_file" in error_msg
+        assert "environment:" in error_msg
+
+
+# =============================================================================
+# Display Reports Validation Tests
+# =============================================================================
+
+
+class TestDisplayReportsValidation:
+    """Tests for display reports validation functions."""
+
+    def test_resolve_display_reports_inputs_end_to_end_mode(self):
+        """Test that END_TO_END mode returns empty mappings."""
+        from asqi.config import ExecutionMode
+        from asqi.workflow import _resolve_display_reports_inputs
+
+        test_result = TestExecutionResult("t1", "t1", "sys1", "test/image:v1")
+        test_results = [test_result]
+
+        test_id_to_image, manifests = _resolve_display_reports_inputs(
+            test_results, ExecutionMode.END_TO_END
+        )
+
+        assert test_id_to_image == {}
+        assert manifests == {}
+
+    def test_resolve_display_reports_inputs_evaluate_only(self):
+        """Test manifest extraction in EVALUATE_ONLY mode."""
+        from asqi.config import ExecutionMode
+        from asqi.schemas import SystemInput
+        from asqi.workflow import _resolve_display_reports_inputs
+
+        manifest = Manifest(
+            name="test-manifest",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+        )
+
+        test_result = TestExecutionResult("t1", "test_1", "sys1", "test/image:v1")
+        test_results = [test_result]
+
+        with (
+            patch("asqi.workflow._get_available_images") as mock_get_images,
+            patch("asqi.workflow.extract_manifests_step") as mock_extract,
+        ):
+            mock_get_images.return_value = (["test/image:v1"], {})
+            mock_extract.return_value = {"test/image:v1": manifest}
+
+            test_id_to_image, manifests = _resolve_display_reports_inputs(
+                test_results, ExecutionMode.EVALUATE_ONLY
+            )
+
+            assert "test_1" in test_id_to_image
+            assert test_id_to_image["test_1"] == "test/image:v1"
+            assert "test/image:v1" in manifests
+            assert manifests["test/image:v1"] == manifest
+
+    def test_resolve_display_reports_inputs_multiple_tests_same_image(self):
+        """Test with multiple tests using the same image."""
+        from asqi.config import ExecutionMode
+        from asqi.schemas import SystemInput
+        from asqi.workflow import _resolve_display_reports_inputs
+
+        manifest = Manifest(
+            name="shared-manifest",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+        )
+
+        test_results = [
+            TestExecutionResult("t1", "test_1", "sys1", "shared/image:v1"),
+            TestExecutionResult("t2", "test_2", "sys2", "shared/image:v1"),
+        ]
+
+        with (
+            patch("asqi.workflow._get_available_images") as mock_get_images,
+            patch("asqi.workflow.extract_manifests_step") as mock_extract,
+        ):
+            # Only one unique image should be extracted
+            mock_get_images.return_value = (["shared/image:v1"], {})
+            mock_extract.return_value = {"shared/image:v1": manifest}
+
+            test_id_to_image, manifests = _resolve_display_reports_inputs(
+                test_results, ExecutionMode.EVALUATE_ONLY
+            )
+
+            assert len(test_id_to_image) == 2
+            assert len(manifests) == 1  # Only one unique image
+            assert test_id_to_image["test_1"] == "shared/image:v1"
+            assert test_id_to_image["test_2"] == "shared/image:v1"
+
+    def test_validate_display_reports_valid(self):
+        """Test validate_display_reports with valid display reports."""
+        from asqi.schemas import OutputReports, ScoreCardIndicator, SystemInput
+        from asqi.workflow import validate_display_reports
+
+        manifest = Manifest(
+            name="report-manifest",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+            output_reports=[
+                OutputReports(name="summary_report", type="html"),
+                OutputReports(name="detail_report", type="pdf"),
+            ],
+        )
+
+        manifests = {"test/image:v1": manifest}
+        test_id_to_image = {"test_1": "test/image:v1"}
+
+        score_card = ScoreCard(
+            score_card_name="Test Score Card",
+            indicators=[
+                ScoreCardIndicator(
+                    id="ind_1",
+                    name="Test Indicator",
+                    apply_to={"test_id": "test_1"},
+                    metric="success",
+                    assessment=[],
+                    display_reports=["summary_report"],
+                )
+            ],
+        )
+
+        # Should not raise any errors
+        validate_display_reports(manifests, score_card, test_id_to_image)
+
+    def test_validate_display_reports_invalid_report_name(self):
+        """Test validate_display_reports with invalid report name."""
+        from asqi.errors import ReportValidationError
+        from asqi.schemas import OutputReports, ScoreCardIndicator, SystemInput
+        from asqi.workflow import validate_display_reports
+
+        manifest = Manifest(
+            name="report-manifest",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+            output_reports=[OutputReports(name="valid_report", type="html")],
+        )
+
+        manifests = {"test/image:v1": manifest}
+        test_id_to_image = {"test_1": "test/image:v1"}
+
+        score_card = ScoreCard(
+            score_card_name="Test Score Card",
+            indicators=[
+                ScoreCardIndicator(
+                    id="ind_1",
+                    name="Test Indicator",
+                    apply_to={"test_id": "test_1"},
+                    metric="success",
+                    assessment=[],
+                    display_reports=["invalid_report"],  # Not in manifest
+                )
+            ],
+        )
+
+        with pytest.raises(ReportValidationError):
+            validate_display_reports(manifests, score_card, test_id_to_image)
+
+    def test_validate_display_reports_missing_test_id(self):
+        """Test validate_display_reports with missing test_id reference."""
+        from asqi.errors import ReportValidationError
+        from asqi.schemas import ScoreCardIndicator, SystemInput
+        from asqi.workflow import validate_display_reports
+
+        manifest = Manifest(
+            name="report-manifest",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+        )
+
+        manifests = {"test/image:v1": manifest}
+        test_id_to_image = {"test_1": "test/image:v1"}
+
+        score_card = ScoreCard(
+            score_card_name="Test Score Card",
+            indicators=[
+                ScoreCardIndicator(
+                    id="ind_1",
+                    name="Test Indicator",
+                    apply_to={"test_id": "nonexistent_test"},  # Test doesn't exist
+                    metric="success",
+                    assessment=[],
+                    display_reports=["some_report"],
+                )
+            ],
+        )
+
+        with pytest.raises(ReportValidationError):
+            validate_display_reports(manifests, score_card, test_id_to_image)

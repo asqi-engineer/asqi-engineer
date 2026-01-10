@@ -2718,7 +2718,7 @@ class TestValidateDataGenerationInput:
 
     def test_invalid_generation_config_path(self):
         """Test validation fails with invalid generation config path."""
-        with pytest.raises(ValueError, match="Invalid suite_path"):
+        with pytest.raises(ValueError, match="Invalid generation_config_path"):
             validate_data_generation_input(
                 generation_config_path="",
                 systems_path="config/systems.yaml",
