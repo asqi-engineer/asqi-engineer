@@ -1625,20 +1625,17 @@ def execute_data_generation(
     env_file: Optional[str] = None,
     environment: Optional[Dict[str, str]] = None,
 ) -> TestExecutionResult:
-    """Execute a single test in a Docker container.
-
-    Focuses solely on test execution. Input validation is handled separately
-    in validation.py to follow single responsibility principle.
+    """Execute a single data generation job in a Docker container.
 
     Args:
-        test_name: Name of the test to execute (pre-validated)
-        test_id: Unique ID of the test to execute (pre-validated)
+        job_name: Name of the generation job to execute (pre-validated)
+        job_id: Unique ID of the generation job to execute (pre-validated)
         image: Docker image to run (pre-validated)
-        systems_params: Dictionary containing system_under_test and other systems (pre-validated)
-        test_params: Parameters for the test (pre-validated)
+        systems_params: Dictionary containing generation systems and their configurations (pre-validated)
+        generation_params: Parameters for the generation job (pre-validated)
         container_config: Container execution configurations
-        env_file: Optional path to .env file for test-level environment variables
-        environment: Optional dictionary of environment variables for the test
+        env_file: Optional path to .env file for job-level environment variables
+        environment: Optional dictionary of environment variables for the generation job
 
     Returns:
         TestExecutionResult containing execution metadata and results
