@@ -121,6 +121,7 @@ class TestMainCLI:
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
+            datasets_config_path=None,
             output_path="output.json",
             score_card_configs=None,
             execution_mode=ExecutionMode.TESTS_ONLY,
@@ -162,6 +163,7 @@ class TestMainCLI:
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
+            datasets_config_path=None,
             output_path="output.json",
             score_card_configs=[{"score_card_name": "Test scorecard"}],
             execution_mode=ExecutionMode.END_TO_END,
@@ -213,6 +215,7 @@ class TestMainCLI:
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
+            datasets_config_path=None,
             output_path="output_scorecard.json",
             score_card_configs=[MOCK_SCORE_CARD_CONFIG],
             execution_mode=ExecutionMode.END_TO_END,
@@ -517,6 +520,7 @@ class TestMainCLI:
         mock_start.assert_called_with(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
+            datasets_config_path=None,
             output_path="output.json",
             score_card_configs=None,
             execution_mode=ExecutionMode.TESTS_ONLY,
@@ -547,6 +551,7 @@ class TestMainCLI:
         mock_start.assert_called_with(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
+            datasets_config_path=None,
             output_path="output_scorecard.json",
             score_card_configs=[{"score_card_name": "Test"}],
             execution_mode=ExecutionMode.END_TO_END,
@@ -610,6 +615,7 @@ class TestMainCLI:
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
+            datasets_config_path=None,
             output_path="out.json",
             score_card_configs=None,
             execution_mode=ExecutionMode.TESTS_ONLY,
@@ -650,6 +656,7 @@ class TestMainCLI:
         mock_start.assert_called_once_with(
             suite_path="suite.yaml",
             systems_path="systems.yaml",
+            datasets_config_path=None,
             output_path="out.json",
             score_card_configs=None,
             execution_mode=ExecutionMode.TESTS_ONLY,
