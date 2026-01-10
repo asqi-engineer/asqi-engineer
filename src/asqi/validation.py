@@ -645,21 +645,6 @@ def create_test_execution_plan(
                 }
             )
 
-        if not target_systems:
-            # No target systems, just add the test with its params
-            plan.append(
-                {
-                    "test_name": test.name,
-                    "test_id": test.id,
-                    "image": image,
-                    "sut_name": None,
-                    "systems_params": systems_params,
-                    "test_params": test_params,
-                    "env_file": test.env_file,
-                    "environment": test.environment,
-                }
-            )
-
     return plan
 
 
@@ -848,7 +833,7 @@ def validate_test_execution_inputs(
     if not image or not isinstance(image, str):
         raise ValueError("Invalid image: must be non-empty string")
 
-    if system_name and not isinstance(system_name, str):
+    if not system_name or not isinstance(system_name, str):
         raise ValueError("Invalid system name: must be non-empty string")
 
     if not isinstance(system_params, dict):
