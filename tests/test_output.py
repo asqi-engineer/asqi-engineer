@@ -779,7 +779,15 @@ class TestDisplayGeneratedDatasets:
 
             display_generated_datasets(results)
 
-            mock_console.print.assert_called_once_with("No datasets were generated")
+            # Should print header and "no datasets" message
+            assert mock_console.print.call_count == 2
+            print_calls = [call[0][0] for call in mock_console.print.call_args_list]
+            assert any(
+                "Verifying generated datasets" in str(call) for call in print_calls
+            )
+            assert any(
+                "No datasets were generated" in str(call) for call in print_calls
+            )
 
     def test_display_multiple_datasets(self, tmp_path):
         """Test displaying multiple datasets from multiple jobs."""
@@ -838,7 +846,15 @@ class TestDisplayGeneratedDatasets:
 
             display_generated_datasets(results)
 
-            mock_console.print.assert_called_once_with("No datasets were generated")
+            # Should print header and "no datasets" message
+            assert mock_console.print.call_count == 2
+            print_calls = [call[0][0] for call in mock_console.print.call_args_list]
+            assert any(
+                "Verifying generated datasets" in str(call) for call in print_calls
+            )
+            assert any(
+                "No datasets were generated" in str(call) for call in print_calls
+            )
 
 
 class TestDisplayScoreCardReports:

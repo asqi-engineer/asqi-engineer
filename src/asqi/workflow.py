@@ -1480,9 +1480,6 @@ def start_test_execution(
             # Display generated datasets before saving results
             test_results = results.get("results", [])
             if test_results:
-                console.print(
-                    "\n[bold blue]Verifying generated datasets...[/bold blue]"
-                )
                 display_generated_datasets(test_results)
 
             save_results_to_file_step(results, output_path)
@@ -1628,9 +1625,6 @@ def start_data_generation(
             # Display generated datasets before saving results
             generation_results = results.get("results", [])
             if generation_results:
-                console.print(
-                    "\n[bold blue]Verifying generated datasets...[/bold blue]"
-                )
                 display_generated_datasets(generation_results)
 
             save_results_to_file_step(results, output_path)

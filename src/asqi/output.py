@@ -390,6 +390,7 @@ def display_generated_datasets(all_results: List[Dict[str, Any]]) -> None:
         all_results: List of test execution or generation job results
     """
     console = Console()
+    console.print("\n[bold blue]Verifying generated datasets...[/bold blue]")
     datasets_count = 0
 
     # Collect all datasets from all results
