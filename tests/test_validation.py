@@ -13,12 +13,14 @@ from asqi.schemas import (
     AssessmentRule,
     AuditScoreCardIndicator,
     DataGenerationConfig,
+    DatasetFeature,
     GenerationJobConfig,
     GenericSystemConfig,
     InputParameter,
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
+    OutputDataset,
     OutputReports,
     RAGAPIConfig,
     ScoreCard,
@@ -37,6 +39,7 @@ from asqi.validation import (
     validate_data_generation_input,
     validate_data_generation_plan,
     validate_execution_inputs,
+    validate_generated_datasets,
     validate_ids,
     validate_indicator_display_reports,
     validate_manifests_against_tests,
@@ -2441,6 +2444,199 @@ class TestValidateIndicatorDisplayReports:
 
         assert len(errors) == 1
         assert "not found with an exact case sensitive match" in errors[0]
+
+
+class TestValidateGeneratedDatasets:
+    """Test validation of generated datasets against manifest declarations."""
+
+    def test_all_datasets_match_manifest(self):
+        """Test that all generated datasets match manifest declarations."""
+        manifest = Manifest(
+            name="test_container",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+            output_datasets=[
+                OutputDataset(
+                    name="augmented_data",
+                    type="huggingface",
+                    description="Augmented dataset",
+                    features=[
+                        DatasetFeature(name="text", dtype="string"),
+                        DatasetFeature(name="label", dtype="int64"),
+                    ],
+                ),
+                OutputDataset(
+                    name="evaluation_data",
+                    type="huggingface",
+                    description="Evaluation dataset",
+                    features=[DatasetFeature(name="prompt", dtype="string")],
+                ),
+            ],
+        )
+
+        generated_datasets = [
+            {"dataset_name": "augmented_data", "dataset_path": "/output/data.parquet"},
+            {
+                "dataset_name": "evaluation_data",
+                "dataset_path": "/output/eval.parquet",
+            },
+        ]
+
+        warnings = validate_generated_datasets(
+            manifest, generated_datasets, "test_id", "my-registry/test:latest"
+        )
+
+        assert len(warnings) == 0
+
+    def test_undeclared_dataset_generates_warning(self):
+        """Test that generating an undeclared dataset produces a warning."""
+        manifest = Manifest(
+            name="test_container",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+            output_datasets=[
+                OutputDataset(
+                    name="declared_dataset",
+                    type="huggingface",
+                    features=[DatasetFeature(name="text", dtype="string")],
+                )
+            ],
+        )
+
+        generated_datasets = [
+            {
+                "dataset_name": "undeclared_dataset",
+                "dataset_path": "/output/data.parquet",
+            }
+        ]
+
+        warnings = validate_generated_datasets(
+            manifest, generated_datasets, "test_id", "my-registry/test:latest"
+        )
+
+        assert len(warnings) == 1
+        assert "undeclared_dataset" in warnings[0]
+        assert "not declared in manifest" in warnings[0]
+        assert "declared_dataset" in warnings[0]
+
+    def test_multiple_undeclared_datasets(self):
+        """Test that multiple undeclared datasets generate multiple warnings."""
+        manifest = Manifest(
+            name="test_container",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+            output_datasets=[
+                OutputDataset(
+                    name="declared_dataset",
+                    type="huggingface",
+                    features=[DatasetFeature(name="text", dtype="string")],
+                )
+            ],
+        )
+
+        generated_datasets = [
+            {"dataset_name": "undeclared_1", "dataset_path": "/output/data1.parquet"},
+            {"dataset_name": "undeclared_2", "dataset_path": "/output/data2.parquet"},
+        ]
+
+        warnings = validate_generated_datasets(
+            manifest, generated_datasets, "test_id", "my-registry/test:latest"
+        )
+
+        assert len(warnings) == 2
+        assert any("undeclared_1" in w for w in warnings)
+        assert any("undeclared_2" in w for w in warnings)
+
+    def test_no_output_datasets_in_manifest(self):
+        """Test that validation passes when manifest has no output_datasets declared."""
+        manifest = Manifest(
+            name="test_container",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+            output_datasets=[],
+        )
+
+        generated_datasets = [
+            {"dataset_name": "any_dataset", "dataset_path": "/output/data.parquet"}
+        ]
+
+        warnings = validate_generated_datasets(
+            manifest, generated_datasets, "test_id", "my-registry/test:latest"
+        )
+
+        # No warnings because manifest doesn't declare any output_datasets
+        assert len(warnings) == 0
+
+    def test_missing_dataset_name_field(self):
+        """Test that missing dataset_name field generates a warning."""
+        manifest = Manifest(
+            name="test_container",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+            output_datasets=[
+                OutputDataset(
+                    name="declared_dataset",
+                    type="huggingface",
+                    features=[DatasetFeature(name="text", dtype="string")],
+                )
+            ],
+        )
+
+        generated_datasets = [
+            {"dataset_path": "/output/data.parquet"}  # Missing dataset_name
+        ]
+
+        warnings = validate_generated_datasets(
+            manifest, generated_datasets, "test_id", "my-registry/test:latest"
+        )
+
+        assert len(warnings) == 1
+        assert "missing 'dataset_name' field" in warnings[0]
+
+    def test_none_manifest(self):
+        """Test that validation passes gracefully when manifest is None."""
+        generated_datasets = [
+            {"dataset_name": "any_dataset", "dataset_path": "/output/data.parquet"}
+        ]
+
+        warnings = validate_generated_datasets(
+            None, generated_datasets, "test_id", "my-registry/test:latest"
+        )
+
+        assert len(warnings) == 0
+
+    def test_empty_generated_datasets(self):
+        """Test that validation passes when no datasets are generated."""
+        manifest = Manifest(
+            name="test_container",
+            version="1.0",
+            input_systems=[
+                SystemInput(name="system_under_test", type="llm_api", required=True)
+            ],
+            output_datasets=[
+                OutputDataset(
+                    name="declared_dataset",
+                    type="huggingface",
+                    features=[DatasetFeature(name="text", dtype="string")],
+                )
+            ],
+        )
+
+        warnings = validate_generated_datasets(
+            manifest, [], "test_id", "my-registry/test:latest"
+        )
+
+        assert len(warnings) == 0
 
 
 class TestMultipleSystemTypes:

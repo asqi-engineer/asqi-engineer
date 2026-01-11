@@ -1006,7 +1006,50 @@ def validate_indicator_display_reports(
     return errors
 
 
-## Data Generation Functions
+def validate_generated_datasets(
+    manifest: Manifest,
+    generated_datasets: List[Dict[str, Any]],
+    test_id: str,
+    image: str,
+) -> List[str]:
+    """
+    Validate that generated datasets match the manifest declarations.
+
+    Checks that all dataset names in generated_datasets exist in the manifest's
+    output_datasets field. Does not validate features/schema.
+
+    Args:
+        manifest: The container manifest
+        generated_datasets: List of dataset dicts from container output
+        test_id: ID of the test/job for error messages
+        image: Container image name for error messages
+
+    Returns:
+        List of warning messages (empty list if all datasets are valid)
+    """
+    warnings = []
+
+    if not manifest or not manifest.output_datasets:
+        return warnings
+
+    declared_datasets = {dataset.name for dataset in manifest.output_datasets}
+    for dataset in generated_datasets:
+        dataset_name = dataset.get("dataset_name")
+        if not dataset_name:
+            warnings.append(
+                f"Job '{test_id}' (image: {image}): Generated dataset missing 'dataset_name' field"
+            )
+            continue
+
+        if dataset_name not in declared_datasets:
+            warnings.append(
+                f"Job '{test_id}' (image: {image}): Generated dataset '{dataset_name}' "
+                f"not declared in manifest. Manifest declares: {sorted(list(declared_datasets))}"
+            )
+
+    return warnings
+
+
 def validate_data_generation_input(
     generation_config_path: str,
     systems_path: Optional[str],

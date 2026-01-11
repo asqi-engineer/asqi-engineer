@@ -61,6 +61,7 @@ from asqi.validation import (
     validate_data_generation_plan,
     validate_data_generation_volumes,
     validate_execution_inputs,
+    validate_generated_datasets,
     validate_indicator_display_reports,
     validate_score_card_inputs,
     validate_test_execution_inputs,
@@ -548,6 +549,15 @@ def execute_single_test(
             host_output_volume = test_params.get("volumes", {}).get("output", "")
             translate_report_paths(generated_reports, host_output_volume)
             translate_dataset_paths(generated_datasets, host_output_volume)
+
+            # Validate generated datasets against manifest declarations
+            if manifest and generated_datasets:
+                dataset_warnings = validate_generated_datasets(
+                    manifest, generated_datasets, test_id, image
+                )
+                for warning in dataset_warnings:
+                    DBOS.logger.warning(warning)
+
             result.success = result.test_results.get("success", False)
         except ValueError as e:
             result.error_message = (
@@ -1852,6 +1862,15 @@ def execute_data_generation(
             host_output_volume = generation_params.get("volumes", {}).get("output", "")
             translate_report_paths(generated_reports, host_output_volume)
             translate_dataset_paths(generated_datasets, host_output_volume)
+
+            # Validate generated datasets against manifest declarations
+            if manifest and generated_datasets:
+                dataset_warnings = validate_generated_datasets(
+                    manifest, generated_datasets, job_id, image
+                )
+                for warning in dataset_warnings:
+                    DBOS.logger.warning(warning)
+
             result.success = result.test_results.get("success", False)
         except ValueError as e:
             result.error_message = (
