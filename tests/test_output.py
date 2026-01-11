@@ -2,6 +2,7 @@
 Unit tests for output.py module, focusing on JSON parsing from container output.
 """
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -508,6 +509,76 @@ class TestTranslateContainerPath:
         # Should normalize path without double slashes
         assert "//" not in result
         assert result.endswith("/reports/file.html")
+
+    @patch("asqi.output.OUTPUT_MOUNT_PATH", Path("/output"))
+    def test_relative_path_consistency_regression(self, tmp_path):
+        """
+        Regression test: Relative host volume paths must be resolved to absolute paths.
+
+        Bug scenario: Without .resolve(), relative paths could cause inconsistencies
+        when comparing paths, joining paths, or performing filesystem operations.
+
+        Example issue:
+        - Container path: "/output/data.parquet"
+        - Host volume (relative): "output"
+        - Without resolve(): "output/data.parquet" (relative, problematic)
+        - With resolve(): "/absolute/path/to/output/data.parquet" (correct)
+
+        This test ensures Path.resolve() is called on host_output_volume to
+        prevent path manipulation issues and ensure consistent absolute paths.
+        """
+        output_dir = tmp_path / "output" / "datasets"
+        output_dir.mkdir(parents=True)
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
+            result = _translate_container_path(
+                "/output/datasets/data.parquet",
+                "output",  # Relative path - the bug scenario
+                "dataset",
+            )
+
+            # path must be absolute
+            result_path = Path(result)
+            assert result_path.is_absolute(), (
+                f"Expected absolute path, got relative: {result}"
+            )
+
+            # Verify the path structure is correct
+            assert result_path.name == "data.parquet"
+            assert "datasets" in result_path.parts
+            assert "output" in result_path.parts
+
+            # Ensure no ".." or "." components that could cause issues
+            assert ".." not in result_path.parts
+            assert "." not in result_path.parts
+
+        finally:
+            os.chdir(original_cwd)
+
+    @patch("asqi.output.OUTPUT_MOUNT_PATH", Path("/output"))
+    def test_relative_vs_absolute_host_volume_consistency(self):
+        """
+        Test that relative and absolute host volumes produce equivalent results.
+        """
+        cwd = Path(os.getcwd())
+
+        result_relative = _translate_container_path(
+            "/output/data.parquet",
+            "test_output",  # Relative path
+            "dataset",
+        )
+
+        result_absolute = _translate_container_path(
+            "/output/data.parquet",
+            str(cwd / "test_output"),  # Absolute equivalent
+            "dataset",
+        )
+
+        # Both should produce the same absolute path and absolute
+        assert result_relative == result_absolute
+        assert Path(result_relative).is_absolute()
+        assert Path(result_absolute).is_absolute()
 
 
 class TestExtractContainerJsonOutputFields:
