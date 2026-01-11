@@ -380,7 +380,7 @@ class TestExecutionResult:
         self,
         test_name: str,
         test_id: str,
-        sut_name: str,
+        sut_name: Optional[str],
         image: str,
         system_type: Optional[str] = None,
     ):
@@ -903,14 +903,21 @@ def run_test_suite_workflow(
 
     test_queue = Queue(queue_name, concurrency=executor_config["concurrent_tests"])
 
-    # Parse configurations
+    # Parse configurations - initialize variables for type checker
+    suite: SuiteConfig
+    systems: SystemsConfig
+    score_cards: List[ScoreCard] = []
+
     try:
         suite = SuiteConfig(**suite_config)
         systems = SystemsConfig(**systems_config)
         if datasets_config:
             datasets = DatasetsConfig(**datasets_config)
-            suite = resolve_dataset_references(suite, datasets)
-        score_cards = []
+            resolved = resolve_dataset_references(suite, datasets)
+            assert isinstance(resolved, SuiteConfig), (
+                "Expected SuiteConfig from resolve_dataset_references"
+            )
+            suite = resolved
         for score_card_config in score_card_configs or []:
             score_cards.append(ScoreCard(**score_card_config))
     except ValidationError as e:
@@ -1925,15 +1932,22 @@ def run_data_generation_workflow(
 
     test_queue = Queue(queue_name, concurrency=executor_config["concurrent_tests"])
 
-    # Parse configurations
+    # Parse configurations - initialize variables for type checker
+    generation: DataGenerationConfig
+    systems: Optional[SystemsConfig]
+
     try:
-        generation_config = DataGenerationConfig(**generation_config)
+        generation = DataGenerationConfig(**generation_config)
         systems = SystemsConfig(**systems_config) if systems_config else None
 
         # Resolve dataset references after validation
         if datasets_config:
             datasets = DatasetsConfig(**datasets_config)
-            generation_config = resolve_dataset_references(generation_config, datasets)
+            resolved = resolve_dataset_references(generation, datasets)
+            assert isinstance(resolved, DataGenerationConfig), (
+                "Expected DataGenerationConfig from resolve_dataset_references"
+            )
+            generation = resolved
     except ValidationError as e:
         error_msg = f"Configuration validation failed: {e}"
         DBOS.logger.error(error_msg)
@@ -1968,14 +1982,14 @@ def run_data_generation_workflow(
         }, []
 
     try:
-        validate_data_generation_volumes(generation_config)
+        validate_data_generation_volumes(generation)
 
     except ValueError as e:
         error_msg = f"Volume validation failed: {e}"
         DBOS.logger.error(error_msg)
         return {
             "summary": create_workflow_summary(
-                suite_name=generation_config.job_name,
+                suite_name=generation.job_name,
                 workflow_id=DBOS.workflow_id or "",
                 status="VALIDATION_FAILED",
                 total_tests=0,
@@ -1988,11 +2002,11 @@ def run_data_generation_workflow(
         }, []
 
     console.print(
-        f"\n[bold blue]Executing Test Suite:[/bold blue] {generation_config.job_name}"
+        f"\n[bold blue]Executing Test Suite:[/bold blue] {generation.job_name}"
     )
 
     """Get the list of available Docker images for the test suite."""
-    unique_images = list(set(job.image for job in generation_config.generation_jobs))
+    unique_images = list(set(job.image for job in generation.generation_jobs))
     available_images, image_availability = _get_available_images(unique_images)
 
     # Extract manifests from available images (post-pull)
@@ -2001,7 +2015,7 @@ def run_data_generation_workflow(
     # Validate test plan
     with console.status("[bold blue]Validating test plan...", spinner="dots"):
         validation_errors = validate_data_generation_plan(
-            generation_config, systems, manifests
+            generation, systems, manifests
         )
 
     if validation_errors:
@@ -2015,7 +2029,7 @@ def run_data_generation_workflow(
         DBOS.logger.error(f"Validation failed with {len(validation_errors)} errors")
         return {
             "summary": create_workflow_summary(
-                suite_name=generation_config.job_name,
+                suite_name=generation.job_name,
                 workflow_id=DBOS.workflow_id or "",
                 status="VALIDATION_FAILED",
                 total_tests=0,
@@ -2028,16 +2042,14 @@ def run_data_generation_workflow(
         }, []
 
     # Prepare test execution plan
-    data_gen_plan = create_data_generation_plan(
-        generation_config, systems, image_availability
-    )
+    data_gen_plan = create_data_generation_plan(generation, systems, image_availability)
     data_gen_count = len(data_gen_plan)
 
     if data_gen_count == 0:
         console.print("[yellow]No Data generation flows to execute[/yellow]")
         return {
             "summary": create_workflow_summary(
-                suite_name=generation_config.job_name,
+                suite_name=generation.job_name,
                 workflow_id=DBOS.workflow_id or "",
                 status="NO_TESTS",
                 total_tests=0,
@@ -2162,7 +2174,7 @@ def run_data_generation_workflow(
     failed_tests = total_tests - successful_tests
 
     summary = create_workflow_summary(
-        suite_name=generation_config.job_name,
+        suite_name=generation.job_name,
         workflow_id=DBOS.workflow_id or "",
         status="COMPLETED",
         total_tests=total_tests,
