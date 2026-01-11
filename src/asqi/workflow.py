@@ -914,9 +914,10 @@ def run_test_suite_workflow(
         if datasets_config:
             datasets = DatasetsConfig(**datasets_config)
             resolved = resolve_dataset_references(suite, datasets)
-            assert isinstance(resolved, SuiteConfig), (
-                "Expected SuiteConfig from resolve_dataset_references"
-            )
+            if not isinstance(resolved, SuiteConfig):
+                raise TypeError(
+                    f"Expected SuiteConfig from resolve_dataset_references, got {type(resolved).__name__}"
+                )
             suite = resolved
         for score_card_config in score_card_configs or []:
             score_cards.append(ScoreCard(**score_card_config))
@@ -1944,9 +1945,10 @@ def run_data_generation_workflow(
         if datasets_config:
             datasets = DatasetsConfig(**datasets_config)
             resolved = resolve_dataset_references(generation, datasets)
-            assert isinstance(resolved, DataGenerationConfig), (
-                "Expected DataGenerationConfig from resolve_dataset_references"
-            )
+            if not isinstance(resolved, DataGenerationConfig):
+                raise TypeError(
+                    f"Expected DataGenerationConfig from resolve_dataset_references, got {type(resolved).__name__}"
+                )
             generation = resolved
     except ValidationError as e:
         error_msg = f"Configuration validation failed: {e}"
