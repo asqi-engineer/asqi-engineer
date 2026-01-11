@@ -640,3 +640,230 @@ params:
   generations: 5      # Instead of 50
   num_scenarios: 10   # Instead of 100
 ```
+
+## Dataset-Based Testing Workflows
+
+### Using Input Datasets for Evaluation
+
+Leverage pre-defined benchmark datasets for consistent evaluation:
+
+**1. Create dataset registry (`datasets/eval_datasets.yaml`):**
+
+```yaml
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_datasets_config.schema.json
+
+datasets:
+  mmlu_benchmark:
+    type: "huggingface"
+    description: "MMLU benchmark questions subset"
+    loader_params:
+      builder_name: "json"
+      data_files: "mmlu_questions.json"
+    mapping:
+      question: "prompt"
+      answer: "response"
+    tags: ["benchmark", "evaluation"]
+  
+  custom_qa_set:
+    type: "huggingface"
+    description: "Custom Q&A evaluation set"
+    loader_params:
+      builder_name: "parquet"
+      data_dir: "custom_qa/"
+    mapping:
+      input_text: "prompt"
+      expected_output: "response"
+    tags: ["custom", "evaluation"]
+```
+
+**2. Create test suite with dataset references (`suites/dataset_eval.yaml`):**
+
+```yaml
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+
+suite_name: "Benchmark Evaluation with Datasets"
+test_suite:
+  - id: "mmlu_eval"
+    name: "MMLU Benchmark Evaluation"
+    image: "my-registry/benchmark-evaluator:latest"
+    systems_under_test: ["my_llm"]
+    datasets:
+      evaluation_data: "mmlu_benchmark"
+    volumes:
+      input: "data/benchmarks/"
+      output: "results/mmlu/"
+    params:
+      batch_size: 10
+      temperature: 0.7
+  
+  - id: "custom_qa_eval"
+    name: "Custom Q&A Evaluation"
+    image: "my-registry/qa-evaluator:latest"
+    systems_under_test: ["my_llm"]
+    datasets:
+      evaluation_data: "custom_qa_set"
+    volumes:
+      input: "data/custom/"
+      output: "results/custom/"
+```
+
+**3. Run evaluation with datasets:**
+
+```bash
+# Place your dataset files in the input directories
+mkdir -p data/benchmarks data/custom
+cp mmlu_questions.json data/benchmarks/
+cp -r custom_qa/ data/custom/
+
+# Run evaluation
+asqi execute-tests \
+  --test-suite-config suites/dataset_eval.yaml \
+  --systems-config config/systems.yaml \
+  --datasets-config datasets/eval_datasets.yaml \
+  --output-file evaluation_results.json
+```
+
+## Data Generation Workflows
+
+### RAG Data Generation from Documents
+
+Generate question-answer pairs from PDF documents for RAG training:
+
+**1. Create source dataset registry (`datasets/source_datasets.yaml`):**
+
+```yaml
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_datasets_config.schema.json
+
+datasets:
+  company_handbook:
+    type: "pdf"
+    description: "Company policy handbook for RAG"
+    file_path: "handbook.pdf"
+    tags: ["rag", "source", "company"]
+  
+  product_documentation:
+    type: "pdf"
+    description: "Technical product documentation"
+    file_path: "product_docs.pdf"
+    tags: ["rag", "source", "technical"]
+```
+
+**2. Create generation configuration (`generation/rag_generation.yaml`):**
+
+```yaml
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_generation_config.schema.json
+
+job_name: "RAG Training Data Generation"
+generation_jobs:
+  - id: "handbook_qa_gen"
+    name: "Generate Q&A from Handbook"
+    image: "my-registry/rag-generator:latest"
+    systems:
+      generation_system: "openai_gpt4o_mini"
+      embedding_system: "openai_embedding"
+    datasets:
+      source_documents_pdf: "company_handbook"
+    volumes:
+      input: "data/pdfs/"
+      output: "data/generated/"
+    params:
+      output_dataset_path: "handbook_qa"
+      chunk_size: 600
+      chunk_overlap: 50
+      num_questions: 2
+      persona_name: "Employee"
+      persona_description: "Company employee seeking policy information"
+  
+  - id: "product_qa_gen"
+    name: "Generate Q&A from Product Docs"
+    image: "my-registry/rag-generator:latest"
+    systems:
+      generation_system: "openai_gpt4o_mini"
+      embedding_system: "openai_embedding"
+    datasets:
+      source_documents_pdf: "product_documentation"
+    volumes:
+      input: "data/pdfs/"
+      output: "data/generated/"
+    params:
+      output_dataset_path: "product_qa"
+      chunk_size: 500
+      num_questions: 3
+      persona_name: "Customer"
+      persona_description: "Customer seeking product information"
+```
+
+**3. Run data generation:**
+
+```bash
+# Place PDF files in input directory
+mkdir -p data/pdfs
+cp handbook.pdf product_docs.pdf data/pdfs/
+
+# Generate RAG training data
+asqi generate-dataset \
+  --generation-config generation/rag_generation.yaml \
+  --systems-config config/systems.yaml \
+  --datasets-config datasets/source_datasets.yaml \
+  --output-file rag_generation_results.json
+
+# Generated datasets will be in data/generated/
+ls data/generated/handbook_qa/
+ls data/generated/product_qa/
+```
+
+### Synthetic Dataset Augmentation
+
+Augment existing training datasets with variations:
+
+**1. Create base dataset registry (`datasets/training_data.yaml`):**
+
+```yaml
+datasets:
+  base_training_set:
+    type: "huggingface"
+    description: "Base training examples"
+    loader_params:
+      builder_name: "parquet"
+      data_dir: "training_base/"
+    mapping: {}
+    tags: ["training", "base"]
+```
+
+**2. Create augmentation config (`generation/augmentation.yaml`):**
+
+```yaml
+job_name: "Training Data Augmentation"
+generation_jobs:
+  - id: "augment_training"
+    name: "Augment Training Examples"
+    image: "my-registry/data-augmenter:latest"
+    systems:
+      generation_system: "openai_gpt4o_mini"
+    datasets:
+      base_data: "base_training_set"
+    volumes:
+      input: "data/base/"
+      output: "data/augmented/"
+    params:
+      output_dataset_path: "augmented_training"
+      augmentation_factor: 3
+      variation_types: ["paraphrase", "style_transfer", "synonym_replacement"]
+      preserve_labels: true
+```
+
+**3. Run augmentation:**
+
+```bash
+asqi generate-dataset \
+  --generation-config generation/augmentation.yaml \
+  --systems-config config/systems.yaml \
+  --datasets-config datasets/training_data.yaml \
+  --output-file augmentation_results.json
+```
+
+## Related Documentation
+
+- [Dataset Support](datasets.md) - Complete dataset documentation
+- [Configuration](configuration.md) - Dataset and generation configuration schemas
+- [Custom Test Containers](custom-test-containers.md) - Creating containers with dataset support

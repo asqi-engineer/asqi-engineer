@@ -29,6 +29,15 @@ The project focuses first on chatbot testing and supports extensions for other A
 - **Multi-system orchestration**: Tests can coordinate multiple AI systems (target, simulator, evaluator) in complex workflows
 - **Flexible configuration**: Test packages specify input systems and parameters that can be customised for individual use cases
 
+### **Dataset Support and Data Generation**
+
+- **Input datasets**: Feed evaluation datasets, source documents, or training data to test containers
+- **Dataset registry**: Centralized dataset definitions with reusable configurations across test suites
+- **Multiple formats**: Support for HuggingFace datasets, PDF documents, and text files
+- **Column mapping**: Align dataset fields with container expectations for seamless integration
+- **Synthetic data generation**: Generate training data, augment datasets, or create RAG question-answer pairs
+- **Output datasets**: Containers can produce datasets as outputs for data pipeline workflows
+
 ### **Automated Assessment**
 
 - **Structured reporting**: JSON output with detailed metrics and assessment outcomes
@@ -87,6 +96,9 @@ This downloads all required configuration files and creates a `.env` template.
 # Start the services and run your first test:
 docker compose up -d
 asqi execute-tests -t config/suites/demo_test.yaml -s config/systems/demo_systems.yaml
+
+# Or generate synthetic data (if you have data generation containers):
+asqi generate-dataset -t config/datasets/suite.yaml -s config/datasets/systems.yaml
 ```
 
 This short flow should download a demo test container and generate the test results in `output.json`. Now, to actually test your AI system, configure the `.env` file and try out the other test packages in: https://www.asqi.ai/quickstart.html
@@ -100,6 +112,7 @@ Detailed documentation lives on the project docs site — use the links below to
 - Library usage & workflow customization: [docs/library.md](./docs/library.md)
 - CLI & usage reference: https://www.asqi.ai/cli.html
 - Configuration & environment variables: https://www.asqi.ai/configuration.html
+- **Dataset support & data generation**: [docs/datasets.md](./docs/datasets.md)
 - Test container examples & how-to: https://www.asqi.ai/examples.html
 - LLM test containers overview (Garak, DeepTeam, TrustLLM, Inspect Evals, LLMPerf, Chatbot Simulator, Resaro Judge): https://www.asqi.ai/llm-test-containers.html
 - Score cards & evaluation: https://www.asqi.ai/examples.html#score-cards

@@ -458,3 +458,494 @@ For a complete reference implementation, check `test_containers/mock_tester`. It
   ```bash
   asqi execute -s config/systems/demo_systems.yaml -t config/suites/demo_test.yaml -r config/score_cards/example_score_card.yaml -o output.json
   ```
+
+## Working with Input Datasets
+
+Test containers can receive and process input datasets for evaluation, testing, or data generation.
+
+### 1. Declaring Input Datasets in Manifest
+
+Define required datasets in your container's `manifest.yaml`:
+
+```yaml
+# manifest.yaml
+name: "dataset_evaluator"
+version: "1.0.0"
+description: "Evaluates systems using benchmark datasets"
+
+input_datasets:
+  # HuggingFace dataset with required features
+  - name: "evaluation_data"
+    type: "huggingface"
+    required: true
+    description: "Benchmark evaluation dataset"
+    features:
+      - name: "prompt"
+        dtype: "string"
+        description: "Input prompt"
+      - name: "response"
+        dtype: "string"
+        description: "Expected response"
+  
+  # PDF document input
+  - name: "source_documents_pdf"
+    type: "pdf"
+    required: false
+    description: "Optional source documents"
+```
+
+**Dataset Types:**
+- `huggingface`: Structured datasets (requires `features` definition)
+- `pdf`: PDF document files
+- `txt`: Plain text files
+
+### 2. Receiving Dataset Paths in Container
+
+ASQI passes dataset information via the `--test-params` argument:
+
+```python
+#!/usr/bin/env python3
+import argparse
+import json
+from pathlib import Path
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--systems-params", required=True)
+    parser.add_argument("--test-params", required=True)
+    args = parser.parse_args()
+    
+    test_params = json.loads(args.test_params)
+    
+    # Access dataset paths
+    datasets = test_params.get("datasets", {})
+    eval_data_info = datasets.get("evaluation_data")
+    pdf_info = datasets.get("source_documents_pdf")
+    
+    # Dataset info structure:
+    # {
+    #   "type": "huggingface",
+    #   "path": "/input/dataset_path",
+    #   "config": {...}  # Original dataset config
+    # }
+```
+
+### 3. Loading and Processing Datasets
+
+**HuggingFace Datasets:**
+
+```python
+from datasets import load_from_disk
+import json
+
+# Get dataset path from test params
+test_params = json.loads(args.test_params)
+dataset_info = test_params["datasets"]["evaluation_data"]
+
+# Load the dataset
+dataset = load_from_disk(dataset_info["path"])
+
+# Process dataset
+for row in dataset:
+    prompt = row["prompt"]
+    expected_response = row["response"]
+    # Run evaluation...
+```
+
+**PDF Files:**
+
+```python
+from pathlib import Path
+
+# Get PDF path from test params
+pdf_info = test_params["datasets"]["source_documents_pdf"]
+pdf_path = Path(pdf_info["path"])
+
+# Process PDF
+with open(pdf_path, "rb") as f:
+    # Use PDF processing library
+    pass
+```
+
+**Text Files:**
+
+```python
+# Get text file path
+txt_info = test_params["datasets"]["corpus_txt"]
+txt_path = Path(txt_info["path"])
+
+# Read text file
+with open(txt_path, "r") as f:
+    content = f.read()
+```
+
+### 4. Column Mapping Awareness
+
+When users configure column mapping in the dataset registry, ASQI handles the mapping before passing data to your container. Your container always receives data with column names matching the `features` defined in your manifest.
+
+**Example:**
+- Your manifest expects features: `prompt`, `response`
+- User's dataset has columns: `question`, `answer`
+- User configures mapping: `question -> prompt`, `answer -> response`
+- Your container receives dataset with columns already mapped to `prompt`, `response`
+
+### 5. Complete Example: Dataset Evaluation Container
+
+```python
+#!/usr/bin/env python3
+import argparse
+import json
+import sys
+from datasets import load_from_disk
+from openai import OpenAI
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--systems-params", required=True)
+    parser.add_argument("--test-params", required=True)
+    args = parser.parse_args()
+    
+    systems_params = json.loads(args.systems_params)
+    test_params = json.loads(args.test_params)
+    
+    # Get system under test
+    sut = systems_params["system_under_test"]
+    client = OpenAI(
+        base_url=sut["base_url"],
+        api_key=sut["api_key"]
+    )
+    
+    # Load evaluation dataset
+    dataset_info = test_params["datasets"]["evaluation_data"]
+    dataset = load_from_disk(dataset_info["path"])
+    
+    # Run evaluation
+    correct = 0
+    total = len(dataset)
+    
+    for row in dataset:
+        response = client.chat.completions.create(
+            model=sut["model"],
+            messages=[{"role": "user", "content": row["prompt"]}]
+        )
+        
+        actual = response.choices[0].message.content
+        if actual.strip() == row["response"].strip():
+            correct += 1
+    
+    # Output results
+    results = {
+        "test_results": {
+            "success": True,
+            "accuracy": correct / total,
+            "correct_count": correct,
+            "total_count": total
+        }
+    }
+    
+    print(json.dumps(results))
+
+if __name__ == "__main__":
+    main()
+```
+
+## Generating Output Datasets
+
+Containers can generate datasets as outputs, useful for synthetic data generation, augmentation, or preprocessing.
+
+### 1. Declaring Output Datasets in Manifest
+
+```yaml
+# manifest.yaml
+name: "rag_data_generator"
+version: "1.0.0"
+description: "Generate RAG training data from documents"
+
+input_datasets:
+  - name: "source_documents_pdf"
+    type: "pdf"
+    required: true
+    description: "Source PDF documents"
+
+output_datasets:
+  - name: "generated_qa_pairs"
+    type: "huggingface"
+    description: "Generated question-answer pairs"
+    features:
+      - name: "prompt"
+        dtype: "string"
+        description: "Generated question"
+      - name: "response"
+        dtype: "string"
+        description: "Answer extracted from document"
+      - name: "context"
+        dtype: "string"
+        description: "Source document context"
+```
+
+### 2. Generating Datasets in Container
+
+```python
+#!/usr/bin/env python3
+import json
+from datasets import Dataset
+from pathlib import Path
+
+def generate_qa_pairs(pdf_path, llm_client, params):
+    """Generate Q&A pairs from PDF document."""
+    # Your generation logic here
+    qa_pairs = []
+    
+    # Example generation
+    for chunk in process_pdf(pdf_path, params["chunk_size"]):
+        questions = generate_questions(chunk, llm_client, params["num_questions"])
+        for question in questions:
+            qa_pairs.append({
+                "prompt": question,
+                "response": extract_answer(chunk, question),
+                "context": chunk
+            })
+    
+    return qa_pairs
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--systems-params", required=True)
+    parser.add_argument("--test-params", required=True)
+    args = parser.parse_args()
+    
+    systems_params = json.loads(args.systems_params)
+    test_params = json.loads(args.test_params)
+    
+    # Get input PDF
+    pdf_info = test_params["datasets"]["source_documents_pdf"]
+    pdf_path = Path(pdf_info["path"])
+    
+    # Generate Q&A pairs
+    llm_client = create_llm_client(systems_params["generation_system"])
+    qa_pairs = generate_qa_pairs(pdf_path, llm_client, test_params)
+    
+    # Create HuggingFace dataset
+    dataset = Dataset.from_list(qa_pairs)
+    
+    # Save dataset to output directory
+    output_path = Path("/output") / test_params["output_dataset_path"]
+    dataset.save_to_disk(str(output_path))
+    
+    # Return dataset information
+    results = {
+        "test_results": {
+            "success": True,
+            "rows_generated": len(qa_pairs)
+        },
+        "generated_datasets": [
+            {
+                "dataset_name": "generated_qa_pairs",
+                "dataset_type": "huggingface",
+                "dataset_path": str(output_path),  # Container path
+                "format": "arrow",
+                "metadata": {
+                    "num_rows": len(qa_pairs),
+                    "num_columns": 3,
+                    "generation_params": {
+                        "chunk_size": test_params["chunk_size"],
+                        "questions_per_chunk": test_params["num_questions"]
+                    }
+                }
+            }
+        ]
+    }
+    
+    print(json.dumps(results))
+```
+
+### 3. Output Dataset Structure
+
+Each generated dataset entry in the JSON output must include:
+
+```python
+{
+    "dataset_name": "generated_qa_pairs",    # Matches manifest declaration
+    "dataset_type": "huggingface",           # Type: huggingface, pdf, txt
+    "dataset_path": "/output/dataset_path",  # Container path (ASQI translates to host)
+    "format": "arrow",                       # File format (arrow, parquet, json, etc.)
+    "metadata": {                            # Optional metadata
+        "num_rows": 1000,
+        "num_columns": 3,
+        # Any other relevant metadata
+    }
+}
+```
+
+### 4. Path Translation
+
+ASQI automatically translates container output paths to host paths:
+- Container writes to: `/output/generated_data`
+- ASQI maps to: Actual host output directory specified in test configuration
+- Users can access generated datasets in the configured output directory
+
+### 5. Validation
+
+ASQI validates that:
+- Returned `dataset_name` matches manifest `output_datasets` declaration
+- Dataset type is consistent with manifest
+- Dataset files exist at the specified path
+- Required fields are present in the output JSON
+
+## Data Generation Container Guidelines
+
+Data generation containers differ from test containers in their purpose and configuration.
+
+### Key Differences
+
+| Aspect | Test Containers | Data Generation Containers |
+|--------|----------------|---------------------------|
+| **Purpose** | Evaluate systems | Generate synthetic data |
+| **Systems** | Systems under test (required) | Generation tools (optional) |
+| **Primary Output** | Test metrics | Generated datasets |
+| **Configuration** | `SuiteConfig` | `GenerationConfig` |
+| **CLI Command** | `execute-tests` | `generate-dataset` |
+
+### Data Generation Manifest Example
+
+```yaml
+name: "synthetic_data_generator"
+version: "1.0.0"
+description: "Generate synthetic training data"
+
+# Systems are optional for data generation
+input_systems:
+  - name: "generation_system"
+    type: "llm_api"
+    required: false  # Optional - pure data transformation might not need LLM
+    description: "LLM for content generation"
+
+input_datasets:
+  - name: "seed_data"
+    type: "huggingface"
+    required: true
+    features:
+      - name: "prompt"
+        dtype: "string"
+
+output_datasets:
+  - name: "augmented_data"
+    type: "huggingface"
+    description: "Augmented training dataset"
+    features:
+      - name: "prompt"
+        dtype: "string"
+      - name: "response"
+        dtype: "string"
+      - name: "variation_type"
+        dtype: "string"
+
+input_schema:
+  - name: "augmentation_factor"
+    type: "integer"
+    required: true
+    description: "Number of variations to generate per example"
+  - name: "variation_types"
+    type: "list"
+    required: false
+    description: "Types of variations (paraphrase, style_transfer, etc.)"
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+  - name: "examples_generated"
+    type: "integer"
+```
+
+### Volume Mounting Requirements
+
+Data generation containers require volume mounts for input and output:
+
+```yaml
+generation_jobs:
+  - id: "generate_synthetic_data"
+    image: "my-registry/data-generator:latest"
+    volumes:
+      input: "data/inputs/"   # Directory with input datasets
+      output: "data/outputs/" # Directory for generated datasets
+```
+
+### Best Practices for Data Generation Containers
+
+1. **Validate Inputs**: Check that required datasets and parameters are provided
+2. **Progress Logging**: Log generation progress (but keep JSON output clean)
+3. **Error Handling**: Handle failures gracefully and report errors clearly
+4. **Metadata**: Include useful metadata about generation process
+5. **Quality Checks**: Validate generated data quality before outputting
+6. **Resource Management**: Handle large datasets efficiently (streaming, batching)
+7. **Reproducibility**: Support random seeds and deterministic generation
+
+### Example: Minimal Data Generation Container
+
+```python
+#!/usr/bin/env python3
+import argparse
+import json
+from datasets import Dataset
+from pathlib import Path
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--systems-params", required=False)  # Optional for generation
+    parser.add_argument("--test-params", required=True)
+    args = parser.parse_args()
+    
+    test_params = json.loads(args.test_params)
+    
+    # Load seed data
+    seed_info = test_params["datasets"]["seed_data"]
+    seed_dataset = load_from_disk(seed_info["path"])
+    
+    # Generate augmented examples
+    augmented_examples = []
+    augmentation_factor = test_params["augmentation_factor"]
+    
+    for row in seed_dataset:
+        for i in range(augmentation_factor):
+            augmented_examples.append({
+                "prompt": augment_text(row["prompt"], i),
+                "response": row.get("response", ""),
+                "variation_type": f"augmentation_{i}"
+            })
+    
+    # Save dataset
+    output_dataset = Dataset.from_list(augmented_examples)
+    output_path = Path("/output/augmented_data")
+    output_dataset.save_to_disk(str(output_path))
+    
+    # Return results
+    results = {
+        "test_results": {
+            "success": True,
+            "examples_generated": len(augmented_examples)
+        },
+        "generated_datasets": [
+            {
+                "dataset_name": "augmented_data",
+                "dataset_type": "huggingface",
+                "dataset_path": str(output_path),
+                "format": "arrow",
+                "metadata": {
+                    "num_rows": len(augmented_examples),
+                    "augmentation_factor": augmentation_factor,
+                    "seed_size": len(seed_dataset)
+                }
+            }
+        ]
+    }
+    
+    print(json.dumps(results))
+
+if __name__ == "__main__":
+    main()
+```
+
+## Related Documentation
+
+- [Dataset Support](datasets.md) - Complete dataset documentation
+- [Configuration](configuration.md) - Dataset and generation configuration schemas
