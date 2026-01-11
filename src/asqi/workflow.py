@@ -153,6 +153,226 @@ def _get_docker_socket_path(env_vars: dict[str, str]) -> str:
     return "/var/run/docker.sock"
 
 
+def _load_env_file_into_dict(
+    container_env: Dict[str, str], env_file_path: str, level: str
+) -> None:
+    """
+    Load an environment file and merge into container_env dict.
+
+    Args:
+        container_env: Dictionary to update with environment variables
+        env_file_path: Path to .env file to load
+        level: Description of the level (e.g., "system-level", "item-level") for logging
+    """
+    if os.path.exists(env_file_path):
+        try:
+            env_vars = dotenv_values(env_file_path)
+            # Filter out None values to ensure all env vars are strings
+            filtered_env_vars = {k: v for k, v in env_vars.items() if v is not None}
+            container_env.update(filtered_env_vars)
+            DBOS.logger.info(
+                f"Loaded environment variables from {level} env_file: {env_file_path}"
+            )
+        except Exception as e:
+            DBOS.logger.warning(
+                f"Failed to load {level} environment file {env_file_path}: {e}"
+            )
+    else:
+        DBOS.logger.warning(
+            f"{level.capitalize()} environment file {env_file_path} not found"
+        )
+
+
+def _merge_interpolated_env(
+    container_env: Dict[str, str], item_environment: Dict[str, str]
+) -> None:
+    """
+    Interpolate and merge item-level environment dict into container_env.
+
+    Args:
+        container_env: Dictionary to update with interpolated environment variables
+        item_environment: Dictionary of environment variables to interpolate and merge
+    """
+    interpolated_env = interpolate_env_vars(item_environment)
+    for key, value in interpolated_env.items():
+        container_env[key] = value
+        if item_environment.get(key) != value:
+            DBOS.logger.info(f"Interpolated environment variable: {key}")
+        else:
+            DBOS.logger.info(f"Set environment variable: {key}")
+
+
+def _load_and_merge_environment_variables(
+    systems_params: Dict[str, Any],
+    item_env_file: Optional[str],
+    item_environment: Optional[Dict[str, str]],
+) -> Dict[str, str]:
+    """
+    Load and merge environment variables from multiple sources.
+
+    Priority order (highest to lowest):
+    1. Item-level environment dict (with interpolation support)
+    2. Item-level env_file
+    3. System-level env_file(s)
+    4. Base mount paths
+
+    Args:
+        systems_params: Dictionary containing system configurations with optional env_file
+        item_env_file: Optional path to .env file for item-level environment variables
+        item_environment: Optional dict of environment variables for the item
+
+    Returns:
+        Merged dictionary of environment variables
+    """
+    container_env = {
+        "OUTPUT_MOUNT_PATH": str(OUTPUT_MOUNT_PATH),
+        "INPUT_MOUNT_PATH": str(INPUT_MOUNT_PATH),
+    }
+
+    # Load environment variables from all system-level env_file(s)
+    for system_params in systems_params.values():
+        if (
+            isinstance(system_params, dict)
+            and "env_file" in system_params
+            and system_params["env_file"]
+        ):
+            _load_env_file_into_dict(
+                container_env, system_params["env_file"], "system-level"
+            )
+
+    # Load environment variables from item-level env_file
+    if item_env_file:
+        _load_env_file_into_dict(container_env, item_env_file, "item-level")
+
+    # Merge item-level environment dict (with interpolation support)
+    if item_environment:
+        _merge_interpolated_env(container_env, item_environment)
+
+    # Pass through explicit API key if system_under_test specifies it
+    if "system_under_test" in systems_params:
+        sut_params = systems_params["system_under_test"]
+        if isinstance(sut_params, dict) and "api_key" in sut_params:
+            container_env["API_KEY"] = sut_params["api_key"]
+            DBOS.logger.info("Using direct API key for authentication")
+
+    return container_env
+
+
+def _validate_required_environment_variables(
+    manifest: Optional[Manifest],
+    container_env: Dict[str, str],
+    item_name: str,
+    image: str,
+) -> Optional[str]:
+    """
+    Validate that required environment variables from manifest are available.
+
+    Args:
+        manifest: Container manifest with environment variable requirements
+        container_env: Available environment variables
+        item_name: Name of the test or generation job (for error messages)
+        image: Container image name (for error messages)
+
+    Returns:
+        Error message if required variables are missing, None otherwise
+    """
+    if not manifest or not manifest.environment_variables:
+        return None
+
+    missing_required = []
+    missing_optional = []
+
+    for env_var in manifest.environment_variables:
+        if env_var.name not in container_env:
+            if env_var.required:
+                missing_required.append(env_var)
+            else:
+                missing_optional.append(env_var)
+
+    # Log warnings for optional missing environment variables
+    if missing_optional:
+        for env_var in missing_optional:
+            DBOS.logger.warning(
+                f"Optional environment variable '{env_var.name}' not provided for '{item_name}'. "
+                f"{env_var.description or 'No description provided.'}"
+            )
+
+    # Return error message if required variables are missing
+    if missing_required:
+        return build_env_var_error_message(missing_required, item_name, image)
+
+    return None
+
+
+def _configure_docker_in_docker(
+    manifest: Optional[Manifest],
+    container_config: ContainerConfig,
+    container_env: Dict[str, str],
+    item_id: str,
+    image: str,
+) -> None:
+    """
+    Configure Docker-in-Docker for containers that require host access.
+
+    Args:
+        manifest: Container manifest with host_access flag
+        container_config: Container configuration to update
+        container_env: Environment variables dict to update
+        item_id: ID of the test or generation job (for logging)
+        image: Container image name (for logging)
+    """
+    if not manifest or not manifest.host_access:
+        return
+
+    docker_socket_path = _get_docker_socket_path(env_vars=container_env)
+    container_config.run_params.update(
+        {
+            "cap_drop": ["ALL"],
+            "cap_add": ["SYS_ADMIN"],
+            "volumes": {
+                docker_socket_path: {
+                    "bind": "/var/run/docker.sock",
+                    "mode": "rw",
+                }
+            },
+        }
+    )
+
+    # Remove env variable DOCKER_HOST to avoid container looking for host path inside container
+    if "DOCKER_HOST" in container_env:
+        del container_env["DOCKER_HOST"]
+
+    DBOS.logger.info(
+        f"Configured Docker-in-Docker for item id: {item_id} (image: {image}) using host socket: {docker_socket_path}"
+    )
+
+
+def _translate_container_output_paths(
+    validated_output: Any,
+    item_params: Dict[str, Any],
+) -> Tuple[List[GeneratedReport], List[GeneratedDataset]]:
+    """
+    Translate container-internal paths to host paths for reports and datasets.
+
+    Args:
+        validated_output: Validated container output with generated_reports and generated_datasets
+        item_params: Test or generation parameters containing volumes config
+
+    Returns:
+        Tuple of (translated_reports, translated_datasets) with translated host paths
+    """
+    host_output_volume = item_params.get("volumes", {}).get("output", "")
+
+    translated_reports = translate_report_paths(
+        validated_output.generated_reports, host_output_volume
+    )
+    translated_datasets = translate_dataset_paths(
+        validated_output.generated_datasets, host_output_volume
+    )
+
+    return translated_reports, translated_datasets
+
+
 class TestExecutionResult:
     """Represents the result of a single test execution or data generation job."""
 
@@ -160,7 +380,7 @@ class TestExecutionResult:
         self,
         test_name: str,
         test_id: str,
-        sut_name: str,
+        sut_name: Optional[str],
         image: str,
         system_type: Optional[str] = None,
     ):
@@ -241,6 +461,130 @@ class TestExecutionResult:
             "error_message": self.error_message,
             "container_output": self.container_output,
         }
+
+
+def _execute_container_job(
+    item_name: str,
+    item_id: str,
+    image: str,
+    command_args: List[str],
+    systems_params: Dict[str, Any],
+    item_params: Dict[str, Any],
+    container_config: ContainerConfig,
+    env_file: Optional[str],
+    environment: Optional[Dict[str, str]],
+    result: TestExecutionResult,
+) -> TestExecutionResult:
+    """
+    Core container execution logic
+
+    Args:
+        item_name: Name of the test or generation job
+        item_id: Unique ID of the test or generation job
+        image: Docker image to run
+        command_args: Pre-built command line arguments for the container
+        systems_params: Dictionary containing system configurations (for env var loading).
+            Handles both test execution and data generation structures uniformly.
+        item_params: Parameters for the test or generation job (for path translation)
+        container_config: Container execution configurations
+        env_file: Optional path to .env file for environment variables
+        environment: Optional dictionary of environment variables
+        result: TestExecutionResult object to populate
+
+    Returns:
+        TestExecutionResult containing execution metadata and results
+    """
+
+    container_env = _load_and_merge_environment_variables(
+        systems_params, env_file, environment
+    )
+
+    # Extract manifest to check for host access requirements and validate environment variables
+    manifest = None
+    try:
+        manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
+    except Exception as e:
+        # Log warning but continue - manifest extraction failure shouldn't stop execution
+        DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
+
+    # Validate environment variables against manifest requirements
+    error_msg = _validate_required_environment_variables(
+        manifest, container_env, item_name, image
+    )
+    if error_msg:
+        result.error_message = error_msg
+        result.success = False
+        return result
+
+    # Configure Docker-in-Docker for containers that require host access
+    _configure_docker_in_docker(
+        manifest, container_config, container_env, item_id, image
+    )
+
+    # Execute container
+    result.start_time = time.time()
+
+    # Generate container name: {name}-{id}-{short_uuid}
+    truncated_name = item_name.lower().replace(" ", "_")[:25]
+    truncated_id = item_id.lower()[:25]
+    prefix = f"{truncated_name}-{truncated_id}"
+    container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
+
+    container_result = run_container_with_args(
+        image=image,
+        args=command_args,
+        environment=container_env,
+        container_config=container_config,
+        name=container_name,
+        workflow_id=DBOS.workflow_id or "",
+    )
+
+    result.end_time = time.time()
+    result.container_id = container_result["container_id"]
+    result.exit_code = container_result["exit_code"]
+    result.container_output = container_result["output"]
+    result.error_message = container_result["error"]
+
+    if container_result["success"]:
+        try:
+            parsed_container_results = parse_container_json_output(
+                result.container_output
+            )
+            validated_output = extract_container_json_output_fields(
+                parsed_container_results
+            )
+            result.results = validated_output.get_results()
+
+            # Translate container paths to host paths
+            result.generated_reports, result.generated_datasets = (
+                _translate_container_output_paths(validated_output, item_params)
+            )
+
+            # Validate generated datasets against manifest declarations
+            if manifest and validated_output.generated_datasets:
+                dataset_warnings = validate_generated_datasets(
+                    manifest, validated_output.generated_datasets, item_id, image
+                )
+                for warning in dataset_warnings:
+                    DBOS.logger.warning(warning)
+
+            result.success = result.results.get("success", False)
+        except ValueError as e:
+            result.error_message = (
+                f"Failed to parse JSON output from item id '{item_id}': {e}"
+            )
+            result.success = False
+            DBOS.logger.error(
+                f"JSON parsing failed for item id {item_id}: {result.container_output[:200]}..."
+            )
+    else:
+        result.success = False
+
+    # Log failures for debugging
+    if not result.success:
+        DBOS.logger.error(f"Execution failed, id: {item_id} - {result.error_message}")
+
+    return result
 
 
 @DBOS.step()
@@ -374,11 +718,9 @@ def execute_single_test(
         result.success = False
         return result
 
-    # No global fallbacks - users must explicitly specify credentials
-    # Build unified systems_params without any automatic fallbacks
+    # Test-specific: Build systems_params with env_file fallbacks for backward compatibility
+    # This logic is specific to tests
     systems_params_with_fallbacks = systems_params.copy()
-
-    # Load environment variables and merge into system parameters if env_file specified
     sut_params = systems_params_with_fallbacks.get("system_under_test", {})
     if "env_file" in sut_params and sut_params["env_file"]:
         env_file_path = sut_params["env_file"]
@@ -398,7 +740,7 @@ def execute_single_test(
         else:
             DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
 
-    # Prepare command line arguments
+    # Prepare command line arguments for test execution
     try:
         systems_params_json = json.dumps(systems_params_with_fallbacks)
         test_params_json = json.dumps(test_params)
@@ -413,194 +755,18 @@ def execute_single_test(
         result.success = False
         return result
 
-    # Prepare environment variables - multi-level priority:
-    # Base paths, System-level env_file, Test-level env_file, Test-level environment dict
-    container_env = {
-        "OUTPUT_MOUNT_PATH": str(OUTPUT_MOUNT_PATH),
-        "INPUT_MOUNT_PATH": str(INPUT_MOUNT_PATH),
-    }
-
-    # Load environment variables from system_under_test env_file (backward compatibility)
-    if "env_file" in sut_params and sut_params["env_file"]:
-        env_file_path = sut_params["env_file"]
-        if os.path.exists(env_file_path):
-            try:
-                env_vars = dotenv_values(env_file_path)
-                # Filter out None values to ensure all env vars are strings
-                filtered_env_vars = {k: v for k, v in env_vars.items() if v is not None}
-                container_env.update(filtered_env_vars)
-                DBOS.logger.info(
-                    f"Loaded environment variables from system-level env_file: {env_file_path}"
-                )
-            except Exception as e:
-                DBOS.logger.warning(
-                    f"Failed to load system-level environment file {env_file_path}: {e}"
-                )
-        else:
-            DBOS.logger.warning(
-                f"System-level environment file {env_file_path} not found"
-            )
-
-    # Load environment variables from test-level env_file
-    if env_file:
-        if os.path.exists(env_file):
-            try:
-                test_env_vars = dotenv_values(env_file)
-                # Filter out None values
-                filtered_test_env_vars = {
-                    k: v for k, v in test_env_vars.items() if v is not None
-                }
-                container_env.update(filtered_test_env_vars)
-                DBOS.logger.info(
-                    f"Loaded environment variables from test-level env_file: {env_file}"
-                )
-            except Exception as e:
-                DBOS.logger.warning(
-                    f"Failed to load test-level environment file {env_file}: {e}"
-                )
-        else:
-            DBOS.logger.warning(f"Test-level environment file {env_file} not found")
-
-    # Merge test-level environment dict (with interpolation support)
-    if environment:
-        interpolated_env = interpolate_env_vars(environment)
-        for key, value in interpolated_env.items():
-            container_env[key] = value
-            if environment.get(key) != value:
-                DBOS.logger.info(f"Interpolated environment variable: {key}")
-            else:
-                DBOS.logger.info(f"Set environment variable: {key}")
-
-    # Pass through explicit API key if specified
-    if "api_key" in sut_params:
-        container_env["API_KEY"] = sut_params["api_key"]
-        DBOS.logger.info("Using direct API key for authentication")
-
-    # Extract manifest to check for host access requirements and validate environment variables
-    manifest = None
-    try:
-        manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
-    except Exception as e:
-        # Log warning but continue - manifest extraction failure shouldn't stop test execution
-        DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
-
-    # Validate environment variables against manifest requirements
-    if manifest and manifest.environment_variables:
-        missing_required = []
-        missing_optional = []
-
-        for env_var in manifest.environment_variables:
-            if env_var.name not in container_env:
-                if env_var.required:
-                    missing_required.append(env_var)
-                else:
-                    missing_optional.append(env_var)
-
-        # Fail immediately if required environment variables are missing
-        if missing_required:
-            error_msg = build_env_var_error_message(missing_required, test_name, image)
-            result.error_message = error_msg
-            result.success = False
-            return result
-
-        # Log warnings for optional missing environment variables
-        if missing_optional:
-            for env_var in missing_optional:
-                DBOS.logger.warning(
-                    f"Optional environment variable '{env_var.name}' not provided for test '{test_name}'. "
-                    f"{env_var.description or 'No description provided.'}"
-                )
-
-    # Configure Docker-in-Docker for containers that require host access
-    if manifest and manifest.host_access:
-        docker_socket_path = _get_docker_socket_path(env_vars=container_env)
-        container_config.run_params.update(
-            {
-                "cap_drop": ["ALL"],
-                "cap_add": ["SYS_ADMIN"],
-                "volumes": {
-                    docker_socket_path: {
-                        "bind": "/var/run/docker.sock",
-                        "mode": "rw",
-                    }
-                },
-            }
-        )
-        # Remove env variable DOCKER_HOST to avoid container looking for host path inside container
-        del container_env["DOCKER_HOST"]
-        DBOS.logger.info(
-            f"Configured Docker-in-Docker for test id: {test_id} (image: {image}) using host socket: {docker_socket_path}"
-        )
-
-    # Execute container
-    result.start_time = time.time()
-
-    # Generate container name: {sut}-{test_id}-{short_uuid}
-    truncated_sut = sut_name.lower().replace(" ", "_")[:25]
-    truncated_test_id = test_id.lower()[:25]
-    prefix = f"{truncated_sut}-{truncated_test_id}"
-    container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
-
-    container_result = run_container_with_args(
+    return _execute_container_job(
+        item_name=test_name,
+        item_id=test_id,
         image=image,
-        args=command_args,
-        environment=container_env,
+        command_args=command_args,
+        systems_params=systems_params_with_fallbacks,
+        item_params=test_params,
         container_config=container_config,
-        name=container_name,
-        workflow_id=DBOS.workflow_id or "",
+        env_file=env_file,
+        environment=environment,
+        result=result,
     )
-
-    result.end_time = time.time()
-    result.container_id = container_result["container_id"]
-    result.exit_code = container_result["exit_code"]
-    result.container_output = container_result["output"]
-    result.error_message = container_result["error"]
-
-    # Parse JSON output from container
-    if container_result["success"]:
-        try:
-            parsed_container_results = parse_container_json_output(
-                result.container_output
-            )
-            validated_output = extract_container_json_output_fields(
-                parsed_container_results
-            )
-            result.results = validated_output.get_results()
-
-            # Translate paths and assign the translated Pydantic objects
-            host_output_volume = test_params.get("volumes", {}).get("output", "")
-            result.generated_reports = translate_report_paths(
-                validated_output.generated_reports, host_output_volume
-            )
-            result.generated_datasets = translate_dataset_paths(
-                validated_output.generated_datasets, host_output_volume
-            )
-
-            # Validate generated datasets against manifest declarations
-            if manifest and validated_output.generated_datasets:
-                dataset_warnings = validate_generated_datasets(
-                    manifest, validated_output.generated_datasets, test_id, image
-                )
-                for warning in dataset_warnings:
-                    DBOS.logger.warning(warning)
-
-            result.success = result.results.get("success", False)
-        except ValueError as e:
-            result.error_message = (
-                f"Failed to parse JSON output from test id '{test_id}': {e}"
-            )
-            result.success = False
-            DBOS.logger.error(
-                f"JSON parsing failed for test id {test_id}: {result.container_output[:200]}..."
-            )
-    else:
-        result.success = False
-
-    # Log failures for debugging
-    if not result.success:
-        DBOS.logger.error(f"Test failed, id: {test_id} - {result.error_message}")
-
-    return result
 
 
 @DBOS.step()
@@ -737,14 +903,22 @@ def run_test_suite_workflow(
 
     test_queue = Queue(queue_name, concurrency=executor_config["concurrent_tests"])
 
-    # Parse configurations
+    # Parse configurations - initialize variables for type checker
+    suite: SuiteConfig
+    systems: SystemsConfig
+    score_cards: List[ScoreCard] = []
+
     try:
         suite = SuiteConfig(**suite_config)
         systems = SystemsConfig(**systems_config)
         if datasets_config:
             datasets = DatasetsConfig(**datasets_config)
-            suite = resolve_dataset_references(suite, datasets)
-        score_cards = []
+            resolved = resolve_dataset_references(suite, datasets)
+            if not isinstance(resolved, SuiteConfig):
+                raise TypeError(
+                    f"Expected SuiteConfig from resolve_dataset_references, got {type(resolved).__name__}"
+                )
+            suite = resolved
         for score_card_config in score_card_configs or []:
             score_cards.append(ScoreCard(**score_card_config))
     except ValidationError as e:
@@ -1687,7 +1861,7 @@ def execute_data_generation(
         RuntimeError: If container execution fails
     """
     result = TestExecutionResult(job_name, job_id, job_name, image)
-    # Extract system_under_test for validation and environment handling
+
     try:
         validate_data_gen_execution_inputs(
             job_id, image, systems_params, generation_params
@@ -1697,7 +1871,6 @@ def execute_data_generation(
         result.success = False
         return result
 
-    # Prepare command line arguments
     try:
         systems_params_json = json.dumps(systems_params)
         generation_params_json = json.dumps(generation_params)
@@ -1712,194 +1885,18 @@ def execute_data_generation(
         result.success = False
         return result
 
-    # Prepare environment variables - multi-level priority:
-    # Base paths, System-level env_file, Test-level env_file, Test-level environment dict
-    container_env = {
-        "OUTPUT_MOUNT_PATH": str(OUTPUT_MOUNT_PATH),
-        "INPUT_MOUNT_PATH": str(INPUT_MOUNT_PATH),
-    }
-
-    # Load environment variables from system_under_test env_file (backward compatibility)
-    for _system_value in systems_params.values():
-        if "env_file" in _system_value and _system_value["env_file"]:
-            env_file_path = _system_value["env_file"]
-            if os.path.exists(env_file_path):
-                try:
-                    env_vars = dotenv_values(env_file_path)
-                    # Filter out None values to ensure all env vars are strings
-                    filtered_env_vars = {
-                        k: v for k, v in env_vars.items() if v is not None
-                    }
-                    container_env.update(filtered_env_vars)
-                    DBOS.logger.info(
-                        f"Loaded environment variables from system-level env_file: {env_file_path}"
-                    )
-                except Exception as e:
-                    DBOS.logger.warning(
-                        f"Failed to load system-level environment file {env_file_path}: {e}"
-                    )
-            else:
-                DBOS.logger.warning(
-                    f"System-level environment file {env_file_path} not found"
-                )
-
-    # Load environment variables from job-level env_file
-    if env_file:
-        if os.path.exists(env_file):
-            try:
-                test_env_vars = dotenv_values(env_file)
-                # Filter out None values
-                filtered_test_env_vars = {
-                    k: v for k, v in test_env_vars.items() if v is not None
-                }
-                container_env.update(filtered_test_env_vars)
-                DBOS.logger.info(
-                    f"Loaded environment variables from test-level env_file: {env_file}"
-                )
-            except Exception as e:
-                DBOS.logger.warning(
-                    f"Failed to load test-level environment file {env_file}: {e}"
-                )
-        else:
-            DBOS.logger.warning(f"Test-level environment file {env_file} not found")
-
-    # Merge test-level environment dict (with interpolation support)
-    if environment:
-        interpolated_env = interpolate_env_vars(environment)
-        for key, value in interpolated_env.items():
-            container_env[key] = value
-            if environment.get(key) != value:
-                DBOS.logger.info(f"Interpolated environment variable: {key}")
-            else:
-                DBOS.logger.info(f"Set environment variable: {key}")
-
-    # Extract manifest to check for host access requirements and validate environment variables
-    manifest = None
-    try:
-        manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
-    except Exception as e:
-        # Log warning but continue - manifest extraction failure shouldn't stop test execution
-        DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
-
-    # Validate environment variables against manifest requirements
-    if manifest and manifest.environment_variables:
-        missing_required = []
-        missing_optional = []
-
-        for env_var in manifest.environment_variables:
-            if env_var.name not in container_env:
-                if env_var.required:
-                    missing_required.append(env_var)
-                else:
-                    missing_optional.append(env_var)
-
-        # Fail immediately if required environment variables are missing
-        if missing_required:
-            error_msg = build_env_var_error_message(missing_required, job_name, image)
-            result.error_message = error_msg
-            result.success = False
-            return result
-
-        # Log warnings for optional missing environment variables
-        if missing_optional:
-            for env_var in missing_optional:
-                DBOS.logger.warning(
-                    f"Optional environment variable '{env_var.name}' not provided for data generation job '{job_name}'. "
-                    f"{env_var.description or 'No description provided.'}"
-                )
-
-    # Configure Docker-in-Docker for containers that require host access
-    if manifest and manifest.host_access:
-        docker_socket_path = _get_docker_socket_path(env_vars=container_env)
-        container_config.run_params.update(
-            {
-                "cap_drop": ["ALL"],
-                "cap_add": ["SYS_ADMIN"],
-                "volumes": {
-                    docker_socket_path: {
-                        "bind": "/var/run/docker.sock",
-                        "mode": "rw",
-                    }
-                },
-            }
-        )
-        # Remove env variable DOCKER_HOST to avoid container looking for host path inside container
-        del container_env["DOCKER_HOST"]
-        DBOS.logger.info(
-            f"Configured Docker-in-Docker for test id: {job_id} (image: {image}) using host socket: {docker_socket_path}"
-        )
-
-    # Execute container
-    result.start_time = time.time()
-
-    # Generate container name: {sut}-{test_id}-{short_uuid}
-    truncated_job_name = job_name.lower().replace(" ", "_")[:25]
-    truncated_job_id = job_id.lower()[:25]
-    prefix = f"{truncated_job_name}-{truncated_job_id}"
-    container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
-
-    container_result = run_container_with_args(
+    return _execute_container_job(
+        item_name=job_name,
+        item_id=job_id,
         image=image,
-        args=command_args,
-        environment=container_env,
+        command_args=command_args,
+        systems_params=systems_params,
+        item_params=generation_params,
         container_config=container_config,
-        name=container_name,
-        workflow_id=DBOS.workflow_id or "",
+        env_file=env_file,
+        environment=environment,
+        result=result,
     )
-
-    result.end_time = time.time()
-    result.container_id = container_result["container_id"]
-    result.exit_code = container_result["exit_code"]
-    result.container_output = container_result["output"]
-    result.error_message = container_result["error"]
-
-    # Parse JSON output from container
-    if container_result["success"]:
-        try:
-            parsed_container_results = parse_container_json_output(
-                result.container_output
-            )
-            validated_output = extract_container_json_output_fields(
-                parsed_container_results
-            )
-            result.results = validated_output.get_results()
-
-            # Translate paths and assign the translated Pydantic objects
-            host_output_volume = generation_params.get("volumes", {}).get("output", "")
-            result.generated_reports = translate_report_paths(
-                validated_output.generated_reports, host_output_volume
-            )
-            result.generated_datasets = translate_dataset_paths(
-                validated_output.generated_datasets, host_output_volume
-            )
-
-            # Validate generated datasets against manifest declarations
-            if manifest and validated_output.generated_datasets:
-                dataset_warnings = validate_generated_datasets(
-                    manifest, validated_output.generated_datasets, job_id, image
-                )
-                for warning in dataset_warnings:
-                    DBOS.logger.warning(warning)
-
-            result.success = result.results.get("success", False)
-        except ValueError as e:
-            result.error_message = (
-                f"Failed to parse JSON output from job id '{job_id}': {e}"
-            )
-            result.success = False
-            DBOS.logger.error(
-                f"JSON parsing failed for job id {job_id}: {result.container_output[:200]}..."
-            )
-    else:
-        result.success = False
-
-    # Log failures for debugging
-    if not result.success:
-        DBOS.logger.error(
-            f"Data Generation Job failed, id: {job_id} - {result.error_message}"
-        )
-
-    return result
 
 
 @DBOS.workflow()
@@ -1936,15 +1933,23 @@ def run_data_generation_workflow(
 
     test_queue = Queue(queue_name, concurrency=executor_config["concurrent_tests"])
 
-    # Parse configurations
+    # Parse configurations - initialize variables for type checker
+    generation: DataGenerationConfig
+    systems: Optional[SystemsConfig]
+
     try:
-        generation_config = DataGenerationConfig(**generation_config)
+        generation = DataGenerationConfig(**generation_config)
         systems = SystemsConfig(**systems_config) if systems_config else None
 
         # Resolve dataset references after validation
         if datasets_config:
             datasets = DatasetsConfig(**datasets_config)
-            generation_config = resolve_dataset_references(generation_config, datasets)
+            resolved = resolve_dataset_references(generation, datasets)
+            if not isinstance(resolved, DataGenerationConfig):
+                raise TypeError(
+                    f"Expected DataGenerationConfig from resolve_dataset_references, got {type(resolved).__name__}"
+                )
+            generation = resolved
     except ValidationError as e:
         error_msg = f"Configuration validation failed: {e}"
         DBOS.logger.error(error_msg)
@@ -1979,14 +1984,14 @@ def run_data_generation_workflow(
         }, []
 
     try:
-        validate_data_generation_volumes(generation_config)
+        validate_data_generation_volumes(generation)
 
     except ValueError as e:
         error_msg = f"Volume validation failed: {e}"
         DBOS.logger.error(error_msg)
         return {
             "summary": create_workflow_summary(
-                suite_name=generation_config.job_name,
+                suite_name=generation.job_name,
                 workflow_id=DBOS.workflow_id or "",
                 status="VALIDATION_FAILED",
                 total_tests=0,
@@ -1999,11 +2004,11 @@ def run_data_generation_workflow(
         }, []
 
     console.print(
-        f"\n[bold blue]Executing Test Suite:[/bold blue] {generation_config.job_name}"
+        f"\n[bold blue]Executing Test Suite:[/bold blue] {generation.job_name}"
     )
 
     """Get the list of available Docker images for the test suite."""
-    unique_images = list(set(job.image for job in generation_config.generation_jobs))
+    unique_images = list(set(job.image for job in generation.generation_jobs))
     available_images, image_availability = _get_available_images(unique_images)
 
     # Extract manifests from available images (post-pull)
@@ -2012,7 +2017,7 @@ def run_data_generation_workflow(
     # Validate test plan
     with console.status("[bold blue]Validating test plan...", spinner="dots"):
         validation_errors = validate_data_generation_plan(
-            generation_config, systems, manifests
+            generation, systems, manifests
         )
 
     if validation_errors:
@@ -2026,7 +2031,7 @@ def run_data_generation_workflow(
         DBOS.logger.error(f"Validation failed with {len(validation_errors)} errors")
         return {
             "summary": create_workflow_summary(
-                suite_name=generation_config.job_name,
+                suite_name=generation.job_name,
                 workflow_id=DBOS.workflow_id or "",
                 status="VALIDATION_FAILED",
                 total_tests=0,
@@ -2039,16 +2044,14 @@ def run_data_generation_workflow(
         }, []
 
     # Prepare test execution plan
-    data_gen_plan = create_data_generation_plan(
-        generation_config, systems, image_availability
-    )
+    data_gen_plan = create_data_generation_plan(generation, systems, image_availability)
     data_gen_count = len(data_gen_plan)
 
     if data_gen_count == 0:
         console.print("[yellow]No Data generation flows to execute[/yellow]")
         return {
             "summary": create_workflow_summary(
-                suite_name=generation_config.job_name,
+                suite_name=generation.job_name,
                 workflow_id=DBOS.workflow_id or "",
                 status="NO_TESTS",
                 total_tests=0,
@@ -2169,12 +2172,11 @@ def run_data_generation_workflow(
 
     # Generate summary
     total_tests = len(all_results)
-    print(all_results)
     successful_tests = sum(1 for r in all_results if r.success)
     failed_tests = total_tests - successful_tests
 
     summary = create_workflow_summary(
-        suite_name=generation_config.job_name,
+        suite_name=generation.job_name,
         workflow_id=DBOS.workflow_id or "",
         status="COMPLETED",
         total_tests=total_tests,
