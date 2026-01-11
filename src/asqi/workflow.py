@@ -479,6 +479,131 @@ class TestExecutionResult:
         }
 
 
+def _execute_container_job(
+    item_name: str,
+    item_id: str,
+    image: str,
+    command_args: List[str],
+    systems_params: Dict[str, Any],
+    item_params: Dict[str, Any],
+    container_config: ContainerConfig,
+    env_file: Optional[str],
+    environment: Optional[Dict[str, str]],
+    result: TestExecutionResult,
+    has_sut: bool,
+) -> TestExecutionResult:
+    """
+    Core container execution logic
+
+    Args:
+        item_name: Name of the test or generation job
+        item_id: Unique ID of the test or generation job
+        image: Docker image to run
+        command_args: Pre-built command line arguments for the container
+        systems_params: Dictionary containing system configurations (for env var loading)
+        item_params: Parameters for the test or generation job (for path translation)
+        container_config: Container execution configurations
+        env_file: Optional path to .env file for environment variables
+        environment: Optional dictionary of environment variables
+        result: TestExecutionResult object to populate
+        has_sut: True if systems_params contains 'system_under_test', False otherwise
+
+    Returns:
+        TestExecutionResult containing execution metadata and results
+    """
+
+    container_env = _load_and_merge_environment_variables(
+        systems_params, env_file, environment, has_sut=has_sut
+    )
+
+    # Extract manifest to check for host access requirements and validate environment variables
+    manifest = None
+    try:
+        manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
+    except Exception as e:
+        # Log warning but continue - manifest extraction failure shouldn't stop execution
+        DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
+
+    # Validate environment variables against manifest requirements
+    error_msg = _validate_required_environment_variables(
+        manifest, container_env, item_name, image
+    )
+    if error_msg:
+        result.error_message = error_msg
+        result.success = False
+        return result
+
+    # Configure Docker-in-Docker for containers that require host access
+    _configure_docker_in_docker(
+        manifest, container_config, container_env, item_id, image
+    )
+
+    # Execute container
+    result.start_time = time.time()
+
+    # Generate container name: {name}-{id}-{short_uuid}
+    truncated_name = item_name.lower().replace(" ", "_")[:25]
+    truncated_id = item_id.lower()[:25]
+    prefix = f"{truncated_name}-{truncated_id}"
+    container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
+
+    container_result = run_container_with_args(
+        image=image,
+        args=command_args,
+        environment=container_env,
+        container_config=container_config,
+        name=container_name,
+        workflow_id=DBOS.workflow_id or "",
+    )
+
+    result.end_time = time.time()
+    result.container_id = container_result["container_id"]
+    result.exit_code = container_result["exit_code"]
+    result.container_output = container_result["output"]
+    result.error_message = container_result["error"]
+
+    if container_result["success"]:
+        try:
+            parsed_container_results = parse_container_json_output(
+                result.container_output
+            )
+            validated_output = extract_container_json_output_fields(
+                parsed_container_results
+            )
+            result.results = validated_output.get_results()
+
+            # Translate container paths to host paths
+            result.generated_reports, result.generated_datasets = (
+                _translate_container_output_paths(validated_output, item_params)
+            )
+
+            # Validate generated datasets against manifest declarations
+            if manifest and validated_output.generated_datasets:
+                dataset_warnings = validate_generated_datasets(
+                    manifest, validated_output.generated_datasets, item_id, image
+                )
+                for warning in dataset_warnings:
+                    DBOS.logger.warning(warning)
+
+            result.success = result.results.get("success", False)
+        except ValueError as e:
+            result.error_message = (
+                f"Failed to parse JSON output from item id '{item_id}': {e}"
+            )
+            result.success = False
+            DBOS.logger.error(
+                f"JSON parsing failed for item id {item_id}: {result.container_output[:200]}..."
+            )
+    else:
+        result.success = False
+
+    # Log failures for debugging
+    if not result.success:
+        DBOS.logger.error(f"Execution failed, id: {item_id} - {result.error_message}")
+
+    return result
+
+
 @DBOS.step()
 def dbos_check_images_availability(images: List[str]) -> Dict[str, bool]:
     """Check if all required Docker images are available locally."""
@@ -610,11 +735,9 @@ def execute_single_test(
         result.success = False
         return result
 
-    # No global fallbacks - users must explicitly specify credentials
-    # Build unified systems_params without any automatic fallbacks
+    # Test-specific: Build systems_params with env_file fallbacks for backward compatibility
+    # This logic is specific to tests
     systems_params_with_fallbacks = systems_params.copy()
-
-    # Load environment variables and merge into system parameters if env_file specified
     sut_params = systems_params_with_fallbacks.get("system_under_test", {})
     if "env_file" in sut_params and sut_params["env_file"]:
         env_file_path = sut_params["env_file"]
@@ -634,7 +757,7 @@ def execute_single_test(
         else:
             DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
 
-    # Prepare command line arguments
+    # Prepare command line arguments for test execution
     try:
         systems_params_json = json.dumps(systems_params_with_fallbacks)
         test_params_json = json.dumps(test_params)
@@ -649,98 +772,19 @@ def execute_single_test(
         result.success = False
         return result
 
-    # Load and merge environment variables from all sources using helper
-    container_env = _load_and_merge_environment_variables(
-        systems_params_with_fallbacks, env_file, environment, has_sut=True
-    )
-
-    # Extract manifest to check for host access requirements and validate environment variables
-    manifest = None
-    try:
-        manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
-    except Exception as e:
-        # Log warning but continue - manifest extraction failure shouldn't stop test execution
-        DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
-
-    # Validate environment variables against manifest requirements using helper
-    error_msg = _validate_required_environment_variables(
-        manifest, container_env, test_name, image
-    )
-    if error_msg:
-        result.error_message = error_msg
-        result.success = False
-        return result
-
-    # Configure Docker-in-Docker for containers that require host access using helper
-    _configure_docker_in_docker(
-        manifest, container_config, container_env, test_id, image
-    )
-
-    # Execute container
-    result.start_time = time.time()
-
-    # Generate container name: {sut}-{test_id}-{short_uuid}
-    truncated_sut = sut_name.lower().replace(" ", "_")[:25]
-    truncated_test_id = test_id.lower()[:25]
-    prefix = f"{truncated_sut}-{truncated_test_id}"
-    container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
-
-    container_result = run_container_with_args(
+    return _execute_container_job(
+        item_name=test_name,
+        item_id=test_id,
         image=image,
-        args=command_args,
-        environment=container_env,
+        command_args=command_args,
+        systems_params=systems_params_with_fallbacks,
+        item_params=test_params,
         container_config=container_config,
-        name=container_name,
-        workflow_id=DBOS.workflow_id or "",
+        env_file=env_file,
+        environment=environment,
+        result=result,
+        has_sut=True,
     )
-
-    result.end_time = time.time()
-    result.container_id = container_result["container_id"]
-    result.exit_code = container_result["exit_code"]
-    result.container_output = container_result["output"]
-    result.error_message = container_result["error"]
-
-    # Parse JSON output from container
-    if container_result["success"]:
-        try:
-            parsed_container_results = parse_container_json_output(
-                result.container_output
-            )
-            validated_output = extract_container_json_output_fields(
-                parsed_container_results
-            )
-            result.results = validated_output.get_results()
-
-            # Translate container paths to host paths using helper
-            result.generated_reports, result.generated_datasets = (
-                _translate_container_output_paths(validated_output, test_params)
-            )
-
-            # Validate generated datasets against manifest declarations
-            if manifest and validated_output.generated_datasets:
-                dataset_warnings = validate_generated_datasets(
-                    manifest, validated_output.generated_datasets, test_id, image
-                )
-                for warning in dataset_warnings:
-                    DBOS.logger.warning(warning)
-
-            result.success = result.results.get("success", False)
-        except ValueError as e:
-            result.error_message = (
-                f"Failed to parse JSON output from test id '{test_id}': {e}"
-            )
-            result.success = False
-            DBOS.logger.error(
-                f"JSON parsing failed for test id {test_id}: {result.container_output[:200]}..."
-            )
-    else:
-        result.success = False
-
-    # Log failures for debugging
-    if not result.success:
-        DBOS.logger.error(f"Test failed, id: {test_id} - {result.error_message}")
-
-    return result
 
 
 @DBOS.step()
@@ -1827,7 +1871,7 @@ def execute_data_generation(
         RuntimeError: If container execution fails
     """
     result = TestExecutionResult(job_name, job_id, job_name, image)
-    # Extract system_under_test for validation and environment handling
+
     try:
         validate_data_gen_execution_inputs(
             job_id, image, systems_params, generation_params
@@ -1837,7 +1881,6 @@ def execute_data_generation(
         result.success = False
         return result
 
-    # Prepare command line arguments
     try:
         systems_params_json = json.dumps(systems_params)
         generation_params_json = json.dumps(generation_params)
@@ -1852,100 +1895,19 @@ def execute_data_generation(
         result.success = False
         return result
 
-    # Load and merge environment variables from all sources using helper
-    container_env = _load_and_merge_environment_variables(
-        systems_params, env_file, environment, has_sut=False
-    )
-
-    # Extract manifest to check for host access requirements and validate environment variables
-    manifest = None
-    try:
-        manifest = extract_manifest_from_image(image, ContainerConfig.MANIFEST_PATH)
-    except Exception as e:
-        # Log warning but continue - manifest extraction failure shouldn't stop test execution
-        DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
-
-    # Validate environment variables against manifest requirements using helper
-    error_msg = _validate_required_environment_variables(
-        manifest, container_env, job_name, image
-    )
-    if error_msg:
-        result.error_message = error_msg
-        result.success = False
-        return result
-
-    # Configure Docker-in-Docker for containers that require host access using helper
-    _configure_docker_in_docker(
-        manifest, container_config, container_env, job_id, image
-    )
-
-    # Execute container
-    result.start_time = time.time()
-
-    # Generate container name: {sut}-{test_id}-{short_uuid}
-    truncated_job_name = job_name.lower().replace(" ", "_")[:25]
-    truncated_job_id = job_id.lower()[:25]
-    prefix = f"{truncated_job_name}-{truncated_job_id}"
-    container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
-
-    container_result = run_container_with_args(
+    return _execute_container_job(
+        item_name=job_name,
+        item_id=job_id,
         image=image,
-        args=command_args,
-        environment=container_env,
+        command_args=command_args,
+        systems_params=systems_params,
+        item_params=generation_params,
         container_config=container_config,
-        name=container_name,
-        workflow_id=DBOS.workflow_id or "",
+        env_file=env_file,
+        environment=environment,
+        result=result,
+        has_sut=False,
     )
-
-    result.end_time = time.time()
-    result.container_id = container_result["container_id"]
-    result.exit_code = container_result["exit_code"]
-    result.container_output = container_result["output"]
-    result.error_message = container_result["error"]
-
-    # Parse JSON output from container
-    if container_result["success"]:
-        try:
-            parsed_container_results = parse_container_json_output(
-                result.container_output
-            )
-            validated_output = extract_container_json_output_fields(
-                parsed_container_results
-            )
-            result.results = validated_output.get_results()
-
-            # Translate container paths to host paths using helper
-            result.generated_reports, result.generated_datasets = (
-                _translate_container_output_paths(validated_output, generation_params)
-            )
-
-            # Validate generated datasets against manifest declarations
-            if manifest and validated_output.generated_datasets:
-                dataset_warnings = validate_generated_datasets(
-                    manifest, validated_output.generated_datasets, job_id, image
-                )
-                for warning in dataset_warnings:
-                    DBOS.logger.warning(warning)
-
-            result.success = result.results.get("success", False)
-        except ValueError as e:
-            result.error_message = (
-                f"Failed to parse JSON output from job id '{job_id}': {e}"
-            )
-            result.success = False
-            DBOS.logger.error(
-                f"JSON parsing failed for job id {job_id}: {result.container_output[:200]}..."
-            )
-    else:
-        result.success = False
-
-    # Log failures for debugging
-    if not result.success:
-        DBOS.logger.error(
-            f"Data Generation Job failed, id: {job_id} - {result.error_message}"
-        )
-
-    return result
 
 
 @DBOS.workflow()
