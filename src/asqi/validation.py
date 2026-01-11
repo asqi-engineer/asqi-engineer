@@ -8,9 +8,11 @@ from rich.console import Console
 
 from asqi.config import ExecutionMode, load_config_file
 from asqi.errors import DuplicateIDError, MissingIDFieldError
+from asqi.response_schemas import GeneratedDataset
 from asqi.schemas import (
     AuditScoreCardIndicator,
     DataGenerationConfig,
+    DatasetDefinition,
     DatasetsConfig,
     DatasetType,
     EnvironmentVariable,
@@ -1008,7 +1010,7 @@ def validate_indicator_display_reports(
 
 def validate_generated_datasets(
     manifest: Manifest,
-    generated_datasets: List[Dict[str, Any]],
+    generated_datasets: List[GeneratedDataset],
     test_id: str,
     image: str,
 ) -> List[str]:
@@ -1020,7 +1022,7 @@ def validate_generated_datasets(
 
     Args:
         manifest: The container manifest
-        generated_datasets: List of dataset dicts from container output
+        generated_datasets: List of GeneratedDataset objects
         test_id: ID of the test/job for error messages
         image: Container image name for error messages
 
@@ -1034,16 +1036,9 @@ def validate_generated_datasets(
 
     declared_datasets = {dataset.name for dataset in manifest.output_datasets}
     for dataset in generated_datasets:
-        dataset_name = dataset.get("dataset_name")
-        if not dataset_name:
+        if dataset.dataset_name not in declared_datasets:
             warnings.append(
-                f"Job '{test_id}' (image: {image}): Generated dataset missing 'dataset_name' field"
-            )
-            continue
-
-        if dataset_name not in declared_datasets:
-            warnings.append(
-                f"Job '{test_id}' (image: {image}): Generated dataset '{dataset_name}' "
+                f"Job '{test_id}' (image: {image}): Generated dataset '{dataset.dataset_name}' "
                 f"not declared in manifest. Manifest declares: {sorted(list(declared_datasets))}"
             )
 
@@ -1361,12 +1356,12 @@ def resolve_dataset_references(
     if isinstance(config, SuiteConfig):
         for test in config.test_suite:
             if test.datasets:
-                test.datasets = _resolve_dataset_dict(test.datasets, datasets_config)
+                test.datasets = _resolve_dataset_dict(test.datasets, datasets_config)  # type: ignore[assignment]
 
     elif isinstance(config, DataGenerationConfig):
         for job in config.generation_jobs:
             if job.input_datasets:
-                job.input_datasets = _resolve_dataset_dict(
+                job.input_datasets = _resolve_dataset_dict(  # type: ignore[assignment]
                     job.input_datasets, datasets_config
                 )
 
@@ -1376,7 +1371,7 @@ def resolve_dataset_references(
 def _resolve_dataset_dict(
     datasets: Dict[str, str],
     datasets_config: DatasetsConfig,
-) -> Dict[str, Union[HFDatasetDefinition, PDFDatasetDefinition, TXTDatasetDefinition]]:
+) -> Dict[str, DatasetDefinition]:
     """
     Resolve dataset name references to dataset definition objects.
 
@@ -1385,12 +1380,13 @@ def _resolve_dataset_dict(
         datasets_config: Datasets configuration
 
     Returns:
-        Dict mapping manifest names to resolved dataset definition objects (HFDatasetDefinition, PDFDatasetDefinition, or TXTDatasetDefinition)
+        Dict mapping manifest names to resolved DatasetDefinition objects
+        (HFDatasetDefinition, PDFDatasetDefinition, or TXTDatasetDefinition)
 
     Raises:
         ValueError: If dataset reference not found
     """
-    resolved = {}
+    resolved: Dict[str, DatasetDefinition] = {}
 
     for manifest_name, dataset_ref in datasets.items():
         if not isinstance(dataset_ref, str):

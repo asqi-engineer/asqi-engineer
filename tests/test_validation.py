@@ -9,6 +9,7 @@ from asqi.config import ExecutionMode
 from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.main import load_and_validate_plan
 from asqi.rag_response_schema import RAGCitation, RAGContext, validate_rag_response
+from asqi.response_schemas import GeneratedDataset
 from asqi.schemas import (
     AssessmentRule,
     AuditScoreCardIndicator,
@@ -2477,11 +2478,16 @@ class TestValidateGeneratedDatasets:
         )
 
         generated_datasets = [
-            {"dataset_name": "augmented_data", "dataset_path": "/output/data.parquet"},
-            {
-                "dataset_name": "evaluation_data",
-                "dataset_path": "/output/eval.parquet",
-            },
+            GeneratedDataset(
+                dataset_name="augmented_data",
+                dataset_type="huggingface",
+                dataset_path="/output/data.parquet",
+            ),
+            GeneratedDataset(
+                dataset_name="evaluation_data",
+                dataset_type="huggingface",
+                dataset_path="/output/eval.parquet",
+            ),
         ]
 
         warnings = validate_generated_datasets(
@@ -2508,10 +2514,11 @@ class TestValidateGeneratedDatasets:
         )
 
         generated_datasets = [
-            {
-                "dataset_name": "undeclared_dataset",
-                "dataset_path": "/output/data.parquet",
-            }
+            GeneratedDataset(
+                dataset_name="undeclared_dataset",
+                dataset_type="huggingface",
+                dataset_path="/output/data.parquet",
+            )
         ]
 
         warnings = validate_generated_datasets(
@@ -2541,8 +2548,16 @@ class TestValidateGeneratedDatasets:
         )
 
         generated_datasets = [
-            {"dataset_name": "undeclared_1", "dataset_path": "/output/data1.parquet"},
-            {"dataset_name": "undeclared_2", "dataset_path": "/output/data2.parquet"},
+            GeneratedDataset(
+                dataset_name="undeclared_1",
+                dataset_type="huggingface",
+                dataset_path="/output/data1.parquet",
+            ),
+            GeneratedDataset(
+                dataset_name="undeclared_2",
+                dataset_type="huggingface",
+                dataset_path="/output/data2.parquet",
+            ),
         ]
 
         warnings = validate_generated_datasets(
@@ -2565,7 +2580,11 @@ class TestValidateGeneratedDatasets:
         )
 
         generated_datasets = [
-            {"dataset_name": "any_dataset", "dataset_path": "/output/data.parquet"}
+            GeneratedDataset(
+                dataset_name="any_dataset",
+                dataset_type="huggingface",
+                dataset_path="/output/data.parquet",
+            )
         ]
 
         warnings = validate_generated_datasets(
@@ -2575,38 +2594,14 @@ class TestValidateGeneratedDatasets:
         # No warnings because manifest doesn't declare any output_datasets
         assert len(warnings) == 0
 
-    def test_missing_dataset_name_field(self):
-        """Test that missing dataset_name field generates a warning."""
-        manifest = Manifest(
-            name="test_container",
-            version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
-            output_datasets=[
-                OutputDataset(
-                    name="declared_dataset",
-                    type="huggingface",
-                    features=[DatasetFeature(name="text", dtype="string")],
-                )
-            ],
-        )
-
-        generated_datasets = [
-            {"dataset_path": "/output/data.parquet"}  # Missing dataset_name
-        ]
-
-        warnings = validate_generated_datasets(
-            manifest, generated_datasets, "test_id", "my-registry/test:latest"
-        )
-
-        assert len(warnings) == 1
-        assert "missing 'dataset_name' field" in warnings[0]
-
     def test_none_manifest(self):
         """Test that validation passes gracefully when manifest is None."""
         generated_datasets = [
-            {"dataset_name": "any_dataset", "dataset_path": "/output/data.parquet"}
+            GeneratedDataset(
+                dataset_name="any_dataset",
+                dataset_type="huggingface",
+                dataset_path="/output/data.parquet",
+            )
         ]
 
         warnings = validate_generated_datasets(
