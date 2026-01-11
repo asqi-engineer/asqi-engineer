@@ -1,0 +1,17 @@
+job_name: "Example SDG - Text Augmentation"
+
+generation_jobs:
+  - id: "text_augmentation_demo"
+    name: "Text Augmentation Demo"
+    image: "example_sdg:latest"
+
+    input_datasets:
+      training_examples: example_training_data
+
+    output_datasets:
+      augmented_training_data:
+        description: "Augmented training data with synthetic examples"
+
+    params:
+      augmentation_factor: 2
+      transformation_type: "paraphrase"

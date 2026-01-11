@@ -1,0 +1,10 @@
+datasets:
+  example_training_data:
+    type: "huggingface"
+    description: "Sample training examples for text classification"
+    loader_params:
+      builder_name: "json"
+      data_files: "test_containers/example_sdg/example_data/training_examples/data.json"
+    mapping:
+      text: "text"
+      label: "label"

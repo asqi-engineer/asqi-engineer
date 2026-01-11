@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
+name: "example_sdg"
+version: "1.0"
+description: "Example container demonstrating the Synthetic Data Generation (SDG) workflow"
+
+input_systems:
+  - name: "generator_system"
+    type: ["llm_api"]
+    required: false
+    description: "Optional LLM system for data generation (demo shows simple transformations)"
+
+input_schema:
+  - name: "augmentation_factor"
+    type: "integer"
+    required: false
+    description: "How many synthetic examples to generate per original example (default: 2)"
+  - name: "transformation_type"
+    type: "string"
+    required: false
+    description: "Type of transformation to apply: 'paraphrase', 'uppercase', or 'reverse' (default: 'paraphrase')"
+
+input_datasets:
+  - name: "training_examples"
+    type: "huggingface"
+    required: true
+    description: "Input dataset containing examples to augment"
+    features:
+      - name: "text"
+        dtype: "string"
+        description: "The text content to augment"
+      - name: "label"
+        dtype: "string"
+        description: "The category or label for this example"
+
+output_datasets:
+  - name: "augmented_training_data"
+    type: "huggingface"
+    description: "Augmented dataset with original and synthetic examples"
+    features:
+      - name: "text"
+        dtype: "string"
+        description: "The text content (original or synthetic)"
+      - name: "label"
+        dtype: "string"
+        description: "The category or label"
+      - name: "is_synthetic"
+        dtype: "bool"
+        description: "Whether this example is synthetic (True) or original (False)"
+      - name: "source"
+        dtype: "string"
+        description: "Transformation method used for synthetic data"
+
+output_metrics:
+  - name: "original_count"
+    type: "integer"
+    description: "Number of original examples in the input dataset"
+  - name: "synthetic_count"
+    type: "integer"
+    description: "Number of synthetic examples generated"
+  - name: "total_count"
+    type: "integer"
+    description: "Total number of examples in the output dataset"
+  - name: "augmentation_ratio"
+    type: "float"
+    description: "Ratio of synthetic to original examples"

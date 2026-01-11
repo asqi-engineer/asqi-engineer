@@ -1,0 +1,22 @@
+[
+  {
+    "text": "The weather is nice today.",
+    "label": "weather"
+  },
+  {
+    "text": "I love programming in Python.",
+    "label": "technology"
+  },
+  {
+    "text": "The coffee tastes great this morning.",
+    "label": "food"
+  },
+  {
+    "text": "Machine learning is transforming industries.",
+    "label": "technology"
+  },
+  {
+    "text": "The sunset was beautiful yesterday.",
+    "label": "nature"
+  }
+]
