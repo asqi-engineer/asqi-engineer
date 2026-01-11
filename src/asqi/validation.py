@@ -1184,7 +1184,7 @@ def create_data_generation_plan(
         else:
             if input_datasets:
                 raise ValueError(
-                    f"Job config for {job.name} provided with datasets but without volumes; datasets must be passed in via mounted volumes."
+                    f"Job config for {job.name} provided with input_datasets but without volumes; datasets must be passed in via mounted volumes."
                 )
             generation_params = base_params or {}
 
