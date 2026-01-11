@@ -271,15 +271,16 @@ def main():
         required=True,
         help="JSON string with system configurations"
     )
+    # Support both test-params and generation-params
     parser.add_argument(
         "--test-params",
-        required=True,
+        required=False,
         help="JSON string with test parameters"
     )
     parser.add_argument(
-        "--input-datasets",
-        required=True,
-        help="JSON string with input dataset configurations"
+        "--generation-params",
+        required=False,
+        help="JSON string with generation parameters"
     )
     parser.add_argument(
         "--output-dir",
@@ -289,13 +290,23 @@ def main():
     
     args = parser.parse_args()
     
+    # Use either test-params or generation-params
+    if args.generation_params:
+        params_json = args.generation_params
+    elif args.test_params:
+        params_json = args.test_params
+    else:
+        raise ValueError("Either --test-params or --generation-params must be provided")
+    
     start_time = time.time()
     
     try:
         # Parse inputs
         systems_params = json.loads(args.systems_params)
-        test_params = json.loads(args.test_params)
-        input_datasets = json.loads(args.input_datasets)
+        params = json.loads(params_json)
+        
+        # Extract input_datasets from params (passed via volumes)
+        input_datasets = params.get("input_datasets", {})
         
         # Extract generation system parameters
         gen_system = systems_params.get("generation_system", {})
@@ -315,15 +326,20 @@ def main():
         
         llm_client = OpenAI(base_url=base_url, api_key=api_key or "dummy-key")
         
-        # Extract test parameters
-        num_questions = test_params.get("num_questions", 3)
-        chunk_size = test_params.get("chunk_size", 1000)
-        chunk_overlap = test_params.get("chunk_overlap", 200)
-        output_dataset_name = test_params.get("output_dataset_name", "qa_dataset")
+        # Extract test/generation parameters
+        num_questions = params.get("num_questions", 3)
+        chunk_size = params.get("chunk_size", 1000)
+        chunk_overlap = params.get("chunk_overlap", 200)
+        output_dataset_name = params.get("output_dataset_name", "qa_dataset")
         
         # Extract input dataset path
         source_docs = input_datasets.get("source_documents", {})
-        file_path = source_docs.get("file_path")
+        
+        # Handle both dict and object formats
+        if hasattr(source_docs, 'file_path'):
+            file_path = source_docs.file_path
+        else:
+            file_path = source_docs.get("file_path")
         
         if not file_path:
             raise ValueError("source_documents must have file_path")

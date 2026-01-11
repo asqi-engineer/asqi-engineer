@@ -1,14 +1,11 @@
-suite_name: "Document Q&A Generation Suite"
-description: "Generate question-answer pairs from documentation for RAG evaluation and training"
-
-test_suite:
+job_name: "Document Q&A Generation"
+generation_jobs:
   - id: "doc_qa_gen"
     name: "Generate Q&A from Documentation"
-    description: "Process technical documentation and generate Q&A dataset"
     image: "asqiengineer/test-container:doc_qa_generator-latest"
     systems:
       generation_system: openai_gpt4o
-    datasets:
+    input_datasets:
       source_documents: sample_documentation
     volumes:
       input: input/
