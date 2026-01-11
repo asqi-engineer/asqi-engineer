@@ -1,0 +1,22 @@
+[
+  {
+    "text": "The product quality exceeded my expectations.",
+    "label": "positive"
+  },
+  {
+    "text": "Customer service was slow to respond.",
+    "label": "negative"
+  },
+  {
+    "text": "The interface is user-friendly and intuitive.",
+    "label": "positive"
+  },
+  {
+    "text": "Shipping took longer than advertised.",
+    "label": "negative"
+  },
+  {
+    "text": "Great value for the price.",
+    "label": "positive"
+  }
+]
