@@ -152,10 +152,10 @@ def validate_container_output(output_dict: Dict[str, Any]) -> ContainerOutput:
         ValueError: If neither 'results' nor 'test_results' field is present
     """
     validated = ContainerOutput(**output_dict)
-    if not validated.get_results():
+    if validated.results is None and validated.test_results is None:
         raise ValueError(
-            "Container output must contain 'results' or 'test_results' field with data. "
-            "Both fields are missing or empty."
+            "Container output must contain 'results' or 'test_results' field. "
+            "Both fields are missing."
         )
 
     return validated
