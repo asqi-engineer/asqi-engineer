@@ -1006,43 +1006,50 @@ def validate_indicator_display_reports(
     return errors
 
 
-def verify_score_card_reports(all_evaluations: List[Dict[str, Any]]) -> None:
+def validate_generated_datasets(
+    manifest: Manifest,
+    generated_datasets: List[Dict[str, Any]],
+    test_id: str,
+    image: str,
+) -> List[str]:
     """
-    Verifies that all generated reports referenced in the score card evaluations
-    exist on the local filesystem and logs the results to the console.
+    Validate that generated datasets match the manifest declarations.
+
+    Checks that all dataset names in generated_datasets exist in the manifest's
+    output_datasets field. Does not validate features/schema.
 
     Args:
-        all_evaluations: List of score card evaluation results
+        manifest: The container manifest
+        generated_datasets: List of dataset dicts from container output
+        test_id: ID of the test/job for error messages
+        image: Container image name for error messages
+
+    Returns:
+        List of warning messages (empty list if all datasets are valid)
     """
-    if not all_evaluations:
-        return
+    warnings = []
 
-    console.print("\n[bold blue]Verifying generated reports...[/bold blue]")
-    reports_count = 0
-    for evaluation in all_evaluations:
-        indicator_id = evaluation.get("indicator_id", "")
-        report_paths = evaluation.get("report_paths") or []
-        for report_path_str in report_paths:
-            try:
-                path = Path(report_path_str)
-                if path.exists() and path.is_file():
-                    reports_count += 1
-                    console.print(
-                        f"Indicator id [bold]'{indicator_id}'[/bold]: Report saved to [bold]{report_path_str}[/bold]"
-                    )
-                else:
-                    console.print(
-                        f"Indicator id [bold]'{indicator_id}'[/bold]: Report [red]{path.name}[/red] is missing. Current path: {report_path_str}"
-                    )
-            except (TypeError, ValueError, OSError) as e:
-                console.print(
-                    f"Indicator id [bold]'{indicator_id}'[/bold]: Invalid report path [red]{report_path_str}[/red] ({str(e)})"
-                )
-    if reports_count == 0:
-        console.print("No reports were generated")
+    if not manifest or not manifest.output_datasets:
+        return warnings
+
+    declared_datasets = {dataset.name for dataset in manifest.output_datasets}
+    for dataset in generated_datasets:
+        dataset_name = dataset.get("dataset_name")
+        if not dataset_name:
+            warnings.append(
+                f"Job '{test_id}' (image: {image}): Generated dataset missing 'dataset_name' field"
+            )
+            continue
+
+        if dataset_name not in declared_datasets:
+            warnings.append(
+                f"Job '{test_id}' (image: {image}): Generated dataset '{dataset_name}' "
+                f"not declared in manifest. Manifest declares: {sorted(list(declared_datasets))}"
+            )
+
+    return warnings
 
 
-## Data Generation Functions
 def validate_data_generation_input(
     generation_config_path: str,
     systems_path: Optional[str],
