@@ -107,7 +107,8 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[st
             chunks.append(chunk.strip())
         
         # Move to next chunk with overlap
-        start = end - overlap
+        # Ensure start advances even if overlap >= chunk_size
+        start = max(start + 1, end - overlap)
         
     return chunks
 
@@ -139,8 +140,8 @@ Text:
 Please respond with a JSON array where each element has "question" and "answer" fields.
 Example format:
 [
-  {{"question": "What is...", "answer": "..."}},
-  {{"question": "How does...", "answer": "..."}}
+  {"question": "What is...", "answer": "..."},
+  {"question": "How does...", "answer": "..."}
 ]
 
 Only return the JSON array, no additional text."""
@@ -170,6 +171,8 @@ Only return the JSON array, no additional text."""
         return qa_pairs
         
     except json.JSONDecodeError as e:
+        # Content may be undefined if LLM call failed - get safely
+        content = getattr(response, 'choices', [{}])[0].get('message', {}).get('content', 'N/A') if 'response' in locals() else 'N/A'
         logger.warning(f"Failed to parse LLM response as JSON: {e}")
         logger.debug(f"Response content: {content}")
         return []

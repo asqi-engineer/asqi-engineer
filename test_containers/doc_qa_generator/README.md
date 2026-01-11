@@ -120,7 +120,7 @@ test_suite:
 ### 5. Run Generation
 
 ```bash
-asqi execute-tests \
+asqi generate-dataset \
   -t config/qa_generation/suite.yaml \
   -s config/qa_generation/systems.yaml \
   -d config/qa_generation/datasets.yaml \
