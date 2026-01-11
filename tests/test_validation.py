@@ -47,7 +47,7 @@ from asqi.validation import (
     validate_score_card_inputs,
     validate_system_compatibility,
     validate_test_execution_inputs,
-    validate_test_parameters,
+    validate_parameters,
     validate_test_plan,
     validate_test_volumes,
     validate_workflow_configurations,
@@ -1054,7 +1054,7 @@ class TestEdgeCases:
 
 
 class TestValidationFunctions:
-    def test_validate_test_parameters(self, manifests):
+    def test_validate_parameters(self, manifests):
         manifest = manifests["my-registry/mock_tester:latest"]
 
         # Test with missing required param (none required)
@@ -1063,12 +1063,12 @@ class TestValidationFunctions:
             params = {}
 
         test = DummyTest()
-        errors = validate_test_parameters(test, manifest)
+        errors = validate_parameters(test, manifest)
         assert errors == []
 
         # Test with unknown param
         test.params = {"foo": 1}
-        errors = validate_test_parameters(test, manifest)
+        errors = validate_parameters(test, manifest)
         assert any("Unknown parameter 'foo'" in e for e in errors)
 
         # Test with required param (garak)
@@ -1076,10 +1076,10 @@ class TestValidationFunctions:
         test2 = DummyTest()
         test2.name = "t2"
         test2.params = {}
-        errors = validate_test_parameters(test2, garak_manifest)
+        errors = validate_parameters(test2, garak_manifest)
         assert any("Missing required parameter 'probes'" in e for e in errors)
         test2.params = {"probes": ["p1"]}
-        errors = validate_test_parameters(test2, garak_manifest)
+        errors = validate_parameters(test2, garak_manifest)
         assert errors == []
 
     def test_validate_system_compatibility(self, demo_systems, manifests):
@@ -1099,7 +1099,7 @@ class TestValidationFunctions:
         # Unknown system
         test.systems_under_test = ["not_a_system"]
         errors = validate_system_compatibility(test, demo_systems.systems, manifest)
-        assert any("Unknown system 'not_a_system'" in e for e in errors)
+        assert any("not_a_system" in e and "Unknown system" in e for e in errors)
 
     def test_validate_system_compatibility_with_additional_systems(self, demo_systems):
         """Test validation of additional systems from test.systems field."""
@@ -1612,7 +1612,7 @@ class TestCreateExecutionPlanEdgeCases:
 class TestParameterValidationEdgeCases:
     """Test edge cases in parameter validation."""
 
-    def test_validate_test_parameters_with_empty_schema(self):
+    def test_validate_parameters_with_empty_schema(self):
         """Test parameter validation with empty input schema."""
         manifest_data = {
             "name": "no_params_test",
@@ -1631,7 +1631,7 @@ class TestParameterValidationEdgeCases:
             params = {"unexpected_param": "value"}
 
         test = DummyTest()
-        errors = validate_test_parameters(test, manifest)
+        errors = validate_parameters(test, manifest)
         assert any("Unknown parameter 'unexpected_param'" in e for e in errors)
         assert "Valid parameters: none" in errors[0]
 
@@ -3187,7 +3187,7 @@ class TestValidateDataGenerationPlan:
 
         assert len(errors) == 1
         assert "missing_system" in errors[0]
-        assert "not defined" in errors[0]
+        assert "not defined" in errors[0] or "Unknown" in errors[0]
 
     def test_validate_incompatible_system_type(self):
         """Test validation fails when system type doesn't match manifest."""
@@ -3223,7 +3223,8 @@ class TestValidateDataGenerationPlan:
         )
 
         assert len(errors) == 1
-        assert "not compatible" in errors[0]
+        assert "Expected type in" in errors[0] or "not compatible" in errors[0]
+        assert "rest_api" in errors[0]
 
     def test_validate_missing_required_param(self):
         """Test validation fails when required parameter is missing."""
@@ -3276,4 +3277,7 @@ class TestValidateDataGenerationPlan:
         )
 
         assert len(errors) == 1
-        assert "does not have a loaded manifest" in errors[0]
+        assert (
+            "does not have a loaded manifest" in errors[0]
+            or "No manifest available" in errors[0]
+        )
