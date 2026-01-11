@@ -1,0 +1,20 @@
+suite_name: "Document Q&A Generation Suite"
+description: "Generate question-answer pairs from documentation for RAG evaluation and training"
+
+test_suite:
+  - id: "doc_qa_gen"
+    name: "Generate Q&A from Documentation"
+    description: "Process technical documentation and generate Q&A dataset"
+    image: "asqiengineer/test-container:doc_qa_generator-latest"
+    systems:
+      generation_system: openai_gpt4o
+    datasets:
+      source_documents: sample_documentation
+    volumes:
+      input: input/
+      output: output/
+    params:
+      num_questions: 3
+      chunk_size: 1000
+      chunk_overlap: 200
+      output_dataset_name: "docs_qa_v1"
