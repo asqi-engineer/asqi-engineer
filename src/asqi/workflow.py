@@ -153,11 +153,59 @@ def _get_docker_socket_path(env_vars: dict[str, str]) -> str:
     return "/var/run/docker.sock"
 
 
+def _load_env_file_into_dict(
+    container_env: Dict[str, str], env_file_path: str, level: str
+) -> None:
+    """
+    Load an environment file and merge into container_env dict.
+
+    Args:
+        container_env: Dictionary to update with environment variables
+        env_file_path: Path to .env file to load
+        level: Description of the level (e.g., "system-level", "item-level") for logging
+    """
+    if os.path.exists(env_file_path):
+        try:
+            env_vars = dotenv_values(env_file_path)
+            # Filter out None values to ensure all env vars are strings
+            filtered_env_vars = {k: v for k, v in env_vars.items() if v is not None}
+            container_env.update(filtered_env_vars)
+            DBOS.logger.info(
+                f"Loaded environment variables from {level} env_file: {env_file_path}"
+            )
+        except Exception as e:
+            DBOS.logger.warning(
+                f"Failed to load {level} environment file {env_file_path}: {e}"
+            )
+    else:
+        DBOS.logger.warning(
+            f"{level.capitalize()} environment file {env_file_path} not found"
+        )
+
+
+def _merge_interpolated_env(
+    container_env: Dict[str, str], item_environment: Dict[str, str]
+) -> None:
+    """
+    Interpolate and merge item-level environment dict into container_env.
+
+    Args:
+        container_env: Dictionary to update with interpolated environment variables
+        item_environment: Dictionary of environment variables to interpolate and merge
+    """
+    interpolated_env = interpolate_env_vars(item_environment)
+    for key, value in interpolated_env.items():
+        container_env[key] = value
+        if item_environment.get(key) != value:
+            DBOS.logger.info(f"Interpolated environment variable: {key}")
+        else:
+            DBOS.logger.info(f"Set environment variable: {key}")
+
+
 def _load_and_merge_environment_variables(
     systems_params: Dict[str, Any],
     item_env_file: Optional[str],
     item_environment: Optional[Dict[str, str]],
-    has_sut: bool = True,
 ) -> Dict[str, str]:
     """
     Load and merge environment variables from multiple sources.
@@ -172,7 +220,6 @@ def _load_and_merge_environment_variables(
         systems_params: Dictionary containing system configurations with optional env_file
         item_env_file: Optional path to .env file for item-level environment variables
         item_environment: Optional dict of environment variables for the item
-        has_sut: If True, extract env_file from 'system_under_test'. If False, iterate all systems.
 
     Returns:
         Merged dictionary of environment variables
@@ -182,92 +229,29 @@ def _load_and_merge_environment_variables(
         "INPUT_MOUNT_PATH": str(INPUT_MOUNT_PATH),
     }
 
-    # Load environment variables from system-level env_file(s)
-    if has_sut:
-        # Test execution path: only check system_under_test
-        sut_params = systems_params.get("system_under_test", {})
-        if "env_file" in sut_params and sut_params["env_file"]:
-            env_file_path = sut_params["env_file"]
-            if os.path.exists(env_file_path):
-                try:
-                    env_vars = dotenv_values(env_file_path)
-                    # Filter out None values to ensure all env vars are strings
-                    filtered_env_vars = {
-                        k: v for k, v in env_vars.items() if v is not None
-                    }
-                    container_env.update(filtered_env_vars)
-                    DBOS.logger.info(
-                        f"Loaded environment variables from system-level env_file: {env_file_path}"
-                    )
-                except Exception as e:
-                    DBOS.logger.warning(
-                        f"Failed to load system-level environment file {env_file_path}: {e}"
-                    )
-            else:
-                DBOS.logger.warning(
-                    f"System-level environment file {env_file_path} not found"
-                )
-    else:
-        # Data generation path: check all systems
-        for _system_value in systems_params.values():
-            if "env_file" in _system_value and _system_value["env_file"]:
-                env_file_path = _system_value["env_file"]
-                if os.path.exists(env_file_path):
-                    try:
-                        env_vars = dotenv_values(env_file_path)
-                        # Filter out None values to ensure all env vars are strings
-                        filtered_env_vars = {
-                            k: v for k, v in env_vars.items() if v is not None
-                        }
-                        container_env.update(filtered_env_vars)
-                        DBOS.logger.info(
-                            f"Loaded environment variables from system-level env_file: {env_file_path}"
-                        )
-                    except Exception as e:
-                        DBOS.logger.warning(
-                            f"Failed to load system-level environment file {env_file_path}: {e}"
-                        )
-                else:
-                    DBOS.logger.warning(
-                        f"System-level environment file {env_file_path} not found"
-                    )
+    # Load environment variables from all system-level env_file(s)
+    for system_params in systems_params.values():
+        if (
+            isinstance(system_params, dict)
+            and "env_file" in system_params
+            and system_params["env_file"]
+        ):
+            _load_env_file_into_dict(
+                container_env, system_params["env_file"], "system-level"
+            )
 
     # Load environment variables from item-level env_file
     if item_env_file:
-        if os.path.exists(item_env_file):
-            try:
-                item_env_vars = dotenv_values(item_env_file)
-                # Filter out None values
-                filtered_item_env_vars = {
-                    k: v for k, v in item_env_vars.items() if v is not None
-                }
-                container_env.update(filtered_item_env_vars)
-                DBOS.logger.info(
-                    f"Loaded environment variables from item-level env_file: {item_env_file}"
-                )
-            except Exception as e:
-                DBOS.logger.warning(
-                    f"Failed to load item-level environment file {item_env_file}: {e}"
-                )
-        else:
-            DBOS.logger.warning(
-                f"Item-level environment file {item_env_file} not found"
-            )
+        _load_env_file_into_dict(container_env, item_env_file, "item-level")
 
     # Merge item-level environment dict (with interpolation support)
     if item_environment:
-        interpolated_env = interpolate_env_vars(item_environment)
-        for key, value in interpolated_env.items():
-            container_env[key] = value
-            if item_environment.get(key) != value:
-                DBOS.logger.info(f"Interpolated environment variable: {key}")
-            else:
-                DBOS.logger.info(f"Set environment variable: {key}")
+        _merge_interpolated_env(container_env, item_environment)
 
-    # Pass through explicit API key if specified (tests only)
-    if has_sut:
-        sut_params = systems_params.get("system_under_test", {})
-        if "api_key" in sut_params:
+    # Pass through explicit API key if system_under_test specifies it
+    if "system_under_test" in systems_params:
+        sut_params = systems_params["system_under_test"]
+        if isinstance(sut_params, dict) and "api_key" in sut_params:
             container_env["API_KEY"] = sut_params["api_key"]
             DBOS.logger.info("Using direct API key for authentication")
 
@@ -490,7 +474,6 @@ def _execute_container_job(
     env_file: Optional[str],
     environment: Optional[Dict[str, str]],
     result: TestExecutionResult,
-    has_sut: bool,
 ) -> TestExecutionResult:
     """
     Core container execution logic
@@ -500,20 +483,20 @@ def _execute_container_job(
         item_id: Unique ID of the test or generation job
         image: Docker image to run
         command_args: Pre-built command line arguments for the container
-        systems_params: Dictionary containing system configurations (for env var loading)
+        systems_params: Dictionary containing system configurations (for env var loading).
+            Handles both test execution and data generation structures uniformly.
         item_params: Parameters for the test or generation job (for path translation)
         container_config: Container execution configurations
         env_file: Optional path to .env file for environment variables
         environment: Optional dictionary of environment variables
         result: TestExecutionResult object to populate
-        has_sut: True if systems_params contains 'system_under_test', False otherwise
 
     Returns:
         TestExecutionResult containing execution metadata and results
     """
 
     container_env = _load_and_merge_environment_variables(
-        systems_params, env_file, environment, has_sut=has_sut
+        systems_params, env_file, environment
     )
 
     # Extract manifest to check for host access requirements and validate environment variables
@@ -783,7 +766,6 @@ def execute_single_test(
         env_file=env_file,
         environment=environment,
         result=result,
-        has_sut=True,
     )
 
 
@@ -1906,7 +1888,6 @@ def execute_data_generation(
         env_file=env_file,
         environment=environment,
         result=result,
-        has_sut=False,
     )
 
 
@@ -2177,7 +2158,6 @@ def run_data_generation_workflow(
 
     # Generate summary
     total_tests = len(all_results)
-    print(all_results)
     successful_tests = sum(1 for r in all_results if r.success)
     failed_tests = total_tests - successful_tests
 
