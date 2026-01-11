@@ -82,11 +82,7 @@ class ContainerOutput(BaseModel):
     """Complete container output schema.
 
     Supports both 'results' (recommended) and 'test_results' (legacy) field names
-    for backward compatibility. Containers can use either field name, and ASQI
-    will accept both indefinitely.
-
-    The 'results' field is recommended for all new containers as it's more generic
-    and works for both test containers and data generation containers.
+    for backward compatibility.
     """
 
     # Accept both field names for backward compatibility
