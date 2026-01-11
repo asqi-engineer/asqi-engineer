@@ -233,7 +233,7 @@ def test_execute_single_test_success():
     assert result.success is True
     assert result.exit_code == 0
     assert result.container_id == "abc123"
-    assert result.test_results.get("success") is True
+    assert result.results.get("success") is True
 
 
 def test_save_results_to_file_step_calls_impl(tmp_path):
@@ -433,7 +433,7 @@ def test_convert_test_results_to_objects():
     assert result.success is True
     assert result.container_id == "abc123"
     assert result.exit_code == 0
-    assert result.test_results == {"success": True, "score": 0.9}
+    assert result.results == {"success": True, "score": 0.9}
     assert result.generated_reports == []
 
 
@@ -1064,210 +1064,12 @@ def test_run_test_suite_workflow_handle_exception():
 
 
 class TestContainerReports:
-    def test_report_name_errors(self, tmp_path):
-        """
-        Test validation fails when report_name is missing, empty or invalid.
-        """
-        report_file = tmp_path / "report.html"
-        report_file.write_text("content")
-
-        manifests = {
-            "report-image:latest": Manifest(
-                name="test-manifest",
-                version="1.0",
-                input_systems=[],
-                output_reports=[OutputReports(name="valid_report", type="html")],
-            )
-        }
-
-        result_report_name_missing = TestExecutionResult(
-            "test report name missing",
-            "test_report_name_missing",
-            "sut",
-            "report-image:latest",
-        )
-        result_report_name_missing.success = True
-        result_report_name_missing.generated_reports = [
-            {"report_type": "html", "report_path": str(report_file)}
-        ]
-
-        result_report_name_empty = TestExecutionResult(
-            "test report name empty",
-            "test_report_name_empty",
-            "sut",
-            "report-image:latest",
-        )
-        result_report_name_empty.success = True
-        result_report_name_empty.generated_reports = [
-            {
-                "report_name": "",
-                "report_type": "html",
-                "report_path": str(report_file),
-            }
-        ]
-
-        result_report_name_invalid = TestExecutionResult(
-            "test report name invalid",
-            "test_report_name_invalid",
-            "sut",
-            "report-image:latest",
-        )
-        result_report_name_invalid.success = True
-        result_report_name_invalid.generated_reports = [
-            {
-                "report_name": "invalid",
-                "report_type": "html",
-                "report_path": str(report_file),
-            }
-        ]
-
-        errors = validate_test_container_reports(
-            [
-                result_report_name_missing,
-                result_report_name_empty,
-                result_report_name_invalid,
-            ],
-            manifests,
-        )
-
-        assert len(errors) == 3
-        assert "Report missing valid 'report_name' field" in errors[0]
-        assert "Report missing valid 'report_name' field" in errors[1]
-        assert "Missing expected reports: [('valid_report', 'html')]" in errors[2]
-
-    def test_report_type_errors(self, tmp_path):
-        """
-        Test validation fails when report_type is missing, empty or invalid.
-        """
-        report_file = tmp_path / "report.html"
-        report_file.write_text("content")
-
-        manifests = {
-            "report-image:latest": Manifest(
-                name="test-manifest",
-                version="1.0",
-                input_systems=[],
-                output_reports=[OutputReports(name="valid_report", type="html")],
-            )
-        }
-
-        result_report_type_missing = TestExecutionResult(
-            "test report type missing",
-            "test_report_type_missing",
-            "sut",
-            "report-image:latest",
-        )
-        result_report_type_missing.success = True
-        result_report_type_missing.generated_reports = [
-            {"report_name": "valid_report", "report_path": str(report_file)}
-        ]
-
-        result_report_type_empty = TestExecutionResult(
-            "test report type empty",
-            "test_report_type_empty",
-            "sut",
-            "report-image:latest",
-        )
-        result_report_type_empty.success = True
-        result_report_type_empty.generated_reports = [
-            {
-                "report_name": "valid_report",
-                "report_type": "",
-                "report_path": str(report_file),
-            }
-        ]
-
-        result_report_type_invalid = TestExecutionResult(
-            "test report type invalid",
-            "test_report_type_invalid",
-            "sut",
-            "report-image:latest",
-        )
-        result_report_type_invalid.success = True
-        result_report_type_invalid.generated_reports = [
-            {
-                "report_name": "valid_report",
-                "report_type": "invalid",
-                "report_path": str(report_file),
-            }
-        ]
-
-        errors = validate_test_container_reports(
-            [
-                result_report_type_missing,
-                result_report_type_empty,
-                result_report_type_invalid,
-            ],
-            manifests,
-        )
-
-        assert len(errors) == 3
-        assert (
-            "Report name 'valid_report' missing valid 'report_type' field" in errors[0]
-        )
-        assert (
-            "Report name 'valid_report' missing valid 'report_type' field" in errors[1]
-        )
-        assert "Missing expected reports: [('valid_report', 'html')]" in errors[2]
-
-    def test_report_path_errors(self, tmp_path):
-        """
-        Test validation fails when report_path is missing or empty.
-        """
-        report_file = tmp_path / "report.html"
-        report_file.write_text("content")
-
-        manifests = {
-            "report-image:latest": Manifest(
-                name="test-manifest",
-                version="1.0",
-                input_systems=[],
-                output_reports=[OutputReports(name="valid_report", type="html")],
-            )
-        }
-
-        result_report_path_missing = TestExecutionResult(
-            "test report path missing",
-            "test_report_path_missing",
-            "sut",
-            "report-image:latest",
-        )
-        result_report_path_missing.success = True
-        result_report_path_missing.generated_reports = [
-            {"report_name": "valid_report", "report_type": "html"}
-        ]
-
-        result_report_path_empty = TestExecutionResult(
-            "test report path empty",
-            "test_report_path_empty",
-            "sut",
-            "report-image:latest",
-        )
-        result_report_path_empty.success = True
-        result_report_path_empty.generated_reports = [
-            {
-                "report_name": "valid_report",
-                "report_type": "html",
-                "report_path": "",
-            }
-        ]
-
-        errors = validate_test_container_reports(
-            [result_report_path_missing, result_report_path_empty], manifests
-        )
-
-        assert len(errors) == 2
-        assert (
-            "Report name 'valid_report' missing valid 'report_path' field" in errors[0]
-        )
-        assert (
-            "Report name 'valid_report' missing valid 'report_path' field" in errors[1]
-        )
-
     def test_invalid_file_error(self, tmp_path):
         """
         Test validation fails when report file does not exist.
         """
+        from asqi.response_schemas import GeneratedReport
+
         manifests = {}
 
         result = TestExecutionResult(
@@ -1275,25 +1077,25 @@ class TestContainerReports:
         )
         result.success = True
         result.generated_reports = [
-            {
-                "report_name": "test_report",
-                "report_type": "html",
-                "report_path": str(tmp_path / "invalid.html"),
-            }
+            GeneratedReport(
+                report_name="test_report",
+                report_type="html",
+                report_path=str(tmp_path / "invalid.html"),
+            )
         ]
 
         errors = validate_test_container_reports([result], manifests)
 
         assert len(errors) == 1
         assert result.success is False
-        assert (
-            "Report name 'test_report' does not exist at path" in result.error_message
-        )
+        assert "Report 'test_report' does not exist at path" in result.error_message
 
     def test_multiple_report_errors(self, tmp_path):
         """
         Test that errors from multiple reports are all collected.
         """
+        from asqi.response_schemas import GeneratedReport
+
         manifests = {}
 
         result = TestExecutionResult(
@@ -1301,33 +1103,31 @@ class TestContainerReports:
         )
         result.success = True
         result.generated_reports = [
-            {
-                "report_name": "first_report",
-                "report_type": "html",
-                "report_path": str(tmp_path / "invalid.html"),
-            },
-            {
-                "report_name": "second_report",
-                "report_type": "html",
-                "report_path": str(tmp_path / "invalid.html"),
-            },
+            GeneratedReport(
+                report_name="first_report",
+                report_type="html",
+                report_path=str(tmp_path / "invalid.html"),
+            ),
+            GeneratedReport(
+                report_name="second_report",
+                report_type="html",
+                report_path=str(tmp_path / "invalid.html"),
+            ),
         ]
 
         errors = validate_test_container_reports([result], manifests)
 
         assert len(errors) == 1
         assert result.success is False
-        assert (
-            "Report name 'first_report' does not exist at path" in result.error_message
-        )
-        assert (
-            "Report name 'second_report' does not exist at path" in result.error_message
-        )
+        assert "Report 'first_report' does not exist at path" in result.error_message
+        assert "Report 'second_report' does not exist at path" in result.error_message
 
     def test_validate_test_container_reports_success(self, tmp_path):
         """
         Test validation passes when the report returned by the test container matches the manifest definitions
         """
+        from asqi.response_schemas import GeneratedReport
+
         report_file_html = tmp_path / "valid_report.html"
         report_file_html.write_text("some content")
         report_file_pdf = tmp_path / "valid_report.pdf"
@@ -1349,16 +1149,16 @@ class TestContainerReports:
         )
         result.success = True
         result.generated_reports = [
-            {
-                "report_name": "valid_report",
-                "report_type": "html",
-                "report_path": str(report_file_html),
-            },
-            {
-                "report_name": "another_report",
-                "report_type": "pdf",
-                "report_path": str(report_file_pdf),
-            },
+            GeneratedReport(
+                report_name="valid_report",
+                report_type="html",
+                report_path=str(report_file_html),
+            ),
+            GeneratedReport(
+                report_name="another_report",
+                report_type="pdf",
+                report_path=str(report_file_pdf),
+            ),
         ]
         errors = validate_test_container_reports([result], manifests)
         assert len(errors) == 0

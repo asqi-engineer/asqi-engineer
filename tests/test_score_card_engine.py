@@ -1,5 +1,6 @@
 import pytest
 
+from asqi.response_schemas import GeneratedReport
 from asqi.schemas import (
     AssessmentRule,
     AuditAssessmentRule,
@@ -1489,16 +1490,16 @@ class TestDisplayGeneratedReports:
         """
         engine = ScoreCardEngine()
         test_execution_result.generated_reports = [
-            {
-                "report_name": "detailed_report",
-                "report_type": "html",
-                "report_path": "/reports/detailed_report.html",
-            },
-            {
-                "report_name": "summary_report",
-                "report_type": "html",
-                "report_path": "/reports/summary_report.html",
-            },
+            GeneratedReport(
+                report_name="detailed_report",
+                report_type="html",
+                report_path="/reports/detailed_report.html",
+            ),
+            GeneratedReport(
+                report_name="summary_report",
+                report_type="html",
+                report_path="/reports/summary_report.html",
+            ),
         ]
 
         indicator.display_reports = ["detailed_report"]
@@ -1509,25 +1510,30 @@ class TestDisplayGeneratedReports:
 
     def test_reports_with_invalid_path(self, test_execution_result, indicator):
         """
-        Test that a report path with a None or empty path is not included in the results.
+        Test that only reports matching display_reports are included in results.
+        Note: Pydantic validation ensures report_path is always non-empty,
+        so invalid paths can't be created in the first place.
         """
         engine = ScoreCardEngine()
 
         test_execution_result.generated_reports = [
-            {
-                "report_name": "valid_report",
-                "report_type": "pdf",
-                "report_path": "/reports/valid_report.pdf",
-            },
-            {"report_name": "bad_report", "report_type": "pdf", "report_path": None},
-            {"report_name": "empty_report", "report_type": "pdf", "report_path": ""},
+            GeneratedReport(
+                report_name="valid_report",
+                report_type="pdf",
+                report_path="/reports/valid_report.pdf",
+            ),
+            GeneratedReport(
+                report_name="other_report",
+                report_type="pdf",
+                report_path="/reports/other_report.pdf",
+            ),
         ]
         indicator.display_reports = [
             "valid_report",
-            "none_report",
-            "empty_report",
+            "nonexistent_report",  # Report that doesn't exist in generated_reports
         ]
         results = engine.evaluate_indicator([test_execution_result], indicator)
+        # Only the valid_report should be included since it matches display_reports
         assert results[0].report_paths == ["/reports/valid_report.pdf"]
 
 

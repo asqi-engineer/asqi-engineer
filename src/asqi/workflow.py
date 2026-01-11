@@ -42,6 +42,7 @@ from asqi.output import (
     translate_dataset_paths,
     translate_report_paths,
 )
+from asqi.response_schemas import GeneratedDataset, GeneratedReport
 from asqi.schemas import (
     AuditResponses,
     DataGenerationConfig,
@@ -153,7 +154,7 @@ def _get_docker_socket_path(env_vars: dict[str, str]) -> str:
 
 
 class TestExecutionResult:
-    """Represents the result of a single test execution."""
+    """Represents the result of a single test execution or data generation job."""
 
     def __init__(
         self,
@@ -174,10 +175,14 @@ class TestExecutionResult:
         self.container_id: str = ""
         self.exit_code: int = -1
         self.container_output: str = ""
-        self.test_results: Dict[str, Any] = {}
         self.error_message: str = ""
-        self.generated_reports: List[Dict[str, Any]] = []
-        self.generated_datasets: List[Dict[str, Any]] = []
+
+        # Use 'results' internally (more generic name)
+        self.results: Dict[str, Any] = {}
+
+        # Store Pydantic objects for type safety
+        self.generated_reports: List[GeneratedReport] = []
+        self.generated_datasets: List[GeneratedDataset] = []
 
     @property
     def execution_time(self) -> float:
@@ -186,8 +191,28 @@ class TestExecutionResult:
             return self.end_time - self.start_time
         return 0.0
 
-    def result_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for storage/reporting."""
+    @property
+    def test_results(self) -> Dict[str, Any]:
+        """Alias for results to maintain backward compatibility with score card engine."""
+        return self.results
+
+    @test_results.setter
+    def test_results(self, value: Dict[str, Any]) -> None:
+        """Setter for test_results to maintain backward compatibility."""
+        self.results = value
+
+    def result_dict(self, use_results_field: bool = False) -> Dict[str, Any]:
+        """Convert to dictionary for storage/reporting.
+
+        Args:
+            use_results_field: If True, outputs 'results' field (data generation pipeline).
+                             If False, outputs 'test_results' field (test execution pipeline, used by score cards).
+
+        Serializes Pydantic objects to dictionaries.
+        """
+        # Choose field name based on pipeline
+        results_field_name = "results" if use_results_field else "test_results"
+
         return {
             "metadata": {
                 "test_id": self.test_id,
@@ -203,9 +228,10 @@ class TestExecutionResult:
                 "timestamp": datetime.now().isoformat(),
                 "success": self.success,
             },
-            "test_results": self.test_results,
-            "generated_reports": self.generated_reports,
-            "generated_datasets": self.generated_datasets,
+            results_field_name: self.results,
+            # Serialize Pydantic objects to dicts for JSON storage
+            "generated_reports": [r.model_dump() for r in self.generated_reports],
+            "generated_datasets": [d.model_dump() for d in self.generated_datasets],
         }
 
     def container_dict(self) -> Dict[str, Any]:
@@ -530,35 +556,35 @@ def execute_single_test(
     result.container_output = container_result["output"]
     result.error_message = container_result["error"]
 
-    test_results = {}
-    generated_reports = []
-
     # Parse JSON output from container
     if container_result["success"]:
         try:
             parsed_container_results = parse_container_json_output(
                 result.container_output
             )
-            test_results, generated_reports, generated_datasets = (
-                extract_container_json_output_fields(parsed_container_results)
+            validated_output = extract_container_json_output_fields(
+                parsed_container_results
             )
-            result.test_results = test_results
-            result.generated_reports = generated_reports
-            result.generated_datasets = generated_datasets
+            result.results = validated_output.get_results()
 
+            # Translate paths and assign the translated Pydantic objects
             host_output_volume = test_params.get("volumes", {}).get("output", "")
-            translate_report_paths(generated_reports, host_output_volume)
-            translate_dataset_paths(generated_datasets, host_output_volume)
+            result.generated_reports = translate_report_paths(
+                validated_output.generated_reports, host_output_volume
+            )
+            result.generated_datasets = translate_dataset_paths(
+                validated_output.generated_datasets, host_output_volume
+            )
 
             # Validate generated datasets against manifest declarations
-            if manifest and generated_datasets:
+            if manifest and validated_output.generated_datasets:
                 dataset_warnings = validate_generated_datasets(
-                    manifest, generated_datasets, test_id, image
+                    manifest, validated_output.generated_datasets, test_id, image
                 )
                 for warning in dataset_warnings:
                     DBOS.logger.warning(warning)
 
-            result.success = result.test_results.get("success", False)
+            result.success = result.results.get("success", False)
         except ValueError as e:
             result.error_message = (
                 f"Failed to parse JSON output from test id '{test_id}': {e}"
@@ -978,7 +1004,9 @@ def run_test_suite_workflow(
 
     return {
         "summary": summary,
-        "results": [result.result_dict() for result in all_results],
+        "results": [
+            result.result_dict() for result in all_results
+        ],  # Test execution uses test_results
     }, [result.container_dict() for result in all_results]
 
 
@@ -1014,8 +1042,20 @@ def convert_test_results_to_objects(
         result.success = metadata["success"]
         result.container_id = metadata["container_id"]
         result.exit_code = metadata["exit_code"]
-        result.test_results = result_dict["test_results"]
-        result.generated_reports = result_dict["generated_reports"]
+
+        # Read from test_results (test execution pipeline) or results (data generation pipeline)
+        result.results = result_dict.get("test_results") or result_dict.get(
+            "results", {}
+        )
+        result.generated_reports = [
+            GeneratedReport(**report)
+            for report in result_dict.get("generated_reports", [])
+        ]
+        result.generated_datasets = [
+            GeneratedDataset(**dataset)
+            for dataset in result_dict.get("generated_datasets", [])
+        ]
+
         # case where the logs file was moved and test_container_data is empty
         if id < len(test_container_data):
             result.container_output = test_container_data[id]["container_output"]
@@ -1168,74 +1208,50 @@ def validate_test_container_reports(
 
         result_errors = []
 
-        if not isinstance(result.generated_reports, list):
-            result_errors.append("'generated_reports' must be a list")
-        else:
-            for report in result.generated_reports:
-                if not isinstance(report, dict):
+        for report in result.generated_reports:
+            try:
+                report_path = Path(report.report_path)
+                if not report_path.exists():
                     result_errors.append(
-                        "Each report in 'generated_reports' must be a dictionary"
+                        f"Report '{report.report_name}' does not exist at path '{report.report_path}'"
                     )
-                    continue
+            except (TypeError, ValueError, OSError) as error:
+                result_errors.append(
+                    f"Report '{report.report_name}' file validation error: {error}"
+                )
 
-                report_name = report.get("report_name")
-                report_type = report.get("report_type")
-                report_path_str = report.get("report_path")
+        # Validate against manifest if available
+        if not result_errors:
+            if result.image not in manifests:
+                DBOS.logger.warning(
+                    f"No manifest found for image '{result.image}', skipping 'generated_reports' validation for test {result.test_id}"
+                )
+            else:
+                manifest = manifests[result.image]
+                manifest_reports = {
+                    (report.name, report.type)
+                    for report in (manifest.output_reports or [])
+                }
+                container_reports = {
+                    (report.report_name, report.report_type)
+                    for report in result.generated_reports
+                }
+                missing_reports = manifest_reports - container_reports
+                extra_reports = container_reports - manifest_reports
 
-                if not report_name or not isinstance(report_name, str):
-                    result_errors.append("Report missing valid 'report_name' field")
-                    continue
-                if not report_type or not isinstance(report_type, str):
+                if missing_reports or extra_reports:
+                    missing_reports = sorted(list(missing_reports))
+                    extra_reports = sorted(list(extra_reports))
                     result_errors.append(
-                        f"Report name '{report_name}' missing valid 'report_type' field"
+                        f"Mismatch between manifest and returned 'generated_reports' for image '{result.image}'. Missing expected reports: {missing_reports}. Extra reports: {extra_reports}."
                     )
-                    continue
-                if not report_path_str or not isinstance(report_path_str, str):
-                    result_errors.append(
-                        f"Report name '{report_name}' missing valid 'report_path' field"
-                    )
-                    continue
-                try:
-                    report_path = Path(report_path_str)
-                    if not report_path.exists():
-                        result_errors.append(
-                            f"Report name '{report_name}' does not exist at path '{report_path_str}'"
-                        )
-                except (TypeError, ValueError, OSError) as error:
-                    result_errors.append(
-                        f"Report name '{report_name}' file validation error: {str(error)}"
-                    )
-            if not result_errors:
-                if result.image not in manifests:
-                    DBOS.logger.warning(
-                        f"No manifest found for image '{result.image}', skipping 'generated_reports' validation for test {result.test_id}"
-                    )
-                else:
-                    manifest = manifests[result.image]
-                    manifest_reports = {
-                        (report.name, report.type)
-                        for report in (manifest.output_reports or [])
-                    }
-                    container_reports = {
-                        (report["report_name"], report["report_type"])
-                        for report in result.generated_reports
-                    }
-                    missing_reports = manifest_reports - container_reports
-                    extra_reports = container_reports - manifest_reports
 
-                    if missing_reports or extra_reports:
-                        missing_reports = sorted(list(missing_reports))
-                        extra_reports = sorted(list(extra_reports))
-                        result_errors.append(
-                            f"Mismatch between manifest and returned 'generated_reports' for image '{result.image}'. Missing expected reports: {missing_reports}. Extra reports: {extra_reports}."
-                        )
-
-                        result.test_results["success"] = False
-                        result.test_results["error"] = (
-                            "Test results invalidated due to 'generated_reports' mismatch"
-                        )
-                        result.test_results["missing_reports"] = missing_reports
-                        result.test_results["extra_reports"] = extra_reports
+                    result.results["success"] = False
+                    result.results["error"] = (
+                        "Test results invalidated due to 'generated_reports' mismatch"
+                    )
+                    result.results["missing_reports"] = missing_reports
+                    result.results["extra_reports"] = extra_reports
 
         if result_errors:
             result.success = False
@@ -1837,35 +1853,35 @@ def execute_data_generation(
     result.container_output = container_result["output"]
     result.error_message = container_result["error"]
 
-    test_results = {}
-    generated_reports = []
-
     # Parse JSON output from container
     if container_result["success"]:
         try:
             parsed_container_results = parse_container_json_output(
                 result.container_output
             )
-            test_results, generated_reports, generated_datasets = (
-                extract_container_json_output_fields(parsed_container_results)
+            validated_output = extract_container_json_output_fields(
+                parsed_container_results
             )
-            result.test_results = test_results
-            result.generated_reports = generated_reports
-            result.generated_datasets = generated_datasets
+            result.results = validated_output.get_results()
 
+            # Translate paths and assign the translated Pydantic objects
             host_output_volume = generation_params.get("volumes", {}).get("output", "")
-            translate_report_paths(generated_reports, host_output_volume)
-            translate_dataset_paths(generated_datasets, host_output_volume)
+            result.generated_reports = translate_report_paths(
+                validated_output.generated_reports, host_output_volume
+            )
+            result.generated_datasets = translate_dataset_paths(
+                validated_output.generated_datasets, host_output_volume
+            )
 
             # Validate generated datasets against manifest declarations
-            if manifest and generated_datasets:
+            if manifest and validated_output.generated_datasets:
                 dataset_warnings = validate_generated_datasets(
-                    manifest, generated_datasets, job_id, image
+                    manifest, validated_output.generated_datasets, job_id, image
                 )
                 for warning in dataset_warnings:
                     DBOS.logger.warning(warning)
 
-            result.success = result.test_results.get("success", False)
+            result.success = result.results.get("success", False)
         except ValueError as e:
             result.error_message = (
                 f"Failed to parse JSON output from job id '{job_id}': {e}"
@@ -2186,7 +2202,9 @@ def run_data_generation_workflow(
     )
     return {
         "summary": summary,
-        "results": [result.result_dict() for result in all_results],
+        "results": [
+            result.result_dict(use_results_field=True) for result in all_results
+        ],
     }, [result.container_dict() for result in all_results]
 
 

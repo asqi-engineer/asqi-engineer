@@ -583,7 +583,7 @@ class TestDefinitionBase(BaseModel):
     params: Optional[Dict[str, Any]] = Field(
         None, description="Parameters to be passed to the test container's entrypoint."
     )
-    datasets: Optional[Dict[str, str]] = Field(
+    input_datasets: Optional[Dict[str, str]] = Field(
         None,
         description="Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
     )
@@ -824,13 +824,12 @@ class GenerationJobConfig(BaseModel):
     image: str = Field(
         ..., description="Container image to run the data generation job"
     )
+    tags: Optional[List[str]] = Field(
+        None, description="Optional tags for filtering and reporting."
+    )
     input_datasets: Optional[Dict[str, str]] = Field(
         None,
         description="Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
-    )
-    output_datasets: Optional[Dict[str, Dict]] = Field(
-        None,
-        description="Mapping of output dataset names to their configs",
     )
     params: Optional[Dict[str, Any]] = Field(
         None, description="Parameters to be passed to the test container's entrypoint."
