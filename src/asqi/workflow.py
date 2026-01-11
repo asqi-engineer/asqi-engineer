@@ -153,6 +153,242 @@ def _get_docker_socket_path(env_vars: dict[str, str]) -> str:
     return "/var/run/docker.sock"
 
 
+def _load_and_merge_environment_variables(
+    systems_params: Dict[str, Any],
+    item_env_file: Optional[str],
+    item_environment: Optional[Dict[str, str]],
+    has_sut: bool = True,
+) -> Dict[str, str]:
+    """
+    Load and merge environment variables from multiple sources.
+
+    Priority order (highest to lowest):
+    1. Item-level environment dict (with interpolation support)
+    2. Item-level env_file
+    3. System-level env_file(s)
+    4. Base mount paths
+
+    Args:
+        systems_params: Dictionary containing system configurations with optional env_file
+        item_env_file: Optional path to .env file for item-level environment variables
+        item_environment: Optional dict of environment variables for the item
+        has_sut: If True, extract env_file from 'system_under_test'. If False, iterate all systems.
+
+    Returns:
+        Merged dictionary of environment variables
+    """
+    container_env = {
+        "OUTPUT_MOUNT_PATH": str(OUTPUT_MOUNT_PATH),
+        "INPUT_MOUNT_PATH": str(INPUT_MOUNT_PATH),
+    }
+
+    # Load environment variables from system-level env_file(s)
+    if has_sut:
+        # Test execution path: only check system_under_test
+        sut_params = systems_params.get("system_under_test", {})
+        if "env_file" in sut_params and sut_params["env_file"]:
+            env_file_path = sut_params["env_file"]
+            if os.path.exists(env_file_path):
+                try:
+                    env_vars = dotenv_values(env_file_path)
+                    # Filter out None values to ensure all env vars are strings
+                    filtered_env_vars = {
+                        k: v for k, v in env_vars.items() if v is not None
+                    }
+                    container_env.update(filtered_env_vars)
+                    DBOS.logger.info(
+                        f"Loaded environment variables from system-level env_file: {env_file_path}"
+                    )
+                except Exception as e:
+                    DBOS.logger.warning(
+                        f"Failed to load system-level environment file {env_file_path}: {e}"
+                    )
+            else:
+                DBOS.logger.warning(
+                    f"System-level environment file {env_file_path} not found"
+                )
+    else:
+        # Data generation path: check all systems
+        for _system_value in systems_params.values():
+            if "env_file" in _system_value and _system_value["env_file"]:
+                env_file_path = _system_value["env_file"]
+                if os.path.exists(env_file_path):
+                    try:
+                        env_vars = dotenv_values(env_file_path)
+                        # Filter out None values to ensure all env vars are strings
+                        filtered_env_vars = {
+                            k: v for k, v in env_vars.items() if v is not None
+                        }
+                        container_env.update(filtered_env_vars)
+                        DBOS.logger.info(
+                            f"Loaded environment variables from system-level env_file: {env_file_path}"
+                        )
+                    except Exception as e:
+                        DBOS.logger.warning(
+                            f"Failed to load system-level environment file {env_file_path}: {e}"
+                        )
+                else:
+                    DBOS.logger.warning(
+                        f"System-level environment file {env_file_path} not found"
+                    )
+
+    # Load environment variables from item-level env_file
+    if item_env_file:
+        if os.path.exists(item_env_file):
+            try:
+                item_env_vars = dotenv_values(item_env_file)
+                # Filter out None values
+                filtered_item_env_vars = {
+                    k: v for k, v in item_env_vars.items() if v is not None
+                }
+                container_env.update(filtered_item_env_vars)
+                DBOS.logger.info(
+                    f"Loaded environment variables from item-level env_file: {item_env_file}"
+                )
+            except Exception as e:
+                DBOS.logger.warning(
+                    f"Failed to load item-level environment file {item_env_file}: {e}"
+                )
+        else:
+            DBOS.logger.warning(
+                f"Item-level environment file {item_env_file} not found"
+            )
+
+    # Merge item-level environment dict (with interpolation support)
+    if item_environment:
+        interpolated_env = interpolate_env_vars(item_environment)
+        for key, value in interpolated_env.items():
+            container_env[key] = value
+            if item_environment.get(key) != value:
+                DBOS.logger.info(f"Interpolated environment variable: {key}")
+            else:
+                DBOS.logger.info(f"Set environment variable: {key}")
+
+    # Pass through explicit API key if specified (tests only)
+    if has_sut:
+        sut_params = systems_params.get("system_under_test", {})
+        if "api_key" in sut_params:
+            container_env["API_KEY"] = sut_params["api_key"]
+            DBOS.logger.info("Using direct API key for authentication")
+
+    return container_env
+
+
+def _validate_required_environment_variables(
+    manifest: Optional[Manifest],
+    container_env: Dict[str, str],
+    item_name: str,
+    image: str,
+) -> Optional[str]:
+    """
+    Validate that required environment variables from manifest are available.
+
+    Args:
+        manifest: Container manifest with environment variable requirements
+        container_env: Available environment variables
+        item_name: Name of the test or generation job (for error messages)
+        image: Container image name (for error messages)
+
+    Returns:
+        Error message if required variables are missing, None otherwise
+    """
+    if not manifest or not manifest.environment_variables:
+        return None
+
+    missing_required = []
+    missing_optional = []
+
+    for env_var in manifest.environment_variables:
+        if env_var.name not in container_env:
+            if env_var.required:
+                missing_required.append(env_var)
+            else:
+                missing_optional.append(env_var)
+
+    # Log warnings for optional missing environment variables
+    if missing_optional:
+        for env_var in missing_optional:
+            DBOS.logger.warning(
+                f"Optional environment variable '{env_var.name}' not provided for '{item_name}'. "
+                f"{env_var.description or 'No description provided.'}"
+            )
+
+    # Return error message if required variables are missing
+    if missing_required:
+        return build_env_var_error_message(missing_required, item_name, image)
+
+    return None
+
+
+def _configure_docker_in_docker(
+    manifest: Optional[Manifest],
+    container_config: ContainerConfig,
+    container_env: Dict[str, str],
+    item_id: str,
+    image: str,
+) -> None:
+    """
+    Configure Docker-in-Docker for containers that require host access.
+
+    Args:
+        manifest: Container manifest with host_access flag
+        container_config: Container configuration to update
+        container_env: Environment variables dict to update
+        item_id: ID of the test or generation job (for logging)
+        image: Container image name (for logging)
+    """
+    if not manifest or not manifest.host_access:
+        return
+
+    docker_socket_path = _get_docker_socket_path(env_vars=container_env)
+    container_config.run_params.update(
+        {
+            "cap_drop": ["ALL"],
+            "cap_add": ["SYS_ADMIN"],
+            "volumes": {
+                docker_socket_path: {
+                    "bind": "/var/run/docker.sock",
+                    "mode": "rw",
+                }
+            },
+        }
+    )
+
+    # Remove env variable DOCKER_HOST to avoid container looking for host path inside container
+    if "DOCKER_HOST" in container_env:
+        del container_env["DOCKER_HOST"]
+
+    DBOS.logger.info(
+        f"Configured Docker-in-Docker for item id: {item_id} (image: {image}) using host socket: {docker_socket_path}"
+    )
+
+
+def _translate_container_output_paths(
+    validated_output: Any,
+    item_params: Dict[str, Any],
+) -> Tuple[List[GeneratedReport], List[GeneratedDataset]]:
+    """
+    Translate container-internal paths to host paths for reports and datasets.
+
+    Args:
+        validated_output: Validated container output with generated_reports and generated_datasets
+        item_params: Test or generation parameters containing volumes config
+
+    Returns:
+        Tuple of (translated_reports, translated_datasets) with translated host paths
+    """
+    host_output_volume = item_params.get("volumes", {}).get("output", "")
+
+    translated_reports = translate_report_paths(
+        validated_output.generated_reports, host_output_volume
+    )
+    translated_datasets = translate_dataset_paths(
+        validated_output.generated_datasets, host_output_volume
+    )
+
+    return translated_reports, translated_datasets
+
+
 class TestExecutionResult:
     """Represents the result of a single test execution or data generation job."""
 
@@ -413,68 +649,10 @@ def execute_single_test(
         result.success = False
         return result
 
-    # Prepare environment variables - multi-level priority:
-    # Base paths, System-level env_file, Test-level env_file, Test-level environment dict
-    container_env = {
-        "OUTPUT_MOUNT_PATH": str(OUTPUT_MOUNT_PATH),
-        "INPUT_MOUNT_PATH": str(INPUT_MOUNT_PATH),
-    }
-
-    # Load environment variables from system_under_test env_file (backward compatibility)
-    if "env_file" in sut_params and sut_params["env_file"]:
-        env_file_path = sut_params["env_file"]
-        if os.path.exists(env_file_path):
-            try:
-                env_vars = dotenv_values(env_file_path)
-                # Filter out None values to ensure all env vars are strings
-                filtered_env_vars = {k: v for k, v in env_vars.items() if v is not None}
-                container_env.update(filtered_env_vars)
-                DBOS.logger.info(
-                    f"Loaded environment variables from system-level env_file: {env_file_path}"
-                )
-            except Exception as e:
-                DBOS.logger.warning(
-                    f"Failed to load system-level environment file {env_file_path}: {e}"
-                )
-        else:
-            DBOS.logger.warning(
-                f"System-level environment file {env_file_path} not found"
-            )
-
-    # Load environment variables from test-level env_file
-    if env_file:
-        if os.path.exists(env_file):
-            try:
-                test_env_vars = dotenv_values(env_file)
-                # Filter out None values
-                filtered_test_env_vars = {
-                    k: v for k, v in test_env_vars.items() if v is not None
-                }
-                container_env.update(filtered_test_env_vars)
-                DBOS.logger.info(
-                    f"Loaded environment variables from test-level env_file: {env_file}"
-                )
-            except Exception as e:
-                DBOS.logger.warning(
-                    f"Failed to load test-level environment file {env_file}: {e}"
-                )
-        else:
-            DBOS.logger.warning(f"Test-level environment file {env_file} not found")
-
-    # Merge test-level environment dict (with interpolation support)
-    if environment:
-        interpolated_env = interpolate_env_vars(environment)
-        for key, value in interpolated_env.items():
-            container_env[key] = value
-            if environment.get(key) != value:
-                DBOS.logger.info(f"Interpolated environment variable: {key}")
-            else:
-                DBOS.logger.info(f"Set environment variable: {key}")
-
-    # Pass through explicit API key if specified
-    if "api_key" in sut_params:
-        container_env["API_KEY"] = sut_params["api_key"]
-        DBOS.logger.info("Using direct API key for authentication")
+    # Load and merge environment variables from all sources using helper
+    container_env = _load_and_merge_environment_variables(
+        systems_params_with_fallbacks, env_file, environment, has_sut=True
+    )
 
     # Extract manifest to check for host access requirements and validate environment variables
     manifest = None
@@ -484,53 +662,19 @@ def execute_single_test(
         # Log warning but continue - manifest extraction failure shouldn't stop test execution
         DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
 
-    # Validate environment variables against manifest requirements
-    if manifest and manifest.environment_variables:
-        missing_required = []
-        missing_optional = []
+    # Validate environment variables against manifest requirements using helper
+    error_msg = _validate_required_environment_variables(
+        manifest, container_env, test_name, image
+    )
+    if error_msg:
+        result.error_message = error_msg
+        result.success = False
+        return result
 
-        for env_var in manifest.environment_variables:
-            if env_var.name not in container_env:
-                if env_var.required:
-                    missing_required.append(env_var)
-                else:
-                    missing_optional.append(env_var)
-
-        # Fail immediately if required environment variables are missing
-        if missing_required:
-            error_msg = build_env_var_error_message(missing_required, test_name, image)
-            result.error_message = error_msg
-            result.success = False
-            return result
-
-        # Log warnings for optional missing environment variables
-        if missing_optional:
-            for env_var in missing_optional:
-                DBOS.logger.warning(
-                    f"Optional environment variable '{env_var.name}' not provided for test '{test_name}'. "
-                    f"{env_var.description or 'No description provided.'}"
-                )
-
-    # Configure Docker-in-Docker for containers that require host access
-    if manifest and manifest.host_access:
-        docker_socket_path = _get_docker_socket_path(env_vars=container_env)
-        container_config.run_params.update(
-            {
-                "cap_drop": ["ALL"],
-                "cap_add": ["SYS_ADMIN"],
-                "volumes": {
-                    docker_socket_path: {
-                        "bind": "/var/run/docker.sock",
-                        "mode": "rw",
-                    }
-                },
-            }
-        )
-        # Remove env variable DOCKER_HOST to avoid container looking for host path inside container
-        del container_env["DOCKER_HOST"]
-        DBOS.logger.info(
-            f"Configured Docker-in-Docker for test id: {test_id} (image: {image}) using host socket: {docker_socket_path}"
-        )
+    # Configure Docker-in-Docker for containers that require host access using helper
+    _configure_docker_in_docker(
+        manifest, container_config, container_env, test_id, image
+    )
 
     # Execute container
     result.start_time = time.time()
@@ -567,13 +711,9 @@ def execute_single_test(
             )
             result.results = validated_output.get_results()
 
-            # Translate paths and assign the translated Pydantic objects
-            host_output_volume = test_params.get("volumes", {}).get("output", "")
-            result.generated_reports = translate_report_paths(
-                validated_output.generated_reports, host_output_volume
-            )
-            result.generated_datasets = translate_dataset_paths(
-                validated_output.generated_datasets, host_output_volume
+            # Translate container paths to host paths using helper
+            result.generated_reports, result.generated_datasets = (
+                _translate_container_output_paths(validated_output, test_params)
             )
 
             # Validate generated datasets against manifest declarations
@@ -1712,66 +1852,10 @@ def execute_data_generation(
         result.success = False
         return result
 
-    # Prepare environment variables - multi-level priority:
-    # Base paths, System-level env_file, Test-level env_file, Test-level environment dict
-    container_env = {
-        "OUTPUT_MOUNT_PATH": str(OUTPUT_MOUNT_PATH),
-        "INPUT_MOUNT_PATH": str(INPUT_MOUNT_PATH),
-    }
-
-    # Load environment variables from system_under_test env_file (backward compatibility)
-    for _system_value in systems_params.values():
-        if "env_file" in _system_value and _system_value["env_file"]:
-            env_file_path = _system_value["env_file"]
-            if os.path.exists(env_file_path):
-                try:
-                    env_vars = dotenv_values(env_file_path)
-                    # Filter out None values to ensure all env vars are strings
-                    filtered_env_vars = {
-                        k: v for k, v in env_vars.items() if v is not None
-                    }
-                    container_env.update(filtered_env_vars)
-                    DBOS.logger.info(
-                        f"Loaded environment variables from system-level env_file: {env_file_path}"
-                    )
-                except Exception as e:
-                    DBOS.logger.warning(
-                        f"Failed to load system-level environment file {env_file_path}: {e}"
-                    )
-            else:
-                DBOS.logger.warning(
-                    f"System-level environment file {env_file_path} not found"
-                )
-
-    # Load environment variables from job-level env_file
-    if env_file:
-        if os.path.exists(env_file):
-            try:
-                test_env_vars = dotenv_values(env_file)
-                # Filter out None values
-                filtered_test_env_vars = {
-                    k: v for k, v in test_env_vars.items() if v is not None
-                }
-                container_env.update(filtered_test_env_vars)
-                DBOS.logger.info(
-                    f"Loaded environment variables from test-level env_file: {env_file}"
-                )
-            except Exception as e:
-                DBOS.logger.warning(
-                    f"Failed to load test-level environment file {env_file}: {e}"
-                )
-        else:
-            DBOS.logger.warning(f"Test-level environment file {env_file} not found")
-
-    # Merge test-level environment dict (with interpolation support)
-    if environment:
-        interpolated_env = interpolate_env_vars(environment)
-        for key, value in interpolated_env.items():
-            container_env[key] = value
-            if environment.get(key) != value:
-                DBOS.logger.info(f"Interpolated environment variable: {key}")
-            else:
-                DBOS.logger.info(f"Set environment variable: {key}")
+    # Load and merge environment variables from all sources using helper
+    container_env = _load_and_merge_environment_variables(
+        systems_params, env_file, environment, has_sut=False
+    )
 
     # Extract manifest to check for host access requirements and validate environment variables
     manifest = None
@@ -1781,53 +1865,19 @@ def execute_data_generation(
         # Log warning but continue - manifest extraction failure shouldn't stop test execution
         DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
 
-    # Validate environment variables against manifest requirements
-    if manifest and manifest.environment_variables:
-        missing_required = []
-        missing_optional = []
+    # Validate environment variables against manifest requirements using helper
+    error_msg = _validate_required_environment_variables(
+        manifest, container_env, job_name, image
+    )
+    if error_msg:
+        result.error_message = error_msg
+        result.success = False
+        return result
 
-        for env_var in manifest.environment_variables:
-            if env_var.name not in container_env:
-                if env_var.required:
-                    missing_required.append(env_var)
-                else:
-                    missing_optional.append(env_var)
-
-        # Fail immediately if required environment variables are missing
-        if missing_required:
-            error_msg = build_env_var_error_message(missing_required, job_name, image)
-            result.error_message = error_msg
-            result.success = False
-            return result
-
-        # Log warnings for optional missing environment variables
-        if missing_optional:
-            for env_var in missing_optional:
-                DBOS.logger.warning(
-                    f"Optional environment variable '{env_var.name}' not provided for data generation job '{job_name}'. "
-                    f"{env_var.description or 'No description provided.'}"
-                )
-
-    # Configure Docker-in-Docker for containers that require host access
-    if manifest and manifest.host_access:
-        docker_socket_path = _get_docker_socket_path(env_vars=container_env)
-        container_config.run_params.update(
-            {
-                "cap_drop": ["ALL"],
-                "cap_add": ["SYS_ADMIN"],
-                "volumes": {
-                    docker_socket_path: {
-                        "bind": "/var/run/docker.sock",
-                        "mode": "rw",
-                    }
-                },
-            }
-        )
-        # Remove env variable DOCKER_HOST to avoid container looking for host path inside container
-        del container_env["DOCKER_HOST"]
-        DBOS.logger.info(
-            f"Configured Docker-in-Docker for test id: {job_id} (image: {image}) using host socket: {docker_socket_path}"
-        )
+    # Configure Docker-in-Docker for containers that require host access using helper
+    _configure_docker_in_docker(
+        manifest, container_config, container_env, job_id, image
+    )
 
     # Execute container
     result.start_time = time.time()
@@ -1864,13 +1914,9 @@ def execute_data_generation(
             )
             result.results = validated_output.get_results()
 
-            # Translate paths and assign the translated Pydantic objects
-            host_output_volume = generation_params.get("volumes", {}).get("output", "")
-            result.generated_reports = translate_report_paths(
-                validated_output.generated_reports, host_output_volume
-            )
-            result.generated_datasets = translate_dataset_paths(
-                validated_output.generated_datasets, host_output_volume
+            # Translate container paths to host paths using helper
+            result.generated_reports, result.generated_datasets = (
+                _translate_container_output_paths(validated_output, generation_params)
             )
 
             # Validate generated datasets against manifest declarations
