@@ -8,7 +8,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from pydantic import BaseModel
 
-from asqi.schemas import DatasetsConfig, Manifest, ScoreCard, SuiteConfig, SystemsConfig
+from asqi.schemas import (
+    DataGenerationConfig,
+    DatasetsConfig,
+    Manifest,
+    ScoreCard,
+    SuiteConfig,
+    SystemsConfig,
+)
 
 
 def generate_schemas():
@@ -19,6 +26,7 @@ def generate_schemas():
     schema_mappings: Dict[Type[BaseModel], str] = {
         SystemsConfig: "asqi_systems_config.schema.json",
         SuiteConfig: "asqi_suite_config.schema.json",
+        DataGenerationConfig: "asqi_generation_config.schema.json",
         ScoreCard: "asqi_score_card.schema.json",
         Manifest: "asqi_manifest.schema.json",
         DatasetsConfig: "asqi_datasets_config.schema.json",

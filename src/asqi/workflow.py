@@ -1872,14 +1872,14 @@ def execute_data_generation(
         return result
 
     try:
-        systems_params_json = json.dumps(systems_params)
         generation_params_json = json.dumps(generation_params)
-        command_args = [
-            "--systems-params",
-            systems_params_json,
-            "--generation-params",
-            generation_params_json,
-        ]
+        command_args = []
+
+        if systems_params:
+            systems_params_json = json.dumps(systems_params)
+            command_args.extend(["--systems-params", systems_params_json])
+
+        command_args.extend(["--generation-params", generation_params_json])
     except (TypeError, ValueError) as e:
         result.error_message = f"Failed to serialize configuration to JSON: {e}"
         result.success = False

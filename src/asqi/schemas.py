@@ -230,13 +230,12 @@ class Manifest(BaseModel):
         description="Whether the container requires host access (e.g., for Docker-in-Docker).",
     )
     input_systems: List[SystemInput] = Field(
-        ...,
-        description="Systems required as input. Should minimally include a system_under_test",
+        [],
+        description="Systems required as input. Can be empty for containers that don't require systems (e.g., pure data transformation).",
     )
     input_schema: List[InputParameter] = Field(
         [], description="Defines the schema for the user-provided 'params' object."
     )
-    # Can consider making this new field optional for backward compatibility.
     input_datasets: list[InputDataset] = Field(
         [],
         description="Defines the schema for user-provided input datasets.",
