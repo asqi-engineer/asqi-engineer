@@ -220,6 +220,7 @@ Contributors
    :hidden:
 
    configuration
+   datasets
    test-containers
    llm-test-containers
    custom-test-containers

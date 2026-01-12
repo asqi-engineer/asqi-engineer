@@ -537,6 +537,189 @@ test_suite:
       max_iterations: 20
 ```
 
+### Test Suite with Input Datasets
+
+Tests can reference datasets from a dataset registry:
+
+```yaml
+suite_name: "Dataset-based Evaluation"
+test_suite:
+  - id: "benchmark_eval"
+    name: "benchmark evaluation"
+    description: "Evaluate using standard benchmark dataset"
+    image: "my-registry/evaluator:latest"
+    systems_under_test: ["my_chatbot"]
+    input_datasets:
+      evaluation_data: "benchmark_questions"  # References dataset from registry
+      source_docs: "company_handbook"
+    volumes:
+      input: "data/inputs/"
+      output: "data/outputs/"
+    params:
+      batch_size: 10
+```
+
+See [Dataset Support](datasets.md) for detailed documentation on using datasets in test suites.
+
+## Dataset Registry Configuration
+
+The dataset registry allows you to define reusable datasets that can be referenced across multiple test suites and generation jobs.
+
+### Basic Structure
+
+```yaml
+# yaml-language-server: $schema=../src/asqi/schemas/asqi_datasets_config.schema.json
+
+datasets:
+  dataset_name:
+    type: "huggingface" | "pdf" | "txt"
+    description: "Optional description"
+    # Type-specific fields...
+```
+
+### HuggingFace Datasets
+
+```yaml
+datasets:
+  eval_questions:
+    type: "huggingface"
+    description: "Evaluation questions for chatbot testing"
+    loader_params:
+      builder_name: "json"           # Format: json, csv, parquet, arrow, text, etc.
+      data_files: "questions.json"   # File path relative to input mount
+      # OR for directories:
+      # data_dir: "dataset_folder/"
+    mapping:
+      # Map actual dataset columns to expected feature names
+      question: "prompt"
+      answer: "response"
+    tags: ["evaluation", "en"]
+```
+
+**Loader Parameters:**
+- `builder_name`: Dataset format (`json`, `csv`, `parquet`, `arrow`, `text`, `xml`, `imagefolder`, `audiofolder`, `videofolder`)
+- `data_files`: Single file or list of files (relative to input mount)
+- `data_dir`: Directory containing dataset files (alternative to `data_files`)
+- `revision`: Git revision for HuggingFace Hub datasets (optional, for Hub datasets only)
+
+**Column Mapping:**
+The `mapping` field translates dataset column names to container-expected feature names:
+- Keys: Actual column names in the dataset
+- Values: Expected feature names from container manifest
+
+### PDF Datasets
+
+```yaml
+datasets:
+  company_handbook:
+    type: "pdf"
+    description: "Company policy handbook for RAG testing"
+    file_path: "handbook.pdf"  # Path relative to input mount
+    tags: ["rag", "documents"]
+```
+
+### Text File Datasets
+
+```yaml
+datasets:
+  product_catalog:
+    type: "txt"
+    description: "Product descriptions corpus"
+    file_path: "products.txt"  # Path relative to input mount
+    tags: ["generation", "source"]
+```
+
+### Complete Example
+
+```yaml
+datasets:
+  # HuggingFace dataset with mapping
+  benchmark_v1:
+    type: "huggingface"
+    description: "Standard QA benchmark dataset"
+    loader_params:
+      builder_name: "json"
+      data_files: "benchmark_qa.json"
+    mapping:
+      input_text: "prompt"
+      expected_output: "response"
+    tags: ["evaluation", "benchmark", "v1"]
+  
+  # PDF document
+  rag_source_docs:
+    type: "pdf"
+    description: "Source documents for RAG data generation"
+    file_path: "knowledge_base.pdf"
+    tags: ["rag", "source"]
+  
+  # Text file
+  training_corpus:
+    type: "txt"
+    description: "Training text corpus"
+    file_path: "corpus.txt"
+    tags: ["training", "text"]
+```
+
+## Data Generation Configuration
+
+Data generation configuration defines synthetic data generation jobs using data generation containers.
+
+### Basic Structure
+
+```yaml
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_generation_config.schema.json
+
+job_name: "Generation Job Name"
+generation_jobs:
+  - id: "job_id"
+    name: "Human-readable job name"
+    image: "container-image:tag"
+    systems:
+      generation_system: "system_name"
+    input_datasets:
+      dataset_alias: "dataset_reference"
+    volumes:
+      input: "input/path/"
+      output: "output/path/"
+    params:
+      # Container-specific parameters
+```
+
+### Field Descriptions
+
+**Required Fields:**
+- `job_name`: Name of the overall generation job
+- `generation_jobs`: List of individual generation job configurations
+  - `id`: Unique identifier for the job (a-z, 0-9, _, max 32 chars)
+  - `name`: Human-readable job name
+  - `image`: Docker image for the data generation container
+
+**Optional Fields:**
+- `systems`: Systems used for generation (not systems under test)
+- `input_datasets`: Input datasets for data generation
+  - Can reference datasets from registry (string value)
+  - Can define inline datasets (object with file_path, etc.)
+- `output_datasets`: Expected output datasets (usually declared in container manifest)
+- `params`: Parameters passed to the container
+- `volumes`: Input/output directory mounts
+- `env_file`: Path to environment file
+- `environment`: Environment variables for the container
+
+### Dataset References
+
+Reference datasets from the registry or define them inline:
+
+```yaml
+# Reference from registry
+input_datasets:
+  evaluation_data: "benchmark_questions"
+
+# Inline definition
+input_datasets:
+  source_documents_pdf:
+    file_path: "sample.pdf"
+```
+
 ## Score Card Configuration
 
 Score cards define automated assessment criteria for test results. They evaluate individual test executions (not aggregated results).
@@ -1038,6 +1221,7 @@ Your test container should print a JSON to stdout. There are two simple options:
     ]
   }
   ```
+
   Learn how to add a report to the test container: [Technical reports](custom-test-containers.md#adding-technical-reports-in-custom-test-containers)
 
 ### Manifest Declaration
@@ -1087,6 +1271,117 @@ output_reports:
   - name: "detailed_metrics"
     type: "pdf"
     description: "PDF metrics report for the Advanced Security Tester"
+
+input_datasets:
+  - name: "evaluation_data"
+    type: "huggingface"
+    required: true
+    description: "Evaluation dataset for testing"
+    features:
+      - name: "prompt"
+        dtype: "string"
+        description: "Input prompt text"
+      - name: "response"
+        dtype: "string"
+        description: "Expected response"
+
+output_datasets:
+  - name: "augmented_dataset"
+    type: "huggingface"
+    description: "Generated synthetic dataset"
+    features:
+      - name: "prompt"
+        dtype: "string"
+      - name: "response"
+        dtype: "string"
+      - name: "context"
+        dtype: "string"
+```
+
+### Input Datasets in Manifest
+
+Containers can declare input dataset requirements:
+
+```yaml
+input_datasets:
+  # HuggingFace dataset with required features
+  - name: "evaluation_data"
+    type: "huggingface"
+    required: true
+    description: "Evaluation dataset for testing"
+    features:
+      - name: "prompt"
+        dtype: "string"
+        description: "Input prompt text"
+      - name: "response"
+        dtype: "string"
+        description: "Expected response"
+  
+  # PDF document input
+  - name: "source_documents_pdf"
+    type: "pdf"
+    required: true
+    description: "Source PDF documents for processing"
+  
+  # Text file input
+  - name: "corpus_txt"
+    type: "txt"
+    required: false
+    description: "Optional text corpus"
+```
+
+**Dataset Types:**
+- `huggingface`: Structured datasets (requires `features` field)
+- `pdf`: PDF documents
+- `txt`: Plain text files
+
+**Feature Data Types:**
+Common HuggingFace dataset dtypes include:
+- `string`: Text data
+- `int32`, `int64`: Integer values
+- `float32`, `float64`, `float`, `double`: Floating-point values
+- `bool`: Boolean values
+
+See [HuggingFace documentation](https://huggingface.co/docs/datasets/about_dataset_features) for complete list.
+
+### Output Datasets in Manifest
+
+Containers can declare datasets they will generate:
+
+```yaml
+output_datasets:
+  - name: "augmented_dataset"
+    type: "huggingface"
+    description: "Augmented version of input dataset"
+    features:
+      - name: "prompt"
+        dtype: "string"
+      - name: "response"
+        dtype: "string"
+      - name: "metadata"
+        dtype: "string"
+```
+
+Containers return generated dataset information in JSON output:
+
+```json
+{
+  "results": {
+    "success": true
+  },
+  "generated_datasets": [
+    {
+      "dataset_name": "augmented_dataset",
+      "dataset_type": "huggingface",
+      "dataset_path": "/output/augmented_data",
+      "format": "parquet",
+      "metadata": {
+        "num_rows": 1000,
+        "num_columns": 3
+      }
+    }
+  ]
+}
 ```
 
 ## Validation and Error Handling
