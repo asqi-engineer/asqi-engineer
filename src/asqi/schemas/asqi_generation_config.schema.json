@@ -1,0 +1,158 @@
+{
+  "$defs": {
+    "GenerationJobConfig": {
+      "properties": {
+        "id": {
+          "description": "Unique identifier for the generation job",
+          "title": "Id",
+          "type": "string"
+        },
+        "systems": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mapping of system alias to system identifier",
+          "title": "Systems"
+        },
+        "name": {
+          "description": "Human-readable data generation job name",
+          "title": "Name",
+          "type": "string"
+        },
+        "image": {
+          "description": "Container image to run the data generation job",
+          "title": "Image",
+          "type": "string"
+        },
+        "tags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional tags for filtering and reporting.",
+          "title": "Tags"
+        },
+        "input_datasets": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
+          "title": "Input Datasets"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Parameters to be passed to the test container's entrypoint.",
+          "title": "Params"
+        },
+        "volumes": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional input/output mounts.",
+          "title": "Volumes"
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to .env file containing environment variables for this test's container execution (e.g., '.env', 'test.env').",
+          "title": "Env File"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dictionary of environment variables to pass to the test container. Supports interpolation syntax (e.g., {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
+          "title": "Environment"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image"
+      ],
+      "title": "GenerationJobConfig",
+      "type": "object"
+    }
+  },
+  "description": "Schema for the data generation configuration manifest.",
+  "properties": {
+    "job_name": {
+      "description": "Name of the data generation job",
+      "title": "Job Name",
+      "type": "string"
+    },
+    "generation_jobs": {
+      "description": "List of generation jobs to execute",
+      "items": {
+        "$ref": "#/$defs/GenerationJobConfig"
+      },
+      "title": "Generation Jobs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "job_name",
+    "generation_jobs"
+  ],
+  "title": "ASQI DataGenerationConfig",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

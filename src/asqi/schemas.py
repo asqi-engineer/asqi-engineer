@@ -151,6 +151,11 @@ class InputDataset(BaseModel):
     - 'huggingface': HuggingFace datasets (requires features to be defined)
     - 'pdf': PDF documents
     - 'txt': Plain text files
+
+    Supports "either/or" relationships by accepting multiple types:
+    - type: "pdf" - Single type
+    - type: ["pdf", "txt"] - Either PDF or TXT
+    - type: ["huggingface", "pdf", "txt"] - Any of these formats
     """
 
     name: str = Field(
@@ -160,25 +165,26 @@ class InputDataset(BaseModel):
     required: bool = Field(
         True, description="Whether this dataset is mandatory for execution."
     )
-    type: DatasetType = Field(
+    type: Union[DatasetType, List[DatasetType]] = Field(
         ...,
-        description="The dataset type: 'huggingface' for HF datasets with features, 'pdf' for PDF documents, 'txt' for text files.",
+        description="The dataset type(s): single type or list of accepted types. "
+        "Examples: 'huggingface', ['pdf', 'txt'], or ['huggingface', 'pdf', 'txt'].",
     )
     description: Optional[str] = Field(
         None, description="Description of the dataset's role in the test."
     )
     features: Optional[list[DatasetFeature]] = Field(
         None,
-        description="List of required features within a HuggingFace dataset (required for 'huggingface' type, ignored for others). "
-        "Actual dataset feature names can be mapped to these required names in the test config.",
+        description="List of required features within a HuggingFace dataset.",
     )
 
     @model_validator(mode="after")
     def _validate_features_for_huggingface(self) -> "InputDataset":
-        """Ensure HuggingFace datasets have features defined."""
-        if self.type == DatasetType.HUGGINGFACE and not self.features:
+        """Ensure HuggingFace datasets have features defined whenever huggingface is an accepted type."""
+        types = self.type if isinstance(self.type, list) else [self.type]
+        if DatasetType.HUGGINGFACE in types and not self.features:
             raise ValueError(
-                "Features must be defined for HuggingFace dataset inputs. "
+                "Features must be defined when 'huggingface' is an accepted dataset type. "
                 "Specify the expected feature names and dtypes in the features list."
             )
         return self
