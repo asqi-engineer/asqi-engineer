@@ -1,5 +1,4 @@
-# Example Generation Suite Configuration
-# Demonstrates data generation workflow with the example_data_generator container
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_generation_config.schema.json
 
 job_name: "Example Data Augmentation"
 
@@ -7,17 +6,13 @@ generation_jobs:
   - id: "review_augmentation"
     name: "Review Data Augmentation"
     image: "example_data_generator:latest"
-    
-    # Input datasets - maps manifest input names to dataset registry references
-    input_datasets:
-      source_data: sample_reviews
-    
-    # Generation parameters
+
     params:
       num_variations: 2
-      augmentation_type: "simple"
-    
-    # Volume mappings
+
+    input_datasets:
+      source_data: sample_reviews
+
     volumes:
       input: "config/datasets/"
-      output: "output/example_data_generator/"
+      output: "output/"

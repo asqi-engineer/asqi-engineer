@@ -1,5 +1,4 @@
-# Example Datasets Configuration
-# Defines reusable dataset definitions for data generation
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_datasets_config.schema.json
 
 datasets:
   sample_reviews:

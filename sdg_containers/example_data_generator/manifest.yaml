@@ -3,12 +3,8 @@ name: "example_data_generator"
 version: "1.0"
 description: "Example container demonstrating the Synthetic Data Generation (SDG) workflow - loads input datasets, transforms data, and outputs generated datasets."
 
-# Optional systems - demonstrates that systems can be optional in generation containers
-input_systems:
-  - name: "generation_system"
-    type: "llm_api"
-    required: false
-    description: "Optional LLM system for AI-powered data augmentation"
+# No systems required - demonstrates pure data transformation
+input_systems: []
 
 # Generation parameters
 input_schema:
@@ -16,10 +12,6 @@ input_schema:
     type: "integer"
     required: false
     description: "Number of variations to create per input sample (default: 2)"
-  - name: "augmentation_type"
-    type: "string"
-    required: false
-    description: "Type of augmentation: 'simple' (basic transformations) or 'llm' (LLM-based). Default: 'simple'"
 
 # Input datasets required by this container
 input_datasets:
@@ -59,18 +51,6 @@ output_metrics:
   - name: "success"
     type: "boolean"
     description: "Whether data generation completed successfully"
-  - name: "original_count"
-    type: "integer"
-    description: "Number of original samples"
-  - name: "generated_count"
-    type: "integer"
-    description: "Number of generated/augmented samples"
   - name: "total_count"
     type: "integer"
-    description: "Total samples in output dataset (original + generated)"
-  - name: "augmentation_type"
-    type: "string"
-    description: "Type of augmentation used"
-  - name: "execution_time_seconds"
-    type: "float"
-    description: "Time taken to generate the data"
+    description: "Total samples in output dataset"

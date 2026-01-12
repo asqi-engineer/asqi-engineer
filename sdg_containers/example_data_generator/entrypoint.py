@@ -8,10 +8,9 @@ This container shows:
 4. Proper manifest structure for data generation containers
 5. Working without required systems (systems are optional)
 
-The container creates simple variations of input text by:
-- Converting to uppercase/lowercase
-- Adding prefixes
-- Creating paraphrases (simple pattern-based)
+The container creates simple variations of input text using multiple
+transformation strategies: uppercase, prefixes, punctuation, separators, and
+word reversal
 """
 
 import argparse
@@ -32,16 +31,23 @@ def load_input_dataset(
     """
     Load a HuggingFace dataset from the input mount.
 
-    This demonstrates how containers should load datasets passed by ASQI.
-    The dataset configuration comes from generation-params and includes
-    the loader parameters (builder_name, data_files, etc.).
+    This function follows the same pattern as load_hf_dataset() in asqi.datasets,
+    but handles path resolution for containerized environments.
 
     Args:
-        dataset_config: Dataset configuration from generation-params
-        input_mount_path: Path to the input mount
+        dataset_config: Dataset configuration from generation-params containing
+                       'loader_params' with builder_name, data_files, etc.
+        input_mount_path: Path to the input mount where dataset files are located
 
     Returns:
         Loaded HuggingFace Dataset
+
+    Raises:
+        ValueError: If required loader_params fields are missing
+
+    Note:
+        Always returns a Dataset (not DatasetDict) by using split="train".
+        This matches the behavior of load_hf_dataset() for consistency.
     """
     loader_params = dataset_config.get("loader_params", {})
     builder_name = loader_params.get("builder_name")
@@ -51,28 +57,37 @@ def load_input_dataset(
     if not builder_name:
         raise ValueError("Dataset loader_params must include 'builder_name'")
 
-    # Construct full paths relative to input mount
-    load_kwargs = {"path": builder_name}
-
+    # Resolve paths relative to input mount
+    resolved_data_files = None
     if data_files:
         if isinstance(data_files, str):
-            load_kwargs["data_files"] = str(input_mount_path / data_files)
+            resolved_data_files = str(input_mount_path / data_files)
         elif isinstance(data_files, list):
-            load_kwargs["data_files"] = [str(input_mount_path / f) for f in data_files]
+            resolved_data_files = [str(input_mount_path / f) for f in data_files]
 
-    if data_dir:
-        load_kwargs["data_dir"] = str(input_mount_path / data_dir)
+    resolved_data_dir = str(input_mount_path / data_dir) if data_dir else None
 
-    print(f"Loading dataset with: {load_kwargs}")
-    dataset = load_dataset(**load_kwargs)
+    print(f"Loading dataset: builder_name={builder_name}")
+    if resolved_data_files:
+        print(f"  data_files={resolved_data_files}")
+    if resolved_data_dir:
+        print(f"  data_dir={resolved_data_dir}")
 
-    # Handle DatasetDict (load_dataset can return dict or Dataset)
-    if hasattr(dataset, "keys"):
-        # If it's a DatasetDict, take the first split
-        first_split = list(dataset.keys())[0]
-        print(f"Using split: {first_split}")
-        dataset = dataset[first_split]
+    # Load with split="train" to always return Dataset (not DatasetDict)
+    # This matches load_hf_dataset() behavior for consistency
+    dataset = load_dataset(  # nosec B615
+        path=builder_name,
+        data_dir=resolved_data_dir,
+        data_files=resolved_data_files,
+        split="train",
+    )
 
+    # Apply column mapping if provided
+    mapping = dataset_config.get("mapping", {})
+    if mapping:
+        dataset = dataset.rename_columns(mapping)
+
+    print(f"Loaded {len(dataset)} samples")
     return dataset
 
 
@@ -108,9 +123,7 @@ def simple_augmentation(text: str, label: str, variation_num: int) -> Dict[str, 
     return {"text": augmented_text, "label": label}
 
 
-def generate_augmented_dataset(
-    source_dataset: Dataset, num_variations: int, augmentation_type: str
-) -> Dataset:
+def generate_augmented_dataset(source_dataset: Dataset, num_variations: int) -> Dataset:
     """
     Generate augmented dataset from source data.
 
@@ -120,7 +133,6 @@ def generate_augmented_dataset(
     Args:
         source_dataset: Original dataset
         num_variations: How many variations to create per sample
-        augmentation_type: Type of augmentation to use
 
     Returns:
         Augmented dataset with original and synthetic samples
@@ -144,15 +156,9 @@ def generate_augmented_dataset(
             }
         )
 
-        # Generate variations
+        # Generate variations using simple augmentation strategies
         for var_idx in range(num_variations):
-            if augmentation_type == "llm":
-                # In a real implementation, this would call an LLM
-                # For this example, we'll use simple augmentation
-                # to keep it working without required systems
-                augmented = simple_augmentation(text, label, var_idx)
-            else:
-                augmented = simple_augmentation(text, label, var_idx)
+            augmented = simple_augmentation(text, label, var_idx)
 
             augmented_samples.append(
                 {
@@ -188,20 +194,23 @@ def save_output_dataset(
     datasets_dir = output_mount_path / "datasets"
     datasets_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save dataset
-    dataset_path = datasets_dir / dataset_name
-    dataset.save_to_disk(str(dataset_path))
+    # Save dataset as Parquet file
+    dataset_path = datasets_dir / f"{dataset_name}.parquet"
+    dataset.to_parquet(str(dataset_path))
 
     print(f"Saved dataset to: {dataset_path}")
 
-    # Return metadata in expected format
+    # Return metadata in expected format following GeneratedDataset schema
     return {
         "dataset_name": dataset_name,
         "dataset_type": "huggingface",
         "dataset_path": str(dataset_path),
-        "num_rows": len(dataset),
-        "num_columns": len(dataset.column_names),
-        "columns": dataset.column_names,
+        "format": "parquet",
+        "metadata": {
+            "num_rows": len(dataset),
+            "num_columns": len(dataset.column_names),
+            "columns": dataset.column_names,
+        },
     }
 
 
@@ -209,9 +218,12 @@ def main():
     """
     Main entrypoint demonstrating data generation container interface.
 
+    This example performs pure data transformation without requiring any LLM systems,
+    showcasing that SDG containers can work independently when using non-LLM
+    augmentation techniques.
+
     Expected arguments:
     - --generation-params: JSON string with generation parameters and input datasets
-    - --systems-params: JSON string with system configurations (OPTIONAL)
 
     Expected output:
     - JSON with test_results (metrics) and generated_datasets (list of dataset info)
@@ -224,11 +236,6 @@ def main():
         required=True,
         help="Generation parameters as JSON string (includes input_datasets)",
     )
-    parser.add_argument(
-        "--systems-params",
-        required=False,
-        help="Systems parameters as JSON string (OPTIONAL - shows systems can be optional)",
-    )
 
     args = parser.parse_args()
     start_time = time.time()
@@ -236,11 +243,9 @@ def main():
     try:
         # Parse inputs
         generation_params = json.loads(args.generation_params)
-        systems_params = json.loads(args.systems_params) if args.systems_params else {}
 
         # Get parameters
         num_variations = generation_params.get("num_variations", 2)
-        augmentation_type = generation_params.get("augmentation_type", "simple")
 
         # Get input datasets from generation_params
         input_datasets = generation_params.get("input_datasets", {})
@@ -257,10 +262,8 @@ def main():
         print("Example Data Generator - Starting")
         print("=" * 60)
         print(f"Num variations: {num_variations}")
-        print(f"Augmentation type: {augmentation_type}")
         print(f"Input mount: {input_mount_path}")
         print(f"Output mount: {output_mount_path}")
-        print(f"Systems provided: {list(systems_params.keys())}")
         print("=" * 60)
 
         # Step 1: Load input dataset
@@ -271,9 +274,7 @@ def main():
 
         # Step 2: Generate augmented data
         print("\n[2/3] Generating augmented dataset...")
-        augmented_dataset = generate_augmented_dataset(
-            source_dataset, num_variations, augmentation_type
-        )
+        augmented_dataset = generate_augmented_dataset(source_dataset, num_variations)
         original_count = len(source_dataset)
         generated_count = len(augmented_dataset) - original_count
         total_count = len(augmented_dataset)
@@ -286,15 +287,11 @@ def main():
 
         execution_time = time.time() - start_time
 
-        # Prepare output in expected format
+        # Prepare output in expected format (matches manifest output_metrics)
         output = {
             "test_results": {
                 "success": True,
-                "original_count": original_count,
-                "generated_count": generated_count,
                 "total_count": total_count,
-                "augmentation_type": augmentation_type,
-                "execution_time_seconds": round(execution_time, 2),
             },
             "generated_datasets": [dataset_metadata],
         }
@@ -316,12 +313,8 @@ def main():
         error_output = {
             "test_results": {
                 "success": False,
-                "error": str(e),
-                "original_count": 0,
-                "generated_count": 0,
                 "total_count": 0,
-                "augmentation_type": "none",
-                "execution_time_seconds": time.time() - start_time,
+                "error": str(e),
             },
             "generated_datasets": [],
         }
