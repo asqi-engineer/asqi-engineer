@@ -230,13 +230,12 @@ class Manifest(BaseModel):
         description="Whether the container requires host access (e.g., for Docker-in-Docker).",
     )
     input_systems: List[SystemInput] = Field(
-        ...,
-        description="Systems required as input. Should minimally include a system_under_test",
+        [],
+        description="Systems required as input. Can be empty for containers that don't require systems (e.g., pure data transformation).",
     )
     input_schema: List[InputParameter] = Field(
         [], description="Defines the schema for the user-provided 'params' object."
     )
-    # Can consider making this new field optional for backward compatibility.
     input_datasets: list[InputDataset] = Field(
         [],
         description="Defines the schema for user-provided input datasets.",
@@ -583,7 +582,7 @@ class TestDefinitionBase(BaseModel):
     params: Optional[Dict[str, Any]] = Field(
         None, description="Parameters to be passed to the test container's entrypoint."
     )
-    datasets: Optional[Dict[str, str]] = Field(
+    input_datasets: Optional[Dict[str, str]] = Field(
         None,
         description="Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
     )
@@ -824,13 +823,12 @@ class GenerationJobConfig(BaseModel):
     image: str = Field(
         ..., description="Container image to run the data generation job"
     )
+    tags: Optional[List[str]] = Field(
+        None, description="Optional tags for filtering and reporting."
+    )
     input_datasets: Optional[Dict[str, str]] = Field(
         None,
         description="Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
-    )
-    output_datasets: Optional[Dict[str, Dict]] = Field(
-        None,
-        description="Mapping of output dataset names to their configs",
     )
     params: Optional[Dict[str, Any]] = Field(
         None, description="Parameters to be passed to the test container's entrypoint."

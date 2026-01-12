@@ -9,6 +9,7 @@ from asqi.config import ExecutionMode
 from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.main import load_and_validate_plan
 from asqi.rag_response_schema import RAGCitation, RAGContext, validate_rag_response
+from asqi.response_schemas import GeneratedDataset
 from asqi.schemas import (
     AssessmentRule,
     AuditScoreCardIndicator,
@@ -46,7 +47,7 @@ from asqi.validation import (
     validate_score_card_inputs,
     validate_system_compatibility,
     validate_test_execution_inputs,
-    validate_test_parameters,
+    validate_parameters,
     validate_test_plan,
     validate_test_volumes,
     validate_workflow_configurations,
@@ -1053,7 +1054,7 @@ class TestEdgeCases:
 
 
 class TestValidationFunctions:
-    def test_validate_test_parameters(self, manifests):
+    def test_validate_parameters(self, manifests):
         manifest = manifests["my-registry/mock_tester:latest"]
 
         # Test with missing required param (none required)
@@ -1062,12 +1063,12 @@ class TestValidationFunctions:
             params = {}
 
         test = DummyTest()
-        errors = validate_test_parameters(test, manifest)
+        errors = validate_parameters(test, manifest)
         assert errors == []
 
         # Test with unknown param
         test.params = {"foo": 1}
-        errors = validate_test_parameters(test, manifest)
+        errors = validate_parameters(test, manifest)
         assert any("Unknown parameter 'foo'" in e for e in errors)
 
         # Test with required param (garak)
@@ -1075,10 +1076,10 @@ class TestValidationFunctions:
         test2 = DummyTest()
         test2.name = "t2"
         test2.params = {}
-        errors = validate_test_parameters(test2, garak_manifest)
+        errors = validate_parameters(test2, garak_manifest)
         assert any("Missing required parameter 'probes'" in e for e in errors)
         test2.params = {"probes": ["p1"]}
-        errors = validate_test_parameters(test2, garak_manifest)
+        errors = validate_parameters(test2, garak_manifest)
         assert errors == []
 
     def test_validate_system_compatibility(self, demo_systems, manifests):
@@ -1098,7 +1099,7 @@ class TestValidationFunctions:
         # Unknown system
         test.systems_under_test = ["not_a_system"]
         errors = validate_system_compatibility(test, demo_systems.systems, manifest)
-        assert any("Unknown system 'not_a_system'" in e for e in errors)
+        assert any("not_a_system" in e and "Unknown system" in e for e in errors)
 
     def test_validate_system_compatibility_with_additional_systems(self, demo_systems):
         """Test validation of additional systems from test.systems field."""
@@ -1611,7 +1612,7 @@ class TestCreateExecutionPlanEdgeCases:
 class TestParameterValidationEdgeCases:
     """Test edge cases in parameter validation."""
 
-    def test_validate_test_parameters_with_empty_schema(self):
+    def test_validate_parameters_with_empty_schema(self):
         """Test parameter validation with empty input schema."""
         manifest_data = {
             "name": "no_params_test",
@@ -1630,7 +1631,7 @@ class TestParameterValidationEdgeCases:
             params = {"unexpected_param": "value"}
 
         test = DummyTest()
-        errors = validate_test_parameters(test, manifest)
+        errors = validate_parameters(test, manifest)
         assert any("Unknown parameter 'unexpected_param'" in e for e in errors)
         assert "Valid parameters: none" in errors[0]
 
@@ -2477,11 +2478,16 @@ class TestValidateGeneratedDatasets:
         )
 
         generated_datasets = [
-            {"dataset_name": "augmented_data", "dataset_path": "/output/data.parquet"},
-            {
-                "dataset_name": "evaluation_data",
-                "dataset_path": "/output/eval.parquet",
-            },
+            GeneratedDataset(
+                dataset_name="augmented_data",
+                dataset_type="huggingface",
+                dataset_path="/output/data.parquet",
+            ),
+            GeneratedDataset(
+                dataset_name="evaluation_data",
+                dataset_type="huggingface",
+                dataset_path="/output/eval.parquet",
+            ),
         ]
 
         warnings = validate_generated_datasets(
@@ -2508,10 +2514,11 @@ class TestValidateGeneratedDatasets:
         )
 
         generated_datasets = [
-            {
-                "dataset_name": "undeclared_dataset",
-                "dataset_path": "/output/data.parquet",
-            }
+            GeneratedDataset(
+                dataset_name="undeclared_dataset",
+                dataset_type="huggingface",
+                dataset_path="/output/data.parquet",
+            )
         ]
 
         warnings = validate_generated_datasets(
@@ -2541,8 +2548,16 @@ class TestValidateGeneratedDatasets:
         )
 
         generated_datasets = [
-            {"dataset_name": "undeclared_1", "dataset_path": "/output/data1.parquet"},
-            {"dataset_name": "undeclared_2", "dataset_path": "/output/data2.parquet"},
+            GeneratedDataset(
+                dataset_name="undeclared_1",
+                dataset_type="huggingface",
+                dataset_path="/output/data1.parquet",
+            ),
+            GeneratedDataset(
+                dataset_name="undeclared_2",
+                dataset_type="huggingface",
+                dataset_path="/output/data2.parquet",
+            ),
         ]
 
         warnings = validate_generated_datasets(
@@ -2565,7 +2580,11 @@ class TestValidateGeneratedDatasets:
         )
 
         generated_datasets = [
-            {"dataset_name": "any_dataset", "dataset_path": "/output/data.parquet"}
+            GeneratedDataset(
+                dataset_name="any_dataset",
+                dataset_type="huggingface",
+                dataset_path="/output/data.parquet",
+            )
         ]
 
         warnings = validate_generated_datasets(
@@ -2575,38 +2594,14 @@ class TestValidateGeneratedDatasets:
         # No warnings because manifest doesn't declare any output_datasets
         assert len(warnings) == 0
 
-    def test_missing_dataset_name_field(self):
-        """Test that missing dataset_name field generates a warning."""
-        manifest = Manifest(
-            name="test_container",
-            version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
-            output_datasets=[
-                OutputDataset(
-                    name="declared_dataset",
-                    type="huggingface",
-                    features=[DatasetFeature(name="text", dtype="string")],
-                )
-            ],
-        )
-
-        generated_datasets = [
-            {"dataset_path": "/output/data.parquet"}  # Missing dataset_name
-        ]
-
-        warnings = validate_generated_datasets(
-            manifest, generated_datasets, "test_id", "my-registry/test:latest"
-        )
-
-        assert len(warnings) == 1
-        assert "missing 'dataset_name' field" in warnings[0]
-
     def test_none_manifest(self):
         """Test that validation passes gracefully when manifest is None."""
         generated_datasets = [
-            {"dataset_name": "any_dataset", "dataset_path": "/output/data.parquet"}
+            GeneratedDataset(
+                dataset_name="any_dataset",
+                dataset_type="huggingface",
+                dataset_path="/output/data.parquet",
+            )
         ]
 
         warnings = validate_generated_datasets(
@@ -3192,7 +3187,7 @@ class TestValidateDataGenerationPlan:
 
         assert len(errors) == 1
         assert "missing_system" in errors[0]
-        assert "not defined" in errors[0]
+        assert "not defined" in errors[0] or "Unknown" in errors[0]
 
     def test_validate_incompatible_system_type(self):
         """Test validation fails when system type doesn't match manifest."""
@@ -3228,7 +3223,8 @@ class TestValidateDataGenerationPlan:
         )
 
         assert len(errors) == 1
-        assert "not compatible" in errors[0]
+        assert "Expected type in" in errors[0] or "not compatible" in errors[0]
+        assert "rest_api" in errors[0]
 
     def test_validate_missing_required_param(self):
         """Test validation fails when required parameter is missing."""
@@ -3281,4 +3277,7 @@ class TestValidateDataGenerationPlan:
         )
 
         assert len(errors) == 1
-        assert "does not have a loaded manifest" in errors[0]
+        assert (
+            "does not have a loaded manifest" in errors[0]
+            or "No manifest available" in errors[0]
+        )

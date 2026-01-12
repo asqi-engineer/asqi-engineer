@@ -1,0 +1,13 @@
+[project]
+name = "example-data-generator"
+version = "0.1.0"
+description = "Example Synthetic Data Generation container demonstrating ASQI SDG workflow"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=4.4.1",
+    "asqi-engineer",
+]
+
+[tool.uv.sources]
+asqi-engineer = { git = "https://github.com/asqi-engineer/asqi-engineer" }

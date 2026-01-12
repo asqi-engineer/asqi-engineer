@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_datasets_config.schema.json
+
+datasets:
+  sample_reviews:
+    type: "huggingface"
+    description: "Small sample dataset of product reviews for demonstration"
+    loader_params:
+      builder_name: "json"
+      data_files: "sample_reviews.json"
+    tags:
+      - "example"
+      - "reviews"

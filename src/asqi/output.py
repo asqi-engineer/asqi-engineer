@@ -1,9 +1,10 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from dbos import DBOS
+from pydantic import ValidationError
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -15,6 +16,12 @@ from rich.progress import (
 )
 
 from asqi.container_manager import OUTPUT_MOUNT_PATH
+from asqi.response_schemas import (
+    ContainerOutput,
+    GeneratedDataset,
+    GeneratedReport,
+    validate_container_output,
+)
 
 
 def parse_container_json_output(output: str) -> Dict[str, Any]:
@@ -70,33 +77,79 @@ def parse_container_json_output(output: str) -> Dict[str, Any]:
 
 def extract_container_json_output_fields(
     container_json_output: Dict[str, Any],
-) -> Tuple[Dict[str, Any], List[Any], List[Any]]:
+) -> ContainerOutput:
     """
-    Extract test results, generated reports, and generated datasets from container results.
+    Parse and validate container output into a ContainerOutput object.
+
+    Uses Pydantic schema validation for type safety. Supports both 'results'
+    (recommended) and 'test_results' (legacy) field names, preferring 'results'
+    if both are present.
 
     Args:
-        container_results: Parsed JSON dictionary from container output
-
-    Notes:
-        Provides backward compatibility for container outputs that do not include
-        the `generated_reports` or `generated_datasets` fields
+        container_json_output: Parsed JSON dictionary from container output
 
     Returns:
-        A tuple containing (test_results, generated_reports, generated_datasets)
+        ContainerOutput: Validated Pydantic object with type-safe access to:
+            - results (via get_results())
+            - generated_reports (List[GeneratedReport])
+            - generated_datasets (List[GeneratedDataset])
+
+    Notes:
+        - Validation warnings are logged but don't break execution
+        - Backward compatible with flat container outputs (no structured fields)
+        - Falls back gracefully on validation errors, extracting what it can
     """
-    if (
-        "test_results" in container_json_output
-        and "generated_reports" in container_json_output
-    ):
-        test_results = container_json_output.get("test_results") or {}
-        generated_reports = container_json_output.get("generated_reports") or []
-        generated_datasets = container_json_output.get("generated_datasets") or []
-    else:
-        # Backward compatibility
-        test_results = container_json_output
+
+    # Check if this is structured output or legacy flat format
+    has_structured_fields = (
+        "results" in container_json_output
+        or "test_results" in container_json_output
+        or "generated_reports" in container_json_output
+        or "generated_datasets" in container_json_output
+    )
+
+    if not has_structured_fields:
+        # Backward compatibility: treat entire output as results
+        return ContainerOutput(results=container_json_output)
+
+    try:
+        # Validate using Pydantic schema
+        return validate_container_output(container_json_output)
+    except (ValidationError, ValueError) as e:
+        # Log validation error and use best-effort fallback
+        DBOS.logger.warning(f"Container output validation failed: {e}, using fallback")
+
+        # Extract what we can and return ContainerOutput with available data
+        results = container_json_output.get("results") or container_json_output.get(
+            "test_results"
+        )
+        # If results is empty dict, set to None to avoid validator error
+        if results == {}:
+            results = None
+
+        # Try to parse reports/datasets even in fallback
+        raw_reports = container_json_output.get("generated_reports") or []
+        raw_datasets = container_json_output.get("generated_datasets") or []
+
         generated_reports = []
+        for report in raw_reports:
+            try:
+                generated_reports.append(GeneratedReport(**report))
+            except ValidationError:
+                DBOS.logger.warning(f"Failed to validate report: {report}")
+
         generated_datasets = []
-    return test_results, generated_reports, generated_datasets
+        for dataset in raw_datasets:
+            try:
+                generated_datasets.append(GeneratedDataset(**dataset))
+            except ValidationError:
+                DBOS.logger.warning(f"Failed to validate dataset: {dataset}")
+
+        return ContainerOutput(
+            results=results,
+            generated_reports=generated_reports,
+            generated_datasets=generated_datasets,
+        )
 
 
 def create_test_execution_progress(console: Console) -> Progress:
@@ -260,42 +313,79 @@ def _translate_container_path(
         return translated_path
 
 
-def translate_report_paths(generated_reports: list, host_output_volume: str) -> None:
+def translate_report_paths(
+    generated_reports: List[GeneratedReport], host_output_volume: str
+) -> List[GeneratedReport]:
     """
     Translate the test container report path to the host path for each report.
 
     Args:
-        generated_reports: List of generated report dictionaries with `report_path`
+        generated_reports: List of GeneratedReport Pydantic objects
         host_output_volume: String path to the host output volume
+
+    Returns:
+        List of GeneratedReport objects with translated paths
     """
     if not host_output_volume:
-        return
+        return generated_reports
 
+    translated_reports = []
     for report in generated_reports:
-        report_path_str = report.get("report_path", "")
-        if report_path_str:
-            report["report_path"] = _translate_container_path(
-                report_path_str, host_output_volume, "report"
+        if report.report_path:
+            translated_path = _translate_container_path(
+                report.report_path, host_output_volume, "report"
             )
+            # Create new GeneratedReport with translated path
+            translated_reports.append(
+                GeneratedReport(
+                    report_name=report.report_name,
+                    report_type=report.report_type,
+                    report_path=translated_path,
+                    metadata=report.metadata,
+                )
+            )
+        else:
+            translated_reports.append(report)
+
+    return translated_reports
 
 
-def translate_dataset_paths(generated_datasets: list, host_output_volume: str) -> None:
+def translate_dataset_paths(
+    generated_datasets: List[GeneratedDataset], host_output_volume: str
+) -> List[GeneratedDataset]:
     """
     Translate the container dataset path to the host path for each dataset.
 
     Args:
-        generated_datasets: List of generated dataset dictionaries with `dataset_path`
+        generated_datasets: List of GeneratedDataset Pydantic objects
         host_output_volume: String path to the host output volume
+
+    Returns:
+        List of GeneratedDataset objects with translated paths
     """
     if not host_output_volume:
-        return
+        return generated_datasets
 
+    translated_datasets = []
     for dataset in generated_datasets:
-        dataset_path_str = dataset.get("dataset_path", "")
-        if dataset_path_str:
-            dataset["dataset_path"] = _translate_container_path(
-                dataset_path_str, host_output_volume, "dataset"
+        if dataset.dataset_path:
+            translated_path = _translate_container_path(
+                dataset.dataset_path, host_output_volume, "dataset"
             )
+            # Create new GeneratedDataset with translated path
+            translated_datasets.append(
+                GeneratedDataset(
+                    dataset_name=dataset.dataset_name,
+                    dataset_type=dataset.dataset_type,
+                    dataset_path=translated_path,
+                    format=dataset.format,
+                    metadata=dataset.metadata,
+                )
+            )
+        else:
+            translated_datasets.append(dataset)
+
+    return translated_datasets
 
 
 def _verify_and_display_output_item(

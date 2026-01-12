@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_generation_config.schema.json
+
+job_name: "Example Data Augmentation"
+
+generation_jobs:
+  - id: "review_augmentation"
+    name: "Review Data Augmentation"
+    image: "example_data_generator:latest"
+
+    params:
+      num_variations: 2
+
+    input_datasets:
+      source_data: sample_reviews
+
+    volumes:
+      input: "config/datasets/"
+      output: "output/"

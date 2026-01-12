@@ -452,7 +452,8 @@
       "type": "boolean"
     },
     "input_systems": {
-      "description": "Systems required as input. Should minimally include a system_under_test",
+      "default": [],
+      "description": "Systems required as input. Can be empty for containers that don't require systems (e.g., pure data transformation).",
       "items": {
         "$ref": "#/$defs/SystemInput"
       },
@@ -539,8 +540,7 @@
   },
   "required": [
     "name",
-    "version",
-    "input_systems"
+    "version"
   ],
   "title": "ASQI Manifest",
   "type": "object",
