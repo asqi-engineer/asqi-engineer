@@ -31,6 +31,12 @@ def load_hf_dataset(dataset_config: Union[dict, HFDatasetDefinition]) -> Dataset
     # B615: Only local file loaders (json, csv, parquet, etc.) are used via
     # builder_name constrained by Literal type. revision provided for future
     # compatibility with HF Hub datasets but not required for local files.
+    #
+    # NOTE: split="train" is hardcoded because:
+    # 1. For local files (json, parquet, etc.), load_dataset with split=None returns
+    #    a DatasetDict containing a single "train" split
+    # 2. We want this function to always return a Dataset (not DatasetDict) for simplicity
+    # 3. The "train" split is the default convention for single-split datasets in HuggingFace
     dataset = load_dataset(  # nosec B615
         path=loader_params.builder_name,
         data_dir=loader_params.data_dir,

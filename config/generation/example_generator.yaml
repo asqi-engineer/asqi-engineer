@@ -19,5 +19,5 @@ generation_jobs:
     
     # Volume mappings
     volumes:
-      input: "test_data/example_data_generator/"
+      input: "config/datasets/"
       output: "output/example_data_generator/"

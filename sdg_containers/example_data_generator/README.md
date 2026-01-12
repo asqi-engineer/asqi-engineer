@@ -76,7 +76,7 @@ input_systems:
 
 1. Build the container:
 ```bash
-cd test_containers/example_data_generator
+cd sdg_containers/example_data_generator
 docker build -t example_data_generator:latest .
 ```
 
@@ -86,26 +86,26 @@ The container works without any systems - pure data transformation:
 
 ```bash
 asqi generate-dataset \
-  --generation-config config/examples/generation_suite.yaml \
-  --datasets-config config/examples/datasets.yaml
+  --generation-config config/generation/example_generator.yaml \
+  --datasets-config config/datasets/demo_datasets.yaml
 ```
 
-### With Optional Systems
+### With Optional Systems (Not Required for This Example)
 
-You can provide systems even though they're optional:
+This example demonstrates pure data transformation without LLM systems. If you want to add optional systems, you can provide a systems config:
 
 ```bash
 asqi generate-dataset \
-  --generation-config config/examples/generation_suite.yaml \
-  --systems-config config/examples/systems.yaml \
-  --datasets-config config/examples/datasets.yaml
+  --generation-config config/generation/example_generator.yaml \
+  --systems-config config/systems/demo_systems.yaml \
+  --datasets-config config/datasets/demo_datasets.yaml
 ```
 
 ## Configuration Files
 
 ### Sample Input Data
 
-Location: `test_data/example_data_generator/sample_reviews.json`
+Location: `config/datasets/sample_reviews.json`
 
 A small dataset with 5 product reviews (text + label):
 ```json
@@ -120,26 +120,33 @@ A small dataset with 5 product reviews (text + label):
 
 ### Datasets Configuration
 
-Location: `config/examples/datasets.yaml`
+Location: `config/datasets/demo_datasets.yaml`
 
 Defines the reusable dataset:
 ```yaml
 datasets:
   sample_reviews:
     type: "huggingface"
+    description: "Small sample dataset of product reviews for demonstration"
     loader_params:
       builder_name: "json"
       data_files: "sample_reviews.json"
+    tags:
+      - "example"
+      - "reviews"
 ```
 
-### Generation Suite Configuration
+### Generation Configuration
 
-Location: `config/examples/generation_suite.yaml`
+Location: `config/generation/example_generator.yaml`
 
 Defines the generation job:
 ```yaml
+job_name: "Example Data Augmentation"
+
 generation_jobs:
   - id: "review_augmentation"
+    name: "Review Data Augmentation"
     image: "example_data_generator:latest"
     input_datasets:
       source_data: sample_reviews  # Maps to dataset registry
@@ -147,7 +154,7 @@ generation_jobs:
       num_variations: 2
       augmentation_type: "simple"
     volumes:
-      input: "test_data/example_data_generator/"
+      input: "config/datasets/"
       output: "output/example_data_generator/"
 ```
 

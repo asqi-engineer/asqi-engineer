@@ -20,7 +20,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 # HuggingFace datasets for loading/saving
 from datasets import Dataset, load_dataset
@@ -58,9 +58,7 @@ def load_input_dataset(
         if isinstance(data_files, str):
             load_kwargs["data_files"] = str(input_mount_path / data_files)
         elif isinstance(data_files, list):
-            load_kwargs["data_files"] = [
-                str(input_mount_path / f) for f in data_files
-            ]
+            load_kwargs["data_files"] = [str(input_mount_path / f) for f in data_files]
 
     if data_dir:
         load_kwargs["data_dir"] = str(input_mount_path / data_dir)
