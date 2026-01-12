@@ -685,33 +685,6 @@ generation_jobs:
       # Container-specific parameters
 ```
 
-### Complete Example: RAG Data Generation
-
-```yaml
-job_name: "RAG Training Data Generation"
-generation_jobs:
-  - id: "rag_qa_generation"
-    name: "Generate Q&A from Documents"
-    image: "my-registry/rag-generator:latest"
-    systems:
-      generation_system: "openai_gpt4o_mini"  # LLM for question generation
-    input_datasets:
-      source_documents_pdf:
-        file_path: "company_docs.pdf"
-    volumes:
-      input: "data/pdfs/"
-      output: "data/generated/"
-    params:
-      output_dataset_path: "rag_qa_pairs"
-      chunk_size: 600
-      chunk_overlap: 50
-      num_questions: 2
-      persona_name: "Customer"
-      persona_description: "Customer of the Company"
-    environment:
-      OPENAI_API_KEY: "${OPENAI_API_KEY}"
-```
-
 ### Field Descriptions
 
 **Required Fields:**
@@ -732,16 +705,6 @@ generation_jobs:
 - `env_file`: Path to environment file
 - `environment`: Environment variables for the container
 
-### Systems in Data Generation
-
-Unlike test suites, systems in generation jobs are tools for generation, not systems under test:
-
-```yaml
-systems:
-  generation_system: "gpt4o_mini"      # LLM for generating content
-  evaluator_system: "claude_evaluator" # Optional quality validation
-```
-
 ### Dataset References
 
 Reference datasets from the registry or define them inline:
@@ -755,24 +718,6 @@ input_datasets:
 input_datasets:
   source_documents_pdf:
     file_path: "sample.pdf"
-```
-
-### Multiple Generation Jobs
-
-Run multiple generation jobs in sequence:
-
-```yaml
-job_name: "Multi-stage Data Generation"
-generation_jobs:
-  - id: "generate_base_data"
-    name: "Generate Base Dataset"
-    image: "my-registry/base-generator:latest"
-    # ... configuration ...
-  
-  - id: "augment_data"
-    name: "Augment Generated Data"
-    image: "my-registry/augmenter:latest"
-    # ... configuration ...
 ```
 
 ## Score Card Configuration
@@ -1257,7 +1202,7 @@ Your test container should print a JSON to stdout. There are two simple options:
 - **Metrics and Reports:**
   ```json
   {
-    "results": {
+    "test_results": {
       "success": true,
       "score": 0.95,
       "test_count": 10
@@ -1276,7 +1221,6 @@ Your test container should print a JSON to stdout. There are two simple options:
     ]
   }
   ```
-  **Note:** Use `results` as the field name (legacy `test_results` is still supported but deprecated).
 
   Learn how to add a report to the test container: [Technical reports](custom-test-containers.md#adding-technical-reports-in-custom-test-containers)
 
