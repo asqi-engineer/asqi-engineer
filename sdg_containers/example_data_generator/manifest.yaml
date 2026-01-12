@@ -3,9 +3,6 @@ name: "example_data_generator"
 version: "1.0"
 description: "Example container demonstrating the Synthetic Data Generation (SDG) workflow - loads input datasets, transforms data, and outputs generated datasets."
 
-# No systems required - demonstrates pure data transformation
-input_systems: []
-
 # Generation parameters
 input_schema:
   - name: "num_variations"

@@ -65,7 +65,7 @@
           "description": "Parameters to be passed to the test container's entrypoint.",
           "title": "Params"
         },
-        "datasets": {
+        "input_datasets": {
           "anyOf": [
             {
               "additionalProperties": {
@@ -79,7 +79,7 @@
           ],
           "default": null,
           "description": "Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
-          "title": "Datasets"
+          "title": "Input Datasets"
         },
         "volumes": {
           "anyOf": [
@@ -234,7 +234,7 @@
           "description": "Parameters to be passed to the test container's entrypoint.",
           "title": "Params"
         },
-        "datasets": {
+        "input_datasets": {
           "anyOf": [
             {
               "additionalProperties": {
@@ -248,7 +248,7 @@
           ],
           "default": null,
           "description": "Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
-          "title": "Datasets"
+          "title": "Input Datasets"
         },
         "volumes": {
           "anyOf": [

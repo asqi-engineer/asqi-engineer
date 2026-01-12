@@ -236,11 +236,6 @@ def main():
         required=True,
         help="Generation parameters as JSON string (includes input_datasets)",
     )
-    parser.add_argument(
-        "--systems-params",
-        required=False,
-        help="Systems parameters (accepted for compatibility but not used by this container)",
-    )
 
     args = parser.parse_args()
     start_time = time.time()
@@ -248,7 +243,6 @@ def main():
     try:
         # Parse inputs
         generation_params = json.loads(args.generation_params)
-        # Note: systems-params argument accepted but not used by this container
 
         # Get parameters
         num_variations = generation_params.get("num_variations", 2)
