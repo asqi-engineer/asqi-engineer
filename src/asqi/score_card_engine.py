@@ -16,7 +16,7 @@ from asqi.schemas import (
     ScoreCardIndicator,
 )
 from asqi.workflow import TestExecutionResult
-from asqi.validation import normalize_system_types
+from asqi.validation import normalize_types
 
 logger = logging.getLogger(__name__)
 
@@ -530,9 +530,7 @@ class ScoreCardEngine:
                 hasattr(indicator.apply_to, "target_system_type")
                 and indicator.apply_to.target_system_type
             ):
-                target_types = normalize_system_types(
-                    indicator.apply_to.target_system_type
-                )
+                target_types = normalize_types(indicator.apply_to.target_system_type)
 
             # Filter results by test id and optionally by system type
             filtered_results = self.filter_results_by_test_and_type(

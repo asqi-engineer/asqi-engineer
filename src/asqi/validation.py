@@ -14,17 +14,13 @@ from asqi.schemas import (
     DataGenerationConfig,
     DatasetDefinition,
     DatasetsConfig,
-    DatasetType,
     EnvironmentVariable,
     GenerationJobConfig,
-    HFDatasetDefinition,
     Manifest,
-    PDFDatasetDefinition,
     ScoreCard,
     SuiteConfig,
     SystemsConfig,
     TestDefinition,
-    TXTDatasetDefinition,
 )
 
 logger = logging.getLogger()
@@ -33,54 +29,28 @@ logger = logging.getLogger()
 console = Console()
 
 
-def normalize_system_types(system_input_type: Union[str, List[str]]) -> List[str]:
+def normalize_types(type_input: Union[str, List[str]]) -> List[str]:
     """
-    Normalize SystemInput type field to always return a list of types.
-
-    This helper is used for both manifest validation and score card filtering
-    to handle the Union[str, List[str]] type consistently.
+    Normalize a type field to always return a list of types.
 
     Args:
-        system_input_type: Either a single type string or a list of type strings
+        type_input: Either a single type string or a list of type strings.
+                   Can be a plain string, StrEnum, or list of either.
 
     Returns:
-        List of type strings
+        List of type strings (normalized to str for consistent comparison)
 
     Examples:
-        >>> normalize_system_types("llm_api")
+        >>> normalize_types("llm_api")
         ["llm_api"]
-        >>> normalize_system_types(["llm_api", "vlm_api"])
+        >>> normalize_types(["llm_api", "vlm_api"])
         ["llm_api", "vlm_api"]
     """
-    if isinstance(system_input_type, list):
-        return system_input_type
-    return [system_input_type]
-
-
-def normalize_dataset_types(dataset_type: Union[str, List[str]]) -> List[str]:
-    """
-    Normalize InputDataset type field to always return a list of types.
-
-    This helper is used for manifest validation to handle the
-    Union[DatasetType, List[DatasetType]] type consistently.
-
-    Args:
-        dataset_type: Either a single type string or a list of type strings
-
-    Returns:
-        List of type strings
-
-    Examples:
-        >>> normalize_dataset_types("pdf")
-        ["pdf"]
-        >>> normalize_dataset_types(["pdf", "txt"])
-        ["pdf", "txt"]
-        >>> normalize_dataset_types(["huggingface", "pdf", "txt"])
-        ["huggingface", "pdf", "txt"]
-    """
-    if isinstance(dataset_type, list):
-        return dataset_type
-    return [dataset_type]
+    if isinstance(type_input, list):
+        # Convert all items to strings to handle StrEnum values
+        return [str(t) for t in type_input]
+    # Convert single value to string to handle StrEnum
+    return [str(type_input)]
 
 
 def validate_ids(*config_paths: str) -> None:
@@ -331,24 +301,32 @@ def validate_dataset_configs(
     - Ensures dataset types match manifest expectations (single type or one of multiple accepted types).
 
     Args:
-        item: Test definition or generation job config with input_datasets
+        item: Test definition or generation job config with input_datasets.
+              Note: input_datasets should be resolved dataset definitions (DatasetDefinition objects),
+              not string references. Call resolve_dataset_references() first if needed.
         manifest: Manifest defining the expected dataset schema
 
     Returns:
         List of validation error messages
     """
     errors = []
-    item_datasets = item.input_datasets or {}
+    # Note: input_datasets should contain resolved DatasetDefinition objects at this point,
+    # not string references (after resolve_dataset_references() has been called)
+    item_datasets: Dict[str, Any] = item.input_datasets or {}  # type: ignore[assignment]
     item_type = "Test" if isinstance(item, TestDefinition) else "Job"
 
     # Check for required but missing datasets
     for schema_dataset in manifest.input_datasets:
         # Normalize to list for consistent handling
-        expected_types = normalize_dataset_types(schema_dataset.type)
+        expected_types = normalize_types(schema_dataset.type)
 
         if schema_dataset.required and schema_dataset.name not in item_datasets:
             # Format accepted types for error message
-            types_str = " or ".join(expected_types) if len(expected_types) > 1 else expected_types[0]
+            types_str = (
+                " or ".join(expected_types)
+                if len(expected_types) > 1
+                else expected_types[0]
+            )
             errors.append(
                 f"{item_type} '{item.name}': Missing required dataset '{schema_dataset.name}' "
                 f"(accepted types: {types_str}, description: {schema_dataset.description or 'none'})"
@@ -357,20 +335,22 @@ def validate_dataset_configs(
         elif schema_dataset.name in item_datasets:
             dataset_def = item_datasets[schema_dataset.name]
 
-            # Get the actual type from the dataset definition
-            provided_type = dataset_def.type if hasattr(dataset_def, 'type') else None
-
-            if provided_type is None:
+            # Get the actual type from the dataset definition and normalize to string
+            # This ensures consistent comparison between StrEnum, Literal, and plain string types
+            if not hasattr(dataset_def, "type"):
                 errors.append(
                     f"{item_type} '{item.name}': Dataset '{schema_dataset.name}' has no type field."
                 )
-            # Check if provided type is one of the accepted types
-            elif provided_type not in expected_types:
-                types_str = ", ".join(expected_types)
-                errors.append(
-                    f"{item_type} '{item.name}': Dataset '{schema_dataset.name}' "
-                    f"has type '{provided_type}' but container accepts: [{types_str}]"
-                )
+            else:
+                provided_type = str(dataset_def.type)
+
+                # Check if provided type is one of the accepted types
+                if provided_type not in expected_types:
+                    types_str = ", ".join(expected_types)
+                    errors.append(
+                        f"{item_type} '{item.name}': Dataset '{schema_dataset.name}' "
+                        f"has type '{provided_type}' but container accepts: [{types_str}]"
+                    )
 
     # Check for unknown dataset names
     schema_datasets = {d.name: d for d in manifest.input_datasets}
@@ -408,7 +388,7 @@ def validate_system_compatibility(
 
     for system_input in manifest.input_systems:
         # Normalize type to list for consistent handling
-        types = normalize_system_types(system_input.type)
+        types = normalize_types(system_input.type)
         if system_input.required:
             required_systems[system_input.name] = types
         else:
@@ -421,7 +401,7 @@ def validate_system_compatibility(
         supported_types_for_system = []
         for s in manifest.input_systems:
             if s.name == "system_under_test":
-                types = normalize_system_types(s.type)
+                types = normalize_types(s.type)
                 supported_types_for_system.extend(types)
 
         for system_name in item.systems_under_test:
@@ -721,7 +701,7 @@ def validate_test_plan(
         supported_system_types = []
         for s in manifest.input_systems:
             if s.name == "system_under_test":
-                types = normalize_system_types(s.type)
+                types = normalize_types(s.type)
                 supported_system_types.extend(types)
 
         # 2. Check parameters against the manifest's input_schema
