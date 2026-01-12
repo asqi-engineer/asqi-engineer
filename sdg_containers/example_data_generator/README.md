@@ -1,6 +1,6 @@
 # Example Data Generator Container
 
-A reference implementation demonstrating the Synthetic Data Generation (SDG) workflow in ASQI Engineer. This container shows best practices for creating data generation containers that load input datasets, transform/augment data, and output generated datasets.
+A reference implementation demonstrating the Synthetic Data Generation (SDG) workflow in ASQI Engineer. 
 
 ## Purpose
 
@@ -10,7 +10,6 @@ This example demonstrates:
 2. **Data Transformation** - Simple augmentation techniques (can be extended with LLM-based generation)
 3. **Output Dataset Creation** - Proper format for saving and returning generated datasets
 4. **Container Interface** - Standard interface for data generation containers
-5. **Optional Systems** - How containers can work without required systems (pure data transformation)
 
 ## What It Does
 
@@ -27,48 +26,9 @@ Each output sample is marked as either original or synthetic, with tracking of w
 ### Files
 
 - `manifest.yaml` - Declares inputs (datasets, parameters, optional systems) and outputs (datasets, metrics)
-- `entrypoint.py` - Python script implementing the data generation logic
-- `Dockerfile` - Container image definition
-- `requirements.txt` - Python dependencies (datasets library)
-
-### Manifest Highlights
-
-**Input Datasets:**
-```yaml
-input_datasets:
-  - name: "source_data"
-    type: "huggingface"
-    required: true
-    features:
-      - name: "text"
-        dtype: "string"
-      - name: "label"
-        dtype: "string"
-```
-
-**Output Datasets:**
-```yaml
-output_datasets:
-  - name: "augmented_data"
-    type: "huggingface"
-    features:
-      - name: "text"
-        dtype: "string"
-      - name: "label"
-        dtype: "string"
-      - name: "is_synthetic"
-        dtype: "bool"
-      - name: "source_index"
-        dtype: "int32"
-```
-
-**Optional Systems:**
-```yaml
-input_systems:
-  - name: "generation_system"
-    type: "llm_api"
-    required: false  # Container works without it
-```
+- `entrypoint.py` - Python script implementing the data generation logic using ASQI library utilities
+- `Dockerfile` - Container image definition using `uv` for dependency management
+- `pyproject.toml` - Modern Python project configuration with `uv`
 
 ## Usage
 
@@ -79,6 +39,8 @@ input_systems:
 cd sdg_containers/example_data_generator
 docker build -t example_data_generator:latest .
 ```
+
+**Note:** The container uses `uv` for fast dependency management and installs the unpublished `asqi-engineer` library directly from GitHub. The Dockerfile includes git installation to support this.
 
 ### Minimal Usage (No Systems Required)
 
@@ -178,10 +140,20 @@ The container saves augmented data to the output volume and returns metadata:
     {
       "dataset_name": "augmented_data",
       "dataset_type": "huggingface",
-      "dataset_path": "/output/datasets/augmented_data",
+      "dataset_path": "/output/datasets/augmented_data.parquet",
+      "format": "parquet",
       "num_rows": 15,
       "num_columns": 4,
-      "columns": ["text", "label", "is_synthetic", "source_index"]
+      "metadata": {
+        "num_rows": 15,
+        "num_columns": 4,
+        "columns": [
+          "text",
+          "label",
+          "is_synthetic",
+          "source_index"
+        ]
+      }
     }
   ]
 }
@@ -199,61 +171,69 @@ The generated HuggingFace dataset includes:
 
 ### 1. Loading Input Datasets
 
-Input datasets are passed via `--generation-params` with loader configuration:
+This example uses ASQI's `load_hf_dataset` utility for consistent dataset loading. The dataset paths are already resolved by ASQI's workflow system:
 
 ```python
+from asqi.datasets import load_hf_dataset
+
 generation_params = json.loads(args.generation_params)
 input_datasets = generation_params.get("input_datasets", {})
 source_config = input_datasets["source_data"]
 
-# Load using HuggingFace datasets library
-loader_params = source_config.get("loader_params", {})
-dataset = load_dataset(
-    path=loader_params["builder_name"],
-    data_files=str(input_mount_path / loader_params["data_files"])
-)
+# Use ASQI's utility - paths are already resolved
+dataset = load_hf_dataset(source_config)
 ```
 
 ### 2. Saving Output Datasets
 
-Save to `/output` mount and return metadata:
+Use ASQI's `GeneratedDataset` schema for type-safe output:
 
 ```python
+from asqi.response_schemas import GeneratedDataset
+
 output_mount_path = Path(os.environ["OUTPUT_MOUNT_PATH"])
 datasets_dir = output_mount_path / "datasets"
-dataset_path = datasets_dir / "augmented_data"
+dataset_path = datasets_dir / "augmented_data.parquet"
 
 # Save dataset
-dataset.save_to_disk(str(dataset_path))
+dataset.to_parquet(str(dataset_path))
 
-# Return in generated_datasets
-{
-    "dataset_name": "augmented_data",
-    "dataset_type": "huggingface", 
-    "dataset_path": str(dataset_path),
-    "num_rows": len(dataset),
-    ...
-}
+# Return using GeneratedDataset schema
+dataset_metadata = GeneratedDataset(
+    dataset_name="augmented_data",
+    dataset_type="huggingface",
+    dataset_path=str(dataset_path),
+    format="parquet",
+    metadata={
+        "num_rows": len(dataset),
+        "num_columns": len(dataset.column_names),
+        "columns": dataset.column_names,
+    }
+)
 ```
 
 ### 3. Container Output Format
 
-Must return JSON with two fields:
+Use ASQI's `ContainerOutput` model for type-safe, validated output:
 
 ```python
-output = {
-    "test_results": {
-        # Metrics matching manifest output_metrics
+from asqi.response_schemas import ContainerOutput
+
+# Prepare output using ContainerOutput model
+container_output = ContainerOutput(  # type: ignore[call-arg]
+    results={
         "success": True,
-        "original_count": 5,
-        ...
+        "total_count": total_count,
+        "execution_time": execution_time,
     },
-    "generated_datasets": [
-        # List of dataset metadata dicts
-        {...}
-    ]
-}
+    generated_datasets=[dataset_metadata],  # List of GeneratedDataset objects
+)
+
+# Output as JSON
+print(json.dumps(container_output.model_dump(), indent=2))
 ```
+
+The `# type: ignore[call-arg]` comment is needed due to backward compatibility typing (both `results` and `test_results` are optional, but at least one must be provided at runtime).
 
 ### 4. Optional vs Required Systems
 
@@ -295,27 +275,3 @@ response = client.chat.completions.create(
     }]
 )
 ```
-
-### Different Dataset Types
-
-The example uses HuggingFace datasets, but you can also work with:
-- PDF documents (`type: "pdf"`)
-- Text files (`type: "txt"`)
-
-### Advanced Features
-
-- Multiple input datasets
-- Multiple output datasets
-- Complex transformations
-- Quality metrics and validation
-- Progress reporting for long-running jobs
-
-## Related Documentation
-
-- [Data Generation Pipeline](../../../docs/data-generation.md) - Full pipeline documentation
-- [Container Development Guide](../../../docs/container-development.md) - How to build containers
-- [Manifest Schema](../../src/asqi/schemas/asqi_manifest.schema.json) - Complete schema reference
-
-## License
-
-Same as parent project (see LICENSE file in repository root).
