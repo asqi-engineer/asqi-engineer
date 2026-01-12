@@ -217,36 +217,36 @@ Containers return generated dataset information in the JSON output:
 
 ```python
 # In container entrypoint.py
-import json
+from asqi.response_schemas import ContainerOutput, GeneratedDataset
 
 # Generate your dataset
 # ...
 
-# Return dataset information in output JSON
-output = {
-    "results": {  # Use 'results' (recommended) or 'test_results' (legacy)
+# Return dataset information using response schemas for type safety
+generated_dataset = GeneratedDataset(
+    dataset_name="augmented_dataset",
+    dataset_type="huggingface",
+    dataset_path="/output/generated_rag_data",  # Container path
+    format="parquet",
+    metadata={
+        "num_rows": 100,
+        "num_columns": 3,
+        "generation_params": {
+            "chunk_size": 600,
+            "questions_per_chunk": 2
+        }
+    }
+)
+
+output = ContainerOutput(
+    results={
         "success": True,
         "rows_generated": 100
     },
-    "generated_datasets": [
-        {
-            "dataset_name": "augmented_dataset",
-            "dataset_type": "huggingface",
-            "dataset_path": "/output/generated_rag_data",  # Container path
-            "format": "parquet",
-            "metadata": {
-                "num_rows": 100,
-                "num_columns": 3,
-                "generation_params": {
-                    "chunk_size": 600,
-                    "questions_per_chunk": 2
-                }
-            }
-        }
-    ]
-}
+    generated_datasets=[generated_dataset]
+)
 
-print(json.dumps(output))
+print(output.model_dump_json(indent=2))
 ```
 
 ### Path Translation
@@ -282,7 +282,6 @@ generation_jobs:
     image: "my-registry/rag-data-generator:latest"
     systems:
       generation_system: "openai_gpt4o_mini"    # LLM for question generation
-      simulator_system: "openai_embedding"      # Embedding model for chunking
     input_datasets:
       source_documents_pdf:
         file_path: "sample.pdf"
@@ -323,7 +322,7 @@ asqi generate-dataset \
 
 ### Systems for Data Generation
 
-Systems in data generation jobs serve as tools for generation (e.g., LLMs for text generation, embedding models for processing):
+Systems in data generation jobs serve as tools for generation (e.g., LLMs for text generation, question generation, evaluation):
 
 **Example: `systems.yaml`**
 
@@ -334,13 +333,6 @@ systems:
     params:
       base_url: "http://localhost:4000/v1"
       model: "openai/gpt-4o-mini"
-      api_key: "sk-1234"
-  
-  openai_embedding:
-    type: "llm_api"
-    params:
-      base_url: "http://localhost:4000/v1"
-      model: "openai/text-embedding-3-small"
       api_key: "sk-1234"
 ```
 
@@ -417,7 +409,6 @@ generation_jobs:
     image: "my-registry/rag-generator:latest"
     systems:
       generation_system: "gpt4o_mini"
-      embedding_system: "text_embedding"
     input_datasets:
       source_documents_pdf: "company_docs"
     volumes:
@@ -531,52 +522,6 @@ asqi generate-dataset \
   --systems-config config/systems.yaml \
   --datasets-config datasets/base_data.yaml \
   --output-file augmentation_results.json
-```
-
-## Best Practices
-
-### Dataset Registry Organization
-
-- **Use descriptive names**: `eval_questions_v1`, `company_handbook_2024`
-- **Add tags**: Categorize datasets with tags for easy filtering
-- **Include descriptions**: Document dataset purpose and contents
-- **Version datasets**: Keep track of dataset versions in names or tags
-
-### Volume Management
-
-- **Separate input/output**: Use distinct directories for inputs and outputs
-- **Use relative paths**: Prefer relative paths for portability
-- **Organize by type**: Group datasets by type or purpose in subdirectories
-
-### Column Mapping
-
-- **Document mappings**: Add comments explaining column transformations
-- **Validate schemas**: Ensure mapped columns match container expectations
-- **Handle missing columns**: Containers should validate required columns exist
-
-### Data Generation
-
-- **Test locally first**: Validate generation logic with small samples
-- **Monitor resources**: Large-scale generation can be resource-intensive
-- **Version outputs**: Include version/timestamp in output dataset names
-- **Validate outputs**: Verify generated datasets meet quality standards
-
-## Schema References
-
-Dataset-related JSON schemas for IDE integration:
-
-```yaml
-# For datasets configuration files
-# yaml-language-server: $schema=https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/refs/heads/main/src/asqi/schemas/asqi_datasets_config.schema.json
-
-# For generation configuration files  
-# yaml-language-server: $schema=https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/refs/heads/main/src/asqi/schemas/asqi_generation_config.schema.json
-
-# For test suite files (with datasets support)
-# yaml-language-server: $schema=https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/refs/heads/main/src/asqi/schemas/asqi_suite_config.schema.json
-
-# For manifest files (with input/output datasets)
-# yaml-language-server: $schema=https://raw.githubusercontent.com/asqi-engineer/asqi-engineer/refs/heads/main/src/asqi/schemas/asqi_manifest.schema.json
 ```
 
 ## Related Documentation

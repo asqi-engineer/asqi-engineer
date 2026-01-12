@@ -695,7 +695,6 @@ generation_jobs:
     image: "my-registry/rag-generator:latest"
     systems:
       generation_system: "openai_gpt4o_mini"  # LLM for question generation
-      simulator_system: "openai_embedding"     # Embedding model
     input_datasets:
       source_documents_pdf:
         file_path: "company_docs.pdf"
@@ -740,7 +739,6 @@ Unlike test suites, systems in generation jobs are tools for generation, not sys
 ```yaml
 systems:
   generation_system: "gpt4o_mini"      # LLM for generating content
-  embedding_system: "text_embedding"   # Model for embeddings/chunking
   evaluator_system: "claude_evaluator" # Optional quality validation
 ```
 
@@ -1259,7 +1257,7 @@ Your test container should print a JSON to stdout. There are two simple options:
 - **Metrics and Reports:**
   ```json
   {
-    "test_results": {
+    "results": {
       "success": true,
       "score": 0.95,
       "test_count": 10
@@ -1278,6 +1276,8 @@ Your test container should print a JSON to stdout. There are two simple options:
     ]
   }
   ```
+  **Note:** Use `results` as the field name (legacy `test_results` is still supported but deprecated).
+
   Learn how to add a report to the test container: [Technical reports](custom-test-containers.md#adding-technical-reports-in-custom-test-containers)
 
 ### Manifest Declaration
@@ -1422,7 +1422,7 @@ Containers return generated dataset information in JSON output:
 
 ```json
 {
-  "test_results": {
+  "results": {
     "success": true
   },
   "generated_datasets": [

@@ -760,7 +760,6 @@ generation_jobs:
     image: "my-registry/rag-generator:latest"
     systems:
       generation_system: "openai_gpt4o_mini"
-      embedding_system: "openai_embedding"
     input_datasets:
       source_documents_pdf: "company_handbook"
     volumes:
@@ -773,13 +772,12 @@ generation_jobs:
       num_questions: 2
       persona_name: "Employee"
       persona_description: "Company employee seeking policy information"
-  
+
   - id: "product_qa_gen"
     name: "Generate Q&A from Product Docs"
     image: "my-registry/rag-generator:latest"
     systems:
       generation_system: "openai_gpt4o_mini"
-      embedding_system: "openai_embedding"
     input_datasets:
       source_documents_pdf: "product_documentation"
     volumes:
