@@ -98,7 +98,7 @@ docker compose up -d
 asqi execute-tests -t config/suites/demo_test.yaml -s config/systems/demo_systems.yaml
 
 # Or generate synthetic data (if you have data generation containers):
-asqi generate-dataset -t config/datasets/suite.yaml -s config/datasets/systems.yaml
+asqi generate-dataset -t config/generation/suite.yaml -s config/systems/demo_systems.yaml -d config/datasets/registry.yaml
 ```
 
 This short flow should download a demo test container and generate the test results in `output.json`. Now, to actually test your AI system, configure the `.env` file and try out the other test packages in: https://www.asqi.ai/quickstart.html
