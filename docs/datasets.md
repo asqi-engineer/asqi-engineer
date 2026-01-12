@@ -24,6 +24,7 @@ ASQI supports three dataset types:
 2. **PDF Documents** (`pdf`): PDF files for document-based testing or RAG data generation
 3. **Text Files** (`txt`): Plain text files for simple text-based inputs
 
+
 ### Dataset Registry Configuration
 
 Create a centralized dataset registry using the `--datasets-config` flag. This promotes reusability across multiple test suites and generation jobs.
@@ -210,6 +211,43 @@ output_datasets:
         dtype: "string"
         description: "Source document context"
 ```
+
+Test containers can declare support for multiple dataset formats, allowing users flexibility in providing data while ensuring the container can handle different input types.
+
+**Single Type:**
+```yaml
+# Container accepts only PDF documents
+input_datasets:
+  - name: "knowledge_base"
+    type: "pdf"
+    required: true
+    description: "Source documents for RAG testing"
+```
+
+**Multiple Types:**
+```yaml
+# Container accepts either PDF or TXT documents
+input_datasets:
+  - name: "knowledge_base"
+    type: ["pdf", "txt"]
+    required: true
+    description: "Source documents - accepts PDF or plain text files"
+```
+
+**Multiple Types Including HuggingFace Datasets:**
+```yaml
+# Container accepts HuggingFace datasets, PDFs, or text files
+input_datasets:
+  - name: "knowledge_base"
+    type: ["huggingface", "pdf", "txt"]
+    required: true
+    description: "Training data in any supported format"
+    features:  # Required when huggingface is an accepted type
+      - name: "text"
+        dtype: "string"
+        description: "Text content"
+```
+
 
 ### Returning Generated Datasets
 
