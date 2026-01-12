@@ -116,7 +116,7 @@
       "type": "object"
     },
     "InputDataset": {
-      "description": "Defines a dataset input that the container requires.\n\nSupported dataset types:\n- 'huggingface': HuggingFace datasets (requires features to be defined)\n- 'pdf': PDF documents\n- 'txt': Plain text files\n\nSupports \"either/or\" relationships by accepting multiple types:\n- type: \"pdf\" - Single type (backward compatible)\n- type: [\"pdf\", \"txt\"] - Either PDF or TXT\n- type: [\"huggingface\", \"pdf\", \"txt\"] - Any of these formats",
+      "description": "Defines a dataset input that the container requires.\n\nSupported dataset types:\n- 'huggingface': HuggingFace datasets (requires features to be defined)\n- 'pdf': PDF documents\n- 'txt': Plain text files\n\nSupports \"either/or\" relationships by accepting multiple types:\n- type: \"pdf\" - Single type\n- type: [\"pdf\", \"txt\"] - Either PDF or TXT\n- type: [\"huggingface\", \"pdf\", \"txt\"] - Any of these formats",
       "properties": {
         "name": {
           "description": "The dataset name, e.g., 'evaluation_data', 'test_prompts'.",
@@ -170,7 +170,7 @@
             }
           ],
           "default": null,
-          "description": "List of required features within a HuggingFace dataset (required when ONLY 'huggingface' type is accepted, recommended but optional for multi-type inputs). Actual dataset feature names can be mapped to these required names in the test config.",
+          "description": "List of required features within a HuggingFace dataset.",
           "title": "Features"
         }
       },
