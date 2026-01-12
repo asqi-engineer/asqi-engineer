@@ -204,7 +204,10 @@ class TestInputDatasetWithFeatures:
                 type="huggingface",
                 features=None,  # Missing features
             )
-        assert "Features must be defined for HuggingFace dataset" in str(exc_info.value)
+        assert (
+            "Features must be defined when 'huggingface' is an accepted dataset type"
+            in str(exc_info.value)
+        )
 
     def test_input_dataset_with_invalid_feature_dtype(self):
         """Test that invalid feature dtypes are caught."""
@@ -248,17 +251,19 @@ class TestInputDatasetWithFeatures:
         assert dataset.features is None
 
     def test_input_dataset_multiple_types_with_huggingface(self):
-        """Test that HuggingFace in multi-type list doesn't require features."""
-        dataset = InputDataset(
-            name="flexible_data",
-            required=True,
-            type=["huggingface", "pdf", "txt"],
-            description="Flexible input - accepts multiple formats",
-            features=None,  # Features not required when multiple types accepted
+        """Test that HuggingFace in multi-type list DOES require features."""
+        with pytest.raises(ValidationError) as exc_info:
+            InputDataset(
+                name="flexible_data",
+                required=True,
+                type=["huggingface", "pdf", "txt"],
+                description="Flexible input - accepts multiple formats",
+                features=None,  # Features ARE required when huggingface is accepted
+            )
+        assert (
+            "Features must be defined when 'huggingface' is an accepted dataset type"
+            in str(exc_info.value)
         )
-        assert dataset.name == "flexible_data"
-        assert dataset.type == ["huggingface", "pdf", "txt"]
-        assert dataset.features is None
 
     def test_input_dataset_multiple_types_with_features(self):
         """Test that multi-type datasets can still have features defined."""
@@ -284,7 +289,10 @@ class TestInputDatasetWithFeatures:
                 type="huggingface",  # Single type
                 features=None,  # Should fail
             )
-        assert "Features must be defined when only 'huggingface' type is accepted" in str(exc_info.value)
+        assert (
+            "Features must be defined when 'huggingface' is an accepted dataset type"
+            in str(exc_info.value)
+        )
 
 
 class TestDatasetFeatureDtypeExamples:

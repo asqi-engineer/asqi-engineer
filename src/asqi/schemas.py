@@ -153,7 +153,7 @@ class InputDataset(BaseModel):
     - 'txt': Plain text files
 
     Supports "either/or" relationships by accepting multiple types:
-    - type: "pdf" - Single type (backward compatible)
+    - type: "pdf" - Single type
     - type: ["pdf", "txt"] - Either PDF or TXT
     - type: ["huggingface", "pdf", "txt"] - Any of these formats
     """
@@ -175,21 +175,17 @@ class InputDataset(BaseModel):
     )
     features: Optional[list[DatasetFeature]] = Field(
         None,
-        description="List of required features within a HuggingFace dataset (required when ONLY 'huggingface' type is accepted, recommended but optional for multi-type inputs). "
-        "Actual dataset feature names can be mapped to these required names in the test config.",
+        description="List of required features within a HuggingFace dataset.",
     )
 
     @model_validator(mode="after")
     def _validate_features_for_huggingface(self) -> "InputDataset":
-        """Ensure HuggingFace datasets have features defined when only HuggingFace type is accepted."""
+        """Ensure HuggingFace datasets have features defined whenever huggingface is an accepted type."""
         types = self.type if isinstance(self.type, list) else [self.type]
-
-        # Only require features if ONLY huggingface is accepted (strict requirement)
-        if types == [DatasetType.HUGGINGFACE] and not self.features:
+        if DatasetType.HUGGINGFACE in types and not self.features:
             raise ValueError(
-                "Features must be defined when only 'huggingface' type is accepted. "
-                "Specify the expected feature names and dtypes in the features list. "
-                "For multi-type inputs accepting HuggingFace, features are recommended but optional."
+                "Features must be defined when 'huggingface' is an accepted dataset type. "
+                "Specify the expected feature names and dtypes in the features list."
             )
         return self
 
