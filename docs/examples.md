@@ -687,7 +687,7 @@ test_suite:
     name: "MMLU Benchmark Evaluation"
     image: "my-registry/benchmark-evaluator:latest"
     systems_under_test: ["my_llm"]
-    datasets:
+    input_datasets:
       evaluation_data: "mmlu_benchmark"
     volumes:
       input: "data/benchmarks/"
@@ -700,7 +700,7 @@ test_suite:
     name: "Custom Q&A Evaluation"
     image: "my-registry/qa-evaluator:latest"
     systems_under_test: ["my_llm"]
-    datasets:
+    input_datasets:
       evaluation_data: "custom_qa_set"
     volumes:
       input: "data/custom/"
@@ -761,7 +761,7 @@ generation_jobs:
     systems:
       generation_system: "openai_gpt4o_mini"
       embedding_system: "openai_embedding"
-    datasets:
+    input_datasets:
       source_documents_pdf: "company_handbook"
     volumes:
       input: "data/pdfs/"
@@ -780,7 +780,7 @@ generation_jobs:
     systems:
       generation_system: "openai_gpt4o_mini"
       embedding_system: "openai_embedding"
-    datasets:
+    input_datasets:
       source_documents_pdf: "product_documentation"
     volumes:
       input: "data/pdfs/"
@@ -840,7 +840,7 @@ generation_jobs:
     image: "my-registry/data-augmenter:latest"
     systems:
       generation_system: "openai_gpt4o_mini"
-    datasets:
+    input_datasets:
       base_data: "base_training_set"
     volumes:
       input: "data/base/"

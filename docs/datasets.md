@@ -128,7 +128,7 @@ datasets:
 test_suite:
   - id: "eval_test"
     image: "my-test-container:latest"
-    datasets:
+    input_datasets:
       evaluation_data: "my_eval_data"  # References dataset registry
     volumes:
       input: "path/to/datasets/"
@@ -148,7 +148,7 @@ test_suite:
     name: "Quality Evaluation Test"
     image: "my-registry/evaluator:latest"
     systems_under_test: ["my_llm"]
-    datasets:
+    input_datasets:
       evaluation_data: "eval_questions"     # Reference from registry
       source_docs: "company_handbook"       # Another dataset reference
     volumes:
@@ -224,7 +224,7 @@ import json
 
 # Return dataset information in output JSON
 output = {
-    "test_results": {
+    "results": {  # Use 'results' (recommended) or 'test_results' (legacy)
         "success": True,
         "rows_generated": 100
     },
@@ -418,7 +418,7 @@ generation_jobs:
     systems:
       generation_system: "gpt4o_mini"
       embedding_system: "text_embedding"
-    datasets:
+    input_datasets:
       source_documents_pdf: "company_docs"
     volumes:
       input: "data/pdfs/"
@@ -468,7 +468,7 @@ test_suite:
     name: "Standard Benchmark Test"
     image: "my-registry/evaluator:latest"
     systems_under_test: ["my_chatbot"]
-    datasets:
+    input_datasets:
       evaluation_data: "benchmark_questions"
     volumes:
       input: "data/benchmarks/"
@@ -513,7 +513,7 @@ generation_jobs:
     image: "my-registry/data-augmenter:latest"
     systems:
       generation_system: "gpt4o_mini"
-    datasets:
+    input_datasets:
       base_data: "base_training_data"
     volumes:
       input: "data/base/"

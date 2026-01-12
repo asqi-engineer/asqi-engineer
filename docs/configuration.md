@@ -549,7 +549,7 @@ test_suite:
     description: "Evaluate using standard benchmark dataset"
     image: "my-registry/evaluator:latest"
     systems_under_test: ["my_chatbot"]
-    datasets:
+    input_datasets:
       evaluation_data: "benchmark_questions"  # References dataset from registry
       source_docs: "company_handbook"
     volumes:
