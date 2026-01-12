@@ -57,6 +57,32 @@ def normalize_system_types(system_input_type: Union[str, List[str]]) -> List[str
     return [system_input_type]
 
 
+def normalize_dataset_types(dataset_type: Union[str, List[str]]) -> List[str]:
+    """
+    Normalize InputDataset type field to always return a list of types.
+
+    This helper is used for manifest validation to handle the
+    Union[DatasetType, List[DatasetType]] type consistently.
+
+    Args:
+        dataset_type: Either a single type string or a list of type strings
+
+    Returns:
+        List of type strings
+
+    Examples:
+        >>> normalize_dataset_types("pdf")
+        ["pdf"]
+        >>> normalize_dataset_types(["pdf", "txt"])
+        ["pdf", "txt"]
+        >>> normalize_dataset_types(["huggingface", "pdf", "txt"])
+        ["huggingface", "pdf", "txt"]
+    """
+    if isinstance(dataset_type, list):
+        return dataset_type
+    return [dataset_type]
+
+
 def validate_ids(*config_paths: str) -> None:
     """
     Validate that all IDs within a config file are unique.
@@ -302,7 +328,7 @@ def validate_dataset_configs(
 
     - Ensures required datasets in input_datasets are provided.
     - Ensures no unknown dataset names are provided in item.input_datasets.
-    - Ensures dataset types match manifest expectations.
+    - Ensures dataset types match manifest expectations (single type or one of multiple accepted types).
 
     Args:
         item: Test definition or generation job config with input_datasets
@@ -317,32 +343,34 @@ def validate_dataset_configs(
 
     # Check for required but missing datasets
     for schema_dataset in manifest.input_datasets:
+        # Normalize to list for consistent handling
+        expected_types = normalize_dataset_types(schema_dataset.type)
+
         if schema_dataset.required and schema_dataset.name not in item_datasets:
+            # Format accepted types for error message
+            types_str = " or ".join(expected_types) if len(expected_types) > 1 else expected_types[0]
             errors.append(
-                f"{item_type} '{item.name}': Missing required dataset '{schema_dataset.name}' (description: {schema_dataset.description or 'none'})"
+                f"{item_type} '{item.name}': Missing required dataset '{schema_dataset.name}' "
+                f"(accepted types: {types_str}, description: {schema_dataset.description or 'none'})"
             )
 
         elif schema_dataset.name in item_datasets:
             dataset_def = item_datasets[schema_dataset.name]
 
-            # Validate dataset type matches manifest expectation
-            if schema_dataset.type == DatasetType.HUGGINGFACE:
-                if not isinstance(dataset_def, HFDatasetDefinition):
-                    errors.append(
-                        f"{item_type} '{item.name}': Dataset '{schema_dataset.name}' of type '{DatasetType.HUGGINGFACE}' must have config of type HFDatasetDefinition (with type='huggingface')."
-                    )
+            # Get the actual type from the dataset definition
+            provided_type = dataset_def.type if hasattr(dataset_def, 'type') else None
 
-            elif schema_dataset.type == DatasetType.PDF:
-                if not isinstance(dataset_def, PDFDatasetDefinition):
-                    errors.append(
-                        f"{item_type} '{item.name}': Dataset '{schema_dataset.name}' of type '{DatasetType.PDF}' must have config of type PDFDatasetDefinition (with type='pdf')."
-                    )
-
-            elif schema_dataset.type == DatasetType.TXT:
-                if not isinstance(dataset_def, TXTDatasetDefinition):
-                    errors.append(
-                        f"{item_type} '{item.name}': Dataset '{schema_dataset.name}' of type '{DatasetType.TXT}' must have config of type TXTDatasetDefinition (with type='txt')."
-                    )
+            if provided_type is None:
+                errors.append(
+                    f"{item_type} '{item.name}': Dataset '{schema_dataset.name}' has no type field."
+                )
+            # Check if provided type is one of the accepted types
+            elif provided_type not in expected_types:
+                types_str = ", ".join(expected_types)
+                errors.append(
+                    f"{item_type} '{item.name}': Dataset '{schema_dataset.name}' "
+                    f"has type '{provided_type}' but container accepts: [{types_str}]"
+                )
 
     # Check for unknown dataset names
     schema_datasets = {d.name: d for d in manifest.input_datasets}

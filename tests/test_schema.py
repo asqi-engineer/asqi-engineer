@@ -234,6 +234,58 @@ class TestInputDatasetWithFeatures:
         assert dataset.type == "pdf"
         assert dataset.features is None
 
+    def test_input_dataset_multiple_types(self):
+        """Test that InputDataset can accept multiple types."""
+        dataset = InputDataset(
+            name="knowledge_base",
+            required=True,
+            type=["pdf", "txt"],
+            description="Knowledge base - accepts PDF or TXT",
+            features=None,
+        )
+        assert dataset.name == "knowledge_base"
+        assert dataset.type == ["pdf", "txt"]
+        assert dataset.features is None
+
+    def test_input_dataset_multiple_types_with_huggingface(self):
+        """Test that HuggingFace in multi-type list doesn't require features."""
+        dataset = InputDataset(
+            name="flexible_data",
+            required=True,
+            type=["huggingface", "pdf", "txt"],
+            description="Flexible input - accepts multiple formats",
+            features=None,  # Features not required when multiple types accepted
+        )
+        assert dataset.name == "flexible_data"
+        assert dataset.type == ["huggingface", "pdf", "txt"]
+        assert dataset.features is None
+
+    def test_input_dataset_multiple_types_with_features(self):
+        """Test that multi-type datasets can still have features defined."""
+        dataset = InputDataset(
+            name="flexible_data",
+            required=True,
+            type=["huggingface", "pdf", "txt"],
+            description="Flexible input with optional features",
+            features=[
+                DatasetFeature(name="text", dtype="string"),
+            ],
+        )
+        assert dataset.name == "flexible_data"
+        assert dataset.type == ["huggingface", "pdf", "txt"]
+        assert len(dataset.features) == 1
+
+    def test_input_dataset_single_huggingface_still_requires_features(self):
+        """Test that single HuggingFace type still requires features (backward compatibility)."""
+        with pytest.raises(ValidationError) as exc_info:
+            InputDataset(
+                name="hf_only",
+                required=True,
+                type="huggingface",  # Single type
+                features=None,  # Should fail
+            )
+        assert "Features must be defined when only 'huggingface' type is accepted" in str(exc_info.value)
+
 
 class TestDatasetFeatureDtypeExamples:
     """Test real-world usage examples of DatasetFeature dtypes."""

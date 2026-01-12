@@ -116,7 +116,7 @@
       "type": "object"
     },
     "InputDataset": {
-      "description": "Defines a dataset input that the container requires.\n\nSupported dataset types:\n- 'huggingface': HuggingFace datasets (requires features to be defined)\n- 'pdf': PDF documents\n- 'txt': Plain text files",
+      "description": "Defines a dataset input that the container requires.\n\nSupported dataset types:\n- 'huggingface': HuggingFace datasets (requires features to be defined)\n- 'pdf': PDF documents\n- 'txt': Plain text files\n\nSupports \"either/or\" relationships by accepting multiple types:\n- type: \"pdf\" - Single type (backward compatible)\n- type: [\"pdf\", \"txt\"] - Either PDF or TXT\n- type: [\"huggingface\", \"pdf\", \"txt\"] - Any of these formats",
       "properties": {
         "name": {
           "description": "The dataset name, e.g., 'evaluation_data', 'test_prompts'.",
@@ -130,8 +130,19 @@
           "type": "boolean"
         },
         "type": {
-          "$ref": "#/$defs/DatasetType",
-          "description": "The dataset type: 'huggingface' for HF datasets with features, 'pdf' for PDF documents, 'txt' for text files."
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DatasetType"
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/DatasetType"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "The dataset type(s): single type or list of accepted types. Examples: 'huggingface', ['pdf', 'txt'], or ['huggingface', 'pdf', 'txt'].",
+          "title": "Type"
         },
         "description": {
           "anyOf": [
@@ -159,7 +170,7 @@
             }
           ],
           "default": null,
-          "description": "List of required features within a HuggingFace dataset (required for 'huggingface' type, ignored for others). Actual dataset feature names can be mapped to these required names in the test config.",
+          "description": "List of required features within a HuggingFace dataset (required when ONLY 'huggingface' type is accepted, recommended but optional for multi-type inputs). Actual dataset feature names can be mapped to these required names in the test config.",
           "title": "Features"
         }
       },
