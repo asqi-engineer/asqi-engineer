@@ -365,51 +365,80 @@ class TestTranslateReportPaths:
         """
         Test translating report paths that start with OUTPUT_MOUNT_PATH.
         """
-        reports = [
-            {"report_path": "/output/reports/summary.html"},
-            {"report_path": "/output/reports/report.json"},
-        ]
-        translate_report_paths(reports, "/host/output")
+        from asqi.response_schemas import GeneratedReport
 
-        assert reports[0]["report_path"] == "/host/output/reports/summary.html"
-        assert reports[1]["report_path"] == "/host/output/reports/report.json"
+        reports = [
+            GeneratedReport(
+                report_name="summary",
+                report_type="html",
+                report_path="/output/reports/summary.html",
+            ),
+            GeneratedReport(
+                report_name="report",
+                report_type="json",
+                report_path="/output/reports/report.json",
+            ),
+        ]
+        translated = translate_report_paths(reports, "/host/output")
+
+        assert translated[0].report_path == "/host/output/reports/summary.html"
+        assert translated[1].report_path == "/host/output/reports/report.json"
 
     @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
     def test_report_path_outside_output_mount(self):
         """
         Test translating report paths that do not start with OUTPUT_MOUNT_PATH.
         """
-        reports = [{"report_path": "/different/reports/report.html"}]
-        translate_report_paths(reports, "/host/output")
+        from asqi.response_schemas import GeneratedReport
 
-        assert reports[0]["report_path"] == "/host/output/different/reports/report.html"
+        reports = [
+            GeneratedReport(
+                report_name="report",
+                report_type="html",
+                report_path="/different/reports/report.html",
+            )
+        ]
+        translated = translate_report_paths(reports, "/host/output")
+
+        assert translated[0].report_path == "/host/output/different/reports/report.html"
 
     @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
     def test_edge_case(self):
         """
         Test translating report paths with edge case.
         """
-        reports = [{"report_path": "/output/reports/report.html"}]
-        # Trailing slash
-        translate_report_paths(reports, "/host/output/")
+        from asqi.response_schemas import GeneratedReport
 
-        assert reports[0]["report_path"] == "/host/output/reports/report.html"
+        reports = [
+            GeneratedReport(
+                report_name="report",
+                report_type="html",
+                report_path="/output/reports/report.html",
+            )
+        ]
+        # Trailing slash
+        translated = translate_report_paths(reports, "/host/output/")
+
+        assert translated[0].report_path == "/host/output/reports/report.html"
 
     @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
-    def test_invalid_paths(self):
+    def test_empty_host_volume(self):
         """
-        Test handling reports with missing or empty report_path.
+        Test handling empty host volume (should return reports unchanged).
         """
-        reports = [
-            {"report_path": ""},
-            {"other_key": "value"},
-            {"report_path": "/output/reports/report.html"},
-        ]
-        translate_report_paths(reports, "/host/output")
+        from asqi.response_schemas import GeneratedReport
 
-        assert reports[0]["report_path"] == ""
-        assert "report_path" not in reports[1]
-        assert reports[2]["report_path"] == "/host/output/reports/report.html"
+        reports = [
+            GeneratedReport(
+                report_name="report",
+                report_type="html",
+                report_path="/output/reports/report.html",
+            )
+        ]
+        translated = translate_report_paths(reports, "")
+
+        # Should return unchanged when host_output_volume is empty
+        assert translated[0].report_path == "/output/reports/report.html"
 
 
 class TestTranslateDatasetPaths:
@@ -418,57 +447,77 @@ class TestTranslateDatasetPaths:
     @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
     def test_dataset_path_inside_output_mount(self):
         """Test translating dataset paths that start with OUTPUT_MOUNT_PATH."""
-        datasets = [
-            {"dataset_path": "/output/datasets/train.parquet"},
-            {"dataset_path": "/output/augmented_data.parquet"},
-        ]
-        translate_dataset_paths(datasets, "/host/output")
+        from asqi.response_schemas import GeneratedDataset
 
-        assert datasets[0]["dataset_path"] == "/host/output/datasets/train.parquet"
-        assert datasets[1]["dataset_path"] == "/host/output/augmented_data.parquet"
+        datasets = [
+            GeneratedDataset(
+                dataset_name="train",
+                dataset_type="huggingface",
+                dataset_path="/output/datasets/train.parquet",
+            ),
+            GeneratedDataset(
+                dataset_name="augmented",
+                dataset_type="huggingface",
+                dataset_path="/output/augmented_data.parquet",
+            ),
+        ]
+        translated = translate_dataset_paths(datasets, "/host/output")
+
+        assert translated[0].dataset_path == "/host/output/datasets/train.parquet"
+        assert translated[1].dataset_path == "/host/output/augmented_data.parquet"
 
     @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
     def test_dataset_path_outside_output_mount(self):
         """Test translating dataset paths that do not start with OUTPUT_MOUNT_PATH."""
-        datasets = [{"dataset_path": "/different/path/data.parquet"}]
-        translate_dataset_paths(datasets, "/host/output")
+        from asqi.response_schemas import GeneratedDataset
 
-        assert datasets[0]["dataset_path"] == "/host/output/different/path/data.parquet"
+        datasets = [
+            GeneratedDataset(
+                dataset_name="data",
+                dataset_type="huggingface",
+                dataset_path="/different/path/data.parquet",
+            )
+        ]
+        translated = translate_dataset_paths(datasets, "/host/output")
+
+        assert translated[0].dataset_path == "/host/output/different/path/data.parquet"
 
     @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
     def test_relative_host_volume_path(self):
         """Test that relative host volume paths are converted to absolute paths."""
-        datasets = [{"dataset_path": "/output/data.parquet"}]
+        from asqi.response_schemas import GeneratedDataset
+
+        datasets = [
+            GeneratedDataset(
+                dataset_name="data",
+                dataset_type="huggingface",
+                dataset_path="/output/data.parquet",
+            )
+        ]
         # Use relative path for host volume
-        translate_dataset_paths(datasets, "output")
+        translated = translate_dataset_paths(datasets, "output")
 
         # Should be converted to absolute path
-        result_path = Path(datasets[0]["dataset_path"])
+        result_path = Path(translated[0].dataset_path)
         assert result_path.is_absolute()
         assert str(result_path).endswith("/output/data.parquet")
 
     @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
     def test_empty_host_volume(self):
         """Test handling empty host_output_volume."""
-        datasets = [{"dataset_path": "/output/data.parquet"}]
-        translate_dataset_paths(datasets, "")
+        from asqi.response_schemas import GeneratedDataset
+
+        datasets = [
+            GeneratedDataset(
+                dataset_name="data",
+                dataset_type="huggingface",
+                dataset_path="/output/data.parquet",
+            )
+        ]
+        translated = translate_dataset_paths(datasets, "")
 
         # Should not modify path when host_output_volume is empty
-        assert datasets[0]["dataset_path"] == "/output/data.parquet"
-
-    @patch("asqi.output.OUTPUT_MOUNT_PATH", "/output")
-    def test_invalid_dataset_paths(self):
-        """Test handling datasets with missing or empty dataset_path."""
-        datasets = [
-            {"dataset_path": ""},
-            {"other_key": "value"},
-            {"dataset_path": "/output/data.parquet"},
-        ]
-        translate_dataset_paths(datasets, "/host/output")
-
-        assert datasets[0]["dataset_path"] == ""
-        assert "dataset_path" not in datasets[1]
-        assert datasets[2]["dataset_path"] == "/host/output/data.parquet"
+        assert translated[0].dataset_path == "/output/data.parquet"
 
 
 class TestTranslateContainerPath:
@@ -584,37 +633,86 @@ class TestTranslateContainerPath:
 class TestExtractContainerJsonOutputFields:
     """Test suite for extract_container_json_output_fields function."""
 
+    def test_extract_with_results_field(self):
+        """Test extraction using new 'results' field name."""
+        container_output = {
+            "results": {"success": True, "score": 0.95},
+            "generated_reports": [],
+            "generated_datasets": [],
+        }
+        validated_output = extract_container_json_output_fields(container_output)
+
+        assert validated_output.get_results() == {"success": True, "score": 0.95}
+        assert validated_output.generated_reports == []
+        assert validated_output.generated_datasets == []
+
+    def test_extract_with_test_results_field(self):
+        """Test extraction using legacy 'test_results' field name."""
+        container_output = {
+            "test_results": {"success": True, "score": 0.85},
+            "generated_reports": [],
+            "generated_datasets": [],
+        }
+        validated_output = extract_container_json_output_fields(container_output)
+
+        assert validated_output.get_results() == {"success": True, "score": 0.85}
+        assert validated_output.generated_reports == []
+        assert validated_output.generated_datasets == []
+
+    def test_prefers_results_over_test_results(self):
+        """Test that 'results' is preferred when both fields present."""
+        container_output = {
+            "results": {"success": True, "score": 0.95},
+            "test_results": {"success": False, "score": 0.50},
+        }
+        validated_output = extract_container_json_output_fields(container_output)
+
+        # Should use 'results' field (0.95) not 'test_results' field (0.50)
+        assert validated_output.get_results() == {"success": True, "score": 0.95}
+
     def test_extract_all_fields_present(self):
         """Test extracting when all fields are present."""
         container_output = {
             "test_results": {"success": True, "score": 0.95},
             "generated_reports": [
-                {"report_name": "summary", "report_path": "/output/report.html"}
+                {
+                    "report_name": "summary",
+                    "report_path": "/output/report.html",
+                    "report_type": "html",
+                }
             ],
             "generated_datasets": [
-                {"dataset_name": "data", "dataset_path": "/output/data.parquet"}
+                {
+                    "dataset_name": "data",
+                    "dataset_path": "/output/data.parquet",
+                    "dataset_type": "huggingface",
+                }
             ],
         }
-        test_results, reports, datasets = extract_container_json_output_fields(
-            container_output
-        )
+        validated_output = extract_container_json_output_fields(container_output)
 
-        assert test_results == {"success": True, "score": 0.95}
-        assert len(reports) == 1
-        assert reports[0]["report_name"] == "summary"
-        assert len(datasets) == 1
-        assert datasets[0]["dataset_name"] == "data"
+        assert validated_output.get_results() == {"success": True, "score": 0.95}
+        assert len(validated_output.generated_reports) == 1
+        # Returns Pydantic objects - use attribute access
+        assert validated_output.generated_reports[0].report_name == "summary"
+        assert (
+            validated_output.generated_reports[0].report_path == "/output/report.html"
+        )
+        assert len(validated_output.generated_datasets) == 1
+        assert validated_output.generated_datasets[0].dataset_name == "data"
+        assert (
+            validated_output.generated_datasets[0].dataset_path
+            == "/output/data.parquet"
+        )
 
     def test_backward_compatibility_old_format(self):
         """Test backward compatibility with old format (no generated_reports/datasets)."""
         container_output = {"success": True, "score": 0.85}
-        test_results, reports, datasets = extract_container_json_output_fields(
-            container_output
-        )
+        validated_output = extract_container_json_output_fields(container_output)
 
-        assert test_results == {"success": True, "score": 0.85}
-        assert reports == []
-        assert datasets == []
+        assert validated_output.get_results() == {"success": True, "score": 0.85}
+        assert validated_output.generated_reports == []
+        assert validated_output.generated_datasets == []
 
     def test_empty_reports_and_datasets(self):
         """Test handling empty reports and datasets lists."""
@@ -623,13 +721,11 @@ class TestExtractContainerJsonOutputFields:
             "generated_reports": [],
             "generated_datasets": [],
         }
-        test_results, reports, datasets = extract_container_json_output_fields(
-            container_output
-        )
+        validated_output = extract_container_json_output_fields(container_output)
 
-        assert test_results == {"success": True}
-        assert reports == []
-        assert datasets == []
+        assert validated_output.get_results() == {"success": True}
+        assert validated_output.generated_reports == []
+        assert validated_output.generated_datasets == []
 
     def test_none_reports_and_datasets(self):
         """Test handling None values for reports and datasets."""
@@ -638,28 +734,46 @@ class TestExtractContainerJsonOutputFields:
             "generated_reports": None,
             "generated_datasets": None,
         }
-        test_results, reports, datasets = extract_container_json_output_fields(
-            container_output
-        )
+        validated_output = extract_container_json_output_fields(container_output)
 
-        assert test_results == {"success": True}
-        assert reports == []
-        assert datasets == []
+        assert validated_output.get_results() == {"success": True}
+        assert validated_output.generated_reports == []
+        assert validated_output.generated_datasets == []
 
-    def test_missing_test_results(self):
-        """Test handling missing test_results field."""
+    def test_missing_both_results_fields(self):
+        """Test handling when both results fields are missing but structured fields present."""
+        from unittest.mock import patch
+
         container_output = {
-            "generated_reports": [{"report_name": "test"}],
-            "generated_datasets": [{"dataset_name": "test"}],
+            "generated_reports": [
+                {
+                    "report_name": "test",
+                    "report_type": "html",
+                    "report_path": "/output/test.html",
+                }
+            ],
+            "generated_datasets": [
+                {
+                    "dataset_name": "test",
+                    "dataset_type": "huggingface",
+                    "dataset_path": "/output/test.parquet",
+                }
+            ],
         }
-        test_results, reports, datasets = extract_container_json_output_fields(
-            container_output
-        )
+        # With structured fields present but no results, Pydantic validation will fail
+        # The fallback path should catch this and still extract what it can
 
-        # Should fall back to treating entire output as test_results
-        assert "generated_reports" in test_results
-        assert reports == []
-        assert datasets == []
+        # The function should log a warning and gracefully fall back
+        with patch("asqi.output.DBOS") as mock_dbos:
+            validated_output = extract_container_json_output_fields(container_output)
+
+            # Should have logged a warning
+            assert mock_dbos.logger.warning.called
+
+            # Should extract reports and datasets via fallback path
+            assert validated_output.get_results() == {}
+            assert len(validated_output.generated_reports) == 1
+            assert len(validated_output.generated_datasets) == 1
 
 
 class TestVerifyAndDisplayOutputItem:
@@ -752,8 +866,8 @@ class TestDisplayGeneratedDatasets:
                         "dataset_name": "output_data",
                         "dataset_path": str(dataset_file),
                         "dataset_type": "huggingface",
-                        "num_rows": 100,
                         "format": "parquet",
+                        "metadata": {"num_rows": 100},
                     }
                 ],
             }

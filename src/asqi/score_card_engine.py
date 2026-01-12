@@ -589,10 +589,9 @@ class ScoreCardEngine:
                 test_reports = test_result.generated_reports or []
                 requested_reports = indicator.display_reports or []
                 eval_result.report_paths = [
-                    str(report["report_path"])
+                    str(report.report_path)
                     for report in test_reports
-                    if report.get("report_name") in requested_reports
-                    and report.get("report_path")
+                    if report.report_name in requested_reports and report.report_path
                 ]
 
                 try:
