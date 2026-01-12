@@ -21,72 +21,26 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
-# HuggingFace datasets for loading/saving
-from datasets import Dataset, load_dataset
+from datasets import Dataset
+
+from asqi.datasets import load_hf_dataset
+from asqi.response_schemas import ContainerOutput, GeneratedDataset
 
 
-def load_input_dataset(
-    dataset_config: Dict[str, Any], input_mount_path: Path
-) -> Dataset:
+def load_input_dataset(dataset_config: Dict[str, Any]) -> Dataset:
     """
-    Load a HuggingFace dataset from the input mount.
+    Load a HuggingFace dataset using ASQI's load_hf_dataset utility.
 
-    This function follows the same pattern as load_hf_dataset() in asqi.datasets,
-    but handles path resolution for containerized environments.
+    The dataset paths are already resolved by ASQI's workflow system before
+    being passed to the container, so no additional path resolution is needed.
 
     Args:
-        dataset_config: Dataset configuration from generation-params containing
-                       'loader_params' with builder_name, data_files, etc.
-        input_mount_path: Path to the input mount where dataset files are located
+        dataset_config: Dataset configuration with loader_params (paths already resolved)
 
     Returns:
         Loaded HuggingFace Dataset
-
-    Raises:
-        ValueError: If required loader_params fields are missing
-
-    Note:
-        Always returns a Dataset (not DatasetDict) by using split="train".
-        This matches the behavior of load_hf_dataset() for consistency.
     """
-    loader_params = dataset_config.get("loader_params", {})
-    builder_name = loader_params.get("builder_name")
-    data_files = loader_params.get("data_files")
-    data_dir = loader_params.get("data_dir")
-
-    if not builder_name:
-        raise ValueError("Dataset loader_params must include 'builder_name'")
-
-    # Resolve paths relative to input mount
-    resolved_data_files = None
-    if data_files:
-        if isinstance(data_files, str):
-            resolved_data_files = str(input_mount_path / data_files)
-        elif isinstance(data_files, list):
-            resolved_data_files = [str(input_mount_path / f) for f in data_files]
-
-    resolved_data_dir = str(input_mount_path / data_dir) if data_dir else None
-
-    print(f"Loading dataset: builder_name={builder_name}")
-    if resolved_data_files:
-        print(f"  data_files={resolved_data_files}")
-    if resolved_data_dir:
-        print(f"  data_dir={resolved_data_dir}")
-
-    # Load with split="train" to always return Dataset (not DatasetDict)
-    # This matches load_hf_dataset() behavior for consistency
-    dataset = load_dataset(  # nosec B615
-        path=builder_name,
-        data_dir=resolved_data_dir,
-        data_files=resolved_data_files,
-        split="train",
-    )
-
-    # Apply column mapping if provided
-    mapping = dataset_config.get("mapping", {})
-    if mapping:
-        dataset = dataset.rename_columns(mapping)
-
+    dataset = load_hf_dataset(dataset_config)
     print(f"Loaded {len(dataset)} samples")
     return dataset
 
@@ -143,8 +97,8 @@ def generate_augmented_dataset(source_dataset: Dataset, num_variations: int) -> 
     print(f"Source dataset has {len(source_dataset)} samples")
 
     for idx, sample in enumerate(source_dataset):
-        text = sample["text"]
-        label = sample["label"]
+        text = sample["text"]  # type: ignore[index]
+        label = sample["label"]  # type: ignore[index]
 
         # Add original sample
         augmented_samples.append(
@@ -175,12 +129,9 @@ def generate_augmented_dataset(source_dataset: Dataset, num_variations: int) -> 
 
 def save_output_dataset(
     dataset: Dataset, output_mount_path: Path, dataset_name: str
-) -> Dict[str, Any]:
+) -> GeneratedDataset:
     """
-    Save generated dataset to output mount.
-
-    This demonstrates the expected output format for generated datasets.
-    The dataset is saved and metadata is returned for the container output JSON.
+    Save generated dataset to output mount using ASQI's GeneratedDataset schema.
 
     Args:
         dataset: Dataset to save
@@ -188,7 +139,7 @@ def save_output_dataset(
         dataset_name: Name of the dataset
 
     Returns:
-        Dataset metadata dict for container output
+        GeneratedDataset object with validated metadata
     """
     # Create datasets directory
     datasets_dir = output_mount_path / "datasets"
@@ -200,27 +151,23 @@ def save_output_dataset(
 
     print(f"Saved dataset to: {dataset_path}")
 
-    # Return metadata in expected format following GeneratedDataset schema
-    return {
-        "dataset_name": dataset_name,
-        "dataset_type": "huggingface",
-        "dataset_path": str(dataset_path),
-        "format": "parquet",
-        "metadata": {
+    # Use ASQI's GeneratedDataset schema for type-safe output
+    return GeneratedDataset(
+        dataset_name=dataset_name,
+        dataset_type="huggingface",
+        dataset_path=str(dataset_path),
+        format="parquet",
+        metadata={
             "num_rows": len(dataset),
             "num_columns": len(dataset.column_names),
             "columns": dataset.column_names,
         },
-    }
+    )
 
 
 def main():
     """
     Main entrypoint demonstrating data generation container interface.
-
-    This example performs pure data transformation without requiring any LLM systems,
-    showcasing that SDG containers can work independently when using non-LLM
-    augmentation techniques.
 
     Expected arguments:
     - --generation-params: JSON string with generation parameters and input datasets
@@ -269,7 +216,7 @@ def main():
         # Step 1: Load input dataset
         print("\n[1/3] Loading input dataset...")
         source_config = input_datasets["source_data"]
-        source_dataset = load_input_dataset(source_config, input_mount_path)
+        source_dataset = load_input_dataset(source_config)
         print(f"Loaded {len(source_dataset)} samples from source_data")
 
         # Step 2: Generate augmented data
@@ -287,14 +234,15 @@ def main():
 
         execution_time = time.time() - start_time
 
-        # Prepare output in expected format (matches manifest output_metrics)
-        output = {
-            "test_results": {
+        # Prepare output using ASQI's ContainerOutput model for type safety
+        container_output = ContainerOutput(  # type: ignore[call-arg]
+            results={
                 "success": True,
                 "total_count": total_count,
+                "execution_time": execution_time,
             },
-            "generated_datasets": [dataset_metadata],
-        }
+            generated_datasets=[dataset_metadata],
+        )
 
         print("\n" + "=" * 60)
         print("Data Generation Complete!")
@@ -305,20 +253,20 @@ def main():
         print(f"Execution time: {execution_time:.2f}s")
         print("=" * 60)
 
-        # Output results as JSON
-        print(json.dumps(output, indent=2))
+        # Output results as JSON using model_dump()
+        print(json.dumps(container_output.model_dump(), indent=2))
         sys.exit(0)
 
     except Exception as e:
-        error_output = {
-            "test_results": {
+        error_output = ContainerOutput(  # type: ignore[call-arg]
+            results={
                 "success": False,
                 "total_count": 0,
                 "error": str(e),
             },
-            "generated_datasets": [],
-        }
-        print(json.dumps(error_output, indent=2), file=sys.stderr)
+            generated_datasets=[],
+        )
+        print(json.dumps(error_output.model_dump(), indent=2), file=sys.stderr)
         sys.exit(1)
 
 
