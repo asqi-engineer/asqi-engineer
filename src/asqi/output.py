@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from dbos import DBOS
+from pydantic import ValidationError
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -98,7 +99,6 @@ def extract_container_json_output_fields(
         - Backward compatible with flat container outputs (no structured fields)
         - Falls back gracefully on validation errors, extracting what it can
     """
-    from pydantic import ValidationError
 
     # Check if this is structured output or legacy flat format
     has_structured_fields = (
@@ -329,8 +329,6 @@ def translate_report_paths(
     if not host_output_volume:
         return generated_reports
 
-    from asqi.response_schemas import GeneratedReport
-
     translated_reports = []
     for report in generated_reports:
         if report.report_path:
@@ -367,8 +365,6 @@ def translate_dataset_paths(
     """
     if not host_output_volume:
         return generated_datasets
-
-    from asqi.response_schemas import GeneratedDataset
 
     translated_datasets = []
     for dataset in generated_datasets:
