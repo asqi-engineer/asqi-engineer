@@ -52,7 +52,6 @@ from asqi.schemas import (
     SuiteConfig,
     SystemsConfig,
 )
-from asqi.score_card_engine import ScoreCardEngine
 from asqi.validation import (
     build_env_var_error_message,
     create_data_generation_plan,
@@ -778,6 +777,7 @@ def evaluate_score_card(
     execution_mode: ExecutionMode = ExecutionMode.END_TO_END,
 ) -> List[Dict[str, Any]]:
     """Evaluate score cards against test execution results."""
+    from asqi.score_card_engine import ScoreCardEngine
 
     if not score_card_configs:
         DBOS.logger.warning("No score card configurations provided")
