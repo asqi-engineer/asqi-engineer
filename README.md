@@ -8,7 +8,7 @@ The project focuses first on chatbot testing and supports extensions for other A
 
 ## Table of Contents
 
-- [LLM Testing](#llm-testing)
+- [AI System Testing](#ai-system-testing)
 - [Quick Start](#quick-start)
 - [Documentation](#documentation)
 - [Key Highlights](#key-highlights)
@@ -29,6 +29,15 @@ The project focuses first on chatbot testing and supports extensions for other A
 - **Multi-system orchestration**: Tests can coordinate multiple AI systems (target, simulator, evaluator) in complex workflows
 - **Flexible configuration**: Test packages specify input systems and parameters that can be customised for individual use cases
 
+### **Dataset Support and Data Generation**
+
+- **Input datasets**: Feed evaluation datasets, source documents, or training data to test containers
+- **Dataset registry**: Centralized dataset definitions with reusable configurations across test suites
+- **Multiple formats**: Support for HuggingFace datasets, PDF documents, and text files
+- **Column mapping**: Align dataset fields with container expectations for seamless integration
+- **Synthetic data generation**: Generate training data, augment datasets, or create RAG question-answer pairs
+- **Output datasets**: Containers can produce datasets as outputs for data pipeline workflows
+
 ### **Automated Assessment**
 
 - **Structured reporting**: JSON output with detailed metrics and assessment outcomes
@@ -42,9 +51,9 @@ The project focuses first on chatbot testing and supports extensions for other A
 - **Rich CLI interface**: Typer-based commands with comprehensive help and validation
 - **Real-time feedback**: Live progress reporting with structured logging and tracing
 
-## LLM Testing
+## AI System Testing
 
-We have introduced the `llm_api` and `rag_api` system types for comprehensive AI system testing. We support both traditional LLM APIs and Retrieval-Augmented Generation (RAG) systems with contextual retrieval capabilities. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
+ASQI Engineer supports comprehensive testing across multiple AI system types including `llm_api`, `rag_api`, `image_generation_api`, `image_editing_api`, and `vlm_api` (vision-language models). This enables testing of traditional LLM APIs, Retrieval-Augmented Generation (RAG) systems with contextual retrieval capabilities, image generation and editing models, and multimodal vision-language systems. We have also open-sourced a draft ASQI score card for customer chatbots that provides mappings between technical metrics and business-relevant assessment criteria.
 
 ### **LLM Test Containers**
 
@@ -55,7 +64,7 @@ We have introduced the `llm_api` and `rag_api` system types for comprehensive AI
 - **[LLMPerf](https://github.com/ray-project/llmperf)**: Token-level performance benchmarking for latency, throughput, and request metrics
 - **Resaro Chatbot Simulator**: Persona and scenario based conversational testing with multi-turn dialogue simulation
 
-The `llm_api` and `rag_api` system types use OpenAI-compatible API interfaces. Through [LiteLLM] integration, ASQI Engineer provides unified access to 100+ LLM providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints. RAG systems additionally require responses with contextual citations for retrieval-augmented evaluation. This standardisation enables test containers to work seamlessly across different AI providers while supporting complex multi-system test scenarios (e.g., using different models for simulation, evaluation, and target testing).
+The supported system types use OpenAI-compatible API interfaces, or in the case of `rag_api`, a superset of it. Through [LiteLLM] integration, ASQI Engineer provides unified access to 100+ LLM providers including OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, and custom endpoints. RAG systems additionally require responses with contextual citations for retrieval-augmented evaluation. This standardisation enables test containers to work seamlessly across different AI providers while supporting complex multi-system test scenarios (e.g., using different models for simulation, evaluation, and target testing).
 
 ## Quick Start
 
@@ -87,6 +96,9 @@ This downloads all required configuration files and creates a `.env` template.
 # Start the services and run your first test:
 docker compose up -d
 asqi execute-tests -t config/suites/demo_test.yaml -s config/systems/demo_systems.yaml
+
+# Or generate synthetic data (if you have data generation containers):
+asqi generate-dataset -t config/generation/suite.yaml -s config/systems/demo_systems.yaml -d config/datasets/registry.yaml
 ```
 
 This short flow should download a demo test container and generate the test results in `output.json`. Now, to actually test your AI system, configure the `.env` file and try out the other test packages in: https://www.asqi.ai/quickstart.html
@@ -100,6 +112,7 @@ Detailed documentation lives on the project docs site — use the links below to
 - Library usage & workflow customization: [docs/library.md](./docs/library.md)
 - CLI & usage reference: https://www.asqi.ai/cli.html
 - Configuration & environment variables: https://www.asqi.ai/configuration.html
+- **Dataset support & data generation**: [docs/datasets.md](./docs/datasets.md)
 - Test container examples & how-to: https://www.asqi.ai/examples.html
 - LLM test containers overview (Garak, DeepTeam, TrustLLM, Inspect Evals, LLMPerf, Chatbot Simulator, Resaro Judge): https://www.asqi.ai/llm-test-containers.html
 - Score cards & evaluation: https://www.asqi.ai/examples.html#score-cards
