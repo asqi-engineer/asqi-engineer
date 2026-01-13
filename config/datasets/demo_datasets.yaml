@@ -10,3 +10,14 @@ datasets:
     tags:
       - "example"
       - "reviews"
+
+  sample_chatbot_scenarios:
+    type: "huggingface"
+    description: "Sample chatbot test scenarios with questions and expected responses for customer service testing"
+    loader_params:
+      builder_name: "json"
+      data_files: "sample_chatbot_scenarios.json"
+    tags:
+      - "example"
+      - "chatbot"
+      - "qa"

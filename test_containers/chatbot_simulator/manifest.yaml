@@ -16,6 +16,19 @@ input_systems:
     required: false
     description: "LLM system for evaluating conversation quality"
 
+input_datasets:
+  - name: "test_scenarios"
+    type: "huggingface"
+    required: false
+    description: "Optional dataset of test scenarios with expected outputs. Each row should contain 'input' (user question/prompt) and 'expected_output' (expected chatbot response) columns."
+    features:
+      - name: "input"
+        dtype: "string"
+        description: "User question or prompt to test the chatbot with"
+      - name: "expected_output"
+        dtype: "string"
+        description: "Expected chatbot response or output for evaluation"
+
 input_schema:
   - name: "chatbot_purpose"
     type: "string"

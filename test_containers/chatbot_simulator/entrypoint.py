@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 from typing import Any, Dict
 
+from asqi.datasets import load_hf_dataset
 from simulation import (
     ConversationTestAnalyzer,
     PersonaBasedConversationTester,
@@ -32,6 +33,58 @@ def create_model_callback(sut_params: Dict[str, Any]):
     return model_callback
 
 
+def load_scenarios_from_dataset(
+    test_params: Dict[str, Any],
+) -> list[Dict[str, str]] | None:
+    """
+    Load test scenarios from input_datasets if provided.
+
+    Args:
+        test_params: Test parameters containing input_datasets configuration
+
+    Returns:
+        List of scenario dicts with 'input' and 'expected_output' keys, or None if not provided
+
+    Raises:
+        ValueError: If dataset is malformed or missing required columns
+    """
+    input_datasets = test_params.get("input_datasets")
+    if not input_datasets or "test_scenarios" not in input_datasets:
+        return None
+
+    # Get INPUT_MOUNT_PATH from environment (set by ASQI workflow)
+    input_mount_path = Path(os.environ.get("INPUT_MOUNT_PATH", "/input"))
+
+    # Load dataset using ASQI utility
+    dataset_config = input_datasets["test_scenarios"]
+    print("Loading test scenarios dataset from input mount...")
+
+    try:
+        dataset = load_hf_dataset(dataset_config, input_mount_path=input_mount_path)
+    except Exception as e:
+        raise ValueError(f"Failed to load test_scenarios dataset: {e}") from e
+
+    # Validate required columns exist
+    required_columns = {"input", "expected_output"}
+    missing_columns = required_columns - set(dataset.column_names)
+    if missing_columns:
+        raise ValueError(
+            f"Dataset is missing required columns: {missing_columns}. "
+            f"Available columns: {dataset.column_names}. "
+            f"Expected: 'input' (string) and 'expected_output' (string)."
+        )
+
+    # Convert dataset rows to scenario list format
+    scenarios = []
+    for row in dataset:
+        scenarios.append(
+            {"input": str(row["input"]), "expected_output": str(row["expected_output"])}
+        )
+
+    print(f"Loaded {len(scenarios)} scenarios from dataset")
+    return scenarios
+
+
 async def run_chatbot_simulation(
     systems_params: Dict[str, Any], test_params: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -44,7 +97,10 @@ async def run_chatbot_simulation(
     max_turns = test_params.get("max_turns", 4)
     custom_personas = test_params.get("custom_personas")
     sycophancy_levels = test_params.get("sycophancy_levels", ["low", "high"])
+    # Load scenarios with priority: inline custom_scenarios > input_datasets > LLM generation
     custom_scenarios = test_params.get("custom_scenarios")
+    if not custom_scenarios:
+        custom_scenarios = load_scenarios_from_dataset(test_params)
     simulations_per_scenario = test_params.get("simulations_per_scenario", 1)
     success_threshold = test_params.get("success_threshold", 0.7)
     max_concurrent = test_params.get("max_concurrent", 3)
