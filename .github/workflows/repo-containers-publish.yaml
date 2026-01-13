@@ -1,4 +1,4 @@
-name: Publish test containers
+name: Publish containers
 
 on:
   workflow_call:
@@ -10,7 +10,6 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: asqiengineer/test-container
 
 jobs:
   determine-changed:
@@ -32,8 +31,9 @@ jobs:
         with:
           files: |
             test_containers/**
+            sdg_containers/**
 
-      - name: Build matrix from changed test container folders
+      - name: Build matrix from changed container folders
         id: set-matrix
         run: |
           set -euo pipefail
@@ -41,15 +41,18 @@ jobs:
           IFS=' ' read -ra files <<< "${{ steps.changed-files.outputs.all_changed_files }}"
           declare -A dirs=()
           for file in "${files[@]}"; do
-            # Expect paths like test_containers/<name>/...
+            # Expect paths like test_containers/<name>/... or sdg_containers/<name>/...
             if [[ "$file" == test_containers/*/* ]]; then
               name=$(echo "$file" | awk -F/ '{print $2}')
-              dirs["$name"]=1
+              dirs["test_containers/$name"]=1
+            elif [[ "$file" == sdg_containers/*/* ]]; then
+              name=$(echo "$file" | awk -F/ '{print $2}')
+              dirs["sdg_containers/$name"]=1
             fi
           done
 
           if [ ${#dirs[@]} -eq 0 ]; then
-            echo "No test container directories changed."
+            echo "No container directories changed."
             echo 'matrix={"include":[{"name":"noop","skip":true}]}' >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -57,9 +60,20 @@ jobs:
           json='{"include":['
           first=1
           for d in "${!dirs[@]}"; do
+            # Extract folder type and container name
+            folder_type=$(echo "$d" | cut -d'/' -f1)
+            container_name=$(echo "$d" | cut -d'/' -f2)
+
+            # Set image name based on folder type
+            if [ "$folder_type" == "sdg_containers" ]; then
+              image_name="asqiengineer/sdg-container"
+            else
+              image_name="asqiengineer/test-container"
+            fi
+
             for platform in "linux/amd64" "linux/arm64"; do
               platform_pair="${platform//\//-}"
-              entry='{"name":"'"$d"'","platform":"'"$platform"'","platform_pair":"'"$platform_pair"'"}'
+              entry='{"name":"'"$container_name"'","folder_type":"'"$folder_type"'","image_name":"'"$image_name"'","platform":"'"$platform"'","platform_pair":"'"$platform_pair"'"}'
               if [ $first -eq 1 ]; then
                 json+="$entry"
                 first=0
@@ -72,12 +86,21 @@ jobs:
 
           echo "Detected changed containers matrix: $json"
           echo "matrix=$json" >> "$GITHUB_OUTPUT"
-          
+
           # Create unique names matrix for publishing
           unique_json='{"include":['
           first=1
           for d in "${!dirs[@]}"; do
-            entry='{"name":"'"$d"'"}'
+            folder_type=$(echo "$d" | cut -d'/' -f1)
+            container_name=$(echo "$d" | cut -d'/' -f2)
+
+            if [ "$folder_type" == "sdg_containers" ]; then
+              image_name="asqiengineer/sdg-container"
+            else
+              image_name="asqiengineer/test-container"
+            fi
+
+            entry='{"name":"'"$container_name"'","folder_type":"'"$folder_type"'","image_name":"'"$image_name"'"}'
             if [ $first -eq 1 ]; then
               unique_json+="$entry"
               first=0
@@ -106,9 +129,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: No changes to test containers (noop)
+      - name: No changes to containers (noop)
         if: ${{ matrix.skip == true }}
-        run: echo "No changed test containers detected; skipping build/test/publish."
+        run: echo "No changed containers detected; skipping build/test/publish."
 
       - name: Set up QEMU
         if: ${{ matrix.skip != true }}
@@ -133,12 +156,12 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: ./test_containers/${{ matrix.name }}
+          context: ./${{ matrix.folder_type }}/${{ matrix.name }}
           platforms: ${{ matrix.platform }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${{ github.sha }}-${{ matrix.platform_pair }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ matrix.name }}-${{ matrix.platform_pair }}
-          cache-to: ${{ steps.docker_login.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && format('type=registry,ref={0}/{1}:cache-{2}-{3},mode=max', env.REGISTRY, env.IMAGE_NAME, matrix.name, matrix.platform_pair) || '' }}
+            ${{ env.REGISTRY }}/${{ matrix.image_name }}:${{ matrix.name }}-sha-${{ github.sha }}-${{ matrix.platform_pair }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ matrix.image_name }}:cache-${{ matrix.name }}-${{ matrix.platform_pair }}
+          cache-to: ${{ steps.docker_login.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && format('type=registry,ref={0}/{1}:cache-{2}-{3},mode=max', env.REGISTRY, matrix.image_name, matrix.name, matrix.platform_pair) || '' }}
           outputs: type=docker,dest=/tmp/image-${{ matrix.name }}-${{ matrix.platform_pair }}.tar
 
       - name: Smoke test ${{ matrix.name }} (${{ matrix.platform }})
@@ -146,7 +169,7 @@ jobs:
         run: |
           docker load -i /tmp/image-${{ matrix.name }}-${{ matrix.platform_pair }}.tar
           echo "Running smoke test for ${{ matrix.name }} (${{ matrix.platform }}) with --help command..."
-          docker run --rm --platform ${{ matrix.platform }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA}-${{ matrix.platform_pair }} --help
+          docker run --rm --platform ${{ matrix.platform }} ${{ env.REGISTRY }}/${{ matrix.image_name }}:${{ matrix.name }}-sha-${GITHUB_SHA}-${{ matrix.platform_pair }} --help
 
       - name: Upload Docker image as artifact (${{ matrix.name }}-${{ matrix.platform_pair }})
         if: ${{ matrix.skip != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository) }}
@@ -173,7 +196,7 @@ jobs:
     steps:
       - name: No changes to publish (noop)
         if: ${{ matrix.skip == true }}
-        run: echo "No changed test containers to publish."
+        run: echo "No changed containers to publish."
 
       - name: Download Docker image artifacts (${{ matrix.name }})
         if: ${{ matrix.skip != true }}
@@ -199,35 +222,37 @@ jobs:
         if: ${{ matrix.skip != true }}
         run: |
           set -euo pipefail
-          
+
+          IMAGE_NAME="${{ matrix.image_name }}"
+
           # Load both platform images and push them
           docker load -i /tmp/image-${{ matrix.name }}-linux-amd64.tar
           docker load -i /tmp/image-${{ matrix.name }}-linux-arm64.tar
-          
-          AMD64_SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA}-linux-amd64
-          ARM64_SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-sha-${GITHUB_SHA}-linux-arm64
-          
+
+          AMD64_SRC=${{ env.REGISTRY }}/${IMAGE_NAME}:${{ matrix.name }}-sha-${GITHUB_SHA}-linux-amd64
+          ARM64_SRC=${{ env.REGISTRY }}/${IMAGE_NAME}:${{ matrix.name }}-sha-${GITHUB_SHA}-linux-arm64
+
           # Push individual platform images
           docker push --quiet "${AMD64_SRC}"
           docker push --quiet "${ARM64_SRC}"
-          
+
           # Get digests for manifest creation
           AMD64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${AMD64_SRC}" | cut -d'@' -f2)
           ARM64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${ARM64_SRC}" | cut -d'@' -f2)
-          
+
           if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-            LATEST=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.name }}-latest
-            
+            LATEST=${{ env.REGISTRY }}/${IMAGE_NAME}:${{ matrix.name }}-latest
+
             # Create manifest list for latest tag
             docker buildx imagetools create \
               -t "${LATEST}" \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${AMD64_DIGEST} \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${ARM64_DIGEST}
+              ${{ env.REGISTRY }}/${IMAGE_NAME}@${AMD64_DIGEST} \
+              ${{ env.REGISTRY }}/${IMAGE_NAME}@${ARM64_DIGEST}
           fi
 
   build-and-test-tag:
     name: Build and test tagged container
-    if: startsWith(github.ref, 'refs/tags/test_containers/')
+    if: startsWith(github.ref, 'refs/tags/test_containers/') || startsWith(github.ref, 'refs/tags/sdg_containers/')
     runs-on: self-hosted
     environment:
       name: publish-docker-registry
@@ -246,6 +271,8 @@ jobs:
     outputs:
       name: ${{ steps.parse.outputs.name }}
       version: ${{ steps.parse.outputs.version }}
+      folder_type: ${{ steps.parse.outputs.folder_type }}
+      image_name: ${{ steps.parse.outputs.image_name }}
     steps:
       - name: Prepare platform variables
         run: |
@@ -256,22 +283,32 @@ jobs:
         id: parse
         run: |
           set -euo pipefail
-          # Tag format expected: test_containers/<name>/<version>
-          IFS='/' read -r root name version <<< "${FULL_REF}"
-          if [ "${root}" != "test_containers" ] || [ -z "${name}" ] || [ -z "${version}" ]; then
-            echo "Tag '${FULL_REF}' does not match required format: test_containers/<name>/<version>" >&2
+          # Tag format expected: test_containers/<name>/<version> or sdg_containers/<name>/<version>
+          IFS='/' read -r folder_type name version <<< "${FULL_REF}"
+          if [[ "${folder_type}" != "test_containers" && "${folder_type}" != "sdg_containers" ]] || [ -z "${name}" ] || [ -z "${version}" ]; then
+            echo "Tag '${FULL_REF}' does not match required format: {test_containers|sdg_containers}/<name>/<version>" >&2
             exit 1
           fi
+
+          # Set image name based on folder type
+          if [ "${folder_type}" == "sdg_containers" ]; then
+            image_name="asqiengineer/sdg-container"
+          else
+            image_name="asqiengineer/test-container"
+          fi
+
+          echo "folder_type=${folder_type}" >> "$GITHUB_OUTPUT"
           echo "name=${name}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "image_name=${image_name}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Verify Dockerfile exists
         run: |
-          if [ ! -f "test_containers/${{ steps.parse.outputs.name }}/Dockerfile" ]; then
-            echo "Dockerfile not found for container '${{ steps.parse.outputs.name }}'" >&2
+          if [ ! -f "${{ steps.parse.outputs.folder_type }}/${{ steps.parse.outputs.name }}/Dockerfile" ]; then
+            echo "Dockerfile not found for container '${{ steps.parse.outputs.name }}' in '${{ steps.parse.outputs.folder_type }}'" >&2
             exit 1
           fi
 
@@ -294,19 +331,19 @@ jobs:
         id: build_tag
         uses: docker/build-push-action@v6
         with:
-          context: ./test_containers/${{ steps.parse.outputs.name }}
+          context: ./${{ steps.parse.outputs.folder_type }}/${{ steps.parse.outputs.name }}
           platforms: ${{ matrix.platform }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${{ github.sha }}-${{ env.PLATFORM_PAIR }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}
-          cache-to: ${{ steps.docker_login.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && format('type=registry,ref={0}/{1}:cache-{2}-{3},mode=max', env.REGISTRY, env.IMAGE_NAME, steps.parse.outputs.name, env.PLATFORM_PAIR) || '' }}
+            ${{ env.REGISTRY }}/${{ steps.parse.outputs.image_name }}:${{ steps.parse.outputs.name }}-sha-${{ github.sha }}-${{ env.PLATFORM_PAIR }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.parse.outputs.image_name }}:cache-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}
+          cache-to: ${{ steps.docker_login.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && format('type=registry,ref={0}/{1}:cache-{2}-{3},mode=max', env.REGISTRY, steps.parse.outputs.image_name, steps.parse.outputs.name, env.PLATFORM_PAIR) || '' }}
           outputs: type=docker,dest=/tmp/image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}.tar
 
       - name: Smoke test ${{ steps.parse.outputs.name }} (${{ matrix.platform }})
         run: |
           docker load -i /tmp/image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}.tar
           echo "Running smoke test for ${{ steps.parse.outputs.name }} (${{ matrix.platform }}) with --help command..."
-          docker run --rm --platform ${{ matrix.platform }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.parse.outputs.name }}-sha-${GITHUB_SHA}-${{ env.PLATFORM_PAIR }} --help
+          docker run --rm --platform ${{ matrix.platform }} ${{ env.REGISTRY }}/${{ steps.parse.outputs.image_name }}:${{ steps.parse.outputs.name }}-sha-${GITHUB_SHA}-${{ env.PLATFORM_PAIR }} --help
 
       - name: Upload Docker image as artifact
         uses: actions/upload-artifact@v6
@@ -318,7 +355,7 @@ jobs:
   publish-tag:
     name: Publish tagged container
     needs: build-and-test-tag
-    if: startsWith(github.ref, 'refs/tags/test_containers/')
+    if: startsWith(github.ref, 'refs/tags/test_containers/') || startsWith(github.ref, 'refs/tags/sdg_containers/')
     runs-on: self-hosted
     environment:
       name: publish-docker-registry
@@ -351,39 +388,39 @@ jobs:
           set -euo pipefail
           NAME='${{ needs.build-and-test-tag.outputs.name }}'
           VERSION='${{ needs.build-and-test-tag.outputs.version }}'
-          
+          IMAGE_NAME='${{ needs.build-and-test-tag.outputs.image_name }}'
+
           # Load both platform images and push them
           docker load -i "/tmp/image-${NAME}-linux-amd64.tar"
           docker load -i "/tmp/image-${NAME}-linux-arm64.tar"
-          
-          AMD64_SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${NAME}-sha-${GITHUB_SHA}-linux-amd64
-          ARM64_SRC=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${NAME}-sha-${GITHUB_SHA}-linux-arm64
-          
+
+          AMD64_SRC=${{ env.REGISTRY }}/${IMAGE_NAME}:${NAME}-sha-${GITHUB_SHA}-linux-amd64
+          ARM64_SRC=${{ env.REGISTRY }}/${IMAGE_NAME}:${NAME}-sha-${GITHUB_SHA}-linux-arm64
+
           # Push individual platform images
           docker push --quiet "${AMD64_SRC}"
           docker push --quiet "${ARM64_SRC}"
-          
+
           # Get digests for manifest creation
           AMD64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${AMD64_SRC}" | cut -d'@' -f2)
           ARM64_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${ARM64_SRC}" | cut -d'@' -f2)
-          
-          DEST=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${NAME}-${VERSION}
-          
+
+          DEST=${{ env.REGISTRY }}/${IMAGE_NAME}:${NAME}-${VERSION}
+
           # Create manifest list for versioned tag
           docker buildx imagetools create \
             -t "${DEST}" \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${AMD64_DIGEST} \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${ARM64_DIGEST}
-          
+            ${{ env.REGISTRY }}/${IMAGE_NAME}@${AMD64_DIGEST} \
+            ${{ env.REGISTRY }}/${IMAGE_NAME}@${ARM64_DIGEST}
+
           # Get final manifest digest for attestation
           DIGEST=$(docker buildx imagetools inspect "${DEST}" --format '{{.Manifest.Digest}}')
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
-# activate when public GH repo
-#      - name: Attest
-#        uses: actions/attest-build-provenance@v3
-#        id: attest
-#        with:
-#          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-#          subject-digest: ${{ steps.push.outputs.digest }}
-#          push-to-registry: true
+      - name: Attest
+        uses: actions/attest-build-provenance@v3
+        id: attest
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ needs.build-and-test-tag.outputs.image_name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
