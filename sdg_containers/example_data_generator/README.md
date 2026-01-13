@@ -37,7 +37,7 @@ Each output sample is marked as either original or synthetic, with tracking of w
 1. Build the container:
 ```bash
 cd sdg_containers/example_data_generator
-docker build -t example_data_generator:latest .
+docker build -t asqiengineer/sdg-container:example_data_generator-latest .
 ```
 
 **Note:** The container uses `uv` for fast dependency management and installs the unpublished `asqi-engineer` library directly from GitHub. The Dockerfile includes git installation to support this.
@@ -109,7 +109,7 @@ job_name: "Example Data Augmentation"
 generation_jobs:
   - id: "review_augmentation"
     name: "Review Data Augmentation"
-    image: "example_data_generator:latest"
+    image: "asqiengineer/sdg-container:example_data_generator-latest"
     input_datasets:
       source_data: sample_reviews  # Maps to dataset registry
     params:

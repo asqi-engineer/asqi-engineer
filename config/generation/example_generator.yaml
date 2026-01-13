@@ -5,7 +5,7 @@ job_name: "Example Data Augmentation"
 generation_jobs:
   - id: "review_augmentation"
     name: "Review Data Augmentation"
-    image: "example_data_generator:latest"
+    image: "asqiengineer/sdg-container:example_data_generator-latest"
 
     params:
       num_variations: 2
