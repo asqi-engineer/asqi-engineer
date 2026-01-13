@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Union
 
 from datasets import Dataset, load_dataset
@@ -5,12 +6,18 @@ from datasets import Dataset, load_dataset
 from asqi.schemas import HFDatasetDefinition
 
 
-def load_hf_dataset(dataset_config: Union[dict, HFDatasetDefinition]) -> Dataset:
+def load_hf_dataset(
+    dataset_config: Union[dict, HFDatasetDefinition],
+    input_mount_path: Path | None = None,
+) -> Dataset:
     # TODO: consider using load_from_disk for caching purposes
     """Load a HuggingFace dataset using the provided loader parameters.
 
     Args:
         dataset_config: Configuration for loading the HuggingFace dataset.
+        input_mount_path: Optional path to prepend to relative data_files/data_dir paths.
+            Typically used in containers to resolve paths relative to the input mount point.
+            Absolute paths in the dataset config are not modified.
 
     Returns:
         Dataset: Loaded HuggingFace dataset.
@@ -37,6 +44,21 @@ def load_hf_dataset(dataset_config: Union[dict, HFDatasetDefinition]) -> Dataset
     #    a DatasetDict containing a single "train" split
     # 2. We want this function to always return a Dataset (not DatasetDict) for simplicity
     # 3. The "train" split is the default convention for single-split datasets in HuggingFace
+    if input_mount_path:
+        if loader_params.data_dir:
+            loader_params.data_dir = (
+                input_mount_path / Path(loader_params.data_dir)
+            ).as_posix()
+        elif loader_params.data_files:
+            if isinstance(loader_params.data_files, list):
+                loader_params.data_files = [
+                    (input_mount_path / Path(file)).as_posix()
+                    for file in loader_params.data_files
+                ]
+            else:
+                loader_params.data_files = (
+                    input_mount_path / Path(loader_params.data_files)
+                ).as_posix()
     dataset = load_dataset(  # nosec B615
         path=loader_params.builder_name,
         data_dir=loader_params.data_dir,
