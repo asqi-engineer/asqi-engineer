@@ -1,0 +1,18 @@
+[
+  {
+    "input": "What is your return policy?",
+    "expected_output": "We offer 30-day returns on all products with receipt or proof of purchase. Items must be in original condition."
+  },
+  {
+    "input": "How do I track my order?",
+    "expected_output": "You can track your order using the tracking link sent to your email after shipment. It typically takes 24-48 hours to activate."
+  },
+  {
+    "input": "Do you offer international shipping?",
+    "expected_output": "Yes, we ship to over 50 countries worldwide. International delivery typically takes 7-14 business days."
+  },
+  {
+    "input": "What payment methods do you accept?",
+    "expected_output": "We accept credit cards (Visa, MasterCard, Amex), PayPal, Apple Pay, and Google Pay."
+  }
+]
