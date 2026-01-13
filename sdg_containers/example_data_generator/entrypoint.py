@@ -27,16 +27,18 @@ from asqi.datasets import load_hf_dataset
 from asqi.response_schemas import ContainerOutput, GeneratedDataset
 
 
-def load_input_dataset(dataset_config: Dict[str, Any], input_mount_path: Path) -> Dataset:
+def load_input_dataset(
+    dataset_config: Dict[str, Any], input_mount_path: Path
+) -> Dataset:
     """
     Load a HuggingFace dataset using ASQI's load_hf_dataset utility.
 
-    The dataset paths are already resolved by ASQI's workflow system before
-    being passed to the container, so no additional path resolution is needed.
+    The input_mount_path is passed to load_hf_dataset to resolve relative file paths
+    in the dataset config (e.g., data_files: "sample.json" becomes "/input/sample.json").
 
     Args:
-        dataset_config: Dataset configuration with loader_params (paths already resolved)
-        input_mount_path: Path to the input mount
+        dataset_config: Dataset configuration with loader_params
+        input_mount_path: Path to the input mount (typically /input)
 
     Returns:
         Loaded HuggingFace Dataset
@@ -217,7 +219,9 @@ def main():
         # Step 1: Load input dataset
         print("\n[1/3] Loading input dataset...")
         source_config = input_datasets["source_data"]
-        source_dataset = load_input_dataset(source_config, input_mount_path=input_mount_path)
+        source_dataset = load_input_dataset(
+            source_config, input_mount_path=input_mount_path
+        )
         print(f"Loaded {len(source_dataset)} samples from source_data")
 
         # Step 2: Generate augmented data
