@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+
+suite_name: "Chatbot Simulator with Dataset Example"
+
+test_suite:
+  - id: "chatbot_dataset_test"
+    name: "Customer Service Chatbot with Dataset"
+    image: "asqiengineer/test-container:chatbot_simulator-latest"
+    systems_under_test: ["nova_lite"]
+    systems:
+      simulator_system: openai_gpt4o_mini
+      evaluator_system: nova_lite
+    # Use sample dataset from registry
+    input_datasets:
+      test_scenarios: "sample_chatbot_scenarios"
+    params:
+      chatbot_purpose: "customer service chatbot for e-commerce platform"
+      max_turns: 2
+      simulations_per_scenario: 1
+      success_threshold: 0.7
+    volumes:
+      input: "config/datasets/"
+      output: "output/"
