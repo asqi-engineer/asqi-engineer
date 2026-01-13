@@ -27,7 +27,7 @@ from asqi.datasets import load_hf_dataset
 from asqi.response_schemas import ContainerOutput, GeneratedDataset
 
 
-def load_input_dataset(dataset_config: Dict[str, Any]) -> Dataset:
+def load_input_dataset(dataset_config: Dict[str, Any], input_mount_path: Path) -> Dataset:
     """
     Load a HuggingFace dataset using ASQI's load_hf_dataset utility.
 
@@ -36,11 +36,12 @@ def load_input_dataset(dataset_config: Dict[str, Any]) -> Dataset:
 
     Args:
         dataset_config: Dataset configuration with loader_params (paths already resolved)
+        input_mount_path: Path to the input mount
 
     Returns:
         Loaded HuggingFace Dataset
     """
-    dataset = load_hf_dataset(dataset_config)
+    dataset = load_hf_dataset(dataset_config, input_mount_path=input_mount_path)
     print(f"Loaded {len(dataset)} samples")
     return dataset
 
@@ -216,7 +217,7 @@ def main():
         # Step 1: Load input dataset
         print("\n[1/3] Loading input dataset...")
         source_config = input_datasets["source_data"]
-        source_dataset = load_input_dataset(source_config)
+        source_dataset = load_input_dataset(source_config, input_mount_path=input_mount_path)
         print(f"Loaded {len(source_dataset)} samples from source_data")
 
         # Step 2: Generate augmented data
