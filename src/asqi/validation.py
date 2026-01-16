@@ -622,13 +622,13 @@ def create_test_execution_plan(
                 )
             test_params = base_params or {}
 
-        systems_params = {}
+        base_systems_params: Dict[str, Any] = {}
         # Add additional systems if specified
         if hasattr(test, "systems") and test.systems:
             for system_role, referenced_system_name in test.systems.items():
                 referenced_system_def = system_definitions.get(referenced_system_name)
                 if referenced_system_def:
-                    systems_params[system_role] = {
+                    base_systems_params[system_role] = {
                         "type": referenced_system_def.type,
                         "description": referenced_system_def.description,
                         "provider": referenced_system_def.provider,
@@ -643,6 +643,8 @@ def create_test_execution_plan(
             system_def = system_definitions.get(system_name)
             if not system_def or not getattr(system_def, "type", None):
                 continue
+
+            systems_params = dict(base_systems_params)
 
             # Build unified systems_params with system_under_test and additional systems
             systems_params["system_under_test"] = {
