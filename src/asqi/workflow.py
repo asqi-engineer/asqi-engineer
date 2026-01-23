@@ -7,11 +7,6 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from dbos import DBOS, DBOSConfig, Queue
-from dotenv import dotenv_values, load_dotenv
-from pydantic import ValidationError
-from rich.console import Console
-
 from asqi.config import (
     ContainerConfig,
     ExecutionMode,
@@ -69,6 +64,10 @@ from asqi.validation import (
     validate_test_volumes,
     validate_workflow_configurations,
 )
+from dbos import DBOS, DBOSConfig, Queue
+from dotenv import dotenv_values, load_dotenv
+from pydantic import ValidationError
+from rich.console import Console
 
 load_dotenv()
 oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -524,11 +523,8 @@ def _execute_container_job(
     # Execute container
     result.start_time = time.time()
 
-    # Generate container name: {name}-{id}-{short_uuid}
-    truncated_name = item_name.lower().replace(" ", "_")[:25]
-    truncated_id = item_id.lower()[:25]
-    prefix = f"{truncated_name}-{truncated_id}"
-    container_name = f"{prefix}-{str(uuid.uuid4())[:8]}"
+    # Generate container name: {id}-{short_uuid}
+    container_name = f"{item_id}-{str(uuid.uuid4())[:8]}"
 
     container_result = run_container_with_args(
         image=image,
