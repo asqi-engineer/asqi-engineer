@@ -408,7 +408,7 @@ output_datasets:
         required: true
 ```
 
-The `required` field (defaults to `true`) indicates whether a feature must be present in every row of the dataset.
+The `required` field (defaults to `false`) indicates whether a feature must be present in every row of the dataset.
 
 ### Multiple Input Dataset Types
 
