@@ -16,6 +16,7 @@ from asqi.schemas import (
     ListFeature,
     OutputDataset,
     ValueFeature,
+    VideoFeature,
 )
 
 
@@ -540,6 +541,27 @@ class TestAudioFeature:
         assert aud.description == "Audio recording of conversation"
 
 
+class TestVideoFeature:
+    """Test the VideoFeature model."""
+
+    def test_create_video_feature(self):
+        """Test creating a VideoFeature."""
+        vid = VideoFeature(name="video")
+        assert vid.name == "video"
+        assert vid.feature_type == "Video"
+        assert vid.required is True
+
+    def test_video_feature_optional(self):
+        """Test VideoFeature can be marked as optional."""
+        vid = VideoFeature(name="clip", required=False)
+        assert vid.required is False
+
+    def test_video_feature_with_description(self):
+        """Test VideoFeature with description."""
+        vid = VideoFeature(name="demo_video", description="Product demonstration video")
+        assert vid.description == "Product demonstration video"
+
+
 class TestMixedFeatureTypes:
     """Test using mixed old and new feature types together."""
 
@@ -631,9 +653,10 @@ class TestDiscriminatedUnion:
             ClassLabelFeature(name="c", names=["a"]),
             ImageFeature(name="i"),
             AudioFeature(name="a"),
+            VideoFeature(name="vid"),
         ]
 
-        expected_types = ["Value", "List", "ClassLabel", "Image", "Audio"]
+        expected_types = ["Value", "List", "ClassLabel", "Image", "Audio", "Video"]
 
         for feat, expected in zip(features, expected_types):
             assert feat.feature_type == expected
@@ -692,6 +715,12 @@ class TestOptionalFeatures:
 
         auf = AudioFeature(name="optional_narration", required=False)
         assert auf.required is False
+
+    def test_video_feature_optional(self):
+        """Test creating optional VideoFeature."""
+
+        vdf = VideoFeature(name="optional_video_clip", required=False)
+        assert vdf.required is False
 
     def test_output_dataset_with_optional_features(self):
         """Test OutputDataset with mix of required and optional features."""

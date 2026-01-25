@@ -91,10 +91,10 @@ class ListFeature(BaseModel):
     name: str = Field(..., description="The name of the feature")
     feature: Union[
         HFDtype,
-        Literal["Image", "Audio", "ClassLabel", "Dict", "List"],
+        Literal["Image", "Audio", "Video", "ClassLabel", "Dict", "List"],
     ] = Field(
         ...,
-        description="List element type. Can be: (1) scalar dtype string ('string', 'int32', etc.) for List(Value(dtype)), or (2) simple feature type name ('Image', 'Audio', 'ClassLabel', 'Dict', 'List') for List(FeatureType()). For complex nested structures with custom parameters, define nested ListFeature or DictFeature objects.",
+        description="List element type. Can be: (1) scalar dtype string ('string', 'int32', etc.) for List(Value(dtype)), or (2) simple feature type name ('Image', 'Audio', 'Video', 'ClassLabel', 'Dict', 'List') for List(FeatureType()). For complex nested structures with custom parameters, define nested ListFeature or DictFeature objects.",
     )
     length: int = Field(
         default=-1,
@@ -198,6 +198,23 @@ class AudioFeature(BaseModel):
     )
 
 
+class VideoFeature(BaseModel):
+    """Corresponds to HuggingFace's Video feature type."""
+
+    feature_type: Literal["Video"] = Field(
+        default="Video", description="Feature type discriminator"
+    )
+    name: str = Field(..., description="The name of the feature")
+    required: bool = Field(
+        default=True,
+        description="Whether this feature is required in the dataset. "
+        "If False, the feature may be absent or contain null values.",
+    )
+    description: Optional[str] = Field(
+        default=None, description="Description of the video feature"
+    )
+
+
 # Union type for all HuggingFace feature types
 HFFeature = Annotated[
     Union[
@@ -207,6 +224,7 @@ HFFeature = Annotated[
         ClassLabelFeature,
         ImageFeature,
         AudioFeature,
+        VideoFeature,
     ],
     Field(discriminator="feature_type"),
 ]

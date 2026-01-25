@@ -1,7 +1,7 @@
 {
   "$defs": {
     "AudioFeature": {
-      "description": "Corresponds to HuggingFace's Audio feature type.\n\nDeclares that this dataset column contains audio data. The container is responsible\nfor handling audio processing details (resampling, channel conversion, decoding, etc.).",
+      "description": "Corresponds to HuggingFace's Audio feature type.",
       "properties": {
         "feature_type": {
           "const": "Audio",
@@ -179,7 +179,7 @@
         "feature_type": {
           "const": "Dict",
           "default": "Dict",
-          "description": "Feature type discriminator (Python dict composite feature)",
+          "description": "Feature type discriminator",
           "title": "Feature Type",
           "type": "string"
         },
@@ -198,7 +198,8 @@
                 "Dict": "#/$defs/DictFeature",
                 "Image": "#/$defs/ImageFeature",
                 "List": "#/$defs/ListFeature",
-                "Value": "#/$defs/ValueFeature"
+                "Value": "#/$defs/ValueFeature",
+                "Video": "#/$defs/VideoFeature"
               },
               "propertyName": "feature_type"
             },
@@ -220,6 +221,9 @@
               },
               {
                 "$ref": "#/$defs/AudioFeature"
+              },
+              {
+                "$ref": "#/$defs/VideoFeature"
               }
             ]
           },
@@ -289,7 +293,7 @@
       "type": "object"
     },
     "ImageFeature": {
-      "description": "Corresponds to HuggingFace's Image feature type.\n\nDeclares that this dataset column contains image data. The container is responsible\nfor handling image processing details (decoding, color mode conversion, etc.).",
+      "description": "Corresponds to HuggingFace's Image feature type.",
       "properties": {
         "feature_type": {
           "const": "Image",
@@ -387,7 +391,8 @@
                         "Dict": "#/$defs/DictFeature",
                         "Image": "#/$defs/ImageFeature",
                         "List": "#/$defs/ListFeature",
-                        "Value": "#/$defs/ValueFeature"
+                        "Value": "#/$defs/ValueFeature",
+                        "Video": "#/$defs/VideoFeature"
                       },
                       "propertyName": "feature_type"
                     },
@@ -409,6 +414,9 @@
                       },
                       {
                         "$ref": "#/$defs/AudioFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/VideoFeature"
                       }
                     ]
                   }
@@ -537,6 +545,7 @@
               "enum": [
                 "Image",
                 "Audio",
+                "Video",
                 "ClassLabel",
                 "Dict",
                 "List"
@@ -544,7 +553,7 @@
               "type": "string"
             }
           ],
-          "description": "List element type. Can be: (1) scalar dtype string ('string', 'int32', etc.) for List(Value(dtype)), or (2) simple feature type name ('Image', 'Audio', 'ClassLabel', 'Dict', 'List') for List(FeatureType()). For complex nested structures with custom parameters, define nested ListFeature or DictFeature objects.",
+          "description": "List element type. Can be: (1) scalar dtype string ('string', 'int32', etc.) for List(Value(dtype)), or (2) simple feature type name ('Image', 'Audio', 'Video', 'ClassLabel', 'Dict', 'List') for List(FeatureType()). For complex nested structures with custom parameters, define nested ListFeature or DictFeature objects.",
           "title": "Feature"
         },
         "length": {
@@ -652,7 +661,8 @@
                         "Dict": "#/$defs/DictFeature",
                         "Image": "#/$defs/ImageFeature",
                         "List": "#/$defs/ListFeature",
-                        "Value": "#/$defs/ValueFeature"
+                        "Value": "#/$defs/ValueFeature",
+                        "Video": "#/$defs/VideoFeature"
                       },
                       "propertyName": "feature_type"
                     },
@@ -674,6 +684,9 @@
                       },
                       {
                         "$ref": "#/$defs/AudioFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/VideoFeature"
                       }
                     ]
                   }
@@ -906,6 +919,47 @@
         "dtype"
       ],
       "title": "ValueFeature",
+      "type": "object"
+    },
+    "VideoFeature": {
+      "description": "Video feature type for multimodal datasets.\n\nDeclares that this dataset column contains video data. The container is responsible\nfor handling video processing details (resolution, framerate, codec, decoding, etc.).",
+      "properties": {
+        "feature_type": {
+          "const": "Video",
+          "default": "Video",
+          "description": "Feature type discriminator",
+          "title": "Feature Type",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name of the feature",
+          "title": "Name",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the video feature",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "VideoFeature",
       "type": "object"
     }
   },
