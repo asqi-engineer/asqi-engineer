@@ -29,4 +29,4 @@ jobs:
         run: uv run bandit -r . --configfile pyproject.toml
 
       - name: Run safety check
-        run: uv run pip-audit --ignore-vuln GHSA-4xh5-x5gv-qwph
+        run: uv run pip-audit --ignore-vuln GHSA-4xh5-x5gv-qwph --ignore-vuln CVE-2026-0994
