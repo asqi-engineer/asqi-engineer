@@ -73,7 +73,7 @@ class ValueFeature(BaseModel):
         "See: https://huggingface.co/docs/datasets/about_dataset_features",
     )
     required: bool = Field(
-        default=True,
+        default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
@@ -101,7 +101,7 @@ class ListFeature(BaseModel):
         description="List length constraint: -1 for variable-length lists, >=0 for fixed-length sequences.",
     )
     required: bool = Field(
-        default=True,
+        default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
@@ -133,7 +133,7 @@ class DictFeature(BaseModel):
         description="Named fields within the dict. Each field can be any HFFeature type (Value, List, Dict, etc.)",
     )
     required: bool = Field(
-        default=True,
+        default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
@@ -155,7 +155,7 @@ class ClassLabelFeature(BaseModel):
         description="Category names (e.g., ['positive', 'negative', 'neutral'])",
     )
     required: bool = Field(
-        default=True,
+        default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
@@ -172,7 +172,7 @@ class ImageFeature(BaseModel):
     )
     name: str = Field(..., description="The name of the feature")
     required: bool = Field(
-        default=True,
+        default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
@@ -189,7 +189,7 @@ class AudioFeature(BaseModel):
     )
     name: str = Field(..., description="The name of the feature")
     required: bool = Field(
-        default=True,
+        default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
@@ -206,12 +206,34 @@ class VideoFeature(BaseModel):
     )
     name: str = Field(..., description="The name of the feature")
     required: bool = Field(
-        default=True,
+        default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
     description: Optional[str] = Field(
         default=None, description="Description of the video feature"
+    )
+
+
+class DatasetFeature(BaseModel):
+    """Defines a feature/column within a dataset.
+
+    The dtype field uses HuggingFace datasets dtype values.
+    Common types: 'string', 'int64', 'float32', 'bool'.
+    """
+
+    name: str = Field(
+        ...,
+        description="The name of the feature.",
+    )
+    dtype: HFDtype = Field(
+        default=...,
+        description="The data type of the feature. "
+        "Common types: 'string', 'int64', 'int32', 'float64', 'float32', 'bool'. "
+        "See: https://huggingface.co/docs/datasets/about_dataset_features",
+    )
+    description: Optional[str] = Field(
+        default=None, description="Description of the feature - data type, purpose etc."
     )
 
 
@@ -294,28 +316,6 @@ class EnvironmentVariable(BaseModel):
     )
     description: Optional[str] = Field(
         None, description="Explanation of what this variable is used for."
-    )
-
-
-class DatasetFeature(BaseModel):
-    """Defines a feature/column within a dataset.
-
-    The dtype field uses HuggingFace datasets dtype values.
-    Common types: 'string', 'int64', 'float32', 'bool'.
-    """
-
-    name: str = Field(
-        ...,
-        description="The name of the feature.",
-    )
-    dtype: HFDtype = Field(
-        default=...,
-        description="The data type of the feature. "
-        "Common types: 'string', 'int64', 'int32', 'float64', 'float32', 'bool'. "
-        "See: https://huggingface.co/docs/datasets/about_dataset_features",
-    )
-    description: Optional[str] = Field(
-        default=None, description="Description of the feature - data type, purpose etc."
     )
 
 
@@ -649,15 +649,15 @@ class DatasetLoaderParams(BaseModel):
         description="The dataset builder name. Gets passed to datasets.load_dataset() as the path argument.",
     )
     data_dir: Optional[str] = Field(
-        None,
+        default=None,
         description="Directory containing dataset files, relative to the input mount.",
     )
     data_files: Optional[Union[str, list[str]]] = Field(
-        None,
+        default=None,
         description="Single file path or list of file paths, relative to the input mount.",
     )
     revision: Optional[str] = Field(
-        None,
+        default=None,
         description="Git revision (commit hash, tag, or branch) for HuggingFace Hub datasets. "
         "Required for security when loading datasets from the Hub. "
         "Not needed for local file loaders (json, csv, parquet, etc.).",
@@ -678,7 +678,7 @@ class HFDatasetDefinition(BaseModel):
         description="Dataset type identifier for HuggingFace datasets.",
     )
     description: Optional[str] = Field(
-        None,
+        default=None,
         description="Human-readable description of the dataset's purpose and contents.",
     )
     loader_params: DatasetLoaderParams = Field(
