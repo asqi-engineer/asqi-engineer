@@ -212,6 +212,206 @@ output_datasets:
         description: "Source document context"
 ```
 
+### HuggingFace Feature Types
+
+ASQI supports the full range of HuggingFace dataset feature types for declaring dataset schemas. Features are schema declarations that describe the structure of your data without specifying processing details.
+
+#### Value Features (Scalars)
+
+For scalar data types like strings, numbers, and booleans:
+
+```yaml
+output_datasets:
+  - name: "text_dataset"
+    type: "huggingface"
+    features:
+      - name: "id"
+        dtype: "string"
+      - name: "score"
+        dtype: "float32"
+      - name: "is_valid"
+        dtype: "bool"
+```
+
+**Supported scalar dtypes:**
+- **Numeric**: `int8`, `int16`, `int32`, `int64`, `uint8-64`, `float16`, `float32`, `float64`
+- **String**: `string`, `large_string`, `binary`, `large_binary`
+- **Boolean**: `bool`
+- **Temporal**: `timestamp[s|ms|us|ns]`, `date32`, `date64`, `duration[s|ms|us|ns]`, `time32/64[s|ms|us|ns]`
+
+#### List Features (Sequences)
+
+For variable-length or fixed-length sequences:
+
+```yaml
+output_datasets:
+  - name: "conversation_data"
+    type: "huggingface"
+    features:
+      - name: "conversation_id"
+        dtype: "string"
+      - name: "turns"
+        feature_type: "List"
+        feature: "string"  # List of strings
+        description: "List of conversation turns"
+      - name: "timestamps"
+        feature_type: "List"
+        feature: "int64"
+        length: 10  # Fixed-length list (optional, -1 for variable)
+```
+
+#### ClassLabel Features (Categorical)
+
+For categorical data with named categories:
+
+```yaml
+output_datasets:
+  - name: "sentiment_data"
+    type: "huggingface"
+    features:
+      - name: "text"
+        dtype: "string"
+      - name: "sentiment"
+        feature_type: "ClassLabel"
+        names: ["positive", "negative", "neutral"]
+        description: "Sentiment classification"
+```
+
+#### Image Features
+
+For image datasets:
+
+```yaml
+output_datasets:
+  - name: "image_dataset"
+    type: "huggingface"
+    features:
+      - name: "image"
+        feature_type: "Image"
+        description: "Product image"
+      - name: "caption"
+        dtype: "string"
+```
+
+#### Audio Features
+
+For audio datasets:
+
+```yaml
+output_datasets:
+  - name: "audio_dataset"
+    type: "huggingface"
+    features:
+      - name: "audio"
+        feature_type: "Audio"
+        description: "Audio recording"
+      - name: "transcript"
+        dtype: "string"
+```
+
+#### Video Features
+
+For video datasets:
+
+```yaml
+output_datasets:
+  - name: "video_dataset"
+    type: "huggingface"
+    features:
+      - name: "video"
+        feature_type: "Video"
+        description: "Video clip"
+      - name: "caption"
+        dtype: "string"
+```
+
+**Note:** Image, Audio, and Video features are schema declarations only. The container is responsible for handling processing details like resampling, color mode conversion, resolution, framerate, and decoding.
+
+#### Nested Structures (Dict Features)
+
+For complex nested structures like question-answering datasets:
+
+```yaml
+output_datasets:
+  - name: "qa_dataset"
+    type: "huggingface"
+    description: "Question answering dataset with nested answer structure"
+    features:
+      - name: "id"
+        dtype: "string"
+      - name: "question"
+        dtype: "string"
+      - name: "answers"
+        feature_type: "Dict"
+        description: "Answer annotations with multiple fields"
+        fields:
+          - name: "text"
+            feature_type: "List"
+            feature: "string"
+            description: "Answer text strings"
+          - name: "answer_start"
+            feature_type: "List"
+            feature: "int32"
+            description: "Character positions where answers start"
+```
+
+This corresponds to the SQuAD dataset structure where `answers` is a dict containing lists.
+
+#### Multimodal Datasets
+
+Combine different feature types for multimodal datasets:
+
+```yaml
+output_datasets:
+  - name: "multimodal_data"
+    type: "huggingface"
+    features:
+      - name: "image"
+        feature_type: "Image"
+      - name: "audio"
+        feature_type: "Audio"
+      - name: "video"
+        feature_type: "Video"
+      - name: "caption"
+        dtype: "string"
+      - name: "tags"
+        feature_type: "List"
+        feature: "string"
+      - name: "category"
+        feature_type: "ClassLabel"
+        names: ["tutorial", "demo", "advertisement"]
+```
+
+#### Optional Features (Sparse Data)
+
+Features can be marked as optional for datasets where some columns may be absent or contain null values:
+
+```yaml
+output_datasets:
+  - name: "product_catalog"
+    type: "huggingface"
+    features:
+      - name: "product_id"
+        dtype: "string"
+        required: true  # Must be present in every row
+      - name: "name"
+        dtype: "string"
+        required: true
+      - name: "description"
+        dtype: "string"
+        required: false  # Optional - not all products have descriptions
+      - name: "thumbnail"
+        feature_type: "Image"
+        required: false  # Optional - not all products have images
+      - name: "price"
+        dtype: "float32"
+        required: true
+```
+
+The `required` field (defaults to `true`) indicates whether a feature must be present in every row of the dataset.
+
+### Multiple Input Dataset Types
+
 Test containers can declare support for multiple dataset formats, allowing users flexibility in providing data while ensuring the container can handle different input types.
 
 **Single Type:**
