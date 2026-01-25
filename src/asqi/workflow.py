@@ -576,11 +576,12 @@ def _execute_container_job(
 
         result.success = result.results.get("success", False)
     except ValueError as e:
-        # JSON parsing failed - use Docker error if available
-        if not result.error_message:
-            result.error_message = (
-                f"Failed to parse JSON output from item id '{item_id}': {e}"
-            )
+        # JSON parsing failed - combine with Docker error if present
+        parsing_error = f"Failed to parse JSON output from item id '{item_id}': {e}"
+        if result.error_message:
+            result.error_message = f"{result.error_message} | {parsing_error}"
+        else:
+            result.error_message = parsing_error
         result.success = False
         DBOS.logger.error(
             f"JSON parsing failed for item id {item_id}: {result.container_output[:200]}..."

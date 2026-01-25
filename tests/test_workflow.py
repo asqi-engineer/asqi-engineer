@@ -393,6 +393,37 @@ def test_execute_single_test_combined_docker_and_json_errors():
     assert "Internal validation error" in result.error_message
 
 
+def test_execute_single_test_docker_error_with_json_parse_failure():
+    """Test that Docker errors and JSON parsing errors are combined."""
+    # Container crashes with Docker error AND produces unparseable output
+    unparseable_output = "Some log output\n{incomplete json..."
+
+    with patch("asqi.workflow.run_container_with_args") as run_mock:
+        run_mock.return_value = {
+            "success": False,
+            "exit_code": 137,  # OOM killed
+            "output": unparseable_output,
+            "error": "Container exceeded memory limit",
+            "container_id": "abc123",
+        }
+
+        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+        result = inner_step(
+            test_id="crash_with_bad_output",
+            test_name="crash with bad output",
+            image="test/image:latest",
+            sut_name="systemA",
+            systems_params={"system_under_test": {"type": "llm_api"}},
+            test_params={},
+            container_config=ContainerConfig(),
+        )
+
+    # Verify both Docker error and parsing error are present
+    assert result.success is False
+    assert "Container exceeded memory limit" in result.error_message
+    assert "Failed to parse JSON output" in result.error_message
+
+
 def test_execute_single_test_env_file_falsy_values():
     """Test that env_file processing is skipped when env_file has falsy values."""
     fake_container_output = '{"success": true, "metric": 1}'
