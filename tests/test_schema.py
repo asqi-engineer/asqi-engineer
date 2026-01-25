@@ -505,7 +505,7 @@ class TestImageFeature:
         img = ImageFeature(name="image")
         assert img.name == "image"
         assert img.feature_type == "Image"
-        assert img.required is True
+        assert img.required is False
 
     def test_image_feature_optional(self):
         """Test ImageFeature can be marked as optional."""
@@ -526,7 +526,7 @@ class TestAudioFeature:
         aud = AudioFeature(name="audio")
         assert aud.name == "audio"
         assert aud.feature_type == "Audio"
-        assert aud.required is True
+        assert aud.required is False
 
     def test_audio_feature_optional(self):
         """Test AudioFeature can be marked as optional."""
@@ -549,7 +549,7 @@ class TestVideoFeature:
         vid = VideoFeature(name="video")
         assert vid.name == "video"
         assert vid.feature_type == "Video"
-        assert vid.required is True
+        assert vid.required is False
 
     def test_video_feature_optional(self):
         """Test VideoFeature can be marked as optional."""
@@ -678,11 +678,11 @@ class TestDiscriminatedUnion:
 class TestOptionalFeatures:
     """Test optional/required field in all feature types."""
 
-    def test_value_feature_required_defaults_to_true(self):
-        """Test that required defaults to True for backward compatibility."""
+    def test_value_feature_required_defaults_to_false(self):
+        """Test that required defaults to False."""
 
         vf = ValueFeature(name="test", dtype="string")
-        assert vf.required is True
+        assert vf.required is False
 
     def test_value_feature_optional(self):
         """Test creating optional ValueFeature."""
