@@ -542,39 +542,51 @@ def _execute_container_job(
     result.container_output = container_result["output"]
     result.error_message = container_result["error"]
 
-    if container_result["success"]:
-        try:
-            parsed_container_results = parse_container_json_output(
-                result.container_output
-            )
-            validated_output = extract_container_json_output_fields(
-                parsed_container_results
-            )
-            result.results = validated_output.get_results()
+    # Always parse JSON output to extract container errors
+    try:
+        parsed_container_results = parse_container_json_output(result.container_output)
+        validated_output = extract_container_json_output_fields(
+            parsed_container_results
+        )
+        result.results = validated_output.get_results()
 
-            # Translate container paths to host paths
-            result.generated_reports, result.generated_datasets = (
-                _translate_container_output_paths(validated_output, item_params)
-            )
+        # Translate container paths to host paths
+        result.generated_reports, result.generated_datasets = (
+            _translate_container_output_paths(validated_output, item_params)
+        )
 
-            # Validate generated datasets against manifest declarations
-            if manifest and validated_output.generated_datasets:
-                dataset_warnings = validate_generated_datasets(
-                    manifest, validated_output.generated_datasets, item_id, image
+        # Validate generated datasets against manifest declarations
+        if manifest and validated_output.generated_datasets:
+            dataset_warnings = validate_generated_datasets(
+                manifest, validated_output.generated_datasets, item_id, image
+            )
+            for warning in dataset_warnings:
+                DBOS.logger.warning(warning)
+
+        # Extract error from JSON if present (validation errors, container logic errors)
+        if "error" in result.results:
+            json_error = result.results["error"]
+            # Combine Docker error (if any) with JSON error
+            if result.error_message:
+                result.error_message = (
+                    f"{result.error_message} | Container error: {json_error}"
                 )
-                for warning in dataset_warnings:
-                    DBOS.logger.warning(warning)
+            else:
+                result.error_message = str(json_error)
 
-            result.success = result.results.get("success", False)
-        except ValueError as e:
+        result.success = result.results.get("success", False)
+    except ValueError as e:
+        # JSON parsing failed - use Docker error if available
+        if not result.error_message:
             result.error_message = (
                 f"Failed to parse JSON output from item id '{item_id}': {e}"
             )
-            result.success = False
-            DBOS.logger.error(
-                f"JSON parsing failed for item id {item_id}: {result.container_output[:200]}..."
-            )
-    else:
+        result.success = False
+        DBOS.logger.error(
+            f"JSON parsing failed for item id {item_id}: {result.container_output[:200]}..."
+        )
+
+    if not container_result["success"]:
         result.success = False
 
     # Log failures for debugging
