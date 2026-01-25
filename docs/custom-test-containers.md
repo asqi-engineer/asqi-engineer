@@ -148,6 +148,7 @@ ASQI supports rich parameter types for sophisticated test configurations:
 - name: "test_scenarios"
   type: "list"
   items:
+    name: "scenario"
     type: "object"
     properties:
       - name: "name"
@@ -191,6 +192,11 @@ import argparse
 import json
 import sys
 
+def evaluate_response(response):
+    """Evaluate if a response passes. Implement your logic here."""
+    content = response.choices[0].message.content
+    return len(content) > 10  # Simple check
+
 def run_tests(sut_params, test_params):
     """
     Your custom test logic.
@@ -224,7 +230,7 @@ def run_tests(sut_params, test_params):
 
     return {
         "success": True,
-        "score": passed / num_tests,
+        "score": (passed / num_tests) if num_tests > 0 else 0.0,
         "tests_run": num_tests
     }
 

@@ -443,7 +443,7 @@ _TYPE_VALIDATORS = {
 def validate_parameter_value(
     param_name: str,
     param_value: Any,
-    schema_param: InputParameter,  # type: ignore[name-defined]
+    schema_param: InputParameter,
     context_path: str = "",
 ) -> List[str]:
     """
@@ -453,7 +453,7 @@ def validate_parameter_value(
         param_name: Name of the parameter being validated
         param_value: Actual value provided by the user
         schema_param: InputParameter schema definition
-        context_path: Path for nested validation (e.g., "api_config.max_retries")
+        context_path: Parent path for nested validation (e.g., "api_config")
 
     Returns:
         List of validation error messages
