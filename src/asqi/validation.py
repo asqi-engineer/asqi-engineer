@@ -16,6 +16,7 @@ from asqi.schemas import (
     DatasetsConfig,
     EnvironmentVariable,
     GenerationJobConfig,
+    InputParameter,
     Manifest,
     ScoreCard,
     SuiteConfig,
@@ -254,11 +255,157 @@ def validate_test_volumes(
         )
 
 
+def validate_parameter_value(
+    param_name: str,
+    param_value: Any,
+    schema_param: InputParameter,  # type: ignore[name-defined]
+    context_path: str = "",
+) -> List[str]:
+    """
+    Recursively validate a parameter value against its schema definition.
+
+    Args:
+        param_name: Name of the parameter being validated
+        param_value: Actual value provided by the user
+        schema_param: InputParameter schema definition
+        context_path: Path for nested validation (e.g., "api_config.max_retries")
+
+    Returns:
+        List of validation error messages
+    """
+    errors = []
+    # Build path - don't add period for array indices
+    if context_path:
+        if param_name.startswith("["):
+            full_path = f"{context_path}{param_name}"
+        else:
+            full_path = f"{context_path}.{param_name}"
+    else:
+        full_path = param_name
+
+    # Handle None values - only valid if parameter is not required
+    if param_value is None:
+        if schema_param.required:
+            errors.append(f"Parameter '{full_path}': Required parameter cannot be None")
+        return errors
+
+    # Validate based on type
+    param_type = schema_param.type
+
+    if param_type == "string":
+        if not isinstance(param_value, str):
+            errors.append(
+                f"Parameter '{full_path}': Expected type 'string', got '{type(param_value).__name__}'"
+            )
+
+    elif param_type == "integer":
+        if not isinstance(param_value, int) or isinstance(param_value, bool):
+            errors.append(
+                f"Parameter '{full_path}': Expected type 'integer', got '{type(param_value).__name__}'"
+            )
+
+    elif param_type == "float":
+        if not isinstance(param_value, (int, float)) or isinstance(param_value, bool):
+            errors.append(
+                f"Parameter '{full_path}': Expected type 'float', got '{type(param_value).__name__}'"
+            )
+
+    elif param_type == "boolean":
+        if not isinstance(param_value, bool):
+            errors.append(
+                f"Parameter '{full_path}': Expected type 'boolean', got '{type(param_value).__name__}'"
+            )
+
+    elif param_type == "enum":
+        # Validate that value is one of the allowed choices
+        if schema_param.choices is None:
+            errors.append(
+                f"Parameter '{full_path}': Schema error - enum type requires 'choices' field"
+            )
+        elif param_value not in schema_param.choices:
+            errors.append(
+                f"Parameter '{full_path}': Value '{param_value}' is not in allowed choices {schema_param.choices}"
+            )
+
+    elif param_type == "list":
+        if not isinstance(param_value, list):
+            errors.append(
+                f"Parameter '{full_path}': Expected type 'list', got '{type(param_value).__name__}'"
+            )
+        else:
+            # Validate list elements if items schema is defined
+            if schema_param.items:
+                from asqi.schemas import InputParameter
+
+                for idx, element in enumerate(param_value):
+                    # Handle simple type strings (e.g., "string", "integer")
+                    if isinstance(schema_param.items, str):
+                        # Create a temporary InputParameter for validation
+                        temp_schema = InputParameter(
+                            name=f"[{idx}]",
+                            type=schema_param.items,  # type: ignore[arg-type]
+                            required=True,
+                        )
+                        element_errors = validate_parameter_value(
+                            f"[{idx}]", element, temp_schema, full_path
+                        )
+                        errors.extend(element_errors)
+
+                    # Handle complex InputParameter objects
+                    elif isinstance(schema_param.items, InputParameter):
+                        element_errors = validate_parameter_value(
+                            f"[{idx}]", element, schema_param.items, full_path
+                        )
+                        errors.extend(element_errors)
+
+    elif param_type == "object":
+        if not isinstance(param_value, dict):
+            errors.append(
+                f"Parameter '{full_path}': Expected type 'object' (dict), got '{type(param_value).__name__}'"
+            )
+        else:
+            # Validate object properties if defined
+            if schema_param.properties:
+                property_schemas = {p.name: p for p in schema_param.properties}
+
+                # Check each defined property
+                for prop_name, prop_schema in property_schemas.items():
+                    if prop_name in param_value:
+                        prop_errors = validate_parameter_value(
+                            prop_name,
+                            param_value[prop_name],
+                            prop_schema,
+                            full_path,
+                        )
+                        errors.extend(prop_errors)
+                    elif prop_schema.required:
+                        errors.append(
+                            f"Parameter '{full_path}.{prop_name}': Required property is missing"
+                        )
+
+                # Check for unknown properties
+                for provided_prop in param_value.keys():
+                    if provided_prop not in property_schemas:
+                        valid_props = ", ".join(property_schemas.keys())
+                        errors.append(
+                            f"Parameter '{full_path}.{provided_prop}': Unknown property. Valid properties: {valid_props}"
+                        )
+
+    return errors
+
+
 def validate_parameters(
     item: Union[TestDefinition, GenerationJobConfig], manifest: Manifest
 ) -> List[str]:
     """
     Validate job config parameters against manifest schema.
+
+    Performs comprehensive validation including:
+    - Presence validation (required parameters exist)
+    - Unknown parameter detection
+    - Type validation (string, integer, float, boolean, enum, list, object)
+    - Enum choice validation
+    - Recursive validation for nested structures (lists, objects)
 
     Args:
         item: Test definition or generation job config with params
@@ -286,6 +433,17 @@ def validate_parameters(
             errors.append(
                 f"{item_type} '{item.name}': Unknown parameter '{provided_param}'. Valid parameters: {valid_params}"
             )
+
+    # Perform type validation for each provided parameter
+    for param_name, param_value in item_params.items():
+        if param_name in schema_params:
+            schema_param = schema_params[param_name]
+            type_errors = validate_parameter_value(
+                param_name, param_value, schema_param
+            )
+            # Prefix errors with item context
+            for error in type_errors:
+                errors.append(f"{item_type} '{item.name}': {error}")
 
     return errors
 
