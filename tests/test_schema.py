@@ -13,6 +13,7 @@ from asqi.schemas import (
     HFDtype,
     ImageFeature,
     InputDataset,
+    InputParameter,
     ListFeature,
     OutputDataset,
     ValueFeature,
@@ -804,3 +805,470 @@ class TestOptionalFeatures:
             ),
         )
         assert ds.features[4].required is True  # price
+
+
+class TestInputParameter:
+    """Test InputParameter with basic types."""
+
+    def test_create_simple_string_parameter(self):
+        """Test creating a simple string parameter (backward compatible)."""
+        param = InputParameter(name="test_name", type="string", required=True)
+        assert param.name == "test_name"
+        assert param.type == "string"
+        assert param.required is True
+
+    def test_create_all_simple_types(self):
+        """Test creating parameters with all simple types."""
+        types = ["string", "integer", "float", "boolean", "list", "object"]
+        for param_type in types:
+            param = InputParameter(name=f"test_{param_type}", type=param_type)  # type: ignore[arg-type]
+            assert param.type == param_type
+
+    def test_required_defaults_to_false(self):
+        """Test that required defaults to False."""
+        param = InputParameter(name="optional", type="string")
+        assert param.required is False
+
+    def test_description_is_optional(self):
+        """Test that description is optional."""
+        param = InputParameter(name="test", type="string")
+        assert param.description is None
+
+        param_with_desc = InputParameter(
+            name="test", type="string", description="Test parameter"
+        )
+        assert param_with_desc.description == "Test parameter"
+
+
+class TestInputParameterEnum:
+    """Test InputParameter with enum type."""
+
+    def test_create_enum_parameter(self):
+        """Test creating an enum parameter with choices."""
+        param = InputParameter(
+            name="mode",
+            type="enum",
+            choices=["fast", "balanced", "thorough"],
+            default="balanced",
+        )
+        assert param.type == "enum"
+        assert param.choices == ["fast", "balanced", "thorough"]
+        assert param.default == "balanced"
+
+    def test_enum_requires_choices(self):
+        """Test that enum type requires choices field."""
+        with pytest.raises(ValidationError) as exc_info:
+            InputParameter(name="bad_enum", type="enum")
+        assert "requires 'choices'" in str(exc_info.value)
+
+    def test_enum_default_must_be_in_choices(self):
+        """Test that default value must be in choices for enums."""
+        with pytest.raises(ValidationError) as exc_info:
+            InputParameter(
+                name="mode",
+                type="enum",
+                choices=["fast", "slow"],
+                default="invalid",
+            )
+        assert "must be one of the allowed choices" in str(exc_info.value)
+
+    def test_enum_with_integer_choices(self):
+        """Test enum with integer choices."""
+        param = InputParameter(
+            name="priority", type="enum", choices=[1, 2, 3], default=2
+        )
+        assert param.choices == [1, 2, 3]
+        assert param.default == 2
+
+    def test_enum_with_mixed_types_in_choices(self):
+        """Test enum with mixed string/int/float choices."""
+        param = InputParameter(
+            name="mixed", type="enum", choices=["auto", 1, 2.5], default="auto"
+        )
+        assert param.choices == ["auto", 1, 2.5]
+
+    def test_choices_only_valid_for_enum(self):
+        """Test that choices field can only be used with enum type."""
+        with pytest.raises(ValidationError) as exc_info:
+            InputParameter(
+                name="bad",
+                type="string",
+                choices=["a", "b"],
+            )
+        assert "'choices' field can only be specified when type='enum'" in str(
+            exc_info.value
+        )
+
+
+class TestInputParameterTypedLists:
+    """Test InputParameter with typed lists using items field."""
+
+    def test_simple_typed_list(self):
+        """Test creating a list with simple type string."""
+        param = InputParameter(
+            name="tags", type="list", items="string", default=["test", "demo"]
+        )
+        assert param.type == "list"
+        assert param.items == "string"
+        assert param.default == ["test", "demo"]
+
+    def test_list_of_integers(self):
+        """Test list with integer items."""
+        param = InputParameter(
+            name="retry_delays", type="list", items="integer", default=[1, 2, 5, 10]
+        )
+        assert param.items == "integer"
+        assert param.default == [1, 2, 5, 10]
+
+    def test_list_without_items_is_valid(self):
+        """Test that untyped lists (legacy) still work."""
+        param = InputParameter(name="untyped_list", type="list")
+        assert param.type == "list"
+        assert param.items is None
+
+    def test_items_only_valid_for_list(self):
+        """Test that items field can only be used with list type."""
+        with pytest.raises(ValidationError) as exc_info:
+            InputParameter(name="bad", type="string", items="integer")
+        assert "'items' field can only be specified when type='list'" in str(
+            exc_info.value
+        )
+
+
+class TestInputParameterListOfEnums:
+    """Test InputParameter with lists of enums."""
+
+    def test_list_of_enums(self):
+        """Test creating a list where each element is an enum."""
+        param = InputParameter(
+            name="severity_levels",
+            type="list",
+            items=InputParameter(
+                type="enum",
+                choices=["info", "warning", "error", "critical"],
+                name="severity_item",
+            ),
+            default=["warning", "error"],
+        )
+        assert param.type == "list"
+        assert isinstance(param.items, InputParameter)
+        assert param.items.type == "enum"
+        assert param.items.choices == ["info", "warning", "error", "critical"]
+
+
+class TestInputParameterNestedObjects:
+    """Test InputParameter with nested object properties."""
+
+    def test_simple_nested_object(self):
+        """Test creating an object with properties."""
+        param = InputParameter(
+            name="api_config",
+            type="object",
+            properties=[
+                InputParameter(name="max_retries", type="integer", default=3),
+                InputParameter(name="timeout", type="integer", default=30),
+                InputParameter(name="enable_cache", type="boolean", default=True),
+            ],
+        )
+        assert param.type == "object"
+        assert param.properties is not None
+        assert len(param.properties) == 3
+        assert param.properties[0].name == "max_retries"
+        assert param.properties[0].default == 3
+
+    def test_object_without_properties_is_valid(self):
+        """Test that untyped objects (legacy) still work."""
+        param = InputParameter(name="untyped_object", type="object")
+        assert param.type == "object"
+        assert param.properties is None
+
+    def test_properties_only_valid_for_object(self):
+        """Test that properties field can only be used with object type."""
+        with pytest.raises(ValidationError) as exc_info:
+            InputParameter(
+                name="bad",
+                type="string",
+                properties=[InputParameter(name="field", type="string")],
+            )
+        assert "'properties' field can only be specified when type='object'" in str(
+            exc_info.value
+        )
+
+    def test_nested_object_with_enum_property(self):
+        """Test object containing an enum property."""
+        param = InputParameter(
+            name="config",
+            type="object",
+            properties=[
+                InputParameter(
+                    name="strategy",
+                    type="enum",
+                    choices=["linear", "exponential"],
+                    default="exponential",
+                ),
+                InputParameter(name="max_attempts", type="integer", default=5),
+            ],
+        )
+        assert param.properties is not None
+        assert param.properties[0].type == "enum"
+        assert param.properties[0].choices == ["linear", "exponential"]
+
+    def test_nested_object_with_list_property(self):
+        """Test object containing a typed list property."""
+        param = InputParameter(
+            name="config",
+            type="object",
+            properties=[
+                InputParameter(
+                    name="endpoints",
+                    type="list",
+                    items="string",
+                    default=["/api/v1/chat"],
+                ),
+            ],
+        )
+        assert param.properties is not None
+        assert param.properties[0].type == "list"
+        assert param.properties[0].items == "string"
+
+
+class TestInputParameterListOfObjects:
+    """Test InputParameter with lists of typed objects."""
+
+    def test_list_of_objects(self):
+        """Test creating a list where each element is an object."""
+        param = InputParameter(
+            name="test_scenarios",
+            type="list",
+            items=InputParameter(
+                name="scenario",
+                type="object",
+                properties=[
+                    InputParameter(name="scenario_name", type="string", required=True),
+                    InputParameter(name="num_iterations", type="integer", default=1),
+                    InputParameter(
+                        name="severity",
+                        type="enum",
+                        choices=["low", "medium", "high"],
+                        default="medium",
+                    ),
+                ],
+            ),
+        )
+        assert param.type == "list"
+        assert isinstance(param.items, InputParameter)
+        assert param.items.type == "object"
+        assert param.items.properties is not None
+        assert len(param.items.properties) == 3
+        assert param.items.properties[0].name == "scenario_name"
+        assert param.items.properties[2].type == "enum"
+
+
+class TestInputParameterNestedLists:
+    """Test InputParameter with nested lists (matrices)."""
+
+    def test_nested_list_matrix(self):
+        """Test creating a 2D matrix (list of lists)."""
+        param = InputParameter(
+            name="test_matrix",
+            type="list",
+            items=InputParameter(name="row", type="list", items="integer"),
+        )
+        assert param.type == "list"
+        assert isinstance(param.items, InputParameter)
+        assert param.items.type == "list"
+        assert param.items.items == "integer"
+
+    def test_triple_nested_list(self):
+        """Test creating a 3D structure (list of list of enums)."""
+        param = InputParameter(
+            name="color_palettes",
+            type="list",
+            items=InputParameter(
+                name="palette",
+                type="list",
+                items=InputParameter(
+                    name="color",
+                    type="enum",
+                    choices=["red", "green", "blue", "yellow"],
+                ),
+            ),
+        )
+        assert param.type == "list"
+        assert isinstance(param.items, InputParameter)
+        assert param.items.type == "list"
+        assert isinstance(param.items.items, InputParameter)
+        assert param.items.items.type == "enum"
+
+
+class TestInputParameterComplexNested:
+    """Test complex nested structures combining all features."""
+
+    def test_complex_nested_structure(self):
+        """Test complex nested object with multiple levels."""
+        param = InputParameter(
+            name="evaluation_suite",
+            type="object",
+            properties=[
+                InputParameter(name="suite_name", type="string", required=True),
+                InputParameter(
+                    name="parallel_execution", type="boolean", default=False
+                ),
+                InputParameter(
+                    name="test_groups",
+                    type="list",
+                    items=InputParameter(
+                        name="group",
+                        type="object",
+                        properties=[
+                            InputParameter(
+                                name="group_name", type="string", required=True
+                            ),
+                            InputParameter(
+                                name="enabled", type="boolean", default=True
+                            ),
+                            InputParameter(
+                                name="test_cases",
+                                type="list",
+                                items=InputParameter(
+                                    name="test_case",
+                                    type="object",
+                                    properties=[
+                                        InputParameter(
+                                            name="test_id", type="string", required=True
+                                        ),
+                                        InputParameter(
+                                            name="expected_outcome",
+                                            type="enum",
+                                            choices=["pass", "fail", "skip"],
+                                            default="pass",
+                                        ),
+                                        InputParameter(
+                                            name="tags", type="list", items="string"
+                                        ),
+                                    ],
+                                ),
+                            ),
+                        ],
+                    ),
+                ),
+            ],
+        )
+        # Verify top-level structure
+        assert param.type == "object"
+        assert param.properties is not None
+        assert len(param.properties) == 3
+
+        # Verify 2 levels deep: object -> list -> object
+        test_groups = param.properties[2]
+        assert test_groups.type == "list"
+        assert isinstance(test_groups.items, InputParameter)
+        assert test_groups.items.type == "object"
+
+        # Verify 3 levels deep: object -> list -> object -> list -> object
+        assert test_groups.items.properties is not None
+        test_cases = test_groups.items.properties[2]
+        assert test_cases.type == "list"
+        assert isinstance(test_cases.items, InputParameter)
+        assert test_cases.items.type == "object"
+
+        # Verify deepest level has enum (4 levels deep)
+        assert test_cases.items.properties is not None
+        assert test_cases.items.properties[1].type == "enum"
+
+
+class TestInputParameterDefaultValues:
+    """Test default values for all parameter types."""
+
+    def test_default_for_simple_types(self):
+        """Test default values for simple scalar types."""
+        params = [
+            InputParameter(name="name", type="string", default="test"),
+            InputParameter(name="count", type="integer", default=10),
+            InputParameter(name="ratio", type="float", default=0.5),
+            InputParameter(name="enabled", type="boolean", default=True),
+        ]
+        assert params[0].default == "test"
+        assert params[1].default == 10
+        assert params[2].default == 0.5
+        assert params[3].default is True
+
+    def test_default_for_list(self):
+        """Test default value for list parameter."""
+        param = InputParameter(
+            name="items", type="list", items="string", default=["a", "b", "c"]
+        )
+        assert param.default == ["a", "b", "c"]
+
+    def test_default_for_object(self):
+        """Test default value for object parameter."""
+        param = InputParameter(
+            name="config",
+            type="object",
+            default={"timeout": 30, "retries": 3},
+        )
+        assert param.default == {"timeout": 30, "retries": 3}
+
+
+class TestInputParameterBackwardCompatibility:
+    """Test backward compatibility with legacy manifests."""
+
+    def test_legacy_simple_parameter_still_works(self):
+        """Test that old-style simple parameters work unchanged."""
+        param = InputParameter(
+            name="delay_seconds", type="integer", required=False, description="Delay"
+        )
+        assert param.name == "delay_seconds"
+        assert param.type == "integer"
+        assert param.required is False
+        assert param.description == "Delay"
+        # New fields should be None
+        assert param.items is None
+        assert param.properties is None
+        assert param.choices is None
+        assert param.default is None
+
+    def test_legacy_untyped_list_still_works(self):
+        """Test that untyped lists (without items) still work."""
+        param = InputParameter(name="datasets", type="list", required=False)
+        assert param.type == "list"
+        assert param.items is None  # No type specified
+
+    def test_legacy_untyped_object_still_works(self):
+        """Test that untyped objects (without properties) still work."""
+        param = InputParameter(name="config", type="object", required=False)
+        assert param.type == "object"
+        assert param.properties is None  # No schema specified
+
+
+class TestInputParameterJSONSchema:
+    """Test that InputParameter generates correct JSON schema."""
+
+    def test_parameter_serialization(self):
+        """Test that parameters serialize correctly."""
+        param = InputParameter(
+            name="mode",
+            type="enum",
+            choices=["fast", "slow"],
+            default="fast",
+            description="Execution mode",
+        )
+        param_dict = param.model_dump()
+        assert param_dict["name"] == "mode"
+        assert param_dict["type"] == "enum"
+        assert param_dict["choices"] == ["fast", "slow"]
+        assert param_dict["default"] == "fast"
+
+    def test_nested_parameter_serialization(self):
+        """Test that nested parameters serialize correctly."""
+        param = InputParameter(
+            name="config",
+            type="object",
+            properties=[
+                InputParameter(name="timeout", type="integer", default=30),
+            ],
+        )
+        param_dict = param.model_dump()
+        assert param_dict["type"] == "object"
+        assert len(param_dict["properties"]) == 1
+        assert param_dict["properties"][0]["name"] == "timeout"

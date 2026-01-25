@@ -447,26 +447,30 @@
       "type": "object"
     },
     "InputParameter": {
-      "description": "Defines a parameter that can be passed to the test container.",
+      "description": "Defines a parameter that can be passed to the test container.\nSupports simple types (string, integer, float, boolean) as well as list, object, enum.",
       "properties": {
         "name": {
+          "description": "Parameter name",
           "title": "Name",
           "type": "string"
         },
         "type": {
+          "description": "Parameter type",
           "enum": [
             "string",
             "integer",
             "float",
             "boolean",
             "list",
-            "object"
+            "object",
+            "enum"
           ],
           "title": "Type",
           "type": "string"
         },
         "required": {
           "default": false,
+          "description": "Whether this parameter is required",
           "title": "Required",
           "type": "boolean"
         },
@@ -480,7 +484,104 @@
             }
           ],
           "default": null,
+          "description": "Human-readable description of the parameter",
           "title": "Description"
+        },
+        "items": {
+          "anyOf": [
+            {
+              "enum": [
+                "string",
+                "integer",
+                "float",
+                "boolean",
+                "object",
+                "enum"
+              ],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/InputParameter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "For type='list': defines the schema for list items. Can be a simple type name string (e.g., 'string', 'integer') for basic typed lists, or a full InputParameter object for complex items (enums, objects, nested lists). ",
+          "title": "Items"
+        },
+        "properties": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/InputParameter"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "For type='object': list of nested parameter definitions. Each property is a full InputParameter with its own name, type, and constraints. ",
+          "title": "Properties"
+        },
+        "choices": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "For type='enum': list of allowed values. Required when type='enum'.",
+          "title": "Choices"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Default value for this parameter when not provided by user",
+          "title": "Default"
         }
       },
       "required": [

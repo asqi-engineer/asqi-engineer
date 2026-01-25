@@ -284,12 +284,91 @@ class SystemInput(BaseModel):
 
 
 class InputParameter(BaseModel):
-    """Defines a parameter that can be passed to the test container."""
+    """
+    Defines a parameter that can be passed to the test container.
+    Supports simple types (string, integer, float, boolean) as well as list, object, enum.
+    """
 
-    name: str
-    type: Literal["string", "integer", "float", "boolean", "list", "object"]
-    required: bool = False
-    description: Optional[str] = None
+    name: str = Field(..., description="Parameter name")
+    type: Literal["string", "integer", "float", "boolean", "list", "object", "enum"] = (
+        Field(..., description="Parameter type")
+    )
+    required: bool = Field(
+        default=False, description="Whether this parameter is required"
+    )
+    description: Optional[str] = Field(
+        default=None, description="Human-readable description of the parameter"
+    )
+
+    items: Optional[
+        Union[
+            Literal["string", "integer", "float", "boolean", "object", "enum"],
+            "InputParameter",
+        ]
+    ] = Field(
+        default=None,
+        description="For type='list': defines the schema for list items. "
+        "Can be a simple type name string (e.g., 'string', 'integer') for basic typed lists, "
+        "or a full InputParameter object for complex items (enums, objects, nested lists). ",
+    )
+
+    properties: Optional[List["InputParameter"]] = Field(
+        default=None,
+        description="For type='object': list of nested parameter definitions. "
+        "Each property is a full InputParameter with its own name, type, and constraints. ",
+    )
+
+    choices: Optional[List[Union[str, int, float]]] = Field(
+        default=None,
+        description="For type='enum': list of allowed values. Required when type='enum'.",
+    )
+
+    default: Optional[Union[str, int, float, bool, List, Dict]] = Field(
+        default=None,
+        description="Default value for this parameter when not provided by user",
+    )
+
+    @model_validator(mode="after")
+    def validate_rich_fields(self) -> "InputParameter":
+        """Validate that rich-type fields are only used with appropriate types."""
+
+        if self.items is not None and self.type != "list":
+            raise ValueError(
+                f"'items' field can only be specified when type='list' (got type='{self.type}')"
+            )
+
+        # properties only valid for type="object"
+        if self.properties is not None and self.type != "object":
+            raise ValueError(
+                f"'properties' field can only be specified when type='object' (got type='{self.type}')"
+            )
+
+        # choices only valid for type="enum"
+        if self.choices is not None and self.type != "enum":
+            raise ValueError(
+                f"'choices' field can only be specified when type='enum' (got type='{self.type}')"
+            )
+
+        # type="enum" requires choices
+        if self.type == "enum" and self.choices is None:
+            raise ValueError("type='enum' requires 'choices' field to be specified")
+
+        # Validate default value is in choices for enums
+        if (
+            self.type == "enum"
+            and self.default is not None
+            and self.choices is not None
+        ):
+            if self.default not in self.choices:
+                raise ValueError(
+                    f"Default value '{self.default}' must be one of the allowed choices: {self.choices}"
+                )
+
+        return self
+
+
+# Rebuild model to resolve forward references for self-referential fields
+InputParameter.model_rebuild()
 
 
 class OutputMetric(BaseModel):
