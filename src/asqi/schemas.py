@@ -11,6 +11,10 @@ from pydantic import (
 # This is necessary because pydantic prefers Annotated types outside classes
 IDsStringPattern = Annotated[str, StringConstraints(pattern="^[0-9a-z_]{1,32}$")]
 
+# ----------------------------------------------------------------------------
+# HuggingFace Feature Types
+# ----------------------------------------------------------------------------
+
 # HuggingFace dataset dtypes as a Literal for better JSON schema support
 # Complete list from: https://huggingface.co/docs/datasets/v4.4.2/en/package_reference/main_classes#datasets.Value
 HFDtype = Literal[
@@ -50,6 +54,167 @@ HFDtype = Literal[
     "large_string",
     "string_view",
 ]
+
+
+class ValueFeature(BaseModel):
+    """
+    Corresponds to HuggingFace's Value feature type.
+    Represents a scalar value feature (string, int64, float32, bool, etc.)
+    """
+
+    feature_type: Literal["Value"] = Field(
+        default="Value", description="Feature type discriminator"
+    )
+    name: str = Field(..., description="The name of the feature")
+    dtype: HFDtype = Field(
+        ...,
+        description="The data type of the feature. "
+        "Common types: 'string', 'int64', 'int32', 'float64', 'float32', 'bool'. "
+        "See: https://huggingface.co/docs/datasets/about_dataset_features",
+    )
+    required: bool = Field(
+        default=True,
+        description="Whether this feature is required in the dataset. "
+        "If False, the feature may be absent or contain null values.",
+    )
+    description: Optional[str] = Field(
+        default=None, description="Description of the feature - data type, purpose etc."
+    )
+
+
+class ListFeature(BaseModel):
+    """Corresponds to HuggingFace's List/Sequence feature type."""
+
+    feature_type: Literal["List"] = Field(
+        default="List", description="Feature type discriminator"
+    )
+    name: str = Field(..., description="The name of the feature")
+    feature: Union[
+        HFDtype,
+        Literal["Image", "Audio", "ClassLabel", "Dict", "List"],
+    ] = Field(
+        ...,
+        description="List element type. Can be: (1) scalar dtype string ('string', 'int32', etc.) for List(Value(dtype)), or (2) simple feature type name ('Image', 'Audio', 'ClassLabel', 'Dict', 'List') for List(FeatureType()). For complex nested structures with custom parameters, define nested ListFeature or DictFeature objects.",
+    )
+    length: int = Field(
+        default=-1,
+        description="List length constraint: -1 for variable-length lists, >=0 for fixed-length sequences.",
+    )
+    required: bool = Field(
+        default=True,
+        description="Whether this feature is required in the dataset. "
+        "If False, the feature may be absent or contain null values.",
+    )
+    description: Optional[str] = Field(
+        default=None, description="Description of the list feature"
+    )
+
+    @model_validator(mode="after")
+    def _validate_length(self) -> "ListFeature":
+        """Ensure length is >= -1."""
+        if self.length < -1:
+            raise ValueError(
+                f"List length must be >= -1 (got {self.length}). Use -1 for variable-length lists."
+            )
+        return self
+
+
+class DictFeature(BaseModel):
+    """Corresponds to HuggingFace's "Python dict" feature type."""
+
+    feature_type: Literal["Dict"] = Field(
+        default="Dict",
+        description="Feature type discriminator",
+    )
+    name: str = Field(..., description="The name of the feature")
+    fields: List["HFFeature"] = Field(
+        ...,
+        min_length=1,
+        description="Named fields within the dict. Each field can be any HFFeature type (Value, List, Dict, etc.)",
+    )
+    required: bool = Field(
+        default=True,
+        description="Whether this feature is required in the dataset. "
+        "If False, the feature may be absent or contain null values.",
+    )
+    description: Optional[str] = Field(
+        default=None, description="Description of the dict feature"
+    )
+
+
+class ClassLabelFeature(BaseModel):
+    """Corresponds to HuggingFace's ClassLabel feature type. Represents categorical data with named categories."""
+
+    feature_type: Literal["ClassLabel"] = Field(
+        default="ClassLabel", description="Feature type discriminator"
+    )
+    name: str = Field(..., description="The name of the feature")
+    names: List[str] = Field(
+        ...,
+        min_length=1,
+        description="Category names (e.g., ['positive', 'negative', 'neutral'])",
+    )
+    required: bool = Field(
+        default=True,
+        description="Whether this feature is required in the dataset. "
+        "If False, the feature may be absent or contain null values.",
+    )
+    description: Optional[str] = Field(
+        default=None, description="Description of the classification categories"
+    )
+
+
+class ImageFeature(BaseModel):
+    """Corresponds to HuggingFace's Image feature type."""
+
+    feature_type: Literal["Image"] = Field(
+        default="Image", description="Feature type discriminator"
+    )
+    name: str = Field(..., description="The name of the feature")
+    required: bool = Field(
+        default=True,
+        description="Whether this feature is required in the dataset. "
+        "If False, the feature may be absent or contain null values.",
+    )
+    description: Optional[str] = Field(
+        default=None, description="Description of the image feature"
+    )
+
+
+class AudioFeature(BaseModel):
+    """Corresponds to HuggingFace's Audio feature type."""
+
+    feature_type: Literal["Audio"] = Field(
+        default="Audio", description="Feature type discriminator"
+    )
+    name: str = Field(..., description="The name of the feature")
+    required: bool = Field(
+        default=True,
+        description="Whether this feature is required in the dataset. "
+        "If False, the feature may be absent or contain null values.",
+    )
+    description: Optional[str] = Field(
+        default=None, description="Description of the audio feature"
+    )
+
+
+# Union type for all HuggingFace feature types
+HFFeature = Annotated[
+    Union[
+        ValueFeature,
+        ListFeature,
+        DictFeature,
+        ClassLabelFeature,
+        ImageFeature,
+        AudioFeature,
+    ],
+    Field(discriminator="feature_type"),
+]
+
+# Rebuild models with forward references to resolve recursive HFFeature references
+ListFeature.model_rebuild()
+DictFeature.model_rebuild()
+
 
 # ----------------------------------------------------------------------------
 # Schemas for manifest.yaml (Embedded in Test Containers)
@@ -126,13 +291,13 @@ class DatasetFeature(BaseModel):
         description="The name of the feature.",
     )
     dtype: HFDtype = Field(
-        ...,
+        default=...,
         description="The data type of the feature. "
         "Common types: 'string', 'int64', 'int32', 'float64', 'float32', 'bool'. "
         "See: https://huggingface.co/docs/datasets/about_dataset_features",
     )
     description: Optional[str] = Field(
-        None, description="Description of the feature - data type, purpose etc."
+        default=None, description="Description of the feature - data type, purpose etc."
     )
 
 
@@ -163,19 +328,20 @@ class InputDataset(BaseModel):
         description="The dataset name, e.g., 'evaluation_data', 'test_prompts'.",
     )
     required: bool = Field(
-        True, description="Whether this dataset is mandatory for execution."
+        default=True, description="Whether this dataset is mandatory for execution."
     )
     type: Union[DatasetType, List[DatasetType]] = Field(
-        ...,
+        default=...,
         description="The dataset type(s): single type or list of accepted types. "
         "Examples: 'huggingface', ['pdf', 'txt'], or ['huggingface', 'pdf', 'txt'].",
     )
     description: Optional[str] = Field(
-        None, description="Description of the dataset's role in the test."
+        default=None, description="Description of the dataset's role in the test."
     )
-    features: Optional[list[DatasetFeature]] = Field(
-        None,
-        description="List of required features within a HuggingFace dataset.",
+    features: Optional[List[Union[DatasetFeature, HFFeature]]] = Field(
+        default=None,
+        description="List of required features within a HuggingFace dataset. "
+        "Supports both simple scalar features and complex feature types.",
     )
 
     @model_validator(mode="after")
@@ -217,11 +383,13 @@ class OutputDataset(BaseModel):
         ..., description="Type of dataset: huggingface, pdf, or txt"
     )
     description: Optional[str] = Field(
-        None, description="Description of the output dataset's purpose and contents"
+        default=None,
+        description="Description of the output dataset's purpose and contents",
     )
-    features: Optional[list[DatasetFeature]] = Field(
-        None,
-        description="List of required features within a HuggingFace dataset",
+    features: Optional[List[Union[DatasetFeature, HFFeature]]] = Field(
+        default=None,
+        description="List of required features within a HuggingFace dataset. "
+        "Supports both simple scalar features and complex feature types.",
     )
 
 

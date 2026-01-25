@@ -1,5 +1,97 @@
 {
   "$defs": {
+    "AudioFeature": {
+      "description": "Corresponds to HuggingFace's Audio feature type.\n\nDeclares that this dataset column contains audio data. The container is responsible\nfor handling audio processing details (resampling, channel conversion, decoding, etc.).",
+      "properties": {
+        "feature_type": {
+          "const": "Audio",
+          "default": "Audio",
+          "description": "Feature type discriminator",
+          "title": "Feature Type",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name of the feature",
+          "title": "Name",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the audio feature",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "AudioFeature",
+      "type": "object"
+    },
+    "ClassLabelFeature": {
+      "description": "Corresponds to HuggingFace's ClassLabel feature type. Represents categorical data with named categories.",
+      "properties": {
+        "feature_type": {
+          "const": "ClassLabel",
+          "default": "ClassLabel",
+          "description": "Feature type discriminator",
+          "title": "Feature Type",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name of the feature",
+          "title": "Name",
+          "type": "string"
+        },
+        "names": {
+          "description": "Category names (e.g., ['positive', 'negative', 'neutral'])",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Names",
+          "type": "array"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the classification categories",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name",
+        "names"
+      ],
+      "title": "ClassLabelFeature",
+      "type": "object"
+    },
     "DatasetFeature": {
       "description": "Defines a feature/column within a dataset.\n\nThe dtype field uses HuggingFace datasets dtype values.\nCommon types: 'string', 'int64', 'float32', 'bool'.",
       "properties": {
@@ -81,6 +173,87 @@
       "title": "DatasetType",
       "type": "string"
     },
+    "DictFeature": {
+      "description": "Corresponds to HuggingFace's \"Python dict\" feature type.",
+      "properties": {
+        "feature_type": {
+          "const": "Dict",
+          "default": "Dict",
+          "description": "Feature type discriminator (Python dict composite feature)",
+          "title": "Feature Type",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name of the feature",
+          "title": "Name",
+          "type": "string"
+        },
+        "fields": {
+          "description": "Named fields within the dict. Each field can be any HFFeature type (Value, List, Dict, etc.)",
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "Audio": "#/$defs/AudioFeature",
+                "ClassLabel": "#/$defs/ClassLabelFeature",
+                "Dict": "#/$defs/DictFeature",
+                "Image": "#/$defs/ImageFeature",
+                "List": "#/$defs/ListFeature",
+                "Value": "#/$defs/ValueFeature"
+              },
+              "propertyName": "feature_type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ValueFeature"
+              },
+              {
+                "$ref": "#/$defs/ListFeature"
+              },
+              {
+                "$ref": "#/$defs/DictFeature"
+              },
+              {
+                "$ref": "#/$defs/ClassLabelFeature"
+              },
+              {
+                "$ref": "#/$defs/ImageFeature"
+              },
+              {
+                "$ref": "#/$defs/AudioFeature"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Fields",
+          "type": "array"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the dict feature",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name",
+        "fields"
+      ],
+      "title": "DictFeature",
+      "type": "object"
+    },
     "EnvironmentVariable": {
       "description": "Defines an environment variable required by the test container.",
       "properties": {
@@ -113,6 +286,47 @@
         "name"
       ],
       "title": "EnvironmentVariable",
+      "type": "object"
+    },
+    "ImageFeature": {
+      "description": "Corresponds to HuggingFace's Image feature type.\n\nDeclares that this dataset column contains image data. The container is responsible\nfor handling image processing details (decoding, color mode conversion, etc.).",
+      "properties": {
+        "feature_type": {
+          "const": "Image",
+          "default": "Image",
+          "description": "Feature type discriminator",
+          "title": "Feature Type",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name of the feature",
+          "title": "Name",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the image feature",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ImageFeature",
       "type": "object"
     },
     "InputDataset": {
@@ -161,7 +375,44 @@
           "anyOf": [
             {
               "items": {
-                "$ref": "#/$defs/DatasetFeature"
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/DatasetFeature"
+                  },
+                  {
+                    "discriminator": {
+                      "mapping": {
+                        "Audio": "#/$defs/AudioFeature",
+                        "ClassLabel": "#/$defs/ClassLabelFeature",
+                        "Dict": "#/$defs/DictFeature",
+                        "Image": "#/$defs/ImageFeature",
+                        "List": "#/$defs/ListFeature",
+                        "Value": "#/$defs/ValueFeature"
+                      },
+                      "propertyName": "feature_type"
+                    },
+                    "oneOf": [
+                      {
+                        "$ref": "#/$defs/ValueFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/ListFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/DictFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/ClassLabelFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/ImageFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/AudioFeature"
+                      }
+                    ]
+                  }
+                ]
               },
               "type": "array"
             },
@@ -170,7 +421,7 @@
             }
           ],
           "default": null,
-          "description": "List of required features within a HuggingFace dataset.",
+          "description": "List of required features within a HuggingFace dataset. Supports both simple scalar features and complex feature types.",
           "title": "Features"
         }
       },
@@ -223,6 +474,110 @@
         "type"
       ],
       "title": "InputParameter",
+      "type": "object"
+    },
+    "ListFeature": {
+      "description": "Corresponds to HuggingFace's List/Sequence feature type.",
+      "properties": {
+        "feature_type": {
+          "const": "List",
+          "default": "List",
+          "description": "Feature type discriminator",
+          "title": "Feature Type",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name of the feature",
+          "title": "Name",
+          "type": "string"
+        },
+        "feature": {
+          "anyOf": [
+            {
+              "enum": [
+                "null",
+                "bool",
+                "int8",
+                "int16",
+                "int32",
+                "int64",
+                "uint8",
+                "uint16",
+                "uint32",
+                "uint64",
+                "float16",
+                "float32",
+                "float",
+                "float64",
+                "double",
+                "time32[s]",
+                "time32[ms]",
+                "time64[us]",
+                "time64[ns]",
+                "timestamp[s]",
+                "timestamp[ms]",
+                "timestamp[us]",
+                "timestamp[ns]",
+                "date32",
+                "date64",
+                "duration[s]",
+                "duration[ms]",
+                "duration[us]",
+                "duration[ns]",
+                "binary",
+                "large_binary",
+                "binary_view",
+                "string",
+                "large_string",
+                "string_view"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "Image",
+                "Audio",
+                "ClassLabel",
+                "Dict",
+                "List"
+              ],
+              "type": "string"
+            }
+          ],
+          "description": "List element type. Can be: (1) scalar dtype string ('string', 'int32', etc.) for List(Value(dtype)), or (2) simple feature type name ('Image', 'Audio', 'ClassLabel', 'Dict', 'List') for List(FeatureType()). For complex nested structures with custom parameters, define nested ListFeature or DictFeature objects.",
+          "title": "Feature"
+        },
+        "length": {
+          "default": -1,
+          "description": "List length constraint: -1 for variable-length lists, >=0 for fixed-length sequences.",
+          "title": "Length",
+          "type": "integer"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the list feature",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name",
+        "feature"
+      ],
+      "title": "ListFeature",
       "type": "object"
     },
     "OutputArtifact": {
@@ -285,7 +640,44 @@
           "anyOf": [
             {
               "items": {
-                "$ref": "#/$defs/DatasetFeature"
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/DatasetFeature"
+                  },
+                  {
+                    "discriminator": {
+                      "mapping": {
+                        "Audio": "#/$defs/AudioFeature",
+                        "ClassLabel": "#/$defs/ClassLabelFeature",
+                        "Dict": "#/$defs/DictFeature",
+                        "Image": "#/$defs/ImageFeature",
+                        "List": "#/$defs/ListFeature",
+                        "Value": "#/$defs/ValueFeature"
+                      },
+                      "propertyName": "feature_type"
+                    },
+                    "oneOf": [
+                      {
+                        "$ref": "#/$defs/ValueFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/ListFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/DictFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/ClassLabelFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/ImageFeature"
+                      },
+                      {
+                        "$ref": "#/$defs/AudioFeature"
+                      }
+                    ]
+                  }
+                ]
               },
               "type": "array"
             },
@@ -294,7 +686,7 @@
             }
           ],
           "default": null,
-          "description": "List of required features within a HuggingFace dataset",
+          "description": "List of required features within a HuggingFace dataset. Supports both simple scalar features and complex feature types.",
           "title": "Features"
         }
       },
@@ -430,6 +822,90 @@
         "type"
       ],
       "title": "SystemInput",
+      "type": "object"
+    },
+    "ValueFeature": {
+      "description": "Corresponds to HuggingFace's Value feature type.\nRepresents a scalar value feature (string, int64, float32, bool, etc.)",
+      "properties": {
+        "feature_type": {
+          "const": "Value",
+          "default": "Value",
+          "description": "Feature type discriminator",
+          "title": "Feature Type",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name of the feature",
+          "title": "Name",
+          "type": "string"
+        },
+        "dtype": {
+          "description": "The data type of the feature. Common types: 'string', 'int64', 'int32', 'float64', 'float32', 'bool'. See: https://huggingface.co/docs/datasets/about_dataset_features",
+          "enum": [
+            "null",
+            "bool",
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+            "float16",
+            "float32",
+            "float",
+            "float64",
+            "double",
+            "time32[s]",
+            "time32[ms]",
+            "time64[us]",
+            "time64[ns]",
+            "timestamp[s]",
+            "timestamp[ms]",
+            "timestamp[us]",
+            "timestamp[ns]",
+            "date32",
+            "date64",
+            "duration[s]",
+            "duration[ms]",
+            "duration[us]",
+            "duration[ns]",
+            "binary",
+            "large_binary",
+            "binary_view",
+            "string",
+            "large_string",
+            "string_view"
+          ],
+          "title": "Dtype",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the feature - data type, purpose etc.",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name",
+        "dtype"
+      ],
+      "title": "ValueFeature",
       "type": "object"
     }
   },
