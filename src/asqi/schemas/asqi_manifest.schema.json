@@ -16,7 +16,7 @@
           "type": "string"
         },
         "required": {
-          "default": true,
+          "default": false,
           "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
           "title": "Required",
           "type": "boolean"
@@ -66,7 +66,7 @@
           "type": "array"
         },
         "required": {
-          "default": true,
+          "default": false,
           "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
           "title": "Required",
           "type": "boolean"
@@ -232,7 +232,7 @@
           "type": "array"
         },
         "required": {
-          "default": true,
+          "default": false,
           "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
           "title": "Required",
           "type": "boolean"
@@ -308,7 +308,7 @@
           "type": "string"
         },
         "required": {
-          "default": true,
+          "default": false,
           "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
           "title": "Required",
           "type": "boolean"
@@ -563,7 +563,7 @@
           "type": "integer"
         },
         "required": {
-          "default": true,
+          "default": false,
           "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
           "title": "Required",
           "type": "boolean"
@@ -895,7 +895,7 @@
           "type": "string"
         },
         "required": {
-          "default": true,
+          "default": false,
           "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
           "title": "Required",
           "type": "boolean"
@@ -922,7 +922,7 @@
       "type": "object"
     },
     "VideoFeature": {
-      "description": "Video feature type for multimodal datasets.\n\nDeclares that this dataset column contains video data. The container is responsible\nfor handling video processing details (resolution, framerate, codec, decoding, etc.).",
+      "description": "Corresponds to HuggingFace's Video feature type.",
       "properties": {
         "feature_type": {
           "const": "Video",
@@ -937,7 +937,7 @@
           "type": "string"
         },
         "required": {
-          "default": true,
+          "default": false,
           "description": "Whether this feature is required in the dataset. If False, the feature may be absent or contain null values.",
           "title": "Required",
           "type": "boolean"

@@ -54,6 +54,7 @@ _FEATURE_TYPE_MAP = {
     VideoFeature: (Video, "Video"),
     ClassLabelFeature: (ClassLabel, "ClassLabel"),
     ListFeature: (HFSequence, "List/Sequence"),
+    DictFeature: (dict, "Dict"),
 }
 
 
@@ -82,12 +83,12 @@ def _validate_feature_type(
         if isinstance(expected, feature_class):
             if not isinstance(actual, expected_type):
                 # For scalar types, show the expected dtype in error
-                if feature_class in (ValueFeature, DatasetFeature):
+                if isinstance(expected, (ValueFeature, DatasetFeature)):
                     return f"expected scalar type '{expected.dtype}', got {type(actual).__name__}"
                 return f"expected {type_name}, got {type(actual).__name__}"
 
             # Additional validation for scalar types
-            if feature_class in (ValueFeature, DatasetFeature):
+            if isinstance(expected, (ValueFeature, DatasetFeature)):
                 return _validate_scalar_dtype(expected, actual)
 
             return None
