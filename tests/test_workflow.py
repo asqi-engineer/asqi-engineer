@@ -314,6 +314,116 @@ def test_execute_single_test_invalid_json():
     assert "Failed to parse JSON output" in result.error_message
 
 
+def test_execute_single_test_container_error_in_json():
+    """Test that errors in JSON output are extracted to error_message field."""
+    # Simulate container that exits with code 1 and includes error in JSON
+    container_json_output = json.dumps(
+        {
+            "results": {
+                "success": False,
+                "error": "Dataset validation failed: missing required column 'label'",
+            },
+            "test_results": None,
+            "generated_reports": [],
+            "generated_datasets": [],
+        }
+    )
+
+    with patch("asqi.workflow.run_container_with_args") as run_mock:
+        run_mock.return_value = {
+            "success": False,  # Exit code != 0
+            "exit_code": 1,
+            "output": container_json_output,
+            "error": "",  # No Docker-level error
+            "container_id": "abc123",
+        }
+
+        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+        result = inner_step(
+            test_id="validation_error_test",
+            test_name="validation error test",
+            image="test/image:latest",
+            sut_name="systemA",
+            systems_params={"system_under_test": {"type": "llm_api"}},
+            test_params={},
+            container_config=ContainerConfig(),
+        )
+
+    # Verify that error from JSON is extracted
+    assert result.success is False
+    assert result.exit_code == 1
+    assert "Dataset validation failed" in result.error_message
+    assert "missing required column 'label'" in result.error_message
+
+
+def test_execute_single_test_combined_docker_and_json_errors():
+    """Test that Docker errors and JSON errors are combined."""
+    container_json_output = json.dumps(
+        {
+            "results": {"success": False, "error": "Internal validation error"},
+            "test_results": None,
+            "generated_reports": [],
+            "generated_datasets": [],
+        }
+    )
+
+    with patch("asqi.workflow.run_container_with_args") as run_mock:
+        run_mock.return_value = {
+            "success": False,
+            "exit_code": 137,  # OOM killed
+            "output": container_json_output,
+            "error": "Container exceeded memory limit",
+            "container_id": "abc123",
+        }
+
+        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+        result = inner_step(
+            test_id="combined_error_test",
+            test_name="combined error test",
+            image="test/image:latest",
+            sut_name="systemA",
+            systems_params={"system_under_test": {"type": "llm_api"}},
+            test_params={},
+            container_config=ContainerConfig(),
+        )
+
+    # Verify both errors are present
+    assert result.success is False
+    assert "Container exceeded memory limit" in result.error_message
+    assert "Internal validation error" in result.error_message
+
+
+def test_execute_single_test_docker_error_with_json_parse_failure():
+    """Test that Docker errors and JSON parsing errors are combined."""
+    # Container crashes with Docker error AND produces unparseable output
+    unparseable_output = "Some log output\n{incomplete json..."
+
+    with patch("asqi.workflow.run_container_with_args") as run_mock:
+        run_mock.return_value = {
+            "success": False,
+            "exit_code": 137,  # OOM killed
+            "output": unparseable_output,
+            "error": "Container exceeded memory limit",
+            "container_id": "abc123",
+        }
+
+        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+        result = inner_step(
+            test_id="crash_with_bad_output",
+            test_name="crash with bad output",
+            image="test/image:latest",
+            sut_name="systemA",
+            systems_params={"system_under_test": {"type": "llm_api"}},
+            test_params={},
+            container_config=ContainerConfig(),
+        )
+
+    # Verify both Docker error and parsing error are present
+    assert result.success is False
+    assert "Container exceeded memory limit" in result.error_message
+    assert "Failed to parse JSON output" in result.error_message
+
+
 def test_execute_single_test_env_file_falsy_values():
     """Test that env_file processing is skipped when env_file has falsy values."""
     fake_container_output = '{"success": true, "metric": 1}'
