@@ -73,9 +73,11 @@ def _validate_feature_type(
     Note:
         Complex nested structures are not fully validated.
     """
-    # Handle DictFeature - skip detailed validation for now
     if isinstance(expected, DictFeature):
-        # Full nested validation is complex, left for future enhancement
+        # Basic validation: ensure actual is a dict
+        if not isinstance(actual, dict):
+            return f"expected Dict, got {type(actual).__name__}"
+        # Note: Nested field validation is complex, left for future enhancement
         return None
 
     # Check feature type using mapping
@@ -122,8 +124,8 @@ def validate_dataset_features(
     type_mismatches = []
 
     for feature in expected_features:
-        # defaults to False which is consistent with existing typings
-        required = getattr(feature, "required", False)
+        # All feature types have required field (defaults to False)
+        required = feature.required
 
         if feature.name not in dataset_columns:
             if required:

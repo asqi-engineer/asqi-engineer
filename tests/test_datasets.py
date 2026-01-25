@@ -371,8 +371,7 @@ class TestLoadHFDatasetWithValidation:
                 ),
             )
 
-            # Load and validate - DatasetFeature doesn't have required field,
-            # so validation should pass even though required defaults to False
+            # Load and validate - DatasetFeature has required field defaulting to False
             loaded = load_hf_dataset(
                 dataset_config,
                 expected_features=expected_features,
@@ -382,6 +381,41 @@ class TestLoadHFDatasetWithValidation:
             assert len(loaded) == 1
             assert "text" in loaded.column_names
             assert "label" in loaded.column_names
+
+    def test_dataset_feature_with_explicit_required(self):
+        """Test that DatasetFeature respects explicit required=True."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Dataset missing the "label" column
+            dataset = Dataset.from_dict({"text": ["sample"]})
+            data_file = Path(tmpdir) / "data.parquet"
+            dataset.to_parquet(data_file)
+
+            # DatasetFeature with explicit required=True
+            expected_features = [
+                DatasetFeature(name="text", dtype="string", required=True),
+                DatasetFeature(name="label", dtype="string", required=True),  # Missing!
+            ]
+
+            dataset_config = HFDatasetDefinition(
+                type="huggingface",
+                loader_params=DatasetLoaderParams(
+                    builder_name="parquet",
+                    data_files=str(data_file),
+                ),
+            )
+
+            # Should fail because label is marked required=True but missing
+            with pytest.raises(ValueError) as exc_info:
+                load_hf_dataset(
+                    dataset_config,
+                    expected_features=expected_features,
+                    dataset_name="test_data",
+                )
+
+            error_msg = str(exc_info.value)
+            assert "test_data" in error_msg
+            assert "label" in error_msg
+            assert "Missing required features" in error_msg
 
 
 class TestTypeValidation:
@@ -524,3 +558,46 @@ class TestTypeValidation:
             )
 
             assert len(loaded) == 1
+
+    def test_validate_dict_feature_type_mismatch(self):
+        """Test that DictFeature validation catches basic type mismatches."""
+        from asqi.schemas import DictFeature, ValueFeature
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create dataset with scalar column instead of dict
+            dataset = Dataset.from_dict({"metadata": ["not_a_dict"]})
+            data_file = Path(tmpdir) / "data.parquet"
+            dataset.to_parquet(data_file)
+
+            # Expect a dict feature
+            expected_features = [
+                DictFeature(
+                    name="metadata",
+                    fields=[
+                        ValueFeature(
+                            name="title", feature_type="Value", dtype="string"
+                        ),
+                    ],
+                    required=True,
+                ),
+            ]
+
+            dataset_config = HFDatasetDefinition(
+                type="huggingface",
+                loader_params=DatasetLoaderParams(
+                    builder_name="parquet",
+                    data_files=str(data_file),
+                ),
+            )
+
+            # Should fail with type mismatch
+            with pytest.raises(ValueError) as exc_info:
+                load_hf_dataset(
+                    dataset_config,
+                    expected_features=expected_features,
+                )
+
+            error_msg = str(exc_info.value)
+            assert "Type mismatches" in error_msg
+            assert "metadata" in error_msg
+            assert "expected Dict" in error_msg
