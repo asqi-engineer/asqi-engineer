@@ -25,7 +25,7 @@ import yaml
 from datasets import Dataset
 
 from asqi.datasets import load_hf_dataset, validate_dataset_features
-from asqi.response_schemas import ContainerOutput
+from asqi.response_schemas import ContainerOutput, GeneratedDataset
 from asqi.schemas import Manifest
 
 
@@ -207,8 +207,6 @@ def main():
         print(f"✓ Saved dataset to: {dataset_path}")
 
         # Create metadata for output
-        from asqi.response_schemas import GeneratedDataset
-
         dataset_metadata = GeneratedDataset(
             dataset_name="augmented_data",
             dataset_type="huggingface",

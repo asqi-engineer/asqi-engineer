@@ -600,6 +600,7 @@ def load_hf_dataset(
 
 **Basic Usage (without validation):**
 ```python
+from pathlib import Path
 from asqi.datasets import load_hf_dataset
 
 # dataset_config passed by ASQI
@@ -611,6 +612,7 @@ dataset = load_hf_dataset(
 
 **With Validation (recommended):**
 ```python
+import sys
 from pathlib import Path
 import yaml
 from asqi.datasets import load_hf_dataset
@@ -657,7 +659,12 @@ For advanced validation scenarios beyond basic single-dataset usage:
 **Validating Multiple Input Datasets:**
 
 ```python
+import sys
+from pathlib import Path
+from asqi.datasets import load_hf_dataset
+
 # Load and validate each input dataset
+input_mount_path = Path("/input")
 datasets = {}
 for input_spec in manifest.input_datasets:
     dataset_name = input_spec.name
@@ -671,6 +678,7 @@ for input_spec in manifest.input_datasets:
 
     datasets[dataset_name] = load_hf_dataset(
         dataset_config,
+        input_mount_path=input_mount_path,
         expected_features=input_spec.features,
         dataset_name=dataset_name
     )
