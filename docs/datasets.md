@@ -576,35 +576,125 @@ systems:
 
 ## Dataset Loading Utilities
 
-ASQI provides utility functions for loading datasets within containers:
-
 ### `load_hf_dataset()`
 
-Load a HuggingFace dataset with automatic column mapping:
+Load and validate HuggingFace datasets with automatic column mapping.
 
+**Function Signature:**
+```python
+def load_hf_dataset(
+    dataset_config: Union[dict, HFDatasetDefinition],
+    input_mount_path: Path | None = None,
+    expected_features: Sequence[DatasetFeature | HFFeature] | None = None,
+    dataset_name: str = "dataset",
+) -> Dataset
+```
+
+**Parameters:**
+- `dataset_config`: Dataset configuration (passed by ASQI via `--input-datasets`)
+- `input_mount_path`: Container input mount point (typically `/input`)
+- `expected_features`: Feature definitions from manifest for validation (optional)
+- `dataset_name`: Dataset name for error messages
+
+**Returns:** Loaded HuggingFace `Dataset` with columns mapped and validated
+
+**Basic Usage (without validation):**
 ```python
 from asqi.datasets import load_hf_dataset
 
-# Load dataset with configuration
-dataset_config = {
-    "type": "huggingface",
-    "loader_params": {
-        "builder_name": "json",
-        "data_files": "data.json"
-    },
-    "mapping": {
-        "question": "prompt",
-        "answer": "response"
-    }
-}
-
-dataset = load_hf_dataset(dataset_config)
-
-# Access mapped columns
-for row in dataset:
-    print(row["prompt"])    # Originally 'question' in dataset
-    print(row["response"])  # Originally 'answer' in dataset
+# dataset_config passed by ASQI
+dataset = load_hf_dataset(
+    dataset_config,
+    input_mount_path=Path("/input")
+)
 ```
+
+**With Validation (recommended):**
+```python
+from pathlib import Path
+import yaml
+from asqi.datasets import load_hf_dataset
+from asqi.schemas import Manifest
+
+# Load manifest
+with open("/app/manifest.yaml") as f:
+    manifest = Manifest(**yaml.safe_load(f))
+
+# Get expected features from manifest
+input_spec = manifest.input_datasets[0]
+
+# Load and validate
+try:
+    dataset = load_hf_dataset(
+        dataset_config,
+        input_mount_path=Path("/input"),
+        expected_features=input_spec.features,  # Validates schema
+        dataset_name=input_spec.name
+    )
+    print(f"✓ Validated {len(dataset)} rows")
+except ValueError as e:
+    print(f"Validation failed: {e}", file=sys.stderr)
+    sys.exit(1)
+```
+
+**What it does:**
+1. Loads dataset using HuggingFace `load_dataset()` with `loader_params`
+2. Applies column mapping (renames columns per `mapping` config)
+3. Validates features if `expected_features` provided (checks required columns and types)
+4. Returns validated dataset ready for use
+
+**Error Example:**
+```
+Dataset 'source_data' validation failed:
+Missing required features: text
+Available columns: label, text2
+
+Hint: Check your dataset mapping configuration and feature types.
+```
+
+For advanced validation scenarios beyond basic single-dataset usage:
+
+**Validating Multiple Input Datasets:**
+
+```python
+# Load and validate each input dataset
+datasets = {}
+for input_spec in manifest.input_datasets:
+    dataset_name = input_spec.name
+    dataset_config = input_datasets_config.get(dataset_name)
+
+    if dataset_config is None:
+        if input_spec.required:
+            print(f"Error: Missing required dataset '{dataset_name}'", file=sys.stderr)
+            sys.exit(1)
+        continue  # Skip optional datasets
+
+    datasets[dataset_name] = load_hf_dataset(
+        dataset_config,
+        expected_features=input_spec.features,
+        dataset_name=dataset_name
+    )
+
+# Use validated datasets
+source_data = datasets["source_data"]
+reference_data = datasets.get("reference_data")  # Optional
+```
+
+**Validating Output Datasets:**
+
+```python
+from asqi.datasets import validate_dataset_features
+
+# After generating synthetic data
+output_dataset = Dataset.from_list(generated_rows)
+
+# Validate against manifest output schema
+output_spec = manifest.output_datasets[0]
+validate_dataset_features(
+    output_dataset,
+    expected_features=output_spec.features,
+    dataset_name=output_spec.name
+)
 
 ### File Validation Functions
 
