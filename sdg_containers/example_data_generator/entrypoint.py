@@ -21,31 +21,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
+import yaml
 from datasets import Dataset
 
-from asqi.datasets import load_hf_dataset
+from asqi.datasets import load_hf_dataset, validate_dataset_features
 from asqi.response_schemas import ContainerOutput, GeneratedDataset
-
-
-def load_input_dataset(
-    dataset_config: Dict[str, Any], input_mount_path: Path
-) -> Dataset:
-    """
-    Load a HuggingFace dataset using ASQI's load_hf_dataset utility.
-
-    The input_mount_path is passed to load_hf_dataset to resolve relative file paths
-    in the dataset config (e.g., data_files: "sample.json" becomes "/input/sample.json").
-
-    Args:
-        dataset_config: Dataset configuration with loader_params
-        input_mount_path: Path to the input mount (typically /input)
-
-    Returns:
-        Loaded HuggingFace Dataset
-    """
-    dataset = load_hf_dataset(dataset_config, input_mount_path=input_mount_path)
-    print(f"Loaded {len(dataset)} samples")
-    return dataset
+from asqi.schemas import Manifest
 
 
 def simple_augmentation(text: str, label: str, variation_num: int) -> Dict[str, Any]:
@@ -130,44 +111,6 @@ def generate_augmented_dataset(source_dataset: Dataset, num_variations: int) -> 
     return Dataset.from_list(augmented_samples)
 
 
-def save_output_dataset(
-    dataset: Dataset, output_mount_path: Path, dataset_name: str
-) -> GeneratedDataset:
-    """
-    Save generated dataset to output mount using ASQI's GeneratedDataset schema.
-
-    Args:
-        dataset: Dataset to save
-        output_mount_path: Path to output mount
-        dataset_name: Name of the dataset
-
-    Returns:
-        GeneratedDataset object with validated metadata
-    """
-    # Create datasets directory
-    datasets_dir = output_mount_path / "datasets"
-    datasets_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save dataset as Parquet file
-    dataset_path = datasets_dir / f"{dataset_name}.parquet"
-    dataset.to_parquet(str(dataset_path))
-
-    print(f"Saved dataset to: {dataset_path}")
-
-    # Use ASQI's GeneratedDataset schema for type-safe output
-    return GeneratedDataset(
-        dataset_name=dataset_name,
-        dataset_type="huggingface",
-        dataset_path=str(dataset_path),
-        format="parquet",
-        metadata={
-            "num_rows": len(dataset),
-            "num_columns": len(dataset.column_names),
-            "columns": dataset.column_names,
-        },
-    )
-
-
 def main():
     """
     Main entrypoint demonstrating data generation container interface.
@@ -191,6 +134,11 @@ def main():
     start_time = time.time()
 
     try:
+        manifest_path = Path("/app/manifest.yaml")
+        with open(manifest_path) as f:
+            manifest_dict = yaml.safe_load(f)
+        manifest = Manifest(**manifest_dict)
+
         # Parse inputs
         generation_params = json.loads(args.generation_params)
 
@@ -216,27 +164,63 @@ def main():
         print(f"Output mount: {output_mount_path}")
         print("=" * 60)
 
-        # Step 1: Load input dataset
-        print("\n[1/3] Loading input dataset...")
+        # Step 1: Load and validate input dataset
+        print("\n[1/4] Loading and validating input dataset...")
         source_config = input_datasets["source_data"]
-        source_dataset = load_input_dataset(
-            source_config, input_mount_path=input_mount_path
+        input_spec = manifest.input_datasets[0]  # "source_data"
+
+        source_dataset = load_hf_dataset(
+            source_config,
+            input_mount_path=input_mount_path,
+            expected_features=input_spec.features,  # Used for validation if provided
+            dataset_name="source_data",
         )
-        print(f"Loaded {len(source_dataset)} samples from source_data")
+        print(
+            f"✓ Loaded and validated {len(source_dataset)} samples from 'source_data'"
+        )
 
         # Step 2: Generate augmented data
-        print("\n[2/3] Generating augmented dataset...")
+        print("\n[2/4] Generating augmented dataset...")
         augmented_dataset = generate_augmented_dataset(source_dataset, num_variations)
         original_count = len(source_dataset)
         generated_count = len(augmented_dataset) - original_count
         total_count = len(augmented_dataset)
 
-        # Step 3: Save output dataset
-        print("\n[3/3] Saving output dataset...")
-        dataset_metadata = save_output_dataset(
-            augmented_dataset, output_mount_path, "augmented_data"
+        # Step 3: Validate and save output dataset
+        print("\n[3/4] Validating and saving output dataset...")
+        output_spec = manifest.output_datasets[0]  # "augmented_data"
+
+        # Validate against manifest schema
+        if output_spec.features is not None:
+            validate_dataset_features(
+                augmented_dataset,
+                expected_features=output_spec.features,
+                dataset_name="augmented_data",
+            )
+            print("✓ Validated output dataset against manifest schema")
+
+        # Save dataset
+        datasets_dir = output_mount_path / "datasets"
+        datasets_dir.mkdir(parents=True, exist_ok=True)
+        dataset_path = datasets_dir / "augmented_data.parquet"
+        augmented_dataset.to_parquet(str(dataset_path))
+        print(f"✓ Saved dataset to: {dataset_path}")
+
+        # Create metadata for output
+        dataset_metadata = GeneratedDataset(
+            dataset_name="augmented_data",
+            dataset_type="huggingface",
+            dataset_path=str(dataset_path),
+            format="parquet",
+            metadata={
+                "num_rows": len(augmented_dataset),
+                "num_columns": len(augmented_dataset.column_names),
+                "columns": augmented_dataset.column_names,
+            },
         )
 
+        # Step 4: Prepare output
+        print("\n[4/4] Preparing output...")
         execution_time = time.time() - start_time
 
         # Prepare output using ASQI's ContainerOutput model for type safety
@@ -250,7 +234,7 @@ def main():
         )
 
         print("\n" + "=" * 60)
-        print("Data Generation Complete!")
+        print("✓ Data Generation Complete!")
         print("=" * 60)
         print(f"Original samples: {original_count}")
         print(f"Generated samples: {generated_count}")
