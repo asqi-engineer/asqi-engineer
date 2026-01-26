@@ -39,7 +39,7 @@ dev = [
     "sphinx-new-tab-link>=0.8.0",
     "virtualenv>=20.36.1",
 ]
-containers = ["deepteam==1.0.4", "litellm>=1.76.0", "openevals>=0.1.0"]
+containers = ["deepteam==1.0.5", "litellm>=1.76.0", "openevals>=0.1.0"]
 
 [tool.bandit]
 exclude_dirs = [
