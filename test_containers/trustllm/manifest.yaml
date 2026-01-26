@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
 name: "trustllm"
 version: "1.0"
 description: "TrustLLM comprehensive trustworthiness evaluation framework for LLMs across 6 dimensions: truthfulness, safety, fairness, robustness, privacy, and machine ethics."
@@ -10,12 +11,14 @@ input_systems:
 
 input_schema:
   - name: "test_type"
-    type: "string"
+    type: "enum"
+    choices: ["ethics", "privacy", "fairness", "truthfulness", "robustness", "safety"]
     required: true
-    description: "Test dimension to evaluate. Options: ethics, privacy, fairness, truthfulness, robustness, safety"
-  
+    description: "Test dimension to evaluate"
+
   - name: "datasets"
     type: "list"
+    items: "string"
     required: false
     description: "List of specific datasets for the chosen test type (without .json extension). If not provided, uses default datasets for the test type. Ethics: [awareness, explicit_moralchoice, implicit_ETHICS, implicit_SocialChemistry101]. Privacy: [privacy_awareness_confAIde, privacy_awareness_query, privacy_leakage]. Fairness: [disparagement, preference, stereotype_agreement, stereotype_query_test, stereotype_recognition]. Truthfulness: [external, hallucination, golden_advfactuality, internal, sycophancy]. Robustness: [ood_detection, ood_generalization, AdvGLUE, AdvInstruction]. Safety: [jailbreak, exaggerated_safety, misuse]"
   

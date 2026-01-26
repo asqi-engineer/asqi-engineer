@@ -44,10 +44,10 @@ from asqi.validation import (
     validate_ids,
     validate_indicator_display_reports,
     validate_manifests_against_tests,
+    validate_parameters,
     validate_score_card_inputs,
     validate_system_compatibility,
     validate_test_execution_inputs,
-    validate_parameters,
     validate_test_plan,
     validate_test_volumes,
     validate_workflow_configurations,
@@ -3280,4 +3280,456 @@ class TestValidateDataGenerationPlan:
         assert (
             "does not have a loaded manifest" in errors[0]
             or "No manifest available" in errors[0]
+        )
+
+
+class TestComprehensiveTypeValidation:
+    """Test comprehensive type validation for parameters."""
+
+    def test_simple_type_validation_string(self):
+        """Test string type validation."""
+
+        manifest_data = {
+            "name": "test",
+            "version": "1.0.0",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [
+                {
+                    "name": "my_string",
+                    "type": "string",
+                    "required": False,
+                    "description": "A string parameter",
+                }
+            ],
+            "output_metrics": [{"name": "success", "type": "boolean"}],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {}
+
+        # Valid string
+        test = DummyTest()
+        test.params = {"my_string": "hello"}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Invalid - integer instead of string
+        test.params = {"my_string": 123}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'string', got 'int'" in e for e in errors)
+
+        # Invalid - list instead of string
+        test.params = {"my_string": ["hello"]}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'string', got 'list'" in e for e in errors)
+
+    def test_simple_type_validation_integer(self):
+        """Test integer type validation."""
+        manifest_data = {
+            "name": "test",
+            "version": "1.0.0",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [{"name": "my_int", "type": "integer", "required": False}],
+            "output_metrics": [{"name": "success", "type": "boolean"}],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {}
+
+        # Valid integer
+        test = DummyTest()
+        test.params = {"my_int": 42}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Invalid - string instead of integer
+        test.params = {"my_int": "42"}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'integer', got 'str'" in e for e in errors)
+
+        # Invalid - boolean should not be treated as integer
+        test.params = {"my_int": True}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'integer', got 'bool'" in e for e in errors)
+
+    def test_simple_type_validation_float(self):
+        """Test float type validation."""
+        manifest_data = {
+            "name": "test",
+            "version": "1.0.0",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [{"name": "my_float", "type": "float", "required": False}],
+            "output_metrics": [{"name": "success", "type": "boolean"}],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {}
+
+        # Valid float
+        test = DummyTest()
+        test.params = {"my_float": 3.14}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Valid - integer is acceptable for float
+        test.params = {"my_float": 42}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Invalid - string instead of float
+        test.params = {"my_float": "3.14"}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'float', got 'str'" in e for e in errors)
+
+        # Invalid - boolean should not be treated as float
+        test.params = {"my_float": True}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'float', got 'bool'" in e for e in errors)
+
+    def test_simple_type_validation_boolean(self):
+        """Test boolean type validation."""
+        manifest_data = {
+            "name": "test",
+            "version": "1.0.0",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [{"name": "my_bool", "type": "boolean", "required": False}],
+            "output_metrics": [{"name": "success", "type": "boolean"}],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {}
+
+        # Valid boolean
+        test = DummyTest()
+        test.params = {"my_bool": True}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        test.params = {"my_bool": False}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Invalid - integer instead of boolean
+        test.params = {"my_bool": 1}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'boolean', got 'int'" in e for e in errors)
+
+        # Invalid - string instead of boolean
+        test.params = {"my_bool": "true"}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'boolean', got 'str'" in e for e in errors)
+
+    def test_enum_validation(self):
+        """Test enum type validation with choices."""
+        manifest_data = {
+            "name": "test",
+            "version": "1.0.0",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [
+                {
+                    "name": "mode",
+                    "type": "enum",
+                    "choices": ["fast", "balanced", "thorough"],
+                    "required": True,
+                }
+            ],
+            "output_metrics": [{"name": "success", "type": "boolean"}],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {}
+
+        # Valid choice
+        test = DummyTest()
+        test.params = {"mode": "fast"}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        test.params = {"mode": "balanced"}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Invalid choice
+        test.params = {"mode": "super_fast"}
+        errors = validate_parameters(test, manifest)
+        assert any("Value 'super_fast' is not in allowed choices" in e for e in errors)
+        assert any("['fast', 'balanced', 'thorough']" in e for e in errors)
+
+        # Invalid choice with typo (like trustllm_test.yaml has "robustness2")
+        test.params = {"mode": "fast2"}
+        errors = validate_parameters(test, manifest)
+        assert any("Value 'fast2' is not in allowed choices" in e for e in errors)
+
+    def test_list_validation_structure(self):
+        """Test list type validation for structure."""
+        manifest_data = {
+            "name": "test",
+            "version": "1.0.0",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [
+                {
+                    "name": "my_list",
+                    "type": "list",
+                    "items": "string",
+                    "required": False,
+                }
+            ],
+            "output_metrics": [{"name": "success", "type": "boolean"}],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {}
+
+        # Valid list
+        test = DummyTest()
+        test.params = {"my_list": ["a", "b", "c"]}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Invalid - string instead of list
+        test.params = {"my_list": "not_a_list"}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'list', got 'str'" in e for e in errors)
+
+        # Invalid - dict instead of list
+        test.params = {"my_list": {"key": "value"}}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'list', got 'dict'" in e for e in errors)
+
+    def test_list_validation_element_types(self):
+        """Test list element type validation."""
+        manifest_data = {
+            "name": "test",
+            "version": "1.0.0",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [
+                {
+                    "name": "string_list",
+                    "type": "list",
+                    "items": "string",
+                    "required": False,
+                }
+            ],
+            "output_metrics": [{"name": "success", "type": "boolean"}],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {}
+
+        # Valid - all strings
+        test = DummyTest()
+        test.params = {"string_list": ["a", "b", "c"]}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Invalid - integers in list
+        test.params = {"string_list": [1, 2, 3]}
+        errors = validate_parameters(test, manifest)
+        assert any(
+            "string_list[0]" in e and "Expected type 'string'" in e for e in errors
+        )
+
+        # Invalid - mixed types
+        test.params = {"string_list": ["hello", 123, "world"]}
+        errors = validate_parameters(test, manifest)
+        assert any(
+            "string_list[1]" in e and "Expected type 'string'" in e for e in errors
+        )
+
+    def test_object_validation_structure(self):
+        """Test object type validation for structure."""
+        manifest_data = {
+            "name": "test",
+            "version": "1.0.0",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [
+                {
+                    "name": "my_object",
+                    "type": "object",
+                    "properties": [
+                        {"name": "field1", "type": "string", "required": True}
+                    ],
+                    "required": False,
+                }
+            ],
+            "output_metrics": [{"name": "success", "type": "boolean"}],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {}
+
+        # Valid object
+        test = DummyTest()
+        test.params = {"my_object": {"field1": "value"}}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Invalid - string instead of object
+        test.params = {"my_object": "not_an_object"}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'object' (dict), got 'str'" in e for e in errors)
+
+        # Invalid - list instead of object
+        test.params = {"my_object": ["not", "an", "object"]}
+        errors = validate_parameters(test, manifest)
+        assert any("Expected type 'object' (dict), got 'list'" in e for e in errors)
+
+    def test_object_validation_properties(self):
+        """Test object property validation."""
+        manifest_data = {
+            "name": "test",
+            "version": "1.0.0",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [
+                {
+                    "name": "config",
+                    "type": "object",
+                    "properties": [
+                        {"name": "max_retries", "type": "integer", "required": True},
+                        {"name": "timeout", "type": "float", "required": False},
+                    ],
+                    "required": False,
+                }
+            ],
+            "output_metrics": [{"name": "success", "type": "boolean"}],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {}
+
+        # Valid object with required property
+        test = DummyTest()
+        test.params = {"config": {"max_retries": 3}}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Valid object with all properties
+        test.params = {"config": {"max_retries": 3, "timeout": 30.0}}
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Invalid - missing required property
+        test.params = {"config": {"timeout": 30.0}}
+        errors = validate_parameters(test, manifest)
+        assert any(
+            "config.max_retries" in e and "Required property is missing" in e
+            for e in errors
+        )
+
+        # Invalid - wrong type for property
+        test.params = {"config": {"max_retries": "three"}}
+        errors = validate_parameters(test, manifest)
+        assert any(
+            "config.max_retries" in e and "Expected type 'integer'" in e for e in errors
+        )
+
+        # Invalid - unknown property
+        test.params = {"config": {"max_retries": 3, "unknown_field": "value"}}
+        errors = validate_parameters(test, manifest)
+        assert any(
+            "config.unknown_field" in e and "Unknown property" in e for e in errors
+        )
+
+    def test_nested_list_of_objects(self):
+        """Test validation of complex nested structure: list of objects."""
+
+        manifest_data = {
+            "name": "test",
+            "version": "1.0.0",
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [
+                {
+                    "name": "scenarios",
+                    "type": "list",
+                    "items": {
+                        "name": "scenario",
+                        "type": "object",
+                        "properties": [
+                            {"name": "name", "type": "string", "required": True},
+                            {"name": "iterations", "type": "integer", "required": True},
+                        ],
+                    },
+                    "required": False,
+                }
+            ],
+            "output_metrics": [{"name": "success", "type": "boolean"}],
+        }
+        manifest = Manifest(**manifest_data)
+
+        class DummyTest:
+            name = "test"
+            params = {}
+
+        # Valid list of objects
+        test = DummyTest()
+        test.params = {
+            "scenarios": [
+                {"name": "test1", "iterations": 5},
+                {"name": "test2", "iterations": 10},
+            ]
+        }
+        errors = validate_parameters(test, manifest)
+        assert errors == []
+
+        # Invalid - missing required property in list element
+        test.params = {
+            "scenarios": [
+                {"name": "test1", "iterations": 5},
+                {"name": "test2"},  # missing iterations
+            ]
+        }
+        errors = validate_parameters(test, manifest)
+        assert any(
+            "scenarios[1].iterations" in e and "Required property is missing" in e
+            for e in errors
+        )
+
+        # Invalid - wrong type in nested property
+        test.params = {
+            "scenarios": [
+                {"name": "test1", "iterations": "five"},  # string instead of int
+            ]
+        }
+        errors = validate_parameters(test, manifest)
+        assert any(
+            "scenarios[0].iterations" in e and "Expected type 'integer'" in e
+            for e in errors
         )
