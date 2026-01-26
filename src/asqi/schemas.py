@@ -771,7 +771,7 @@ class HFDatasetDefinition(BaseModel):
     )
     mapping: dict[str, str] = Field(
         default_factory=dict,
-        description="Optional mapping from manifest feature names to actual dataset column names.",
+        description="Optional mapping from existing dataset column names to their required names in manifest i.e. current_name: manifest_name.",
     )
     tags: list[str] = Field(
         default_factory=list,
