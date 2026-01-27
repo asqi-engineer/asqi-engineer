@@ -1,0 +1,25 @@
+name: "harbor"
+version: "1.0"
+description: "Harbor Agentic Coding Test Container."
+host_access: true
+
+input_systems:
+  - name: "system_under_test"
+    type: "agent_cli"
+    required: true
+    description: "The agent_cli system being tested."
+
+input_schema:
+  - name: "dataset"
+    type: "string"
+    required: true
+    description: "Dataset to evaluate. Try hello-world@1.0 for initial tests."
+  - name: "task"
+    type: "string"
+    required: false
+    description: "Task within a dataset to run."
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the garak execution completed successfully"
