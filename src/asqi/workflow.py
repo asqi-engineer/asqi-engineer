@@ -756,13 +756,13 @@ def execute_single_test(
         metadata_config = {}
 
     user_id = metadata_config.get("user_id", "")
-    job_id = metadata_config.get("job_id", DBOS.workflow_id)
+    metadata_job_id = metadata_config.get("job_id", DBOS.workflow_id)
     job_type = metadata_config.get("job_type", "test")
 
     metadata_params = {
         "user_id": user_id,
         "tags": {
-            "job_id": job_id,
+            "job_id": metadata_job_id,
             "job_type": job_type,
             "source": {"type": "test", "id": test_id},
         },
@@ -1912,13 +1912,13 @@ def execute_data_generation(
         metadata_config = {}
 
     user_id = metadata_config.get("user_id", "")
-    job_id = metadata_config.get("job_id", DBOS.workflow_id)
+    metadata_job_id = metadata_config.get("job_id", DBOS.workflow_id)
     job_type = metadata_config.get("job_type", "generation")
 
     metadata_params = {
         "user_id": user_id,
         "tags": {
-            "job_id": job_id,
+            "job_id": metadata_job_id,
             "job_type": job_type,
             "source": {"type": "generation", "id": job_id},
         },
