@@ -7,11 +7,6 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from dbos import DBOS, DBOSConfig, Queue
-from dotenv import dotenv_values, load_dotenv
-from pydantic import ValidationError
-from rich.console import Console
-
 from asqi.config import (
     ContainerConfig,
     ExecutionMode,
@@ -69,6 +64,10 @@ from asqi.validation import (
     validate_test_volumes,
     validate_workflow_configurations,
 )
+from dbos import DBOS, DBOSConfig, Queue
+from dotenv import dotenv_values, load_dotenv
+from pydantic import ValidationError
+from rich.console import Console
 
 load_dotenv()
 oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -689,6 +688,7 @@ def execute_single_test(
     container_config: ContainerConfig,
     env_file: Optional[str] = None,
     environment: Optional[Dict[str, str]] = None,
+    metadata_config: Optional[Dict[str, Any]] = None,
 ) -> TestExecutionResult:
     """Execute a single test in a Docker container.
 
@@ -705,6 +705,7 @@ def execute_single_test(
         container_config: Container execution configurations
         env_file: Optional path to .env file for test-level environment variables
         environment: Optional dictionary of environment variables for the test
+        metadata_config: Optional dictionary containing metadata like user_id and job_id to forward into the test container
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -750,15 +751,33 @@ def execute_single_test(
         else:
             DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
 
-    # Prepare command line arguments for test execution
+    # Extract metadata from metadata_config or use defaults
+    if metadata_config is None:
+        metadata_config = {}
+
+    user_id = metadata_config.get("user_id", "")
+    job_id = metadata_config.get("job_id", DBOS.workflow_id)
+
+    metadata_params = {
+        "user_id": user_id,
+        "tags": {
+            "job_id": job_id,
+            "job_type": "test",
+            "source": {"type": "test", "id": test_id},
+        },
+    }
+
     try:
         systems_params_json = json.dumps(systems_params_with_fallbacks)
         test_params_json = json.dumps(test_params)
+        metadata_params_json = json.dumps(metadata_params)
         command_args = [
             "--systems-params",
             systems_params_json,
             "--test-params",
             test_params_json,
+            "--metadata-params",
+            metadata_params_json,
         ]
     except (TypeError, ValueError) as e:
         result.error_message = f"Failed to serialize configuration to JSON: {e}"
@@ -885,6 +904,7 @@ def run_test_suite_workflow(
     container_config: ContainerConfig,
     datasets_config: Optional[Dict[str, Any]] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
+    metadata_config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
@@ -902,6 +922,7 @@ def run_test_suite_workflow(
         container_config: Container execution configurations
         datasets_config: Optional datasets configuration for resolving dataset references
         score_card_configs: Optional list of score card configurations
+        metadata_config: Optional dictionary containing metadata like user_id and job_id to forward into test containers
 
     Returns:
         Execution summary with metadata and individual test results (no score cards) and container results
@@ -1066,6 +1087,7 @@ def run_test_suite_workflow(
                     container_config,
                     test_plan.get("env_file"),
                     test_plan.get("environment"),
+                    metadata_config,
                 )
                 test_handles.append((handle, test_plan))
 
@@ -1119,6 +1141,7 @@ def run_test_suite_workflow(
                 container_config,
                 test_plan.get("env_file"),
                 test_plan.get("environment"),
+                metadata_config,
             )
             test_handles.append((handle, test_plan))
 
@@ -1850,6 +1873,7 @@ def execute_data_generation(
     container_config: ContainerConfig,
     env_file: Optional[str] = None,
     environment: Optional[Dict[str, str]] = None,
+    metadata_config: Optional[Dict[str, Any]] = None,
 ) -> TestExecutionResult:
     """Execute a single data generation job in a Docker container.
 
@@ -1862,6 +1886,7 @@ def execute_data_generation(
         container_config: Container execution configurations
         env_file: Optional path to .env file for job-level environment variables
         environment: Optional dictionary of environment variables for the generation job
+        metadata_config: Optional dictionary containing metadata like user_id and job_id to forward into the generation container
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -1881,8 +1906,25 @@ def execute_data_generation(
         result.success = False
         return result
 
+    # Extract metadata from metadata_config or use defaults
+    if metadata_config is None:
+        metadata_config = {}
+
+    user_id = metadata_config.get("user_id", "")
+    job_id = metadata_config.get("job_id", DBOS.workflow_id)
+
+    metadata_params = {
+        "user_id": user_id,
+        "tags": {
+            "job_id": job_id,
+            "job_type": "generation",
+            "source": {"type": "generation", "id": job_id},
+        },
+    }
+
     try:
         generation_params_json = json.dumps(generation_params)
+        metadata_params_json = json.dumps(metadata_params)
         command_args = []
 
         if systems_params:
@@ -1890,6 +1932,7 @@ def execute_data_generation(
             command_args.extend(["--systems-params", systems_params_json])
 
         command_args.extend(["--generation-params", generation_params_json])
+        command_args.extend(["--metadata-params", metadata_params_json])
     except (TypeError, ValueError) as e:
         result.error_message = f"Failed to serialize configuration to JSON: {e}"
         result.success = False
@@ -1916,6 +1959,7 @@ def run_data_generation_workflow(
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
     datasets_config: Optional[Dict[str, Any]] = None,
+    metadata_config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
@@ -1932,6 +1976,7 @@ def run_data_generation_workflow(
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
         datasets_config: Optional datasets configuration for resolving dataset references
+        metadata_config: Optional dictionary containing metadata like user_id and job_id to forward into generation containers
 
     Returns:
         Execution summary with metadata and individual test results (no score cards) and container results
@@ -2092,6 +2137,7 @@ def run_data_generation_workflow(
                     container_config,
                     plan.get("env_file"),
                     plan.get("environment"),
+                    metadata_config,
                 )
                 generation_handles.append((handle, plan))
 
@@ -2144,6 +2190,7 @@ def run_data_generation_workflow(
                 container_config,
                 plan.get("env_file"),
                 plan.get("environment"),
+                metadata_config,
             )
             test_handles.append((handle, plan))
 
