@@ -705,7 +705,7 @@ def execute_single_test(
         container_config: Container execution configurations
         env_file: Optional path to .env file for test-level environment variables
         environment: Optional dictionary of environment variables for the test
-        metadata_config: Optional dictionary containing metadata like user_id and job_id to forward into the test container
+        metadata_config: Optional dictionary containing metadata like user_id, job_id, and job_type to forward into the test container
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -757,12 +757,13 @@ def execute_single_test(
 
     user_id = metadata_config.get("user_id", "")
     job_id = metadata_config.get("job_id", DBOS.workflow_id)
+    job_type = metadata_config.get("job_type", "test")
 
     metadata_params = {
         "user_id": user_id,
         "tags": {
             "job_id": job_id,
-            "job_type": "test",
+            "job_type": job_type,
             "source": {"type": "test", "id": test_id},
         },
     }
@@ -922,7 +923,7 @@ def run_test_suite_workflow(
         container_config: Container execution configurations
         datasets_config: Optional datasets configuration for resolving dataset references
         score_card_configs: Optional list of score card configurations
-        metadata_config: Optional dictionary containing metadata like user_id and job_id to forward into test containers
+        metadata_config: Optional dictionary containing metadata like user_id, job_id, and job_type to forward into test containers
 
     Returns:
         Execution summary with metadata and individual test results (no score cards) and container results
@@ -1912,12 +1913,13 @@ def execute_data_generation(
 
     user_id = metadata_config.get("user_id", "")
     job_id = metadata_config.get("job_id", DBOS.workflow_id)
+    job_type = metadata_config.get("job_type", "generation")
 
     metadata_params = {
         "user_id": user_id,
         "tags": {
             "job_id": job_id,
-            "job_type": "generation",
+            "job_type": job_type,
             "source": {"type": "generation", "id": job_id},
         },
     }
