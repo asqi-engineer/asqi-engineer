@@ -2,7 +2,6 @@ import json
 from unittest.mock import Mock, patch
 
 import pytest
-
 from asqi.config import ContainerConfig, ExecutionMode, ExecutorConfig
 from asqi.schemas import Manifest, OutputReports, ScoreCard, SystemInput
 from asqi.workflow import (
@@ -25,11 +24,25 @@ from test_data import MOCK_AUDIT_RESPONSES, MOCK_SCORE_CARD_CONFIG
 
 
 def _call_inner_workflow(
-    suite_config, systems_config, executor_config, container_config
+    suite_config,
+    systems_config,
+    executor_config,
+    container_config,
+    datasets_config=None,
+    score_card_configs=None,
+    metadata_config=None,
 ):
     """Call the inner (undecorated) workflow function if available."""
     workflow_fn = getattr(_workflow, "__wrapped__", _workflow)
-    return workflow_fn(suite_config, systems_config, executor_config, container_config)
+    return workflow_fn(
+        suite_config,
+        systems_config,
+        executor_config,
+        container_config,
+        datasets_config,
+        score_card_configs,
+        metadata_config,
+    )
 
 
 class DummyHandle:
@@ -228,6 +241,7 @@ def test_execute_single_test_success():
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={"p": "v"},
             container_config=ContainerConfig(),
+            metadata_config=None,
         )
 
     assert result.success is True
@@ -281,6 +295,7 @@ def test_execute_single_test_container_failure():
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
             container_config=ContainerConfig(),
+            metadata_config=None,
         )
 
     assert result.success is False
@@ -308,6 +323,7 @@ def test_execute_single_test_invalid_json():
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
             container_config=ContainerConfig(),
+            metadata_config=None,
         )
 
     assert result.success is False
@@ -347,6 +363,7 @@ def test_execute_single_test_container_error_in_json():
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
             container_config=ContainerConfig(),
+            metadata_config=None,
         )
 
     # Verify that error from JSON is extracted
@@ -385,6 +402,7 @@ def test_execute_single_test_combined_docker_and_json_errors():
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
             container_config=ContainerConfig(),
+            metadata_config=None,
         )
 
     # Verify both errors are present
@@ -416,6 +434,7 @@ def test_execute_single_test_docker_error_with_json_parse_failure():
             systems_params={"system_under_test": {"type": "llm_api"}},
             test_params={},
             container_config=ContainerConfig(),
+            metadata_config=None,
         )
 
     # Verify both Docker error and parsing error are present
@@ -453,6 +472,7 @@ def test_execute_single_test_env_file_falsy_values():
             },
             test_params={},
             container_config=ContainerConfig(),
+            metadata_config=None,
         )
 
         assert result.success is True
@@ -472,6 +492,7 @@ def test_execute_single_test_env_file_falsy_values():
             },
             test_params={},
             container_config=ContainerConfig(),
+            metadata_config=None,
         )
 
         assert result.success is True
@@ -491,6 +512,7 @@ def test_execute_single_test_env_file_falsy_values():
             },
             test_params={},
             container_config=ContainerConfig(),
+            metadata_config=None,
         )
 
         assert result.success is True
