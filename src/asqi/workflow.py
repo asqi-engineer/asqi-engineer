@@ -705,7 +705,7 @@ def execute_single_test(
         container_config: Container execution configurations
         env_file: Optional path to .env file for test-level environment variables
         environment: Optional dictionary of environment variables for the test
-        metadata_config: Optional dictionary containing metadata like user_id, job_id, and job_type to forward into the test container
+        metadata_config: Optional dictionary containing metadata to forward into the test container
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -756,29 +756,38 @@ def execute_single_test(
         metadata_config = {}
 
     user_id = metadata_config.get("user_id", "")
-    metadata_job_id = metadata_config.get("job_id", DBOS.workflow_id)
+    parent_id = metadata_config.get("parent_id", DBOS.workflow_id)
     job_type = metadata_config.get("job_type", "test")
 
-    metadata_params = {
-        "user_id": user_id,
-        "tags": {
-            "job_id": metadata_job_id,
-            "job_type": job_type,
-            "source": {"type": "test", "id": test_id},
-        },
+    # Build metadata structure and add to test_params
+    tags = {
+        "parent_id": parent_id,
+        "job_type": job_type,
+        "job_id": test_id,
     }
+
+    # Automatically add ANY extra keys into tags
+    for key, value in metadata_config.items():
+        if key not in {"user_id", "parent_id", "job_type", "job_id"}:
+            tags[key] = value
+
+    # Final metadata object
+    metadata = {
+        "user_id": user_id,
+        "tags": tags,
+    }
+
+    test_params_with_metadata = test_params.copy() if test_params else {}
+    test_params_with_metadata["metadata"] = metadata
 
     try:
         systems_params_json = json.dumps(systems_params_with_fallbacks)
-        test_params_json = json.dumps(test_params)
-        metadata_params_json = json.dumps(metadata_params)
+        test_params_json = json.dumps(test_params_with_metadata)
         command_args = [
             "--systems-params",
             systems_params_json,
             "--test-params",
             test_params_json,
-            "--metadata-params",
-            metadata_params_json,
         ]
     except (TypeError, ValueError) as e:
         result.error_message = f"Failed to serialize configuration to JSON: {e}"
@@ -923,7 +932,7 @@ def run_test_suite_workflow(
         container_config: Container execution configurations
         datasets_config: Optional datasets configuration for resolving dataset references
         score_card_configs: Optional list of score card configurations
-        metadata_config: Optional dictionary containing metadata like user_id, job_id, and job_type to forward into test containers
+        metadata_config: Optional dictionary containing metadata forward into test containers
 
     Returns:
         Execution summary with metadata and individual test results (no score cards) and container results
@@ -1912,21 +1921,35 @@ def execute_data_generation(
         metadata_config = {}
 
     user_id = metadata_config.get("user_id", "")
-    metadata_job_id = metadata_config.get("job_id", DBOS.workflow_id)
+    parent_id = metadata_config.get("parent_id", DBOS.workflow_id)
     job_type = metadata_config.get("job_type", "generation")
 
-    metadata_params = {
-        "user_id": user_id,
-        "tags": {
-            "job_id": metadata_job_id,
-            "job_type": job_type,
-            "source": {"type": "generation", "id": job_id},
-        },
+    # Build tags with required fields
+    tags = {
+        "parent_id": parent_id,
+        "job_type": job_type,
+        "job_id": job_id,
     }
 
+    # Automatically add ANY extra keys into tags
+    for key, value in metadata_config.items():
+        if key not in {"user_id", "parent_id", "job_type", "job_id"}:
+            tags[key] = value
+
+    # Final metadata object
+    metadata = {
+        "user_id": user_id,
+        "tags": tags,
+    }
+
+    # Add metadata to generation_params for backward compatibility
+    generation_params_with_metadata = (
+        generation_params.copy() if generation_params else {}
+    )
+    generation_params_with_metadata["metadata"] = metadata
+
     try:
-        generation_params_json = json.dumps(generation_params)
-        metadata_params_json = json.dumps(metadata_params)
+        generation_params_json = json.dumps(generation_params_with_metadata)
         command_args = []
 
         if systems_params:
@@ -1934,7 +1957,6 @@ def execute_data_generation(
             command_args.extend(["--systems-params", systems_params_json])
 
         command_args.extend(["--generation-params", generation_params_json])
-        command_args.extend(["--metadata-params", metadata_params_json])
     except (TypeError, ValueError) as e:
         result.error_message = f"Failed to serialize configuration to JSON: {e}"
         result.success = False

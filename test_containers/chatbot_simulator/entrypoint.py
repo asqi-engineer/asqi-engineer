@@ -12,41 +12,23 @@ from simulation import (
     PersonaBasedConversationTester,
     setup_client,
 )
+from utils import get_litellm_tracking_kwargs
 
 
-def create_model_callback(sut_params: Dict[str, Any], metadata_params: Dict[str, Any]):
-    """Create a model callback function for the SUT"""
+def create_model_callback(sut_params: Dict[str, Any], test_params: Dict[str, Any]):
+    """Create a model callback function for the SUT."""
     client = setup_client(**sut_params)
     model = sut_params.get("model", "gpt-4o-mini")
 
-    # Extract metadata from metadata_params
-    user_id = metadata_params.get("user_id", "")
-    tags_dict = metadata_params.get("tags", {})
-    job_id = tags_dict.get("job_id", "")
-    job_type = tags_dict.get("job_type", "test")
-    source = tags_dict.get("source", {})
-    source_type = source.get("type", "test")
-    source_id = source.get("id", "")
-
-    # Format tags as requested: ["job_id:value", "job_type:value", "source.type:value", "source.id:value"]
-    tags = [
-        f"job_id:{job_id}",
-        f"job_type:{job_type}",
-        f"source.type:{source_type}",
-        f"source.id:{source_id}",
-    ]
+    # ASQI injects metadata into test_params["metadata"]
+    metadata = (test_params or {}).get("metadata", {})
 
     async def model_callback(input_text: str) -> str:
         try:
             response = await client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": input_text}],
-                user=user_id,
-                extra_body={
-                    "metadata": {
-                        "tags": tags,
-                    }
-                },
+                **get_litellm_tracking_kwargs(metadata),
             )
             return response.choices[0].message.content or ""
         except Exception as e:
@@ -108,30 +90,29 @@ def load_scenarios_from_dataset(
 
 
 async def run_chatbot_simulation(
-    systems_params: Dict[str, Any],
-    test_params: Dict[str, Any],
-    metadata_params: Dict[str, Any],
+    systems_params: Dict[str, Any], test_params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Run the chatbot simulation test"""
+    """Run the chatbot simulation test."""
     sut_params = systems_params.get("system_under_test", {})
 
-    # Extract test parameters with defaults
     chatbot_purpose = test_params.get("chatbot_purpose", "general customer service")
     num_scenarios = test_params.get("num_scenarios", 3)
     max_turns = test_params.get("max_turns", 4)
     custom_personas = test_params.get("custom_personas")
     sycophancy_levels = test_params.get("sycophancy_levels", ["low", "high"])
-    # Load scenarios with priority: inline custom_scenarios > input_datasets > LLM generation
+
+    # Load scenarios priority: inline custom_scenarios > input_datasets > LLM generation
     custom_scenarios = test_params.get("custom_scenarios")
     if not custom_scenarios:
         custom_scenarios = load_scenarios_from_dataset(test_params)
+
     simulations_per_scenario = test_params.get("simulations_per_scenario", 1)
     success_threshold = test_params.get("success_threshold", 0.7)
     max_concurrent = test_params.get("max_concurrent", 3)
+
     conversation_log_filename = Path(
         test_params.get("conversation_log_filename", "conversation_logs.json")
     )
-    # Validate filename
     if len(conversation_log_filename.parts) != 1:
         raise ValueError(
             "Invalid conversation_log_filename: must be a filename only, no directory traversal allowed."
@@ -141,12 +122,15 @@ async def run_chatbot_simulation(
         Path(os.environ["OUTPUT_MOUNT_PATH"]) / conversation_log_filename
     )
     print(f"Conversation logs will be saved to: {conversation_log_filepath}")
-    # Get simulator and evaluator system if provided
+
     simulator_system = systems_params.get("simulator_system", {})
     evaluator_system = systems_params.get("evaluator_system", {})
 
-    # Create model callback for SUT
-    model_callback = create_model_callback(sut_params, metadata_params)
+    # Model callback for SUT (uses metadata inside test_params)
+    model_callback = create_model_callback(sut_params, test_params)
+
+    # Metadata injected by ASQI workflow
+    metadata = (test_params or {}).get("metadata", {})
 
     tester = PersonaBasedConversationTester(
         model_callback=model_callback,
@@ -159,7 +143,7 @@ async def run_chatbot_simulation(
         custom_scenarios=custom_scenarios,
         simulations_per_scenario=simulations_per_scenario,
         max_concurrent=max_concurrent,
-        metadata_params=metadata_params,
+        metadata=metadata,
     )
 
     print("Starting Conversational Testing Pipeline...")
@@ -176,11 +160,12 @@ async def run_chatbot_simulation(
         scenarios = await tester.generate_llm_scenarios(personas, num_scenarios)
 
     print(
-        f"Generated {len(scenarios)} total test cases from {len(set(s.get('scenario', '') for s in scenarios))} unique scenarios"
+        f"Generated {len(scenarios)} total test cases from "
+        f"{len(set(s.get('scenario', '') for s in scenarios))} unique scenarios"
     )
     tester.display_test_plan(personas, scenarios)
-    test_cases = await tester.simulate_conversations(scenarios)
 
+    test_cases = await tester.simulate_conversations(scenarios)
     print(f"Generated {len(test_cases)} conversation test cases")
 
     analyzer = ConversationTestAnalyzer(success_threshold=success_threshold)
@@ -218,14 +203,6 @@ def main():
     parser.add_argument(
         "--test-params", required=True, help="Test parameters as JSON string"
     )
-    parser.add_argument(
-        "--metadata-params",
-        required=True,
-        help=(
-            "Metadata for tracking (JSON). "
-            "Default includes user_id and tags with job_id/job_type/source."
-        ),
-    )
 
     args = parser.parse_args()
 
@@ -233,8 +210,6 @@ def main():
         # Parse inputs
         systems_params = json.loads(args.systems_params)
         test_params = json.loads(args.test_params)
-        metadata_params = json.loads(args.metadata_params)
-
         # Extract system_under_test
         sut_params = systems_params.get("system_under_test", {})
         if not sut_params:
@@ -260,14 +235,8 @@ def main():
             raise ValueError("Missing required test parameter: chatbot_purpose")
 
         # Run the simulation
-        result = asyncio.run(
-            run_chatbot_simulation(systems_params, test_params, metadata_params)
-        )
-
-        # Output results as JSON
+        result = asyncio.run(run_chatbot_simulation(systems_params, test_params))
         print(json.dumps(result, indent=2))
-
-        # Exit with success code
         sys.exit(0)
 
     except json.JSONDecodeError as e:
