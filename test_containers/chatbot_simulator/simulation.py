@@ -24,6 +24,46 @@ from rich.text import Text
 ConversationalTestCase = Dict[str, Any]
 
 
+def _litellm_tracking_kwargs(
+    metadata_params: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Generate LiteLLM tracking kwargs from metadata_params.
+
+    Args:
+        metadata_params: Optional metadata config dict with user_id and tags
+
+    Returns:
+        Dict with user and extra_body for LiteLLM API calls
+    """
+    if metadata_params is None:
+        metadata_params = {}
+
+    user_id = metadata_params.get("user_id", "")
+    tags_dict = metadata_params.get("tags", {})
+    job_id = tags_dict.get("job_id", "")
+    job_type = tags_dict.get("job_type", "test")
+    source = tags_dict.get("source", {})
+    source_type = source.get("type", "test")
+    source_id = source.get("id", "")
+
+    # Format tags as requested: ["job_id:value", "job_type:value", "source.type:value", "source.id:value"]
+    tags = [
+        f"job_id:{job_id}",
+        f"job_type:{job_type}",
+        f"source.type:{source_type}",
+        f"source.id:{source_id}",
+    ]
+
+    return {
+        "user": user_id,
+        "extra_body": {
+            "metadata": {
+                "tags": tags,
+            }
+        },
+    }
+
+
 def setup_client(**system_params) -> openai.AsyncOpenAI:
     """Setup OpenAI client with unified environment variable handling"""
     base_url = system_params.get("base_url")
@@ -55,7 +95,9 @@ def setup_client(**system_params) -> openai.AsyncOpenAI:
     return openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **openai_params)
 
 
-def setup_langchain_client(**system_params) -> ChatOpenAI:
+def setup_langchain_client(
+    metadata_params: Optional[Dict[str, Any]] = None, **system_params
+) -> ChatOpenAI:
     """Setup LangChain OpenAI client with unified environment variable handling"""
     base_url = system_params.get("base_url")
     api_key = system_params.get("api_key")
@@ -84,8 +126,16 @@ def setup_langchain_client(**system_params) -> ChatOpenAI:
             "provider",
         ]
     }
+
+    # Get tracking kwargs from metadata_params
+    tracking_kwargs = _litellm_tracking_kwargs(metadata_params)
+
     return ChatOpenAI(
-        model=model, api_key=SecretStr(api_key), base_url=base_url, **langchain_params
+        model=model,
+        api_key=SecretStr(api_key),
+        base_url=base_url,
+        **tracking_kwargs,
+        **langchain_params,
     )
 
 
@@ -102,6 +152,7 @@ class PersonaBasedConversationTester:
         custom_scenarios: Optional[List[Dict[str, str]]] = None,
         simulations_per_scenario: int = 1,
         max_concurrent: int = 3,
+        metadata_params: Optional[Dict[str, Any]] = None,
     ):
         self.model_callback = model_callback
         self.chatbot_purpose = chatbot_purpose
@@ -113,13 +164,14 @@ class PersonaBasedConversationTester:
         self.custom_scenarios = custom_scenarios
         self.simulations_per_scenario = simulations_per_scenario
         self.max_concurrent = max_concurrent
+        self.metadata_params = metadata_params or {}
 
         self.simulator_client = setup_client(**simulator_client_params)
         self.simulator_langchain_client = setup_langchain_client(
-            **simulator_client_params
+            metadata_params, **simulator_client_params
         )
         self.evaluator_langchain_client = setup_langchain_client(
-            **evaluator_client_params
+            metadata_params, **evaluator_client_params
         )
         self.evaluator = ConversationEvaluator(
             evaluator_client=self.evaluator_langchain_client
@@ -162,7 +214,9 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
             model=self.simulator_client_params.get("model", "gpt-4o-mini"),
             messages=[{"role": "user", "content": prompt}],
             temperature=self.simulator_client_params.get("temperature", 0.8),
+            **_litellm_tracking_kwargs(self.metadata_params),
         )
+
         description = response.choices[0].message.content or ""
         description = description.strip()
 
@@ -257,6 +311,7 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
                 {"role": "user", "content": self.chatbot_purpose},
             ],
             temperature=self.simulator_client_params.get("temperature", 0.8),
+            **_litellm_tracking_kwargs(self.metadata_params),
         )
         response_content = response.choices[0].message.content or ""
 

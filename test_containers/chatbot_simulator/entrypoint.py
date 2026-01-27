@@ -2,8 +2,8 @@ import argparse
 import asyncio
 import json
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any, Dict
 
 from asqi.datasets import load_hf_dataset
@@ -14,17 +14,39 @@ from simulation import (
 )
 
 
-def create_model_callback(sut_params: Dict[str, Any]):
+def create_model_callback(sut_params: Dict[str, Any], metadata_params: Dict[str, Any]):
     """Create a model callback function for the SUT"""
     client = setup_client(**sut_params)
     model = sut_params.get("model", "gpt-4o-mini")
 
+    # Extract metadata from metadata_params
+    user_id = metadata_params.get("user_id", "")
+    tags_dict = metadata_params.get("tags", {})
+    job_id = tags_dict.get("job_id", "")
+    job_type = tags_dict.get("job_type", "test")
+    source = tags_dict.get("source", {})
+    source_type = source.get("type", "test")
+    source_id = source.get("id", "")
+
+    # Format tags as requested: ["job_id:value", "job_type:value", "source.type:value", "source.id:value"]
+    tags = [
+        f"job_id:{job_id}",
+        f"job_type:{job_type}",
+        f"source.type:{source_type}",
+        f"source.id:{source_id}",
+    ]
+
     async def model_callback(input_text: str) -> str:
-        """Model callback that wraps the chatbot function"""
         try:
             response = await client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": input_text}],
+                user=user_id,
+                extra_body={
+                    "metadata": {
+                        "tags": tags,
+                    }
+                },
             )
             return response.choices[0].message.content or ""
         except Exception as e:
@@ -86,7 +108,9 @@ def load_scenarios_from_dataset(
 
 
 async def run_chatbot_simulation(
-    systems_params: Dict[str, Any], test_params: Dict[str, Any]
+    systems_params: Dict[str, Any],
+    test_params: Dict[str, Any],
+    metadata_params: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Run the chatbot simulation test"""
     sut_params = systems_params.get("system_under_test", {})
@@ -122,7 +146,7 @@ async def run_chatbot_simulation(
     evaluator_system = systems_params.get("evaluator_system", {})
 
     # Create model callback for SUT
-    model_callback = create_model_callback(sut_params)
+    model_callback = create_model_callback(sut_params, metadata_params)
 
     tester = PersonaBasedConversationTester(
         model_callback=model_callback,
@@ -135,6 +159,7 @@ async def run_chatbot_simulation(
         custom_scenarios=custom_scenarios,
         simulations_per_scenario=simulations_per_scenario,
         max_concurrent=max_concurrent,
+        metadata_params=metadata_params,
     )
 
     print("Starting Conversational Testing Pipeline...")
@@ -193,6 +218,14 @@ def main():
     parser.add_argument(
         "--test-params", required=True, help="Test parameters as JSON string"
     )
+    parser.add_argument(
+        "--metadata-params",
+        required=True,
+        help=(
+            "Metadata for tracking (JSON). "
+            "Default includes user_id and tags with job_id/job_type/source."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -200,6 +233,7 @@ def main():
         # Parse inputs
         systems_params = json.loads(args.systems_params)
         test_params = json.loads(args.test_params)
+        metadata_params = json.loads(args.metadata_params)
 
         # Extract system_under_test
         sut_params = systems_params.get("system_under_test", {})
@@ -226,7 +260,9 @@ def main():
             raise ValueError("Missing required test parameter: chatbot_purpose")
 
         # Run the simulation
-        result = asyncio.run(run_chatbot_simulation(systems_params, test_params))
+        result = asyncio.run(
+            run_chatbot_simulation(systems_params, test_params, metadata_params)
+        )
 
         # Output results as JSON
         print(json.dumps(result, indent=2))
