@@ -7,12 +7,10 @@ import time
 from typing import Any, Dict, Tuple
 
 import ray
-from openai import OpenAI
-
 from llmperf import common_metrics
 from llmperf.models import RequestConfig
 from llmperf.ray_llm_client import LLMClient
-
+from openai import OpenAI
 from utils import get_openai_tracking_kwargs
 
 
@@ -101,7 +99,9 @@ class OpenAISDKClient(LLMClient):
                         generated_text += delta.content
 
             total_request_time = time.monotonic() - start_time
-            output_throughput = tokens_received / total_request_time if total_request_time > 0 else 0
+            output_throughput = (
+                tokens_received / total_request_time if total_request_time > 0 else 0
+            )
 
         except Exception as e:
             error_msg = str(e)
