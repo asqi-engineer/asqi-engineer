@@ -2,10 +2,12 @@ import json
 from unittest.mock import Mock, patch
 
 import pytest
+
 from asqi.config import ContainerConfig, ExecutionMode, ExecutorConfig
 from asqi.schemas import Manifest, OutputReports, ScoreCard, SystemInput
 from asqi.workflow import (
     TestExecutionResult,
+    _build_execution_metadata,
     add_score_cards_to_results,
     convert_test_results_to_objects,
     evaluate_score_cards_workflow,
@@ -2052,3 +2054,199 @@ class TestDisplayReportsValidation:
 
         with pytest.raises(ReportValidationError):
             validate_display_reports(manifests, score_card, test_id_to_image)
+
+
+class TestBuildExecutionMetadata:
+    """Test cases for _build_execution_metadata helper function."""
+
+    def test_minimal_metadata_no_config(self):
+        """Test with None metadata_config - should use all defaults."""
+        result = _build_execution_metadata(
+            metadata_config=None,
+            job_id="test-001",
+            parent_id="workflow-123",
+            default_job_type="test",
+        )
+
+        assert result == {
+            "tags": {
+                "parent_id": "workflow-123",
+                "job_type": "test",
+                "job_id": "test-001",
+            }
+        }
+
+    def test_minimal_metadata_empty_config(self):
+        """Test with empty metadata_config dict."""
+        result = _build_execution_metadata(
+            metadata_config={},
+            job_id="test-001",
+            parent_id="workflow-123",
+            default_job_type="test",
+        )
+
+        assert result == {
+            "tags": {
+                "parent_id": "workflow-123",
+                "job_type": "test",
+                "job_id": "test-001",
+            }
+        }
+
+    def test_with_user_id(self):
+        """Test that user_id is passed through to top level."""
+        result = _build_execution_metadata(
+            metadata_config={"user_id": "user-456"},
+            job_id="test-001",
+            parent_id="workflow-123",
+            default_job_type="test",
+        )
+
+        assert result == {
+            "user_id": "user-456",
+            "tags": {
+                "parent_id": "workflow-123",
+                "job_type": "test",
+                "job_id": "test-001",
+            },
+        }
+
+    def test_job_type_override(self):
+        """Test that job_type from metadata_config overrides default."""
+        result = _build_execution_metadata(
+            metadata_config={"job_type": "custom_type"},
+            job_id="test-001",
+            parent_id="workflow-123",
+            default_job_type="test",
+        )
+
+        assert result["tags"]["job_type"] == "custom_type"
+
+    def test_generation_default_job_type(self):
+        """Test default_job_type for generation workflows."""
+        result = _build_execution_metadata(
+            metadata_config={},
+            job_id="gen-001",
+            parent_id="workflow-123",
+            default_job_type="generation",
+        )
+
+        assert result["tags"]["job_type"] == "generation"
+
+    def test_parent_id_none(self):
+        """Test that None parent_id becomes empty string."""
+        result = _build_execution_metadata(
+            metadata_config={},
+            job_id="test-001",
+            parent_id=None,
+            default_job_type="test",
+        )
+
+        assert result["tags"]["parent_id"] == ""
+
+    def test_custom_tags_merged(self):
+        """Test that custom tags from metadata_config are merged with workflow tags."""
+        result = _build_execution_metadata(
+            metadata_config={
+                "tags": {
+                    "experiment_id": "exp-1",
+                    "custom_tag": "value",
+                }
+            },
+            job_id="test-001",
+            parent_id="workflow-123",
+            default_job_type="test",
+        )
+
+        assert result["tags"]["experiment_id"] == "exp-1"
+        assert result["tags"]["custom_tag"] == "value"
+        assert result["tags"]["parent_id"] == "workflow-123"
+        assert result["tags"]["job_type"] == "test"
+        assert result["tags"]["job_id"] == "test-001"
+
+    def test_custom_top_level_fields(self):
+        """Test that custom top-level fields are passed through."""
+        result = _build_execution_metadata(
+            metadata_config={
+                "user_id": "user-123",
+                "custom_field": "value",
+                "another_field": {"nested": "data"},
+            },
+            job_id="test-001",
+            parent_id="workflow-123",
+            default_job_type="test",
+        )
+
+        assert result["user_id"] == "user-123"
+        assert result["custom_field"] == "value"
+        assert result["another_field"] == {"nested": "data"}
+        assert "tags" in result
+
+    def test_reserved_keys_not_duplicated(self):
+        """Test that reserved keys in metadata_config don't appear at top level."""
+        result = _build_execution_metadata(
+            metadata_config={
+                "parent_id": "should-be-ignored",
+                "job_id": "should-be-ignored",
+                "job_type": "custom",
+                "tags": {"custom": "tag"},
+            },
+            job_id="test-001",
+            parent_id="workflow-123",
+            default_job_type="test",
+        )
+
+        # Reserved keys should not appear at top level
+        assert "parent_id" not in result or result.get("parent_id") is None
+        assert "job_id" not in result or result.get("job_id") is None
+
+        # job_type should affect tags but not appear at top level
+        assert result["tags"]["job_type"] == "custom"
+        assert result["tags"]["custom"] == "tag"
+
+    def test_complex_scenario(self):
+        """Test a complex real-world scenario with all features."""
+        result = _build_execution_metadata(
+            metadata_config={
+                "user_id": "user-789",
+                "custom_field": "experiment_A",
+                "nested_data": {"config": {"key": "value"}},
+                "tags": {
+                    "experiment_id": "exp-42",
+                    "model_version": "v2.1",
+                },
+            },
+            job_id="test-complex-001",
+            parent_id="workflow-parent-456",
+            default_job_type="test",
+        )
+
+        # Check top-level fields
+        assert result["user_id"] == "user-789"
+        assert result["custom_field"] == "experiment_A"
+        assert result["nested_data"] == {"config": {"key": "value"}}
+
+        # Check tags
+        assert result["tags"]["parent_id"] == "workflow-parent-456"
+        assert result["tags"]["job_type"] == "test"
+        assert result["tags"]["job_id"] == "test-complex-001"
+        assert result["tags"]["experiment_id"] == "exp-42"
+        assert result["tags"]["model_version"] == "v2.1"
+
+    def test_tags_not_dict_ignored(self):
+        """Test that non-dict tags in metadata_config are ignored gracefully."""
+        result = _build_execution_metadata(
+            metadata_config={
+                "tags": "not-a-dict",  # Should be ignored
+            },
+            job_id="test-001",
+            parent_id="workflow-123",
+            default_job_type="test",
+        )
+
+        # Only workflow tags should be present
+        assert result["tags"] == {
+            "parent_id": "workflow-123",
+            "job_type": "test",
+            "job_id": "test-001",
+        }

@@ -202,6 +202,64 @@ def _merge_interpolated_env(
             DBOS.logger.info(f"Set environment variable: {key}")
 
 
+def _build_execution_metadata(
+    metadata_config: Optional[Dict[str, Any]],
+    job_id: str,
+    parent_id: Optional[str],
+    default_job_type: str,
+) -> Dict[str, Any]:
+    """
+    Build metadata structure for test or generation execution.
+
+    Args:
+        metadata_config: Optional metadata configuration containing:
+            - user_id: Optional user identifier
+            - job_type: Optional job type override (defaults to default_job_type)
+            - tags: Optional dict of custom tags to merge with workflow tags
+            - Any other keys are passed through to the metadata object
+        job_id: Identifier for this specific job (test_id or generation job_id)
+        parent_id: Optional parent workflow ID for tracking hierarchy (empty string if None)
+        default_job_type: Default job type if not specified ("test" or "generation")
+
+    Returns:
+        Dictionary with structure:
+        {
+            "user_id": str,
+            "tags": {
+                "parent_id": str,
+                "job_type": str,
+                "job_id": str,
+                # ... merged with metadata_config["tags"] if present
+            },
+            # ... any other keys from metadata_config passed through
+        }
+
+    """
+    if metadata_config is None:
+        metadata_config = {}
+
+    job_type = metadata_config.get("job_type", default_job_type)
+
+    tags = {
+        "parent_id": parent_id or "",
+        "job_type": job_type,
+        "job_id": job_id,
+    }
+
+    # Merge with user-provided tags if present
+    if "tags" in metadata_config and isinstance(metadata_config["tags"], dict):
+        tags.update(metadata_config["tags"])
+
+    # Build metadata object starting with tags and pass through all other keys from metadata_config transparently
+    metadata = {"tags": tags}
+    reserved_keys = {"parent_id", "job_type", "job_id", "tags"}
+    for key, value in metadata_config.items():
+        if key not in reserved_keys:
+            metadata[key] = value
+
+    return metadata
+
+
 def _load_and_merge_environment_variables(
     systems_params: Dict[str, Any],
     item_env_file: Optional[str],
@@ -690,6 +748,7 @@ def execute_single_test(
     env_file: Optional[str] = None,
     environment: Optional[Dict[str, str]] = None,
     metadata_config: Optional[Dict[str, Any]] = None,
+    parent_id: Optional[str] = None,
 ) -> TestExecutionResult:
     """Execute a single test in a Docker container.
 
@@ -707,6 +766,7 @@ def execute_single_test(
         env_file: Optional path to .env file for test-level environment variables
         environment: Optional dictionary of environment variables for the test
         metadata_config: Optional dictionary containing metadata to forward into the test container
+        parent_id: Optional parent workflow ID for tracking hierarchy (defaults to DBOS.workflow_id)
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -752,31 +812,13 @@ def execute_single_test(
         else:
             DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
 
-    # Extract metadata from metadata_config or use defaults
-    if metadata_config is None:
-        metadata_config = {}
-
-    user_id = metadata_config.get("user_id", "")
-    parent_id = metadata_config.get("parent_id", DBOS.workflow_id)
-    job_type = metadata_config.get("job_type", "test")
-
-    # Build metadata structure and add to test_params
-    tags = {
-        "parent_id": parent_id,
-        "job_type": job_type,
-        "job_id": test_id,
-    }
-
-    # Automatically add ANY extra keys into tags
-    for key, value in metadata_config.items():
-        if key not in {"user_id", "parent_id", "job_type", "job_id"}:
-            tags[key] = value
-
-    # Final metadata object
-    metadata = {
-        "user_id": user_id,
-        "tags": tags,
-    }
+    # Build metadata and add to test_params
+    metadata = _build_execution_metadata(
+        metadata_config=metadata_config,
+        job_id=test_id,
+        parent_id=parent_id or DBOS.workflow_id,
+        default_job_type="test",
+    )
 
     test_params_with_metadata = test_params.copy() if test_params else {}
     test_params_with_metadata["metadata"] = metadata
@@ -1885,6 +1927,7 @@ def execute_data_generation(
     env_file: Optional[str] = None,
     environment: Optional[Dict[str, str]] = None,
     metadata_config: Optional[Dict[str, Any]] = None,
+    parent_id: Optional[str] = None,
 ) -> TestExecutionResult:
     """Execute a single data generation job in a Docker container.
 
@@ -1898,6 +1941,7 @@ def execute_data_generation(
         env_file: Optional path to .env file for job-level environment variables
         environment: Optional dictionary of environment variables for the generation job
         metadata_config: Optional dictionary containing metadata like user_id and job_id to forward into the generation container
+        parent_id: Optional parent workflow ID for tracking hierarchy (defaults to DBOS.workflow_id)
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -1917,33 +1961,14 @@ def execute_data_generation(
         result.success = False
         return result
 
-    # Extract metadata from metadata_config or use defaults
-    if metadata_config is None:
-        metadata_config = {}
+    # Build metadata and add to generation_params
+    metadata = _build_execution_metadata(
+        metadata_config=metadata_config,
+        job_id=job_id,
+        parent_id=parent_id or DBOS.workflow_id,
+        default_job_type="generation",
+    )
 
-    user_id = metadata_config.get("user_id", "")
-    parent_id = metadata_config.get("parent_id", DBOS.workflow_id)
-    job_type = metadata_config.get("job_type", "generation")
-
-    # Build tags with required fields
-    tags = {
-        "parent_id": parent_id,
-        "job_type": job_type,
-        "job_id": job_id,
-    }
-
-    # Automatically add ANY extra keys into tags
-    for key, value in metadata_config.items():
-        if key not in {"user_id", "parent_id", "job_type", "job_id"}:
-            tags[key] = value
-
-    # Final metadata object
-    metadata = {
-        "user_id": user_id,
-        "tags": tags,
-    }
-
-    # Add metadata to generation_params for backward compatibility
     generation_params_with_metadata = (
         generation_params.copy() if generation_params else {}
     )
