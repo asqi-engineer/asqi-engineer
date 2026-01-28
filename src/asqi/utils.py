@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
+
+from asqi.schemas import ExecutionMetadata
 
 
 def get_openai_tracking_kwargs(
-    metadata: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Union[Dict[str, Any], ExecutionMetadata]] = None,
 ) -> Dict[str, Any]:
     """
     Convert ASQI metadata into kwargs that can be splatted into OpenAI/LiteLLM calls.
 
     This function is designed to be used in test containers to convert the metadata
     structure passed from the workflow into OpenAI/LiteLLM client parameters.
+
+    Accepts either a dict or ExecutionMetadata Pydantic model for type safety.
 
     Expected ASQI metadata format (from workflow):
     {
@@ -56,6 +60,10 @@ def get_openai_tracking_kwargs(
         ...     **kwargs
         ... )
     """
+    # Convert Pydantic model to dict if needed
+    if isinstance(metadata, ExecutionMetadata):
+        metadata = metadata.model_dump()
+
     metadata = metadata or {}
 
     user_id = metadata.get("user_id", "") or ""

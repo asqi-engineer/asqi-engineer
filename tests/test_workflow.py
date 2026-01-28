@@ -2068,13 +2068,13 @@ class TestBuildExecutionMetadata:
             default_job_type="test",
         )
 
-        assert result == {
-            "tags": {
-                "parent_id": "workflow-123",
-                "job_type": "test",
-                "job_id": "test-001",
-            }
-        }
+        # Check it returns ExecutionMetadata model
+        from asqi.schemas import ExecutionMetadata
+        assert isinstance(result, ExecutionMetadata)
+        assert result.tags.parent_id == "workflow-123"
+        assert result.tags.job_type == "test"
+        assert result.tags.job_id == "test-001"
+        assert result.user_id is None
 
     def test_minimal_metadata_empty_config(self):
         """Test with empty metadata_config dict."""
@@ -2085,13 +2085,9 @@ class TestBuildExecutionMetadata:
             default_job_type="test",
         )
 
-        assert result == {
-            "tags": {
-                "parent_id": "workflow-123",
-                "job_type": "test",
-                "job_id": "test-001",
-            }
-        }
+        assert result.tags.parent_id == "workflow-123"
+        assert result.tags.job_type == "test"
+        assert result.tags.job_id == "test-001"
 
     def test_with_user_id(self):
         """Test that user_id is passed through to top level."""
@@ -2102,14 +2098,10 @@ class TestBuildExecutionMetadata:
             default_job_type="test",
         )
 
-        assert result == {
-            "user_id": "user-456",
-            "tags": {
-                "parent_id": "workflow-123",
-                "job_type": "test",
-                "job_id": "test-001",
-            },
-        }
+        assert result.user_id == "user-456"
+        assert result.tags.parent_id == "workflow-123"
+        assert result.tags.job_type == "test"
+        assert result.tags.job_id == "test-001"
 
     def test_job_type_override(self):
         """Test that job_type from metadata_config overrides default."""
@@ -2120,7 +2112,7 @@ class TestBuildExecutionMetadata:
             default_job_type="test",
         )
 
-        assert result["tags"]["job_type"] == "custom_type"
+        assert result.tags.job_type == "custom_type"
 
     def test_generation_default_job_type(self):
         """Test default_job_type for generation workflows."""
@@ -2131,7 +2123,7 @@ class TestBuildExecutionMetadata:
             default_job_type="generation",
         )
 
-        assert result["tags"]["job_type"] == "generation"
+        assert result.tags.job_type == "generation"
 
     def test_parent_id_none(self):
         """Test that None parent_id becomes empty string."""
@@ -2142,7 +2134,7 @@ class TestBuildExecutionMetadata:
             default_job_type="test",
         )
 
-        assert result["tags"]["parent_id"] == ""
+        assert result.tags.parent_id == ""
 
     def test_custom_tags_merged(self):
         """Test that custom tags from metadata_config are merged with workflow tags."""
@@ -2158,11 +2150,13 @@ class TestBuildExecutionMetadata:
             default_job_type="test",
         )
 
-        assert result["tags"]["experiment_id"] == "exp-1"
-        assert result["tags"]["custom_tag"] == "value"
-        assert result["tags"]["parent_id"] == "workflow-123"
-        assert result["tags"]["job_type"] == "test"
-        assert result["tags"]["job_id"] == "test-001"
+        # Access custom tags via model_dump since they're extra fields
+        tags_dict = result.tags.model_dump()
+        assert tags_dict["experiment_id"] == "exp-1"
+        assert tags_dict["custom_tag"] == "value"
+        assert result.tags.parent_id == "workflow-123"
+        assert result.tags.job_type == "test"
+        assert result.tags.job_id == "test-001"
 
     def test_custom_top_level_fields(self):
         """Test that custom top-level fields are passed through."""
@@ -2177,10 +2171,11 @@ class TestBuildExecutionMetadata:
             default_job_type="test",
         )
 
-        assert result["user_id"] == "user-123"
-        assert result["custom_field"] == "value"
-        assert result["another_field"] == {"nested": "data"}
-        assert "tags" in result
+        assert result.user_id == "user-123"
+        # Custom fields accessed via model_dump since they're extra
+        dump = result.model_dump()
+        assert dump["custom_field"] == "value"
+        assert dump["another_field"] == {"nested": "data"}
 
     def test_reserved_keys_not_duplicated(self):
         """Test that reserved keys in metadata_config don't appear at top level."""
@@ -2197,12 +2192,14 @@ class TestBuildExecutionMetadata:
         )
 
         # Reserved keys should not appear at top level
-        assert "parent_id" not in result or result.get("parent_id") is None
-        assert "job_id" not in result or result.get("job_id") is None
+        dump = result.model_dump()
+        assert "parent_id" not in dump or dump.get("parent_id") is None
+        assert "job_id" not in dump or dump.get("job_id") is None
 
         # job_type should affect tags but not appear at top level
-        assert result["tags"]["job_type"] == "custom"
-        assert result["tags"]["custom"] == "tag"
+        assert result.tags.job_type == "custom"
+        tags_dump = result.tags.model_dump()
+        assert tags_dump["custom"] == "tag"
 
     def test_complex_scenario(self):
         """Test a complex real-world scenario with all features."""
@@ -2222,16 +2219,18 @@ class TestBuildExecutionMetadata:
         )
 
         # Check top-level fields
-        assert result["user_id"] == "user-789"
-        assert result["custom_field"] == "experiment_A"
-        assert result["nested_data"] == {"config": {"key": "value"}}
+        assert result.user_id == "user-789"
+        dump = result.model_dump()
+        assert dump["custom_field"] == "experiment_A"
+        assert dump["nested_data"] == {"config": {"key": "value"}}
 
         # Check tags
-        assert result["tags"]["parent_id"] == "workflow-parent-456"
-        assert result["tags"]["job_type"] == "test"
-        assert result["tags"]["job_id"] == "test-complex-001"
-        assert result["tags"]["experiment_id"] == "exp-42"
-        assert result["tags"]["model_version"] == "v2.1"
+        assert result.tags.parent_id == "workflow-parent-456"
+        assert result.tags.job_type == "test"
+        assert result.tags.job_id == "test-complex-001"
+        tags_dump = result.tags.model_dump()
+        assert tags_dump["experiment_id"] == "exp-42"
+        assert tags_dump["model_version"] == "v2.1"
 
     def test_tags_not_dict_ignored(self):
         """Test that non-dict tags in metadata_config are ignored gracefully."""
@@ -2245,8 +2244,9 @@ class TestBuildExecutionMetadata:
         )
 
         # Only workflow tags should be present
-        assert result["tags"] == {
-            "parent_id": "workflow-123",
-            "job_type": "test",
-            "job_id": "test-001",
-        }
+        assert result.tags.parent_id == "workflow-123"
+        assert result.tags.job_type == "test"
+        assert result.tags.job_id == "test-001"
+        # Verify no extra tags were added
+        tags_dump = result.tags.model_dump()
+        assert set(tags_dump.keys()) == {"parent_id", "job_type", "job_id"}

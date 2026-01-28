@@ -47,6 +47,8 @@ from asqi.schemas import (
     AuditResponses,
     DataGenerationConfig,
     DatasetsConfig,
+    ExecutionMetadata,
+    ExecutionTags,
     Manifest,
     ScoreCard,
     SuiteConfig,
@@ -207,9 +209,11 @@ def _build_execution_metadata(
     job_id: str,
     parent_id: Optional[str],
     default_job_type: str,
-) -> Dict[str, Any]:
+) -> ExecutionMetadata:
     """
     Build metadata structure for test or generation execution.
+
+    Returns a validated ExecutionMetadata Pydantic model for type safety.
 
     Args:
         metadata_config: Optional metadata configuration containing:
@@ -222,25 +226,15 @@ def _build_execution_metadata(
         default_job_type: Default job type if not specified ("test" or "generation")
 
     Returns:
-        Dictionary with structure:
-        {
-            "user_id": str,
-            "tags": {
-                "parent_id": str,
-                "job_type": str,
-                "job_id": str,
-                # ... merged with metadata_config["tags"] if present
-            },
-            # ... any other keys from metadata_config passed through
-        }
-
+        ExecutionMetadata Pydantic model with validated structure
     """
     if metadata_config is None:
         metadata_config = {}
 
     job_type = metadata_config.get("job_type", default_job_type)
 
-    tags = {
+    # Build workflow tracking tags
+    tags_dict = {
         "parent_id": parent_id or "",
         "job_type": job_type,
         "job_id": job_id,
@@ -248,16 +242,17 @@ def _build_execution_metadata(
 
     # Merge with user-provided tags if present
     if "tags" in metadata_config and isinstance(metadata_config["tags"], dict):
-        tags.update(metadata_config["tags"])
+        tags_dict.update(metadata_config["tags"])
 
-    # Build metadata object starting with tags and pass through all other keys from metadata_config transparently
-    metadata = {"tags": tags}
+    tags = ExecutionTags(**tags_dict)
+    metadata_fields: Dict[str, Any] = {"tags": tags}
+    # Add other fields from metadata_config
     reserved_keys = {"parent_id", "job_type", "job_id", "tags"}
     for key, value in metadata_config.items():
         if key not in reserved_keys:
-            metadata[key] = value
+            metadata_fields[key] = value
 
-    return metadata
+    return ExecutionMetadata(**metadata_fields)
 
 
 def _load_and_merge_environment_variables(
@@ -821,7 +816,7 @@ def execute_single_test(
     )
 
     test_params_with_metadata = test_params.copy() if test_params else {}
-    test_params_with_metadata["metadata"] = metadata
+    test_params_with_metadata["metadata"] = metadata.model_dump()
 
     try:
         systems_params_json = json.dumps(systems_params_with_fallbacks)
@@ -1972,7 +1967,7 @@ def execute_data_generation(
     generation_params_with_metadata = (
         generation_params.copy() if generation_params else {}
     )
-    generation_params_with_metadata["metadata"] = metadata
+    generation_params_with_metadata["metadata"] = metadata.model_dump()
 
     try:
         generation_params_json = json.dumps(generation_params_with_metadata)
