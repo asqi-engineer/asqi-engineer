@@ -7,6 +7,11 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from dbos import DBOS, DBOSConfig, Queue
+from dotenv import dotenv_values, load_dotenv
+from pydantic import ValidationError
+from rich.console import Console
+
 from asqi.config import (
     ContainerConfig,
     ExecutionMode,
@@ -64,10 +69,6 @@ from asqi.validation import (
     validate_test_volumes,
     validate_workflow_configurations,
 )
-from dbos import DBOS, DBOSConfig, Queue
-from dotenv import dotenv_values, load_dotenv
-from pydantic import ValidationError
-from rich.console import Console
 
 load_dotenv()
 oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
