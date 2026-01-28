@@ -38,6 +38,7 @@ COPY entrypoint.py .
 COPY simulation.py .
 COPY evaluator.py .
 COPY j2_utils.py .
+COPY utils.py .
 COPY prompts/ ./prompts
 
 

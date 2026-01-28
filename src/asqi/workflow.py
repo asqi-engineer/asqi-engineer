@@ -47,6 +47,8 @@ from asqi.schemas import (
     AuditResponses,
     DataGenerationConfig,
     DatasetsConfig,
+    ExecutionMetadata,
+    ExecutionTags,
     Manifest,
     ScoreCard,
     SuiteConfig,
@@ -200,6 +202,57 @@ def _merge_interpolated_env(
             DBOS.logger.info(f"Interpolated environment variable: {key}")
         else:
             DBOS.logger.info(f"Set environment variable: {key}")
+
+
+def _build_execution_metadata(
+    metadata_config: Optional[Dict[str, Any]],
+    job_id: str,
+    parent_id: Optional[str],
+    default_job_type: str,
+) -> ExecutionMetadata:
+    """
+    Build metadata structure for test or generation execution.
+
+    Returns a validated ExecutionMetadata Pydantic model for type safety.
+
+    Args:
+        metadata_config: Optional metadata configuration containing:
+            - user_id: Optional user identifier
+            - job_type: Optional job type override (defaults to default_job_type)
+            - tags: Optional dict of custom tags to merge with workflow tags
+            - Any other keys are passed through to the metadata object
+        job_id: Identifier for this specific job (test_id or generation job_id)
+        parent_id: Optional parent workflow ID for tracking hierarchy (empty string if None)
+        default_job_type: Default job type if not specified ("test" or "generation")
+
+    Returns:
+        ExecutionMetadata Pydantic model with validated structure
+    """
+    if metadata_config is None:
+        metadata_config = {}
+
+    job_type = metadata_config.get("job_type", default_job_type)
+
+    # Build workflow tracking tags
+    tags_dict = {
+        "parent_id": parent_id or "",
+        "job_type": job_type,
+        "job_id": job_id,
+    }
+
+    # Merge with user-provided tags if present
+    if "tags" in metadata_config and isinstance(metadata_config["tags"], dict):
+        tags_dict.update(metadata_config["tags"])
+
+    tags = ExecutionTags(**tags_dict)
+    metadata_fields: Dict[str, Any] = {"tags": tags}
+    # Add other fields from metadata_config
+    reserved_keys = {"parent_id", "job_type", "job_id", "tags"}
+    for key, value in metadata_config.items():
+        if key not in reserved_keys:
+            metadata_fields[key] = value
+
+    return ExecutionMetadata(**metadata_fields)
 
 
 def _load_and_merge_environment_variables(
@@ -689,6 +742,8 @@ def execute_single_test(
     container_config: ContainerConfig,
     env_file: Optional[str] = None,
     environment: Optional[Dict[str, str]] = None,
+    metadata_config: Optional[Dict[str, Any]] = None,
+    parent_id: Optional[str] = None,
 ) -> TestExecutionResult:
     """Execute a single test in a Docker container.
 
@@ -705,6 +760,8 @@ def execute_single_test(
         container_config: Container execution configurations
         env_file: Optional path to .env file for test-level environment variables
         environment: Optional dictionary of environment variables for the test
+        metadata_config: Optional dictionary containing metadata to forward into the test container
+        parent_id: Optional parent workflow ID for tracking hierarchy (defaults to DBOS.workflow_id)
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -750,10 +807,20 @@ def execute_single_test(
         else:
             DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
 
-    # Prepare command line arguments for test execution
+    # Build metadata and add to test_params
+    metadata = _build_execution_metadata(
+        metadata_config=metadata_config,
+        job_id=test_id,
+        parent_id=parent_id or DBOS.workflow_id,
+        default_job_type="test",
+    )
+
+    test_params_with_metadata = test_params.copy() if test_params else {}
+    test_params_with_metadata["metadata"] = metadata.model_dump()
+
     try:
         systems_params_json = json.dumps(systems_params_with_fallbacks)
-        test_params_json = json.dumps(test_params)
+        test_params_json = json.dumps(test_params_with_metadata)
         command_args = [
             "--systems-params",
             systems_params_json,
@@ -885,6 +952,7 @@ def run_test_suite_workflow(
     container_config: ContainerConfig,
     datasets_config: Optional[Dict[str, Any]] = None,
     score_card_configs: Optional[List[Dict[str, Any]]] = None,
+    metadata_config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
@@ -902,6 +970,7 @@ def run_test_suite_workflow(
         container_config: Container execution configurations
         datasets_config: Optional datasets configuration for resolving dataset references
         score_card_configs: Optional list of score card configurations
+        metadata_config: Optional dictionary containing metadata forward into test containers
 
     Returns:
         Execution summary with metadata and individual test results (no score cards) and container results
@@ -1066,6 +1135,7 @@ def run_test_suite_workflow(
                     container_config,
                     test_plan.get("env_file"),
                     test_plan.get("environment"),
+                    metadata_config,
                 )
                 test_handles.append((handle, test_plan))
 
@@ -1119,6 +1189,7 @@ def run_test_suite_workflow(
                 container_config,
                 test_plan.get("env_file"),
                 test_plan.get("environment"),
+                metadata_config,
             )
             test_handles.append((handle, test_plan))
 
@@ -1850,6 +1921,8 @@ def execute_data_generation(
     container_config: ContainerConfig,
     env_file: Optional[str] = None,
     environment: Optional[Dict[str, str]] = None,
+    metadata_config: Optional[Dict[str, Any]] = None,
+    parent_id: Optional[str] = None,
 ) -> TestExecutionResult:
     """Execute a single data generation job in a Docker container.
 
@@ -1862,6 +1935,8 @@ def execute_data_generation(
         container_config: Container execution configurations
         env_file: Optional path to .env file for job-level environment variables
         environment: Optional dictionary of environment variables for the generation job
+        metadata_config: Optional dictionary containing metadata like user_id and job_id to forward into the generation container
+        parent_id: Optional parent workflow ID for tracking hierarchy (defaults to DBOS.workflow_id)
 
     Returns:
         TestExecutionResult containing execution metadata and results
@@ -1881,8 +1956,21 @@ def execute_data_generation(
         result.success = False
         return result
 
+    # Build metadata and add to generation_params
+    metadata = _build_execution_metadata(
+        metadata_config=metadata_config,
+        job_id=job_id,
+        parent_id=parent_id or DBOS.workflow_id,
+        default_job_type="generation",
+    )
+
+    generation_params_with_metadata = (
+        generation_params.copy() if generation_params else {}
+    )
+    generation_params_with_metadata["metadata"] = metadata.model_dump()
+
     try:
-        generation_params_json = json.dumps(generation_params)
+        generation_params_json = json.dumps(generation_params_with_metadata)
         command_args = []
 
         if systems_params:
@@ -1916,6 +2004,7 @@ def run_data_generation_workflow(
     executor_config: Dict[str, Any],
     container_config: ContainerConfig,
     datasets_config: Optional[Dict[str, Any]] = None,
+    metadata_config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Execute a test suite with DBOS durability (tests only, no score card evaluation).
@@ -1932,6 +2021,7 @@ def run_data_generation_workflow(
         executor_config: Execution parameters controlling concurrency and reporting
         container_config: Container execution configurations
         datasets_config: Optional datasets configuration for resolving dataset references
+        metadata_config: Optional dictionary containing metadata like user_id and job_id to forward into generation containers
 
     Returns:
         Execution summary with metadata and individual test results (no score cards) and container results
@@ -2092,6 +2182,7 @@ def run_data_generation_workflow(
                     container_config,
                     plan.get("env_file"),
                     plan.get("environment"),
+                    metadata_config,
                 )
                 generation_handles.append((handle, plan))
 
@@ -2144,6 +2235,7 @@ def run_data_generation_workflow(
                 container_config,
                 plan.get("env_file"),
                 plan.get("environment"),
+                metadata_config,
             )
             test_handles.append((handle, plan))
 
