@@ -1197,6 +1197,227 @@ def test_run_test_suite_workflow_handle_exception():
     assert result["metadata"]["image"] == "test/image:latest"
 
 
+def test_run_test_suite_workflow_passes_parent_id_from_metadata_config():
+    """Test that parent_id from metadata_config is passed to execute_single_test.
+
+    Regression test for issue #331: execute_single_test was enqueued without
+    parent_id, causing broken parent-child test execution linkage.
+    """
+    suite_config = {
+        "suite_name": "demo",
+        "test_suite": [
+            {
+                "name": "t1",
+                "id": "t1",
+                "image": "test/image:latest",
+                "systems_under_test": ["systemA"],
+                "params": {"p": "v"},
+            }
+        ],
+    }
+
+    systems_config = {
+        "systems": {
+            "systemA": {
+                "type": "llm_api",
+                "params": {"base_url": "http://x", "model": "x-model"},
+            }
+        }
+    }
+
+    container_config: ContainerConfig = ContainerConfig()
+
+    manifest = Manifest(
+        name="mock",
+        version="1",
+        description="",
+        input_systems=[
+            SystemInput(name="system_under_test", type="llm_api", required=True)
+        ],
+        input_schema=[],
+        output_metrics=[],
+        output_artifacts=None,
+    )
+
+    success_result = TestExecutionResult(
+        "t1_systemA", "t1_systemA", "systemA", "test/image:latest"
+    )
+    success_result.start_time = 1.0
+    success_result.end_time = 2.0
+    success_result.exit_code = 0
+    success_result.success = True
+    success_result.test_results = {"success": True}
+
+    # The key metadata_config with parent_id that should be passed through
+    metadata_config = {
+        "parent_id": "evaluation-run-12345",
+        "job_type": "test",
+        "user_id": "test-user",
+    }
+
+    enqueue_calls = []
+
+    def capture_enqueue(*args, **kwargs):
+        enqueue_calls.append(args)
+        return DummyHandle(success_result)
+
+    with (
+        patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
+        patch("asqi.workflow.extract_manifests_step") as mock_extract,
+        patch("asqi.workflow.validate_test_plan") as mock_validate,
+        patch("asqi.workflow.create_test_execution_plan") as mock_plan,
+        patch("asqi.workflow.Queue") as mock_queue_class,
+    ):
+        mock_avail.return_value = {"test/image:latest": True}
+        mock_extract.return_value = {"test/image:latest": manifest}
+        mock_validate.return_value = []
+        mock_plan.return_value = [
+            {
+                "test_id": "t1_systemA",
+                "test_name": "t1 systemA",
+                "image": "test/image:latest",
+                "sut_name": "systemA",
+                "systems_params": {
+                    "system_under_test": {"type": "llm_api", "endpoint": "http://x"}
+                },
+                "test_params": {"p": "v"},
+            }
+        ]
+
+        mock_queue = mock_queue_class.return_value
+        mock_queue.enqueue.side_effect = capture_enqueue
+
+        _call_inner_workflow(
+            suite_config,
+            systems_config,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            container_config,
+            metadata_config=metadata_config,
+        )
+
+    assert len(enqueue_calls) == 1
+
+    # The enqueue call args are positional:
+    # execute_single_test (0), test_name (1), test_id (2), image (3), sut_name (4),
+    # systems_params (5), test_params (6), container_config (7), env_file (8),
+    # environment (9), metadata_config (10), parent_id (11)
+    enqueue_args = enqueue_calls[0]
+
+    # Verify the function being enqueued
+    assert enqueue_args[0] == execute_single_test
+
+    # Verify metadata_config was passed (index 10)
+    assert enqueue_args[10] == metadata_config
+
+    # Verify parent_id was passed correctly from metadata_config (index 11)
+    assert enqueue_args[11] == "evaluation-run-12345"
+
+
+def test_run_test_suite_workflow_passes_none_parent_id_when_no_metadata_config():
+    """Test that parent_id is None when metadata_config is not provided."""
+    suite_config = {
+        "suite_name": "demo",
+        "test_suite": [
+            {
+                "name": "t1",
+                "id": "t1",
+                "image": "test/image:latest",
+                "systems_under_test": ["systemA"],
+                "params": {"p": "v"},
+            }
+        ],
+    }
+
+    systems_config = {
+        "systems": {
+            "systemA": {
+                "type": "llm_api",
+                "params": {"base_url": "http://x", "model": "x-model"},
+            }
+        }
+    }
+
+    container_config: ContainerConfig = ContainerConfig()
+
+    manifest = Manifest(
+        name="mock",
+        version="1",
+        description="",
+        input_systems=[
+            SystemInput(name="system_under_test", type="llm_api", required=True)
+        ],
+        input_schema=[],
+        output_metrics=[],
+        output_artifacts=None,
+    )
+
+    success_result = TestExecutionResult(
+        "t1_systemA", "t1_systemA", "systemA", "test/image:latest"
+    )
+    success_result.start_time = 1.0
+    success_result.end_time = 2.0
+    success_result.exit_code = 0
+    success_result.success = True
+    success_result.test_results = {"success": True}
+
+    enqueue_calls = []
+
+    def capture_enqueue(*args, **kwargs):
+        enqueue_calls.append(args)
+        return DummyHandle(success_result)
+
+    with (
+        patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
+        patch("asqi.workflow.extract_manifests_step") as mock_extract,
+        patch("asqi.workflow.validate_test_plan") as mock_validate,
+        patch("asqi.workflow.create_test_execution_plan") as mock_plan,
+        patch("asqi.workflow.Queue") as mock_queue_class,
+    ):
+        mock_avail.return_value = {"test/image:latest": True}
+        mock_extract.return_value = {"test/image:latest": manifest}
+        mock_validate.return_value = []
+        mock_plan.return_value = [
+            {
+                "test_id": "t1_systemA",
+                "test_name": "t1 systemA",
+                "image": "test/image:latest",
+                "sut_name": "systemA",
+                "systems_params": {
+                    "system_under_test": {"type": "llm_api", "endpoint": "http://x"}
+                },
+                "test_params": {"p": "v"},
+            }
+        ]
+
+        mock_queue = mock_queue_class.return_value
+        mock_queue.enqueue.side_effect = capture_enqueue
+
+        # Call without metadata_config
+        _call_inner_workflow(
+            suite_config,
+            systems_config,
+            {
+                "concurrent_tests": ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+                "max_failures": ExecutorConfig.MAX_FAILURES_DISPLAYED,
+                "progress_interval": ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+            },
+            container_config,
+        )
+
+    assert len(enqueue_calls) == 1
+    enqueue_args = enqueue_calls[0]
+
+    # metadata_config should be None (index 10)
+    assert enqueue_args[10] is None
+
+    # parent_id should also be None when metadata_config is None (index 11)
+    assert enqueue_args[11] is None
+
+
 class TestContainerReports:
     def test_invalid_file_error(self, tmp_path):
         """
