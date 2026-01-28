@@ -6,13 +6,14 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-from asqi.datasets import load_hf_dataset
 from simulation import (
     ConversationTestAnalyzer,
     PersonaBasedConversationTester,
     setup_client,
 )
-from utils import get_litellm_tracking_kwargs
+from utils import get_openai_tracking_kwargs
+
+from asqi.datasets import load_hf_dataset
 
 
 def create_model_callback(sut_params: Dict[str, Any], test_params: Dict[str, Any]):
@@ -28,7 +29,7 @@ def create_model_callback(sut_params: Dict[str, Any], test_params: Dict[str, Any
             response = await client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": input_text}],
-                **get_litellm_tracking_kwargs(metadata),
+                **get_openai_tracking_kwargs(metadata),
             )
             return response.choices[0].message.content or ""
         except Exception as e:

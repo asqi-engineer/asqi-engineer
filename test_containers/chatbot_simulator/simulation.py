@@ -20,7 +20,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from utils import get_litellm_tracking_kwargs
+from utils import get_openai_tracking_kwargs
 
 ConversationalTestCase = Dict[str, Any]
 
@@ -95,7 +95,7 @@ def setup_langchain_client(
         ]
     }
 
-    tracking_kwargs = get_litellm_tracking_kwargs(metadata)
+    tracking_kwargs = get_openai_tracking_kwargs(metadata)
 
     return ChatOpenAI(
         model=model,
@@ -180,7 +180,7 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
             model=self.simulator_client_params.get("model", "gpt-4o-mini"),
             messages=[{"role": "user", "content": prompt}],
             temperature=self.simulator_client_params.get("temperature", 0.8),
-            **get_litellm_tracking_kwargs(self.metadata),
+            **get_openai_tracking_kwargs(self.metadata),
         )
 
         description = response.choices[0].message.content or ""
@@ -277,7 +277,7 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
                 {"role": "user", "content": self.chatbot_purpose},
             ],
             temperature=self.simulator_client_params.get("temperature", 0.8),
-            **get_litellm_tracking_kwargs(self.metadata),
+            **get_openai_tracking_kwargs(self.metadata),
         )
         response_content = response.choices[0].message.content or ""
 
