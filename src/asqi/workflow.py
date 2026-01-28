@@ -1136,6 +1136,7 @@ def run_test_suite_workflow(
                     test_plan.get("env_file"),
                     test_plan.get("environment"),
                     metadata_config,
+                    metadata_config.get("parent_id") if metadata_config else None,
                 )
                 test_handles.append((handle, test_plan))
 
@@ -1190,6 +1191,7 @@ def run_test_suite_workflow(
                 test_plan.get("env_file"),
                 test_plan.get("environment"),
                 metadata_config,
+                metadata_config.get("parent_id") if metadata_config else None,
             )
             test_handles.append((handle, test_plan))
 
@@ -2183,6 +2185,7 @@ def run_data_generation_workflow(
                     plan.get("env_file"),
                     plan.get("environment"),
                     metadata_config,
+                    metadata_config.get("parent_id") if metadata_config else None,
                 )
                 generation_handles.append((handle, plan))
 
@@ -2236,6 +2239,7 @@ def run_data_generation_workflow(
                 plan.get("env_file"),
                 plan.get("environment"),
                 metadata_config,
+                metadata_config.get("parent_id") if metadata_config else None,
             )
             test_handles.append((handle, plan))
 
