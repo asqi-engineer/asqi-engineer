@@ -30,6 +30,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     cd TrustLLM/trustllm_pkg && \
     uv pip install torch --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match && \
     uv pip install . && \
+    uv pip install git+https://github.com/asqi-engineer/asqi-engineer && \
     cd /tmp/TrustLLM && \
     if [ -f "dataset/dataset.zip" ]; then \
         unzip dataset/dataset.zip -d /tmp/dataset/; \

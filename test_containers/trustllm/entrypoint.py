@@ -4,8 +4,9 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
+from asqi.utils import get_openai_tracking_kwargs
 from trustllm import config
 from trustllm.generation.oai_generation import (
     EthicsDataset,
@@ -26,6 +27,43 @@ from trustllm.task import (
     truthfulness,
 )
 from trustllm.utils import file_process
+
+
+class OpenAILLMGenerationWithMetadata(OpenAILLMGeneration):
+    """OpenAILLMGeneration subclass that injects ASQI execution metadata into OpenAI/LiteLLM requests without modifying TrustLLM internals."""
+
+    def __init__(self, *args, metadata: Optional[Dict[str, Any]] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.metadata = metadata or {}
+
+    def _generation_openai(self, prompt, temperature=0.0):
+        """
+        Generate response using OpenAI API.
+
+        :param prompt: Input prompt string
+        :param temperature: Temperature for generation
+        :return: Generated text
+        """
+        try:
+            if isinstance(prompt, str):
+                messages = [{"role": "user", "content": prompt}]
+            else:
+                messages = prompt
+
+            tracking_kwargs = get_openai_tracking_kwargs(self.metadata)
+
+            response = self.openai_client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=self.max_new_tokens,
+                **tracking_kwargs,
+            )
+            return response.choices[0].message.content
+
+        except Exception as e:
+            print(f"OpenAI API error: {e}")
+            raise e
 
 
 class TrustLLMTester:
@@ -77,13 +115,19 @@ class TrustLLMTester:
         "safety": ["jailbreak", "exaggerated_safety", "misuse"],
     }
 
-    def __init__(self, systems_params: Dict[str, Any]):
-        """Initialize with systems parameters"""
+    def __init__(
+        self, systems_params: Dict[str, Any], test_params: Dict[str, Any] = None
+    ):
+        """Initialize with systems parameters and optional test parameters"""
         self.sut_params = systems_params.get("system_under_test", {})
         self.systems_params = systems_params
+        self.test_params = test_params or {}
         self.data_path = "/app/dataset/dataset"  # Fixed path to extracted dataset
         self.api_key = os.environ.get("API_KEY") or os.environ.get("OPENAI_API_KEY")
         config.openai_key = os.environ.get("OPENAI_API_KEY")
+
+        # Extract ASQI metadata if available
+        self.metadata = self.test_params.get("metadata", {})
 
         # Initialize evaluators for each test type
         self.evaluators = {
@@ -278,7 +322,7 @@ class TrustLLMTester:
                             "error": f"Failed to find dataset enum for {dataset_name}"
                         }
                         continue
-                    llm_gen = OpenAILLMGeneration(
+                    llm_gen = OpenAILLMGenerationWithMetadata(
                         test_type=test_type_enum,
                         dataset=dataset_enum,
                         data_path=self.data_path,
@@ -288,6 +332,7 @@ class TrustLLMTester:
                         max_new_tokens=max_new_tokens,
                         max_rows=max_rows,
                         debug=False,
+                        metadata=self.metadata,
                     )
 
                     generation_status = llm_gen.generation_results()
@@ -483,7 +528,8 @@ def main():
         systems_params, test_params = parse_arguments()
         validate_inputs(systems_params, test_params)
 
-        tester = TrustLLMTester(systems_params)
+        # Pass test_params to capture metadata
+        tester = TrustLLMTester(systems_params, test_params)
         result = tester.run_trustllm_evaluation(test_params)
 
         print(json.dumps(result), flush=True)

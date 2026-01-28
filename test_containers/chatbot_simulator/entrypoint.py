@@ -6,14 +6,13 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
+from asqi.datasets import load_hf_dataset
+from asqi.utils import get_openai_tracking_kwargs
 from simulation import (
     ConversationTestAnalyzer,
     PersonaBasedConversationTester,
     setup_client,
 )
-from utils import get_openai_tracking_kwargs
-
-from asqi.datasets import load_hf_dataset
 
 
 def create_model_callback(sut_params: Dict[str, Any], test_params: Dict[str, Any]):
