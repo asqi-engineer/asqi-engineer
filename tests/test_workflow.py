@@ -2070,6 +2070,7 @@ class TestBuildExecutionMetadata:
 
         # Check it returns ExecutionMetadata model
         from asqi.schemas import ExecutionMetadata
+
         assert isinstance(result, ExecutionMetadata)
         assert result.tags.parent_id == "workflow-123"
         assert result.tags.job_type == "test"
