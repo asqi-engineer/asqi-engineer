@@ -1,46 +1,26 @@
-# Stage 1: Builder
-FROM ghcr.io/astral-sh/uv:bookworm-slim AS builder
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install build tools
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends build-essential \
+# Install system dependencies (git required for uv to clone from GitHub)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure uv for faster builds
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
-ENV UV_PYTHON_INSTALL_DIR=/python
-ENV UV_PYTHON_PREFERENCE=only-managed
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Install Python
-RUN uv python install 3.12
-
-# Create virtual environment and install dependencies
-RUN uv venv
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install openevals==0.1.0 rich openai langchain-openai langchain-core pydantic jinja2 asqi-engineer==0.4.1
-
-# Stage 2: Runtime
-FROM debian:bookworm-slim
-
-WORKDIR /app
-
-# Copy venv, Python installation and set path
-COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /python /python
-ENV PATH="/app/.venv/bin:$PATH"
-
-# Copy your app code
+# Copy project files
+COPY pyproject.toml .
 COPY manifest.yaml .
 COPY entrypoint.py .
 COPY simulation.py .
 COPY evaluator.py .
 COPY j2_utils.py .
-COPY utils.py .
 COPY prompts/ ./prompts
 
+RUN uv pip install --system --no-cache -e .
 
 RUN chmod +x entrypoint.py
+
 ENTRYPOINT ["python", "./entrypoint.py"]

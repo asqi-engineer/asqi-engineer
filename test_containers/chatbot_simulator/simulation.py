@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import openai
+from asqi.utils import get_openai_tracking_kwargs
 from evaluator import ConversationEvaluator
 from j2_utils import render_prompt
 from langchain_openai import ChatOpenAI
@@ -20,7 +21,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from utils import get_openai_tracking_kwargs
 
 ConversationalTestCase = Dict[str, Any]
 
