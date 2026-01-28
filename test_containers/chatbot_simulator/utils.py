@@ -3,27 +3,33 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 
-def get_litellm_tracking_kwargs(
+def get_openai_tracking_kwargs(
     metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Convert ASQI metadata into kwargs that can be splatted into OpenAI/LiteLLM calls.
 
-    Expected ASQI metadata format (injected by workflow):
+    Expected ASQI metadata format (from workflow):
     {
-      "user_id": "<optional>",
-      "tags": {
+      "user_id": "<optional>",          # Top-level from metadata_config
+      "custom_field": "<optional>",     # Other top-level from metadata_config
+      "tags": {                          # Workflow tracking + metadata_config["tags"]
         "job_id": "...",
         "job_type": "...",
         "parent_id": "...",
-        # plus any arbitrary extra keys injected by metadata_config
+        "experiment_id": "...",          # Example custom tag
       }
     }
 
-    Output:
+    Output (OpenAI/LiteLLM client kwargs):
     {
-      "user": "<user_id>",
-      "extra_body": {"metadata": {"tags": ["k:v", ...]}}
+      "user": "<user_id>",                          # From metadata["user_id"]
+      "extra_body": {
+        "metadata": {
+          "tags": ["k:v", ...],                     # From metadata["tags"]
+          "custom_field": "..."                      # Other metadata keys
+        }
+      }
     }
     """
     metadata = metadata or {}
@@ -47,11 +53,18 @@ def get_litellm_tracking_kwargs(
             v_str = str(v)
         tags_list.append(f"{k}:{v_str}")
 
+    # Build extra_body.metadata with tags and any other metadata fields
+    extra_metadata = {"tags": tags_list}
+
+    # Add other top-level metadata fields to extra_body.metadata
+    reserved_keys = {"user_id", "tags"}
+    for key, value in metadata.items():
+        if key not in reserved_keys:
+            extra_metadata[key] = value
+
     kwargs: Dict[str, Any] = {
         "extra_body": {
-            "metadata": {
-                "tags": tags_list,
-            }
+            "metadata": extra_metadata,
         }
     }
     if user_id:
