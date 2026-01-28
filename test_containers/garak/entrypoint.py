@@ -7,6 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from asqi.utils import get_openai_tracking_kwargs
+
 
 def main():
     """Garak test container entrypoint that interfaces with the ASQI executor."""
@@ -43,6 +45,9 @@ def main():
         # Extract log file parameter
         garak_log_filename = test_params.get("garak_log_filename", "garak_output.jsonl")
 
+        # Extract metadata for tracking (injected by ASQI workflow)
+        metadata = test_params.get("metadata", {})
+
         # Validate filename to prevent directory traversal
         garak_log_path = Path(garak_log_filename)
         if len(garak_log_path.parts) != 1:
@@ -71,14 +76,33 @@ def main():
 
             # Configure model based on SUT type and params
             if sut_type == "llm_api":
+                # Get tracking kwargs from metadata for OpenAI API calls
+                tracking_kwargs = get_openai_tracking_kwargs(metadata)
+
                 if is_openai_official:
                     # Use standard OpenAI model type for official OpenAI API
+                    # Create config file with extra_params for tracking metadata
+                    garak_config = {
+                        "openai": {"OpenAIGenerator": {"extra_params": tracking_kwargs}}
+                    }
+                    config_path = output_dir / "garak_config.json"
+                    with open(config_path, "w") as f:
+                        json.dump(garak_config, f, indent=2)
+
+                    garak_cmd.extend(["-G", str(config_path)])
                     garak_cmd.extend(["--model_type", "openai", "--model_name", model])
                     API_ENV = "OPENAI_API_KEY"
                 else:
                     # Use OpenAI-compatible model type for LiteLLM proxy and other compatible APIs
                     # Create garak config file with OpenAI-compatible endpoint configuration
-                    garak_config = {"openai": {"OpenAICompatible": {"uri": base_url}}}
+                    garak_config = {
+                        "openai": {
+                            "OpenAICompatible": {
+                                "uri": base_url,
+                                "extra_params": tracking_kwargs,
+                            }
+                        }
+                    }
                     config_path = output_dir / "garak_config.json"
                     with open(config_path, "w") as f:
                         json.dump(garak_config, f, indent=2)
