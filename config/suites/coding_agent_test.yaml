@@ -11,3 +11,12 @@ test_suite:
       tasks: ["hello-world"]
     volumes:
       output: /workspaces/asqi/output
+
+  # - id: "harbor_terminalbench"
+  #   name: "Terminal-Bench"
+  #   image: "asqiengineer/test-container:harbor-latest"
+  #   params:
+  #     dataset: terminal-bench-sample@2.0
+  #     tasks: ["chess-best-move","sqlite-with-gcov"]
+  #   volumes:
+  #     output: /workspaces/asqi/output
