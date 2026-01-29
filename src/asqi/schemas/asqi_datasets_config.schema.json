@@ -102,7 +102,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Optional mapping from manifest feature names to actual dataset column names.",
+          "description": "Optional mapping from existing dataset column names to their required names in manifest i.e. current_name: manifest_name.",
           "title": "Mapping",
           "type": "object"
         },

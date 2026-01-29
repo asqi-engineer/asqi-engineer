@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import openai
+from asqi.utils import get_openai_tracking_kwargs
 from evaluator import ConversationEvaluator
 from j2_utils import render_prompt
 from langchain_openai import ChatOpenAI
@@ -25,14 +26,17 @@ ConversationalTestCase = Dict[str, Any]
 
 
 def setup_client(**system_params) -> openai.AsyncOpenAI:
-    """Setup OpenAI client with unified environment variable handling"""
+    """Setup OpenAI client with unified environment variable handling."""
     base_url = system_params.get("base_url")
     api_key = system_params.get("api_key")
+
     if base_url and not api_key:
         api_key = os.environ.get("API_KEY")
+
     if not base_url and not api_key:
         base_url = "https://api.openai.com/v1"
         api_key = os.environ.get("OPENAI_API_KEY")
+
     if not api_key:
         raise ValueError(
             "No API key found. Please specify a compatible base_url and api_key"
@@ -52,19 +56,25 @@ def setup_client(**system_params) -> openai.AsyncOpenAI:
             "provider",
         ]
     }
+
     return openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **openai_params)
 
 
-def setup_langchain_client(**system_params) -> ChatOpenAI:
+def setup_langchain_client(
+    metadata: Optional[Dict[str, Any]] = None, **system_params
+) -> ChatOpenAI:
     """Setup LangChain OpenAI client with unified environment variable handling"""
     base_url = system_params.get("base_url")
     api_key = system_params.get("api_key")
     model = system_params.get("model", "gpt-4o-mini")
+
     if base_url and not api_key:
         api_key = os.environ.get("API_KEY")
+
     if not base_url and not api_key:
         base_url = "https://api.openai.com/v1"
         api_key = os.environ.get("OPENAI_API_KEY")
+
     if not api_key:
         raise ValueError(
             "No API key found. Please specify a compatible base_url and api_key"
@@ -84,8 +94,15 @@ def setup_langchain_client(**system_params) -> ChatOpenAI:
             "provider",
         ]
     }
+
+    tracking_kwargs = get_openai_tracking_kwargs(metadata)
+
     return ChatOpenAI(
-        model=model, api_key=SecretStr(api_key), base_url=base_url, **langchain_params
+        model=model,
+        api_key=SecretStr(api_key),
+        base_url=base_url,
+        **tracking_kwargs,
+        **langchain_params,
     )
 
 
@@ -102,6 +119,7 @@ class PersonaBasedConversationTester:
         custom_scenarios: Optional[List[Dict[str, str]]] = None,
         simulations_per_scenario: int = 1,
         max_concurrent: int = 3,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         self.model_callback = model_callback
         self.chatbot_purpose = chatbot_purpose
@@ -113,18 +131,18 @@ class PersonaBasedConversationTester:
         self.custom_scenarios = custom_scenarios
         self.simulations_per_scenario = simulations_per_scenario
         self.max_concurrent = max_concurrent
+        self.metadata = metadata or {}
 
         self.simulator_client = setup_client(**simulator_client_params)
         self.simulator_langchain_client = setup_langchain_client(
-            **simulator_client_params
+            metadata=self.metadata, **simulator_client_params
         )
         self.evaluator_langchain_client = setup_langchain_client(
-            **evaluator_client_params
+            metadata=self.metadata, **evaluator_client_params
         )
         self.evaluator = ConversationEvaluator(
             evaluator_client=self.evaluator_langchain_client
         )
-
         # History to track conversations by thread_id
         self.history: Dict[str, List[ChatCompletionMessage]] = {}
 
@@ -162,7 +180,9 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
             model=self.simulator_client_params.get("model", "gpt-4o-mini"),
             messages=[{"role": "user", "content": prompt}],
             temperature=self.simulator_client_params.get("temperature", 0.8),
+            **get_openai_tracking_kwargs(self.metadata),
         )
+
         description = response.choices[0].message.content or ""
         description = description.strip()
 
@@ -257,6 +277,7 @@ Provide a 2-3 sentence description of this persona's characteristics, communicat
                 {"role": "user", "content": self.chatbot_purpose},
             ],
             temperature=self.simulator_client_params.get("temperature", 0.8),
+            **get_openai_tracking_kwargs(self.metadata),
         )
         response_content = response.choices[0].message.content or ""
 
