@@ -216,7 +216,7 @@ def _configure_job_dirs(host_output_path: Optional[str]) -> tuple[Path, Path]:
                 # Safe to ignore Bandit S603/S607: using list form (not shell=True)
                 # prevents shell injection, and "mount" is a system command passed
                 # explicitly without user input manipulation.
-                subprocess.run(  # noqa: S603,S607
+                subprocess.run(  # nosec B607,B603
                     ["mount", "--bind", "/output", str(host_path)],
                     check=True,
                     capture_output=True,
