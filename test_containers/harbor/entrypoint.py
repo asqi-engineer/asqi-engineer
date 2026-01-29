@@ -201,8 +201,11 @@ def _configure_job_dirs(host_output_path: Optional[str]) -> tuple[Path, Path]:
                     # If it has content, it might be the volume or previous run.
                     # We can't easily distinguish.
                     pass
-            except Exception:
-                pass
+            except Exception as e:
+                print(
+                    f"DEBUG: Mount check heuristic failed (non-critical): {e}",
+                    file=sys.stderr,
+                )
 
             # Attempt bind mount
             print(
