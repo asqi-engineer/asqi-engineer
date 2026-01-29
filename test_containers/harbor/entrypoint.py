@@ -1,5 +1,4 @@
 import argparse
-import copy
 import json
 import os
 import select
@@ -9,17 +8,9 @@ import uuid
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, Optional
-
+import shutil
 
 DEFAULT_DATASET = "hello-world@1.0"
-
-
-def _redact_systems_params(systems_params: Dict[str, Any]) -> Dict[str, Any]:
-    redacted = copy.deepcopy(systems_params)
-    sut_cfg = redacted.get("system_under_test")
-    if isinstance(sut_cfg, dict) and "api_key" in sut_cfg:
-        sut_cfg["api_key"] = "REDACTED"
-    return redacted
 
 
 def _print_json(obj: Dict[str, Any]) -> None:
@@ -213,11 +204,11 @@ def _configure_job_dirs(host_output_path: Optional[str]) -> tuple[Path, Path]:
                 file=sys.stderr,
             )
             try:
-                # Safe to ignore Bandit S603/S607: using list form (not shell=True)
-                # prevents shell injection, and "mount" is a system command passed
-                # explicitly without user input manipulation.
+                mount_cmd = shutil.which("mount") or "/sbin/mount"
+
+                # Then use it:
                 subprocess.run(
-                    ["mount", "--bind", "/output", str(host_path)],  # nosec B607,B603
+                    [mount_cmd, "--bind", "/output", str(host_path)],
                     check=True,
                     capture_output=True,
                 )
