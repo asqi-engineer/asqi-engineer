@@ -1129,3 +1129,35 @@ class DataGenerationConfig(BaseModel):
     generation_jobs: List[GenerationJobConfig] = Field(
         ..., description="List of generation jobs to execute"
     )
+
+
+# ----------------------------------------------------------------------------
+# Execution Metadata Schemas
+# ----------------------------------------------------------------------------
+
+
+class ExecutionTags(BaseModel):
+    """
+    Tags for workflow execution tracking.
+    """
+
+    parent_id: str = Field(
+        ..., description="Parent workflow ID for tracking execution hierarchy"
+    )
+    job_type: str = Field(..., description="Type of job (e.g., 'test', 'generation')")
+    job_id: str = Field(..., description="Unique identifier for this specific job")
+    model_config = {"extra": "allow"}
+
+
+class ExecutionMetadata(BaseModel):
+    """
+    Metadata structure passed from workflow to test containers.
+    """
+
+    tags: ExecutionTags = Field(
+        ..., description="Workflow tracking tags for LiteLLM attribution"
+    )
+    user_id: Optional[str] = Field(
+        None, description="Optional user identifier (maps to OpenAI 'user' parameter)"
+    )
+    model_config = {"extra": "allow"}

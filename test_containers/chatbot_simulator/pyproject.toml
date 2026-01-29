@@ -1,0 +1,19 @@
+[project]
+name = "chatbot-simulator"
+version = "0.1.0"
+description = "Chatbot Simulator container for ASQI testing"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openevals==0.1.0",
+    "rich",
+    "openai",
+    "langchain-openai",
+    "langchain-core",
+    "pydantic",
+    "jinja2",
+    "asqi-engineer",
+]
+
+[tool.uv.sources]
+asqi-engineer = { git = "https://github.com/asqi-engineer/asqi-engineer" }
