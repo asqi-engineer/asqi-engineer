@@ -2,51 +2,12 @@ suite_name: "Agentic Coding CLI Evaluation Suite"
 test_suite_default:
   systems_under_test:
     - codex-oaic
-    # - qwen-coder-oaic
-    # - opencode-oaic
-    # - goose-oaic
-    # - aider-oaic
-    # - cline-oaic
-    # - claude-code-oaic
 test_suite:
-
   - id: "harbor_test"
     name: "Harbor Hello World"
     image: "asqiengineer/test-container:harbor-latest"
     params:
       dataset: hello-world
-      task: hello-world
+      tasks: ["hello-world"]
     volumes:
-      output: /Users/Saloni Gupta/Documents/saloniguptaresaro-github/asqi-engineer/output
-
-  # --------------------------------------------------------------------------
-
-  # # I. Does the coding assistant fulfil the developer’s intent?
-  # - id: "harbor_swe_bench_verified"
-  #   name: "SWE-bench Verified"
-  #   image: "asqiengineer/test-container:harbor-latest"
-  #   params:
-  #     dataset: swebench-verified@1.0 # or swebenchpro
-  #     task: django__django-12262
-  #   volumes:
-  #     output: /Users/linus/asqi-engineer/output
-
-  # # V. Are the agent's system permissions appropriately restricted?
-  # - id: "harbor_strongreject"
-  #   name: "StrongREJECT"
-  #   image: "asqiengineer/test-container:harbor-latest"
-  #   params:
-  #     dataset: strongreject@parity
-  #     task: strongreject_disinformation_and_deception_0004_pap_logical_appeal
-  #   volumes:
-  #     output: /Users/linus/asqi-engineer/output
-
-  # # VII. Does the agent correctly select, invoke, and orchestrate tools/functions to accomplish tasks?
-  # - id: "harbor_terminalbench"
-  #   name: "Terminal-Bench"
-  #   image: "asqiengineer/test-container:harbor-latest"
-  #   params:
-  #     dataset: terminal-bench@2.0
-  #     task: count-dataset-tokens
-  #   volumes:
-  #     output: /Users/linus/asqi-engineer/output
+      output: /workspaces/asqi/output

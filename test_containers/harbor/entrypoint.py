@@ -7,6 +7,7 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 
@@ -28,10 +29,150 @@ def _print_json(obj: Dict[str, Any]) -> None:
 def _error_output(message: str) -> Dict[str, Any]:
     # Must conform to ContainerOutput schema (workflow expects results.success)
     return {
-        "results": {"success": False, "error": message},
+        "results": {"success": False, "error": message, "pass_rate": 0.0},
         "generated_reports": [],
         "generated_datasets": [],
     }
+
+
+def _calculate_task_metrics(job_dir: Path) -> Dict[str, float]:
+    """Calculate all task-level metrics in a single pass by reading each result file once.
+
+    Extracts: tokens, execution time, throughput, and latency metrics.
+
+    Args:
+        job_dir: Directory containing trial results
+
+    Returns:
+        Dict with avg_tokens_per_task, avg_task_execution_time, avg_throughput_tokens_per_sec, avg_latency_ms_per_token
+    """
+    try:
+        token_counts = []
+        execution_times = []
+        throughputs = []
+        latencies = []
+
+        # Find all result.json files in trial subdirectories - read each once
+        if job_dir.exists():
+            for trial_dir in job_dir.iterdir():
+                if trial_dir.is_dir():
+                    result_file = trial_dir / "result.json"
+                    if result_file.exists():
+                        try:
+                            trial_data = json.loads(result_file.read_text())
+
+                            # Extract agent result metrics
+                            agent_result = trial_data.get("agent_result", {})
+                            n_output_tokens = agent_result.get("n_output_tokens", 0)
+
+                            if (
+                                isinstance(n_output_tokens, (int, float))
+                                and n_output_tokens > 0
+                            ):
+                                token_counts.append(n_output_tokens)
+
+                            # Extract execution time metrics
+                            agent_exec = trial_data.get("agent_execution", {})
+                            started_at = agent_exec.get("started_at")
+                            finished_at = agent_exec.get("finished_at")
+
+                            if started_at and finished_at:
+                                start_time = datetime.fromisoformat(
+                                    started_at.replace("Z", "+00:00")
+                                )
+                                end_time = datetime.fromisoformat(
+                                    finished_at.replace("Z", "+00:00")
+                                )
+                                exec_time_sec = (end_time - start_time).total_seconds()
+
+                                if exec_time_sec > 0 and n_output_tokens > 0:
+                                    execution_times.append(exec_time_sec)
+
+                                    # Calculate throughput: tokens/sec
+                                    throughput = n_output_tokens / exec_time_sec
+                                    throughputs.append(throughput)
+
+                                    # Calculate latency: ms/token
+                                    latency = (exec_time_sec * 1000) / n_output_tokens
+                                    latencies.append(latency)
+                        except (json.JSONDecodeError, OSError, ValueError):
+                            continue
+
+        # Calculate averages
+        result = {
+            "avg_tokens_per_task": 0.0,
+            "avg_task_execution_time": 0.0,
+            "avg_throughput_tokens_per_sec": 0.0,
+            "avg_latency_ms_per_token": 0.0,
+        }
+
+        if token_counts:
+            result["avg_tokens_per_task"] = round(
+                sum(token_counts) / len(token_counts), 2
+            )
+
+        if execution_times:
+            result["avg_task_execution_time"] = round(
+                sum(execution_times) / len(execution_times), 2
+            )
+
+        if throughputs:
+            result["avg_throughput_tokens_per_sec"] = round(
+                sum(throughputs) / len(throughputs), 2
+            )
+
+        if latencies:
+            result["avg_latency_ms_per_token"] = round(
+                sum(latencies) / len(latencies), 2
+            )
+
+        return result
+
+    except Exception as e:
+        print(f"WARNING: Error calculating task metrics: {e}", file=sys.stderr)
+        return {
+            "avg_tokens_per_task": 0.0,
+            "avg_task_execution_time": 0.0,
+            "avg_throughput_tokens_per_sec": 0.0,
+            "avg_latency_ms_per_token": 0.0,
+        }
+
+
+def _calculate_pass_rate(harbor_results: Dict[str, Any]) -> float:
+    """Calculate pass rate from Harbor result.json.
+
+    Use the dataset-level `metrics` -> `mean` value(s) from Harbor aggregated
+    `result.json` as the pass rate.
+
+    Args:
+        harbor_results: Parsed Harbor result.json data
+
+    Returns:
+        Float between 0.0 and 1.0 representing pass rate (rounded to 4 decimals)
+    """
+    try:
+        stats = harbor_results.get("stats", {})
+        evals = stats.get("evals", {})
+
+        # Use the first available metrics->mean value found in the aggregated
+        # result.json and return it as the pass_rate (rounded to 4 decimals).
+        for eval_key, eval_data in evals.items():
+            metrics = eval_data.get("metrics", [])
+            if metrics and isinstance(metrics, list):
+                for m in metrics:
+                    if isinstance(m, dict) and "mean" in m:
+                        try:
+                            return round(float(m["mean"]), 4)
+                        except (ValueError, TypeError):
+                            # Unable to parse this mean — try next
+                            continue
+
+        # No usable mean found
+        return 0.0
+
+    except Exception as e:
+        print(f"WARNING: Error calculating pass_rate: {e}", file=sys.stderr)
+        return 0.0
 
 
 def _job_name(provider: str, model: str, dataset: str) -> str:
@@ -167,7 +308,9 @@ def _configure_provider_env(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Garak test container")
+    parser = argparse.ArgumentParser(
+        description="Harbor evaluation test container with batch support"
+    )
     parser.add_argument(
         "--systems-params", required=True, help="Systems parameters as JSON string"
     )
@@ -191,25 +334,102 @@ def main():
 
         job_dir = run_harbor(sut_params=sut_params, test_params=test_params)
 
-        results_payload: Dict[str, Any] = {"success": True}
+        # Parse Harbor results - read aggregated result.json once
+        success = True
+        pass_rate = 0.0
+        n_total_trials = 0
+        n_errors = 0
+        avg_tokens_per_task = 0.0
+        avg_task_execution_time = 0.0
+        avg_throughput_tokens_per_sec = 0.0
+        avg_latency_ms_per_token = 0.0
 
         if job_dir:
             result_json_path = job_dir / "result.json"
             if result_json_path.exists():
                 try:
+                    # Read aggregated result.json once
                     harbor_data = json.loads(result_json_path.read_text())
-                    results_payload["evaluation_results"] = harbor_data
+
+                    # Extract all aggregated metrics from single read
+                    n_total_trials = harbor_data.get("n_total_trials", 0)
+                    stats = harbor_data.get("stats", {})
+                    n_errors = stats.get("n_errors", 0)
+
+                    # Calculate pass_rate from aggregated data
+                    pass_rate = _calculate_pass_rate(harbor_data)
+
+                    # Calculate all task-level metrics in single pass
+                    task_metrics = _calculate_task_metrics(job_dir)
+                    avg_tokens_per_task = task_metrics["avg_tokens_per_task"]
+                    avg_task_execution_time = task_metrics["avg_task_execution_time"]
+                    avg_throughput_tokens_per_sec = task_metrics[
+                        "avg_throughput_tokens_per_sec"
+                    ]
+                    avg_latency_ms_per_token = task_metrics["avg_latency_ms_per_token"]
+
+                    # If there are errors, mark as partial success
+                    if n_errors > 0:
+                        success = True  # Harbor still ran, just had some failures
+
+                    print(f"DEBUG: Calculated pass_rate: {pass_rate}", file=sys.stderr)
+                    print(
+                        f"DEBUG: Total trials: {n_total_trials}, Errors: {n_errors}",
+                        file=sys.stderr,
+                    )
+                    print(
+                        f"DEBUG: Average tokens per task: {avg_tokens_per_task}",
+                        file=sys.stderr,
+                    )
+                    print(
+                        f"DEBUG: Average task execution time: {avg_task_execution_time}s",
+                        file=sys.stderr,
+                    )
+                    print(
+                        f"DEBUG: Average throughput: {avg_throughput_tokens_per_sec} tokens/sec",
+                        file=sys.stderr,
+                    )
+                    print(
+                        f"DEBUG: Average latency: {avg_latency_ms_per_token} ms/token",
+                        file=sys.stderr,
+                    )
                 except Exception as e:
                     print(f"WARNING: Failed to parse result.json: {e}", file=sys.stderr)
+                    success = False
+            else:
+                success = False
+                print(
+                    f"WARNING: No result.json found at {result_json_path}",
+                    file=sys.stderr,
+                )
+        else:
+            success = False
+            print("WARNING: No job directory returned", file=sys.stderr)
 
-        test_result: Dict[str, Any] = {
-            "results": results_payload,
-            "agent_config": _redact_systems_params(systems_params),
-            "test_params": test_params,
+        # Prepare result with harbor metrics
+        test_result = {
+            "success": success,
+            "pass_rate": pass_rate,
+            "n_total_trials": n_total_trials,
+            "n_errors": n_errors,
+            "avg_tokens_per_task": avg_tokens_per_task,
+            "avg_task_execution_time": avg_task_execution_time,
+            "avg_throughput_tokens_per_sec": avg_throughput_tokens_per_sec,
+            "avg_latency_ms_per_token": avg_latency_ms_per_token,
         }
 
+        # Save output.json to output volume
+        try:
+            output_mount_path = Path(os.environ.get("OUTPUT_MOUNT_PATH", "/output"))
+            output_json_path = output_mount_path / "output.json"
+            with open(output_json_path, "w") as f:
+                json.dump(test_result, f, indent=2)
+            print(f"DEBUG: Output saved to {output_json_path}", file=sys.stderr)
+        except Exception as e:
+            print(f"WARNING: Could not save output.json: {e}", file=sys.stderr)
+
         _print_json(test_result)
-        sys.exit(0)
+        sys.exit(0 if success else 1)
 
     except json.JSONDecodeError as e:
         _print_json(_error_output(f"Invalid JSON in arguments: {e}"))
@@ -223,7 +443,12 @@ def main():
 
 
 def run_harbor(sut_params, test_params):
-    harbor_cmd = ["harbor", "run"]
+    """Run Harbor with support for single task or multiple tasks via job config.
+
+    Supports:
+    - Single task: harbor run -d <dataset> -a <agent> -m <model> -t <task>
+    - Multiple tasks: Passed via job config file (recommended for batch evaluation)
+    """
     provider = sut_params.get("provider")
     model = sut_params.get("model")
     api_key = sut_params.get("api_key")
@@ -237,36 +462,44 @@ def run_harbor(sut_params, test_params):
         raise ValueError("Missing api_key in systems_params")
 
     dataset = test_params.get("dataset", DEFAULT_DATASET)
-    task = test_params.get("task", None)
+    tasks = test_params.get("tasks")
     job_name = _job_name(provider, model, dataset)
 
     jobs_dir_for_harbor, jobs_dir_for_read = _configure_job_dirs(
         os.environ.get("HOST_OUTPUT_PATH")
     )
-    harbor_cmd.extend(
-        [
-            "--agent",
-            provider,
-            "--model",
-            model,
-            "--env",
-            "docker",
-            "--dataset",
-            dataset,
-            "--job-name",
-            job_name,
-            "--jobs-dir",
-            str(jobs_dir_for_harbor),
-        ]
-    )
-    if task:
-        harbor_cmd.extend(["-t", task])
+
+    # Build harbor command
+    harbor_cmd = [
+        "harbor",
+        "run",
+        "--agent",
+        provider,
+        "--model",
+        model,
+        "--env",
+        "docker",
+        "--dataset",
+        dataset,
+        "--job-name",
+        job_name,
+        "--jobs-dir",
+        str(jobs_dir_for_harbor),
+    ]
+
+    # Add task(s)
+    if tasks:
+        if isinstance(tasks, list):
+            # Multiple tasks - add each one
+            for task in tasks:
+                harbor_cmd.extend(["-t", task])
+        else:
+            # Single task as string
+            harbor_cmd.extend(["-t", tasks])
 
     env = _configure_provider_env(provider=provider, api_key=api_key, base_url=base_url)
 
     print(f"DEBUG: About to run command: {' '.join(harbor_cmd)}", file=sys.stderr)
-
-    # --- run command: start ---
 
     # Run harbor with real-time output and capture
     process = subprocess.Popen(
@@ -318,14 +551,11 @@ def run_harbor(sut_params, test_params):
     handle_output()
     process.wait()
 
-    # --- run command: end ---
-
-    # Copy results to output mount only if not using Docker-in-Docker
-    # (with Docker-in-Docker, results are already in the host path)
+    # Use the job name we created to find results
     job_specific_dir = jobs_dir_for_harbor / job_name
 
     # Debug: List contents of job directory
-    if job_specific_dir.exists():
+    if job_specific_dir and job_specific_dir.exists():
         print(f"DEBUG: Contents of {job_specific_dir}:", file=sys.stderr)
         for item in sorted(job_specific_dir.iterdir()):
             print(f"  - {item.name}", file=sys.stderr)

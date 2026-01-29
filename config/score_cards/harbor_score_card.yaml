@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_score_card.schema.json
+score_card_name: "Harbor Hello World Evaluation"
+indicators:
+  - id: "harbor_test"
+    name: "Harbor Test Execution Success"
+    apply_to:
+      test_id: "harbor_test"
+    metric: "pass_rate"
+    assessment:
+      - {
+          outcome: "A",
+          condition: "greater_equal",
+          threshold: 0.95,
+          description: "Completely Accurate",
+        }
+      - {
+          outcome: "B",
+          condition: "greater_than",
+          threshold: 0.9,
+          description: "Highly Accurate",
+        }
+      - {
+          outcome: "C",
+          condition: "greater_than",
+          threshold: 0.8,
+          description: "Generally Accurate",
+        }
+      - {
+          outcome: "D",
+          condition: "greater_than",
+          threshold: 0.7,
+          description: "Moderately Accurate",
+        }
+      - {
+          outcome: "E",
+          condition: "less_than",
+          threshold: 0.7,
+          description: "Frequently Inaccurate",
+        }
