@@ -1,0 +1,49 @@
+name: "harbor"
+version: "1.0"
+description: "Harbor Agentic Coding Test Container."
+host_access: true
+
+input_systems:
+  - name: "system_under_test"
+    type: "agent_cli"
+    required: true
+    description: "The agent_cli system being tested."
+
+input_schema:
+  - name: "dataset"
+    type: "string"
+    required: true
+    description: "Name of harbor dataset to evaluate. Try hello-world@1.0 for initial tests."
+  - name: "tasks"
+    type: "list"
+    required: false
+    description: "List of task names within a dataset to run (enables parallel execution)."
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether the execution completed successfully"
+  - name: "pass_rate"
+    type: "float"
+    description: "Proportion of tasks passed (0.0 to 1.0)"
+  - name: "n_total_trials"
+    type: "integer"
+    description: "Total number of trials run"
+  - name: "n_errors"
+    type: "integer"
+    description: "Number of errors encountered"
+  - name: "avg_tokens_per_task"
+    type: "float"
+    description: "Average number of output tokens used per task"
+  - name: "avg_e2e_task_latency"
+    type: "float"
+    description: "Average end-to-end task execution time in seconds"
+  - name: "avg_throughput_tokens_per_sec"
+    type: "float"
+    description: "Average throughput in tokens per second"
+  - name: "avg_time_per_output_token_ms"
+    type: "float"
+    description: "Average per token generation speed in milliseconds"
+  - name: "avg_ttft_ms"
+    type: "float"
+    description: "Average time-to-first-token (TTFT) in milliseconds. TTFT measures the latency from agent execution start to first agent message response."

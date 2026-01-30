@@ -346,6 +346,24 @@ ASQI sends multimodal chat completion requests:
 
 VLMs return standard chat completion format with text responses.
 
+### Agent CLI Systems
+
+`agent_cli` systems support autonomous agents and coding frameworks that can be invoked via CLI or API.
+
+```yaml
+systems:
+  codex-oaic:
+    type: "agent_cli"
+    description: "Codex agent with OpenAI backend"
+    params:
+      provider: "codex"
+      model: "openai/gpt-4o-mini"
+      base_url: "https://api.openai.com/v1"
+      api_key: ${OPENAI_API_KEY}
+```
+
+Use in test suites by referencing the system in the `systems` field of a test.
+
 ### Environment Variable Handling
 
 ASQI supports a three-level configuration hierarchy:

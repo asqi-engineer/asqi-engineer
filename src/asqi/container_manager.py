@@ -482,11 +482,22 @@ def run_container_with_args(
             if mounts:
                 logger.info(f"Mounts: {mounts}")
 
+            # For Docker-in-Docker containers, pass the host output path
+            # so they can mount it correctly for nested containers
+            env = dict(environment or {})
+            if mounts:
+                for mount in mounts:
+                    if mount["Target"] == str(OUTPUT_MOUNT_PATH):
+                        env["HOST_OUTPUT_PATH"] = mount["Source"]
+                        logger.info(
+                            f"Set HOST_OUTPUT_PATH to {mount['Source']} for Docker-in-Docker support"
+                        )
+
             # Prepare run parameters
             run_kwargs = {
                 "image": image,
                 "command": args,
-                "environment": environment or {},
+                "environment": env,
                 "mounts": mounts,
                 "labels": labels,
                 **container_config.run_params,

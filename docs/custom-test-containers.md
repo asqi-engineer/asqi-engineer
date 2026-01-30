@@ -421,6 +421,7 @@ Access datasets via mounted volumes in your container.
 - `vlm_api` - Vision-language models
 - `rag_api` - RAG systems with retrieval
 - `image_generation_api` - Image generation models
+- `agent_cli` - Autonomous agents and CLI-based tools
 - `rest_api` - Generic REST APIs
 
 **Validation:**
