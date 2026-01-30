@@ -26,22 +26,85 @@ def _error_output(message: str) -> Dict[str, Any]:
     }
 
 
+def _calculate_ttft_from_rollout(
+    trial_dir: Path, agent_exec_started: Optional[str]
+) -> Optional[float]:
+    """Calculate Time-To-First-Token (TTFT) from agent session rollout.
+
+    TTFT = timestamp of first agent_message - agent_execution.started_at (in milliseconds)
+
+    Args:
+        trial_dir: Directory containing the trial (should contain agent/sessions/...)
+        agent_exec_started: Agent execution started_at timestamp (read once from result.json)
+
+    Returns:
+        TTFT in milliseconds, or None if unable to calculate
+    """
+    try:
+        if not agent_exec_started:
+            return None
+
+        first_message_timestamp = None
+
+        # Find first agent_message in rollout JSONL
+        # Rollout files are typically at: agent/sessions/YYYY/MM/DD/rollout-*.jsonl
+        rollout_dir = trial_dir / "agent" / "sessions"
+        if rollout_dir.exists():
+            for rollout_file in sorted(rollout_dir.glob("**/rollout-*.jsonl")):
+                try:
+                    with open(rollout_file, "r") as f:
+                        for line in f:
+                            event = json.loads(line)
+                            # Look for first agent_message event
+                            if event.get("type") == "event_msg":
+                                payload = event.get("payload", {})
+                                if payload.get("type") == "agent_message":
+                                    first_message_timestamp = event.get("timestamp")
+                                    break
+                    if first_message_timestamp:
+                        break
+                except (json.JSONDecodeError, OSError):
+                    continue
+
+        if not first_message_timestamp:
+            return None
+
+        # Parse timestamps and calculate TTFT in milliseconds
+        try:
+            exec_start = datetime.fromisoformat(
+                agent_exec_started.replace("Z", "+00:00")
+            )
+            msg_time = datetime.fromisoformat(
+                first_message_timestamp.replace("Z", "+00:00")
+            )
+            ttft_ms = (msg_time - exec_start).total_seconds() * 1000
+            return round(ttft_ms, 2) if ttft_ms >= 0 else None
+        except (ValueError, AttributeError):
+            return None
+
+    except Exception as e:
+        print(f"WARNING: Error calculating TTFT: {e}", file=sys.stderr)
+        return None
+
+
 def _calculate_task_metrics(job_dir: Path) -> Dict[str, float]:
     """Calculate all task-level metrics in a single pass by reading each result file once.
 
-    Extracts: tokens, execution time, throughput, and latency metrics.
+    Extracts: tokens, execution time, throughput, and generation_speed metrics, and TTFT.
 
     Args:
         job_dir: Directory containing trial results
 
     Returns:
-        Dict with avg_tokens_per_task, avg_task_execution_time, avg_throughput_tokens_per_sec, avg_latency_ms_per_token
+        Dict with avg_tokens_per_task, avg_e2e_task_latency, avg_throughput_tokens_per_sec,
+        avg_time_per_output_token_ms, and avg_ttft_ms
     """
     try:
         token_counts = []
         execution_times = []
         throughputs = []
         latencies = []
+        ttft_times = []
 
         # Find all result.json files in trial subdirectories - read each once
         if job_dir.exists():
@@ -55,12 +118,6 @@ def _calculate_task_metrics(job_dir: Path) -> Dict[str, float]:
                             # Extract agent result metrics
                             agent_result = trial_data.get("agent_result", {})
                             n_output_tokens = agent_result.get("n_output_tokens", 0)
-
-                            if (
-                                isinstance(n_output_tokens, (int, float))
-                                and n_output_tokens > 0
-                            ):
-                                token_counts.append(n_output_tokens)
 
                             # Extract execution time metrics
                             agent_exec = trial_data.get("agent_execution", {})
@@ -76,25 +133,40 @@ def _calculate_task_metrics(job_dir: Path) -> Dict[str, float]:
                                 )
                                 exec_time_sec = (end_time - start_time).total_seconds()
 
-                                if exec_time_sec > 0 and n_output_tokens > 0:
+                                if (
+                                    exec_time_sec > 0
+                                    and isinstance(n_output_tokens, (int, float))
+                                    and n_output_tokens > 0
+                                ):
+                                    token_counts.append(n_output_tokens)
                                     execution_times.append(exec_time_sec)
 
                                     # Calculate throughput: tokens/sec
                                     throughput = n_output_tokens / exec_time_sec
                                     throughputs.append(throughput)
 
-                                    # Calculate latency: ms/token
-                                    latency = (exec_time_sec * 1000) / n_output_tokens
-                                    latencies.append(latency)
+                                    # Calculate generation speed: ms/token
+                                    generation_speed = (
+                                        exec_time_sec * 1000
+                                    ) / n_output_tokens
+                                    latencies.append(generation_speed)
+
+                                    # Calculate TTFT from rollout (pass agent_exec_started to avoid re-reading result.json)
+                                    ttft = _calculate_ttft_from_rollout(
+                                        trial_dir, started_at
+                                    )
+                                    if ttft is not None:
+                                        ttft_times.append(ttft)
                         except (json.JSONDecodeError, OSError, ValueError):
                             continue
 
         # Calculate averages
         result = {
             "avg_tokens_per_task": 0.0,
-            "avg_task_execution_time": 0.0,
+            "avg_e2e_task_latency": 0.0,
             "avg_throughput_tokens_per_sec": 0.0,
-            "avg_latency_ms_per_token": 0.0,
+            "avg_time_per_output_token_ms": 0.0,
+            "avg_ttft_ms": 0.0,
         }
 
         if token_counts:
@@ -103,7 +175,7 @@ def _calculate_task_metrics(job_dir: Path) -> Dict[str, float]:
             )
 
         if execution_times:
-            result["avg_task_execution_time"] = round(
+            result["avg_e2e_task_latency"] = round(
                 sum(execution_times) / len(execution_times), 2
             )
 
@@ -113,9 +185,12 @@ def _calculate_task_metrics(job_dir: Path) -> Dict[str, float]:
             )
 
         if latencies:
-            result["avg_latency_ms_per_token"] = round(
+            result["avg_time_per_output_token_ms"] = round(
                 sum(latencies) / len(latencies), 2
             )
+
+        if ttft_times:
+            result["avg_ttft_ms"] = round(sum(ttft_times) / len(ttft_times), 2)
 
         return result
 
@@ -123,9 +198,10 @@ def _calculate_task_metrics(job_dir: Path) -> Dict[str, float]:
         print(f"WARNING: Error calculating task metrics: {e}", file=sys.stderr)
         return {
             "avg_tokens_per_task": 0.0,
-            "avg_task_execution_time": 0.0,
+            "avg_e2e_task_latency": 0.0,
             "avg_throughput_tokens_per_sec": 0.0,
-            "avg_latency_ms_per_token": 0.0,
+            "avg_time_per_output_token_ms": 0.0,
+            "avg_ttft_ms": 0.0,
         }
 
 
@@ -337,9 +413,10 @@ def main():
         n_total_trials = 0
         n_errors = 0
         avg_tokens_per_task = 0.0
-        avg_task_execution_time = 0.0
+        avg_e2e_task_latency = 0.0
         avg_throughput_tokens_per_sec = 0.0
-        avg_latency_ms_per_token = 0.0
+        avg_time_per_output_token_ms = 0.0
+        avg_ttft_ms = 0.0
 
         if job_dir:
             result_json_path = job_dir / "result.json"
@@ -359,11 +436,14 @@ def main():
                     # Calculate all task-level metrics in single pass
                     task_metrics = _calculate_task_metrics(job_dir)
                     avg_tokens_per_task = task_metrics["avg_tokens_per_task"]
-                    avg_task_execution_time = task_metrics["avg_task_execution_time"]
+                    avg_e2e_task_latency = task_metrics["avg_e2e_task_latency"]
                     avg_throughput_tokens_per_sec = task_metrics[
                         "avg_throughput_tokens_per_sec"
                     ]
-                    avg_latency_ms_per_token = task_metrics["avg_latency_ms_per_token"]
+                    avg_time_per_output_token_ms = task_metrics[
+                        "avg_time_per_output_token_ms"
+                    ]
+                    avg_ttft_ms = task_metrics["avg_ttft_ms"]
 
                     # If there are errors, mark as partial success
                     if n_errors > 0:
@@ -379,7 +459,7 @@ def main():
                         file=sys.stderr,
                     )
                     print(
-                        f"DEBUG: Average task execution time: {avg_task_execution_time}s",
+                        f"DEBUG: Average end-to-end task latency: {avg_e2e_task_latency}s",
                         file=sys.stderr,
                     )
                     print(
@@ -387,7 +467,11 @@ def main():
                         file=sys.stderr,
                     )
                     print(
-                        f"DEBUG: Average latency: {avg_latency_ms_per_token} ms/token",
+                        f"DEBUG: Average generation speed: {avg_time_per_output_token_ms} ms/token",
+                        file=sys.stderr,
+                    )
+                    print(
+                        f"DEBUG: Average TTFT: {avg_ttft_ms} ms",
                         file=sys.stderr,
                     )
                 except Exception as e:
@@ -410,9 +494,10 @@ def main():
             "n_total_trials": n_total_trials,
             "n_errors": n_errors,
             "avg_tokens_per_task": avg_tokens_per_task,
-            "avg_task_execution_time": avg_task_execution_time,
+            "avg_e2e_task_latency": avg_e2e_task_latency,
             "avg_throughput_tokens_per_sec": avg_throughput_tokens_per_sec,
-            "avg_latency_ms_per_token": avg_latency_ms_per_token,
+            "avg_time_per_output_token_ms": avg_time_per_output_token_ms,
+            "avg_ttft_ms": avg_ttft_ms,
         }
 
         # Save output.json to output volume
