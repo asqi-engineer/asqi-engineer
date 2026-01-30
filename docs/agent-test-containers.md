@@ -19,14 +19,15 @@ ASQI Engineer provides specialized test containers for evaluating agent-style sy
 - `tasks` (list, optional): List of task names within the dataset to run (enables parallel execution)
 
 ### Output Metrics
-- `success` (boolean): Whether the container completed successfully
-- `pass_rate` (float): Dataset-level mean metric from Harbor (0.0 to 1.0)
-- `n_total_trials` (integer): Total trials run
+- `success` (boolean): Whether the execution completed successfully
+- `pass_rate` (float): Proportion of tasks passed (0.0 to 1.0)
+- `n_total_trials` (integer): Total number of trials run
 - `n_errors` (integer): Number of errors encountered
-- `avg_tokens_per_task` (float): Average output tokens used per task
-- `avg_task_execution_time` (float): Average execution time per task (s)
-- `avg_throughput_tokens_per_sec` (float)
-- `avg_latency_ms_per_token` (float)
+- `avg_tokens_per_task` (float): Average number of output tokens used per task
+- `avg_e2e_task_latency` (float): Average end-to-end task execution time in seconds
+- `avg_throughput_tokens_per_sec` (float): Average throughput in tokens per second
+- `avg_time_per_output_token_ms` (float): Average per token generation speed in milliseconds
+- `avg_ttft_ms` (float): Average time-to-first-token (TTFT) in milliseconds
 
 ### Example Configuration
 ```yaml
