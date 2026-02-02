@@ -10,6 +10,7 @@ from requests import exceptions as requests_exceptions
 from asqi.config import ContainerConfig
 from asqi.container_manager import (
     _decommission_container,
+    _devcontainer_host_path,
     _resolve_abs,
     _shutdown_event,
     check_images_availability,
@@ -909,3 +910,227 @@ class TestPullImages:
         mock_client_second.images.list.assert_called_once()
         # And error was logged
         mock_logger.error.assert_called()
+
+
+class TestDevcontainerHostPath:
+    """Test suite for _devcontainer_host_path function."""
+
+    def test_non_workspaces_path_returned_as_is(self):
+        """Test that paths not starting with /workspaces/ are returned as-is."""
+        mock_client = MagicMock()
+
+        # Host paths should be returned unchanged
+        result = _devcontainer_host_path(mock_client, "/Users/dev/project")
+        assert result == "/Users/dev/project"
+
+        result = _devcontainer_host_path(mock_client, "/home/user/code")
+        assert result == "/home/user/code"
+
+        # Docker client should not be called for non-workspaces paths
+        mock_client.api.inspect_container.assert_not_called()
+
+    @patch("asqi.container_manager.Path")
+    def test_not_in_container_returns_path_as_is(self, mock_path_class):
+        """Test that paths are returned as-is when not running inside a container."""
+        mock_client = MagicMock()
+
+        # Mock Path to simulate /.dockerenv does not exist
+        mock_dockerenv = MagicMock()
+        mock_dockerenv.exists.return_value = False
+
+        def path_side_effect(path_str):
+            if path_str == "/.dockerenv":
+                return mock_dockerenv
+            # Return a real Path for other calls
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        result = _devcontainer_host_path(mock_client, "/workspaces/myproject/src")
+
+        # Should return the path without attempting container inspection
+        assert "/workspaces/myproject/src" in result
+        mock_client.api.inspect_container.assert_not_called()
+
+    @patch("asqi.container_manager.Path")
+    def test_container_id_from_cgroup(self, mock_path_class):
+        """Test that container ID is correctly extracted from /proc/self/cgroup."""
+        mock_client = MagicMock()
+        container_id = "abc123def456"
+
+        # Mock /.dockerenv exists
+        mock_dockerenv = MagicMock()
+        mock_dockerenv.exists.return_value = True
+
+        # Mock /proc/self/cgroup with docker container ID
+        mock_cgroup = MagicMock()
+        mock_cgroup.read_text.return_value = (
+            "12:memory:/docker/" + container_id + "\n"
+            "11:cpu:/docker/" + container_id + "\n"
+        )
+
+        def path_side_effect(path_str):
+            if path_str == "/.dockerenv":
+                return mock_dockerenv
+            elif path_str == "/proc/self/cgroup":
+                return mock_cgroup
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        # Mock container inspection
+        mock_client.api.inspect_container.return_value = {
+            "Mounts": [
+                {
+                    "Destination": "/workspaces/myproject",
+                    "Source": "/host/path/to/project",
+                }
+            ]
+        }
+
+        result = _devcontainer_host_path(mock_client, "/workspaces/myproject/src/main.py")
+
+        mock_client.api.inspect_container.assert_called_once_with(container_id)
+        assert result == "/host/path/to/project/src/main.py"
+
+    @patch("asqi.container_manager.Path")
+    def test_fallback_to_hostname_when_no_docker_in_cgroup(self, mock_path_class):
+        """Test fallback to /etc/hostname when cgroup doesn't contain docker info."""
+        mock_client = MagicMock()
+        hostname_id = "container-hostname-123"
+
+        # Mock /.dockerenv exists
+        mock_dockerenv = MagicMock()
+        mock_dockerenv.exists.return_value = True
+
+        # Mock /proc/self/cgroup without docker info
+        mock_cgroup = MagicMock()
+        mock_cgroup.read_text.return_value = "12:memory:/\n11:cpu:/\n"
+
+        # Mock /etc/hostname
+        mock_hostname = MagicMock()
+        mock_hostname.read_text.return_value = hostname_id + "\n"
+
+        def path_side_effect(path_str):
+            if path_str == "/.dockerenv":
+                return mock_dockerenv
+            elif path_str == "/proc/self/cgroup":
+                return mock_cgroup
+            elif path_str == "/etc/hostname":
+                return mock_hostname
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        mock_client.api.inspect_container.return_value = {
+            "Mounts": [
+                {
+                    "Destination": "/workspaces/project",
+                    "Source": "/home/user/project",
+                }
+            ]
+        }
+
+        result = _devcontainer_host_path(mock_client, "/workspaces/project/file.txt")
+
+        mock_client.api.inspect_container.assert_called_once_with(hostname_id)
+        assert result == "/home/user/project/file.txt"
+
+    @patch("asqi.container_manager.Path")
+    def test_mount_with_target_key(self, mock_path_class):
+        """Test that 'Target' key is also supported in mount info."""
+        mock_client = MagicMock()
+        container_id = "test123"
+
+        mock_dockerenv = MagicMock()
+        mock_dockerenv.exists.return_value = True
+
+        mock_cgroup = MagicMock()
+        mock_cgroup.read_text.return_value = "0::/docker/" + container_id
+
+        def path_side_effect(path_str):
+            if path_str == "/.dockerenv":
+                return mock_dockerenv
+            elif path_str == "/proc/self/cgroup":
+                return mock_cgroup
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        # Use 'Target' instead of 'Destination'
+        mock_client.api.inspect_container.return_value = {
+            "Mounts": [
+                {
+                    "Target": "/workspaces/app",
+                    "Source": "/var/lib/docker/volumes/app",
+                }
+            ]
+        }
+
+        result = _devcontainer_host_path(mock_client, "/workspaces/app/src/index.ts")
+
+        assert result == "/var/lib/docker/volumes/app/src/index.ts"
+
+    @patch("asqi.container_manager.logger")
+    @patch("asqi.container_manager.Path")
+    def test_exception_handling_returns_fallback(self, mock_path_class, mock_logger):
+        """Test that exceptions are caught and fallback path is returned."""
+        mock_client = MagicMock()
+
+        mock_dockerenv = MagicMock()
+        mock_dockerenv.exists.return_value = True
+
+        mock_cgroup = MagicMock()
+        mock_cgroup.read_text.side_effect = FileNotFoundError("/proc/self/cgroup not found")
+
+        def path_side_effect(path_str):
+            if path_str == "/.dockerenv":
+                return mock_dockerenv
+            elif path_str == "/proc/self/cgroup":
+                return mock_cgroup
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        result = _devcontainer_host_path(mock_client, "/workspaces/project/file.py")
+
+        # Should return normalized fallback path
+        assert "workspaces/project/file.py" in result
+        # Error should be logged
+        mock_logger.error.assert_called_once()
+
+    @patch("asqi.container_manager.Path")
+    def test_no_matching_mount_returns_fallback(self, mock_path_class):
+        """Test that path is returned as-is when no matching mount is found."""
+        mock_client = MagicMock()
+        container_id = "xyz789"
+
+        mock_dockerenv = MagicMock()
+        mock_dockerenv.exists.return_value = True
+
+        mock_cgroup = MagicMock()
+        mock_cgroup.read_text.return_value = "0::/docker/" + container_id
+
+        def path_side_effect(path_str):
+            if path_str == "/.dockerenv":
+                return mock_dockerenv
+            elif path_str == "/proc/self/cgroup":
+                return mock_cgroup
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        # Mounts don't include the path we're looking for
+        mock_client.api.inspect_container.return_value = {
+            "Mounts": [
+                {
+                    "Destination": "/workspaces/other-project",
+                    "Source": "/host/other",
+                }
+            ]
+        }
+
+        result = _devcontainer_host_path(mock_client, "/workspaces/myproject/src")
+
+        # Should return the original path since no mount matches
+        assert "workspaces/myproject/src" in result
