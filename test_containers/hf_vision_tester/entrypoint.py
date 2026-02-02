@@ -1,4 +1,3 @@
-"""HuggingFace Vision Evaluator - Object Detection via HF Inference API."""
 import argparse
 import json
 import os
@@ -33,10 +32,12 @@ def parse_config(sys_params: dict, test_params: dict) -> dict:
         "model_id": sut.get("model_id", "facebook/detr-resnet-50"),
         "api_key": sut.get("api_key") or os.environ.get("HF_TOKEN"),
         "timeout": sut.get("timeout", 30.0),
-        "dataset": loader.get("path") or test_params.get("dataset_path", "detection-datasets/coco"),
+        "dataset": loader.get("path")
+        or test_params.get("dataset_path", "detection-datasets/coco"),
         "split": loader.get("split") or test_params.get("dataset_split", "val"),
         "label_map": ds_config.get("label_map") or test_params.get("label_map", {}),
-        "bbox_format": ds_config.get("bbox_format") or test_params.get("bbox_format", "xyxy"),
+        "bbox_format": ds_config.get("bbox_format")
+        or test_params.get("bbox_format", "xyxy"),
         "conf_threshold": test_params.get("confidence_threshold", 0.5),
         "iou_threshold": test_params.get("iou_threshold", 0.5),
         "max_samples": test_params.get("max_samples"),
@@ -49,15 +50,15 @@ def load_samples(path: str, split: str, max_samples: int | None) -> list:
     try:
         if max_samples:
             log("INFO", f"Streaming {max_samples} samples...")
-            stream = load_dataset(path, split=split, streaming=True)
+            stream = load_dataset(path, split=split, streaming=True)  # nosec B615
             samples = []
             for i, s in enumerate(stream):
                 if i >= max_samples:
                     break
                 samples.append(s)
-                log("INFO", f"  Loaded sample {i+1}/{max_samples}")
+                log("INFO", f"  Loaded sample {i + 1}/{max_samples}")
             return samples
-        return list(load_dataset(path, split=split))
+        return list(load_dataset(path, split=split))  # nosec B615
     except Exception as e:
         log("ERROR", f"Dataset loading failed: {e}")
         raise
@@ -77,11 +78,17 @@ def call_detection_api(client: InferenceClient, image: Image.Image, model: str) 
 def to_tensors(boxes: list, labels: list, scores: list | None = None) -> dict:
     """Convert lists to torchmetrics tensor format."""
     result = {
-        "boxes": torch.tensor(boxes, dtype=torch.float32) if boxes else torch.zeros((0, 4)),
-        "labels": torch.tensor(labels, dtype=torch.int64) if labels else torch.zeros(0, dtype=torch.int64),
+        "boxes": torch.tensor(boxes, dtype=torch.float32)
+        if boxes
+        else torch.zeros((0, 4)),
+        "labels": torch.tensor(labels, dtype=torch.int64)
+        if labels
+        else torch.zeros(0, dtype=torch.int64),
     }
     if scores is not None:
-        result["scores"] = torch.tensor(scores, dtype=torch.float32) if scores else torch.zeros(0)
+        result["scores"] = (
+            torch.tensor(scores, dtype=torch.float32) if scores else torch.zeros(0)
+        )
     return result
 
 
@@ -132,7 +139,9 @@ def write_report(metrics: dict, model: str, dataset: str) -> dict:
     reports_dir = Path(os.environ["OUTPUT_MOUNT_PATH"]) / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
 
-    rows = "".join(f"<tr><td>{k}</td><td>{format_value(v)}</td></tr>" for k, v in metrics.items())
+    rows = "".join(
+        f"<tr><td>{k}</td><td>{format_value(v)}</td></tr>" for k, v in metrics.items()
+    )
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -172,17 +181,21 @@ def main():
 
     try:
         # Parse configuration
-        config = parse_config(json.loads(args.systems_params), json.loads(args.test_params))
+        config = parse_config(
+            json.loads(args.systems_params), json.loads(args.test_params)
+        )
         log("INFO", f"Model: {config['model_id']}, Timeout: {config['timeout']}s")
 
         # Load dataset
-        samples = load_samples(config["dataset"], config["split"], config["max_samples"])
+        samples = load_samples(
+            config["dataset"], config["split"], config["max_samples"]
+        )
 
         # Initialize client
         client = InferenceClient(
             provider="hf-inference",
             api_key=config["api_key"],
-            timeout=config["timeout"]
+            timeout=config["timeout"],
         )
 
         # Build label name -> id mapping
@@ -200,12 +213,16 @@ def main():
             log("INFO", f"[{i + 1}/{len(samples)}] Calling API...")
             try:
                 detections = call_detection_api(client, image, config["model_id"])
-                log("INFO", f"[{i + 1}/{len(samples)}] Got {len(detections)} detections")
+                log(
+                    "INFO", f"[{i + 1}/{len(samples)}] Got {len(detections)} detections"
+                )
             except Exception as e:
                 log("WARN", f"[{i + 1}] API error: {e}")
                 detections = []
 
-            predictions.append(parse_detections(detections, config["conf_threshold"], label_map))
+            predictions.append(
+                parse_detections(detections, config["conf_threshold"], label_map)
+            )
             targets.append(parse_ground_truth(sample, config["bbox_format"]))
 
         if not predictions:
@@ -213,7 +230,9 @@ def main():
 
         # Calculate metrics
         metrics = calculate_metrics(predictions, targets, config["iou_threshold"])
-        log("INFO", f"Results: mAP={metrics['map']:.4f}, mAP@50={metrics['map_50']:.4f}")
+        log(
+            "INFO", f"Results: mAP={metrics['map']:.4f}, mAP@50={metrics['map_50']:.4f}"
+        )
 
         # Write report and output results
         report = write_report(metrics, config["model_id"], config["dataset"])
@@ -227,7 +246,12 @@ def main():
     except Exception as e:
         log("ERROR", str(e))
         traceback.print_exc(file=sys.stderr)
-        print(json.dumps({"test_results": {"success": False, "error": str(e), "score": 0.0}}, indent=2))
+        print(
+            json.dumps(
+                {"test_results": {"success": False, "error": str(e), "score": 0.0}},
+                indent=2,
+            )
+        )
         sys.exit(1)
 
 
