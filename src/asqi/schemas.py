@@ -587,6 +587,15 @@ class VLMAPIParams(LLMAPIParams):
     )
 
 
+class AgentCLIParams(LLMAPIParams):
+    """Parameters for Agent CLI systems."""
+
+    provider: str = Field(
+        ...,
+        description="The agent CLI provider name (e.g., 'aider', 'cline', 'goose', 'codex')",
+    )
+
+
 class LLMAPIConfig(SystemDefinition):
     """Configuration for LLM API systems."""
 
@@ -664,6 +673,27 @@ class VLMAPIConfig(SystemDefinition):
     )
 
 
+# Agentic CLI system
+
+
+class AgentCLIConfig(SystemDefinition):
+    """Configuration for Agent CLI systems.
+
+    Agent CLI systems are autonomous agents and coding frameworks
+    that can be invoked via CLI or API (e.g., Codex, Qwen Coder,
+    OpenCode, Goose, Aider, Cline).
+    """
+
+    type: Literal["agent_cli"] = Field(
+        "agent_cli",
+        description="Agent CLI system type",
+    )
+    params: AgentCLIParams = Field(
+        ...,
+        description="Parameters specific to the Agent CLI system (provider, model, api_key, base_url)",
+    )
+
+
 # Generic system
 
 
@@ -689,6 +719,7 @@ SystemConfig = Union[
     ImageGenerationAPIConfig,
     ImageEditingAPIConfig,
     VLMAPIConfig,
+    AgentCLIConfig,
     GenericSystemConfig,
 ]
 
