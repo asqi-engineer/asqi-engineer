@@ -988,7 +988,9 @@ class TestDevcontainerHostPath:
             ]
         }
 
-        result = _devcontainer_host_path(mock_client, "/workspaces/myproject/src/main.py")
+        result = _devcontainer_host_path(
+            mock_client, "/workspaces/myproject/src/main.py"
+        )
 
         mock_client.api.inspect_container.assert_called_once_with(container_id)
         assert result == "/host/path/to/project/src/main.py"
@@ -1081,7 +1083,9 @@ class TestDevcontainerHostPath:
         mock_dockerenv.exists.return_value = True
 
         mock_cgroup = MagicMock()
-        mock_cgroup.read_text.side_effect = FileNotFoundError("/proc/self/cgroup not found")
+        mock_cgroup.read_text.side_effect = FileNotFoundError(
+            "/proc/self/cgroup not found"
+        )
 
         def path_side_effect(path_str):
             if path_str == "/.dockerenv":
