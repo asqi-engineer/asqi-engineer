@@ -338,6 +338,7 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
         if not abs_path.startswith("/workspaces/"):
             return abs_path
 
+        # Inspect *this* container, then map Destination -> Source
         cid = Path("/etc/hostname").read_text().strip()
         info = client.api.inspect_container(cid)
         for m in info.get("Mounts", []):
