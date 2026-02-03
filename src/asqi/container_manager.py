@@ -338,21 +338,7 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
         if not abs_path.startswith("/workspaces/"):
             return abs_path
 
-        # Skip translation if not running inside a container
-        if not Path("/.dockerenv").exists():
-            return abs_path
-
-        # Inspect *this* container, then map Destination -> Source
-        # Get container ID from cgroup (more reliable than hostname)
-        cgroup_content = Path("/proc/self/cgroup").read_text()
-        cid = None
-        for line in cgroup_content.splitlines():
-            if "/docker/" in line:
-                cid = line.split("/docker/")[-1].strip()
-                break
-        if not cid:
-            # Fallback to hostname
-            cid = Path("/etc/hostname").read_text().strip()
+        cid = Path("/etc/hostname").read_text().strip()
         info = client.api.inspect_container(cid)
         for m in info.get("Mounts", []):
             dest = m.get("Destination") or m.get("Target")
