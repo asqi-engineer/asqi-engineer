@@ -275,7 +275,13 @@ class SystemInput(BaseModel):
     )
     type: Union[str, List[str]] = Field(
         ...,
-        description="The system type(s) accepted. Can be a single string (e.g., 'llm_api') or a list of strings (e.g., ['llm_api', 'vlm_api']) for containers that support multiple system types. Valid types: 'llm_api', 'rest_api', 'rag_api', 'image_generation_api', 'image_editing_api', 'vlm_api', 'agent_cli'.",
+        description=(
+            "The system type(s) accepted. Can be a single string (e.g., 'llm_api') "
+            "or a list of strings (e.g., ['llm_api', 'vlm_api']) for containers "
+            "that support multiple system types. Valid types: 'llm_api', 'rest_api', "
+            "'rag_api', 'image_generation_api', 'image_editing_api', 'vlm_api', "
+            "'agent_cli'."
+        ),
     )
     required: bool = Field(True, description="Whether this system input is required.")
     description: Optional[str] = Field(
