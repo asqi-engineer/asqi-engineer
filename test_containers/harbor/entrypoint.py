@@ -464,9 +464,15 @@ def main():
                     logger.debug(f"Calculated pass_rate: {pass_rate}")
                     logger.debug(f"Total trials: {n_total_trials}, Errors: {n_errors}")
                     logger.debug(f"Average tokens per task: {avg_tokens_per_task}")
-                    logger.debug(f"Average end-to-end task latency: {avg_e2e_task_latency}s")
-                    logger.debug(f"Average throughput: {avg_throughput_tokens_per_sec} tokens/sec")
-                    logger.debug(f"Average generation speed: {avg_time_per_output_token_ms} ms/token")
+                    logger.debug(
+                        f"Average end-to-end task latency: {avg_e2e_task_latency}s"
+                    )
+                    logger.debug(
+                        f"Average throughput: {avg_throughput_tokens_per_sec} tokens/sec"
+                    )
+                    logger.debug(
+                        f"Average generation speed: {avg_time_per_output_token_ms} ms/token"
+                    )
                     logger.debug(f"Average TTFT: {avg_ttft_ms} ms")
                 except Exception as e:
                     logger.warning(f"Failed to parse result.json: {e}")
