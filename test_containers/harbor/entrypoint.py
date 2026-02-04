@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import select
+import shutil
 import subprocess
 import sys
 import uuid
@@ -260,14 +261,18 @@ def _configure_job_dirs(host_output_path: Optional[str]) -> Path:
     """Configure job directories for Harbor with Docker-in-Docker support.
 
     Harbor spawns nested Docker containers that need to mount volumes using host paths.
-    This function creates a symlink from the host path to the container's /output mount,
-    allowing Harbor to use the host path for both file I/O and Docker volume mounts.
+    The Docker daemon interprets paths from the HOST filesystem, not the container.
+
+    Bind mount /output to the host path location inside this container.
+    This makes the host path accessible to both:
+    1. This container for reading/writing files
+    2. The Docker daemon for mounting into nested containers
 
     Args:
         host_output_path: Absolute path on Docker host (from HOST_OUTPUT_PATH env var)
 
     Returns:
-        Path to harbor jobs directory (works for both reading and writing via symlink)
+        Path to harbor jobs directory
     """
     if not host_output_path:
         raise RuntimeError(
@@ -294,36 +299,53 @@ def _configure_job_dirs(host_output_path: Optional[str]) -> Path:
     # Create parent directory structure matching host path
     # Example: /Users/xyz/output requires /Users/xyz/ to exist
     try:
-        host_path.parent.mkdir(parents=True, exist_ok=True)
+        host_path.mkdir(parents=True, exist_ok=True)
     except Exception as e:
         raise RuntimeError(
             f"Failed to create parent directories for {host_path}: {e}"
         ) from e
 
-    # Create or verify symlink from host path to container mount
-    # This allows Harbor to write to host_path, which actually writes to /output
-    if host_path.exists():
-        if host_path.is_symlink():
-            target = host_path.readlink()
-            if target != output_mount:
-                raise RuntimeError(
-                    f"Path {host_path} is symlink to {target}, expected {output_mount}"
-                )
-            logger.debug(f"Using existing symlink {host_path} -> {output_mount}")
-        else:
-            raise RuntimeError(
-                f"Path {host_path} exists but is not a symlink.\n"
-                f"Cannot create required symlink for Docker-in-Docker.\n"
-                f"This may indicate a previous failed run."
-            )
-    else:
+    # Bind mount /output to host path location for Docker-in-Docker
+    # This makes the host path accessible to the Docker daemon for nested containers
+    if not any(host_path.iterdir()) if host_path.is_dir() else not host_path.exists():
+        logger.info(f"Setting up Docker-in-Docker bind mount: /output -> {host_path}")
         try:
-            host_path.symlink_to(output_mount)
-            logger.debug(f"Created symlink {host_path} -> {output_mount}")
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to create symlink {host_path} -> {output_mount}: {e}"
-            ) from e
+            # Try bind mount (standard Docker-in-Docker pattern, requires --privileged)
+            mount_cmd = shutil.which("mount") or "/sbin/mount"
+            subprocess.run(
+                [mount_cmd, "--bind", str(output_mount), str(host_path)],
+                check=True,
+                capture_output=True,
+            )
+            logger.info(f"Bind mount successful: {host_path} -> {output_mount}")
+        except subprocess.CalledProcessError as e:
+            # Bind mount failed - fall back to symlink
+            logger.warning(
+                f"Bind mount failed (requires --privileged mode): {e.stderr.decode().strip()}\n"
+                f"Falling back to symlink. Nested containers may have path resolution issues."
+            )
+            try:
+                if host_path.exists() and host_path.is_dir():
+                    host_path.rmdir()
+                host_path.symlink_to(output_mount)
+                logger.info(f"Created symlink fallback: {host_path} -> {output_mount}")
+            except Exception as sym_err:
+                raise RuntimeError(
+                    f"Both bind mount and symlink failed.\n"
+                    f"Bind mount error: {e.stderr.decode().strip()}\n"
+                    f"Symlink error: {sym_err}"
+                ) from sym_err
+        except FileNotFoundError:
+            logger.warning("mount command not available, using symlink fallback")
+            try:
+                if host_path.exists() and host_path.is_dir():
+                    host_path.rmdir()
+                host_path.symlink_to(output_mount)
+                logger.info(f"Created symlink: {host_path} -> {output_mount}")
+            except Exception as e:
+                raise RuntimeError(f"Failed to create symlink: {e}") from e
+    else:
+        logger.debug(f"Using existing path: {host_path}")
 
     # Create harbor subdirectory
     jobs_dir = host_path / "harbor"
@@ -342,11 +364,10 @@ def _configure_job_dirs(host_output_path: Optional[str]) -> Path:
             f"Cannot write to {jobs_dir}. Check permissions and mount configuration."
         ) from e
 
-    logger.debug(
+    logger.info(
         f"Docker-in-Docker paths configured:\n"
         f"  Host path (for Docker mounts): {jobs_dir}\n"
-        f"  Container mount:               {output_mount}/harbor\n"
-        f"  Symlink:                       {host_path} -> {output_mount}"
+        f"  Container mount:               {output_mount}/harbor"
     )
 
     return jobs_dir
