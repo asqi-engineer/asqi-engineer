@@ -1,5 +1,105 @@
 {
   "$defs": {
+    "AgentCLIConfig": {
+      "description": "Configuration for Agent CLI systems.\n\nAgent CLI systems are autonomous agents and coding frameworks\nthat can be invoked via CLI or API (e.g., Codex, Qwen Coder,\nOpenCode, Goose, Aider, Cline).",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+          "title": "Provider"
+        },
+        "type": {
+          "const": "agent_cli",
+          "default": "agent_cli",
+          "description": "Agent CLI system type",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentCLIParams",
+          "description": "Parameters specific to the Agent CLI system (provider, model, api_key, base_url)"
+        }
+      },
+      "required": [
+        "params"
+      ],
+      "title": "AgentCLIConfig",
+      "type": "object"
+    },
+    "AgentCLIParams": {
+      "description": "Parameters for Agent CLI systems.",
+      "properties": {
+        "base_url": {
+          "description": "Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "model": {
+          "description": "Model name to use with the API",
+          "title": "Model",
+          "type": "string"
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to .env file containing environment variables for authentication",
+          "title": "Env File"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Direct API key for authentication (alternative to env_file)",
+          "title": "Api Key"
+        },
+        "provider": {
+          "description": "The agent CLI provider name (e.g., 'aider', 'cline', 'goose', 'codex')",
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "base_url",
+        "model",
+        "provider"
+      ],
+      "title": "AgentCLIParams",
+      "type": "object"
+    },
     "GenericSystemConfig": {
       "description": "Generic system configuration for system types without specific validation.\n\nThis allows backward compatibility and support for system types that don't have dedicated config classes yet.",
       "properties": {
@@ -404,6 +504,9 @@
           },
           {
             "$ref": "#/$defs/VLMAPIConfig"
+          },
+          {
+            "$ref": "#/$defs/AgentCLIConfig"
           },
           {
             "$ref": "#/$defs/GenericSystemConfig"
