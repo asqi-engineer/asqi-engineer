@@ -1,0 +1,22 @@
+suite_name: "Agentic Coding CLI Evaluation Suite"
+test_suite_default:
+  systems_under_test:
+    - codex-oaic
+test_suite:
+  - id: "harbor_test"
+    name: "Harbor Hello World"
+    image: "asqiengineer/test-container:harbor-latest"
+    params:
+      dataset: hello-world
+      tasks: ["hello-world"]
+    volumes:
+      output: /workspaces/asqi/output
+
+  # - id: "harbor_terminalbench"
+  #   name: "Terminal-Bench"
+  #   image: "asqiengineer/test-container:harbor-latest"
+  #   params:
+  #     dataset: terminal-bench-sample@2.0
+  #     tasks: ["chess-best-move","sqlite-with-gcov"]
+  #   volumes:
+  #     output: /workspaces/asqi/output

@@ -439,6 +439,7 @@ def run_container_with_args(
     environment: Optional[Dict[str, str]] = None,
     name: Optional[str] = None,
     workflow_id: str = "",
+    manifest: Optional[Manifest] = None,
 ) -> Dict[str, Any]:
     """
     Run a Docker container with specified arguments and return results.
@@ -450,6 +451,7 @@ def run_container_with_args(
         environment: Optional dictionary of environment variables to pass to container
         name: Optional name for the container (will be used as container name in Docker)
         workflow_id: Workflow identifier to uniquely associate the container with a workflow
+        manifest: Optional Manifest object to check for host_access flag
 
     Returns:
         Dictionary with execution results including exit_code, output, success, etc.
@@ -482,11 +484,22 @@ def run_container_with_args(
             if mounts:
                 logger.info(f"Mounts: {mounts}")
 
+            # For Docker-in-Docker containers, pass the host output path
+            # Only set for containers with host_access (Docker-in-Docker via socket mounting)
+            env = dict(environment or {})
+            if manifest and manifest.host_access and mounts:
+                for mount in mounts:
+                    if mount["Target"] == str(OUTPUT_MOUNT_PATH):
+                        env["HOST_OUTPUT_PATH"] = mount["Source"]
+                        logger.info(
+                            f"Set HOST_OUTPUT_PATH to {mount['Source']} for Docker-in-Docker support"
+                        )
+
             # Prepare run parameters
             run_kwargs = {
                 "image": image,
                 "command": args,
-                "environment": environment or {},
+                "environment": env,
                 "mounts": mounts,
                 "labels": labels,
                 **container_config.run_params,
