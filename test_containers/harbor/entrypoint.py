@@ -5,10 +5,9 @@ import select
 import subprocess
 import sys
 import uuid
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, Optional
-import shutil
 
 DEFAULT_DATASET = "hello-world@1.0"
 
@@ -248,96 +247,106 @@ def _job_name(provider: str, model: str, dataset: str) -> str:
     return f"{provider}_{model_clean}_{job_hash}"
 
 
-def _configure_job_dirs(host_output_path: Optional[str]) -> tuple[Path, Path]:
-    """Return (jobs_dir_for_harbor_write, jobs_dir_for_container_read)."""
-    if host_output_path:
-        host_path = Path(host_output_path)
+def _configure_job_dirs(host_output_path: Optional[str]) -> Path:
+    """Configure job directories for Harbor with Docker-in-Docker support.
 
-        # If we are in a container with /output mounted, try to bind mount
-        # the internal host path to /output to solve Split Brain.
-        # Use bind mount instead of symlink to preserve the path structure
-        # so that Docker Host sees the correct path, preventing "Mounts denied".
-        if Path("/output").exists():
-            # Create the destination directory if it doesn't exist
-            host_path.mkdir(parents=True, exist_ok=True)
+    Harbor spawns nested Docker containers that need to mount volumes using host paths.
+    This function creates a symlink from the host path to the container's /output mount,
+    allowing Harbor to use the host path for both file I/O and Docker volume mounts.
 
-            # Check if already mounted (simple check)
-            try:
-                # This is a heuristic. Proper check would involve /proc/mounts
-                if host_path.exists() and any(host_path.iterdir()):
-                    # If it has content, it might be the volume or previous run.
-                    # We can't easily distinguish.
-                    pass
-            except Exception as e:
-                print(
-                    f"DEBUG: Mount check heuristic failed (non-critical): {e}",
-                    file=sys.stderr,
+    Args:
+        host_output_path: Absolute path on Docker host (from HOST_OUTPUT_PATH env var)
+
+    Returns:
+        Path to harbor jobs directory (works for both reading and writing via symlink)
+    """
+    if not host_output_path:
+        raise RuntimeError(
+            "HOST_OUTPUT_PATH environment variable is required for Harbor container.\n"
+            "This container has host_access: true in manifest.yaml.\n"
+            "ASQI should automatically set this variable when running containers with host_access."
+        )
+
+    host_path = Path(host_output_path)
+
+    if not host_path.is_absolute():
+        raise RuntimeError(
+            f"HOST_OUTPUT_PATH must be an absolute path, got: {host_output_path}"
+        )
+
+    output_mount = Path("/output")
+    if not output_mount.exists():
+        raise RuntimeError(
+            f"/output mount point not found.\n"
+            f"ASQI must mount the output directory to /output in this container.\n"
+            f"Expected mount: {host_output_path} -> /output"
+        )
+
+    # Create parent directory structure matching host path
+    # Example: /Users/xyz/output requires /Users/xyz/ to exist
+    try:
+        host_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to create parent directories for {host_path}: {e}"
+        ) from e
+
+    # Create or verify symlink from host path to container mount
+    # This allows Harbor to write to host_path, which actually writes to /output
+    if host_path.exists():
+        if host_path.is_symlink():
+            target = host_path.readlink()
+            if target != output_mount:
+                raise RuntimeError(
+                    f"Path {host_path} is symlink to {target}, expected {output_mount}"
                 )
-
-            # Attempt bind mount
             print(
-                f"DEBUG: Attempting to bind mount /output to {host_path}",
+                f"DEBUG: Using existing symlink {host_path} -> {output_mount}",
                 file=sys.stderr,
             )
-            try:
-                mount_cmd = shutil.which("mount") or "/sbin/mount"
-
-                # Then use it:
-                subprocess.run(
-                    [mount_cmd, "--bind", "/output", str(host_path)],
-                    check=True,
-                    capture_output=True,
-                )
-                print("DEBUG: Bind mount successful", file=sys.stderr)
-            except subprocess.CalledProcessError as e:
-                print(
-                    f"WARNING: Bind mount failed: {e.stderr.decode().strip()}. Falling back to symlink (may fail verification)",
-                    file=sys.stderr,
-                )
-                # Fallback to symlink if bind mount fails (e.g. unprivileged)
-                if not host_path.exists() or (
-                    host_path.is_dir() and not any(host_path.iterdir())
-                ):
-                    try:
-                        if host_path.exists():
-                            host_path.rmdir()
-                        host_path.symlink_to("/output")
-                        print(
-                            f"DEBUG: Symlinked {host_path} -> /output", file=sys.stderr
-                        )
-                    except Exception as ex:
-                        print(
-                            f"WARNING: Fallback symlink failed: {ex}", file=sys.stderr
-                        )
-
-        # Harbor must write to the host path for nested docker mounts.
-        jobs_dir_for_harbor = Path(host_output_path) / "harbor"
-        jobs_dir_for_harbor.mkdir(parents=True, exist_ok=True)
-
-        # But *this* container should read via the mounted output path.
-        if Path("/output").exists():
-            jobs_dir_for_read = Path("/output") / "harbor"
-            jobs_dir_for_read.mkdir(parents=True, exist_ok=True)
         else:
-            jobs_dir_for_read = jobs_dir_for_harbor
+            raise RuntimeError(
+                f"Path {host_path} exists but is not a symlink.\n"
+                f"Cannot create required symlink for Docker-in-Docker.\n"
+                f"This may indicate a previous failed run."
+            )
+    else:
+        try:
+            host_path.symlink_to(output_mount)
+            print(
+                f"DEBUG: Created symlink {host_path} -> {output_mount}", file=sys.stderr
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to create symlink {host_path} -> {output_mount}: {e}"
+            ) from e
 
-        print(
-            f"DEBUG: Using host output path for Docker-in-Docker: {jobs_dir_for_harbor}",
-            file=sys.stderr,
-        )
-        return jobs_dir_for_harbor, jobs_dir_for_read
-
-    # If we have a mounted output directory, use it directly to avoid copying logic issues
-    # and race conditions with file flushing.
-    if Path("/output").exists():
-        jobs_dir = Path("/output") / "harbor"
+    # Create harbor subdirectory
+    jobs_dir = host_path / "harbor"
+    try:
         jobs_dir.mkdir(parents=True, exist_ok=True)
-        return jobs_dir, jobs_dir
+    except Exception as e:
+        raise RuntimeError(f"Failed to create harbor directory {jobs_dir}: {e}") from e
 
-    # Fallback to local directory (will be copied to output mount later)
-    jobs_dir = Path("/app/jobs")
-    jobs_dir.mkdir(parents=True, exist_ok=True)
-    return jobs_dir, jobs_dir
+    # Verify write access
+    test_file = jobs_dir / ".write_test"
+    try:
+        test_file.write_text("test")
+        test_file.unlink()
+    except Exception as e:
+        raise RuntimeError(
+            f"Cannot write to {jobs_dir}. Check permissions and mount configuration."
+        ) from e
+
+    print(
+        f"DEBUG: Docker-in-Docker paths configured:\n"
+        f"  Host path (for Docker mounts): {jobs_dir}\n"
+        f"  Container mount:               {output_mount}/harbor\n"
+        f"  Symlink:                       {host_path} -> {output_mount}",
+        file=sys.stderr,
+    )
+
+    return jobs_dir
 
 
 def _configure_provider_env(
@@ -547,9 +556,7 @@ def run_harbor(sut_params, test_params):
     tasks = test_params.get("tasks")
     job_name = _job_name(provider, model, dataset)
 
-    jobs_dir_for_harbor, jobs_dir_for_read = _configure_job_dirs(
-        os.environ.get("HOST_OUTPUT_PATH")
-    )
+    jobs_dir = _configure_job_dirs(os.environ.get("HOST_OUTPUT_PATH"))
 
     # Build harbor command
     harbor_cmd = [
@@ -566,7 +573,7 @@ def run_harbor(sut_params, test_params):
         "--job-name",
         job_name,
         "--jobs-dir",
-        str(jobs_dir_for_harbor),
+        str(jobs_dir),
     ]
 
     # Add task(s)
@@ -634,7 +641,7 @@ def run_harbor(sut_params, test_params):
     process.wait()
 
     # Use the job name we created to find results
-    job_specific_dir = jobs_dir_for_harbor / job_name
+    job_specific_dir = jobs_dir / job_name
 
     # Debug: List contents of job directory
     if job_specific_dir and job_specific_dir.exists():
