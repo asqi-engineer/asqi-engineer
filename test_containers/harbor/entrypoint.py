@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 import os
 import select
 import subprocess
@@ -8,6 +9,14 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+# Configure logging to stderr
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stderr,
+    format="%(levelname)s:%(name)s:%(message)s",
+)
+logger = logging.getLogger(__name__)
 
 DEFAULT_DATASET = "hello-world@1.0"
 
@@ -82,7 +91,7 @@ def _calculate_ttft_from_rollout(
             return None
 
     except Exception as e:
-        print(f"WARNING: Error calculating TTFT: {e}", file=sys.stderr)
+        logger.warning(f"Error calculating TTFT: {e}")
         return None
 
 
@@ -194,7 +203,7 @@ def _calculate_task_metrics(job_dir: Path) -> Dict[str, float]:
         return result
 
     except Exception as e:
-        print(f"WARNING: Error calculating task metrics: {e}", file=sys.stderr)
+        logger.warning(f"Error calculating task metrics: {e}")
         return {
             "avg_tokens_per_task": 0.0,
             "avg_e2e_task_latency": 0.0,
@@ -237,7 +246,7 @@ def _calculate_pass_rate(harbor_results: Dict[str, Any]) -> float:
         return 0.0
 
     except Exception as e:
-        print(f"WARNING: Error calculating pass_rate: {e}", file=sys.stderr)
+        logger.warning(f"Error calculating pass_rate: {e}")
         return 0.0
 
 
@@ -300,10 +309,7 @@ def _configure_job_dirs(host_output_path: Optional[str]) -> Path:
                 raise RuntimeError(
                     f"Path {host_path} is symlink to {target}, expected {output_mount}"
                 )
-            print(
-                f"DEBUG: Using existing symlink {host_path} -> {output_mount}",
-                file=sys.stderr,
-            )
+            logger.debug(f"Using existing symlink {host_path} -> {output_mount}")
         else:
             raise RuntimeError(
                 f"Path {host_path} exists but is not a symlink.\n"
@@ -313,9 +319,7 @@ def _configure_job_dirs(host_output_path: Optional[str]) -> Path:
     else:
         try:
             host_path.symlink_to(output_mount)
-            print(
-                f"DEBUG: Created symlink {host_path} -> {output_mount}", file=sys.stderr
-            )
+            logger.debug(f"Created symlink {host_path} -> {output_mount}")
         except Exception as e:
             raise RuntimeError(
                 f"Failed to create symlink {host_path} -> {output_mount}: {e}"
@@ -338,12 +342,11 @@ def _configure_job_dirs(host_output_path: Optional[str]) -> Path:
             f"Cannot write to {jobs_dir}. Check permissions and mount configuration."
         ) from e
 
-    print(
-        f"DEBUG: Docker-in-Docker paths configured:\n"
+    logger.debug(
+        f"Docker-in-Docker paths configured:\n"
         f"  Host path (for Docker mounts): {jobs_dir}\n"
         f"  Container mount:               {output_mount}/harbor\n"
-        f"  Symlink:                       {host_path} -> {output_mount}",
-        file=sys.stderr,
+        f"  Symlink:                       {host_path} -> {output_mount}"
     )
 
     return jobs_dir
@@ -458,43 +461,22 @@ def main():
                     if n_errors > 0:
                         success = True  # Harbor still ran, just had some failures
 
-                    print(f"DEBUG: Calculated pass_rate: {pass_rate}", file=sys.stderr)
-                    print(
-                        f"DEBUG: Total trials: {n_total_trials}, Errors: {n_errors}",
-                        file=sys.stderr,
-                    )
-                    print(
-                        f"DEBUG: Average tokens per task: {avg_tokens_per_task}",
-                        file=sys.stderr,
-                    )
-                    print(
-                        f"DEBUG: Average end-to-end task latency: {avg_e2e_task_latency}s",
-                        file=sys.stderr,
-                    )
-                    print(
-                        f"DEBUG: Average throughput: {avg_throughput_tokens_per_sec} tokens/sec",
-                        file=sys.stderr,
-                    )
-                    print(
-                        f"DEBUG: Average generation speed: {avg_time_per_output_token_ms} ms/token",
-                        file=sys.stderr,
-                    )
-                    print(
-                        f"DEBUG: Average TTFT: {avg_ttft_ms} ms",
-                        file=sys.stderr,
-                    )
+                    logger.debug(f"Calculated pass_rate: {pass_rate}")
+                    logger.debug(f"Total trials: {n_total_trials}, Errors: {n_errors}")
+                    logger.debug(f"Average tokens per task: {avg_tokens_per_task}")
+                    logger.debug(f"Average end-to-end task latency: {avg_e2e_task_latency}s")
+                    logger.debug(f"Average throughput: {avg_throughput_tokens_per_sec} tokens/sec")
+                    logger.debug(f"Average generation speed: {avg_time_per_output_token_ms} ms/token")
+                    logger.debug(f"Average TTFT: {avg_ttft_ms} ms")
                 except Exception as e:
-                    print(f"WARNING: Failed to parse result.json: {e}", file=sys.stderr)
+                    logger.warning(f"Failed to parse result.json: {e}")
                     success = False
             else:
                 success = False
-                print(
-                    f"WARNING: No result.json found at {result_json_path}",
-                    file=sys.stderr,
-                )
+                logger.warning(f"No result.json found at {result_json_path}")
         else:
             success = False
-            print("WARNING: No job directory returned", file=sys.stderr)
+            logger.warning("No job directory returned")
 
         # Prepare result with harbor metrics
         test_result = {
@@ -515,9 +497,9 @@ def main():
             output_json_path = output_mount_path / "output.json"
             with open(output_json_path, "w") as f:
                 json.dump(test_result, f, indent=2)
-            print(f"DEBUG: Output saved to {output_json_path}", file=sys.stderr)
+            logger.debug(f"Output saved to {output_json_path}")
         except Exception as e:
-            print(f"WARNING: Could not save output.json: {e}", file=sys.stderr)
+            logger.warning(f"Could not save output.json: {e}")
 
         _print_json(test_result)
         sys.exit(0 if success else 1)
@@ -588,7 +570,7 @@ def run_harbor(sut_params, test_params):
 
     env = _configure_provider_env(provider=provider, api_key=api_key, base_url=base_url)
 
-    print(f"DEBUG: About to run command: {' '.join(harbor_cmd)}", file=sys.stderr)
+    logger.debug(f"About to run command: {' '.join(harbor_cmd)}")
 
     # Run harbor with real-time output and capture
     process = subprocess.Popen(
@@ -645,9 +627,9 @@ def run_harbor(sut_params, test_params):
 
     # Debug: List contents of job directory
     if job_specific_dir and job_specific_dir.exists():
-        print(f"DEBUG: Contents of {job_specific_dir}:", file=sys.stderr)
+        logger.debug(f"Contents of {job_specific_dir}:")
         for item in sorted(job_specific_dir.iterdir()):
-            print(f"  - {item.name}", file=sys.stderr)
+            logger.debug(f"  - {item.name}")
 
     return job_specific_dir
 
