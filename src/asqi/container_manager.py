@@ -343,15 +343,21 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
             return abs_path
 
         # Inspect *this* container, then map Destination -> Source
-        # Get container ID from cgroup (more reliable than hostname)
-        cgroup_content = Path("/proc/self/cgroup").read_text()
+        # Get container ID from mountinfo (works on cgroup v1 and v2)
         cid = None
-        for line in cgroup_content.splitlines():
-            if "/docker/" in line:
-                cid = line.split("/docker/")[-1].strip()
-                break
+        try:
+            import re
+
+            mountinfo = Path("/proc/self/mountinfo").read_text()
+            # Look for /docker/<64-char-hex-id> pattern (container ID)
+            match = re.search(r"/docker/([a-f0-9]{64})", mountinfo)
+            if match:
+                cid = match.group(1)
+        except Exception:
+            pass
+
         if not cid:
-            # Fallback to hostname
+            # Fallback to hostname (reliable in Docker/devcontainer setups)
             cid = Path("/etc/hostname").read_text().strip()
         info = client.api.inspect_container(cid)
         for m in info.get("Mounts", []):

@@ -953,27 +953,28 @@ class TestDevcontainerHostPath:
         mock_client.api.inspect_container.assert_not_called()
 
     @patch("asqi.container_manager.Path")
-    def test_container_id_from_cgroup(self, mock_path_class):
-        """Test that container ID is correctly extracted from /proc/self/cgroup."""
+    def test_container_id_from_mountinfo(self, mock_path_class):
+        """Test that container ID is correctly extracted from /proc/self/mountinfo."""
         mock_client = MagicMock()
-        container_id = "abc123def456"
+        # Container ID must be 64 hex characters
+        container_id = "abc123def456abc123def456abc123def456abc123def456abc123def456abcd"
 
         # Mock /.dockerenv exists
         mock_dockerenv = MagicMock()
         mock_dockerenv.exists.return_value = True
 
-        # Mock /proc/self/cgroup with docker container ID
-        mock_cgroup = MagicMock()
-        mock_cgroup.read_text.return_value = (
-            "12:memory:/docker/" + container_id + "\n"
-            "11:cpu:/docker/" + container_id + "\n"
+        # Mock /proc/self/mountinfo with docker container ID
+        mock_mountinfo = MagicMock()
+        mock_mountinfo.read_text.return_value = (
+            f"918 917 0:30 /docker/{container_id} /sys/fs/cgroup/systemd "
+            f"ro,nosuid - cgroup cgroup rw\n"
         )
 
         def path_side_effect(path_str):
             if path_str == "/.dockerenv":
                 return mock_dockerenv
-            elif path_str == "/proc/self/cgroup":
-                return mock_cgroup
+            elif path_str == "/proc/self/mountinfo":
+                return mock_mountinfo
             return Path(path_str)
 
         mock_path_class.side_effect = path_side_effect
@@ -996,8 +997,8 @@ class TestDevcontainerHostPath:
         assert result == "/host/path/to/project/src/main.py"
 
     @patch("asqi.container_manager.Path")
-    def test_fallback_to_hostname_when_no_docker_in_cgroup(self, mock_path_class):
-        """Test fallback to /etc/hostname when cgroup doesn't contain docker info."""
+    def test_fallback_to_hostname_when_no_docker_in_mountinfo(self, mock_path_class):
+        """Test fallback to /etc/hostname when mountinfo doesn't contain docker ID."""
         mock_client = MagicMock()
         hostname_id = "container-hostname-123"
 
@@ -1005,9 +1006,9 @@ class TestDevcontainerHostPath:
         mock_dockerenv = MagicMock()
         mock_dockerenv.exists.return_value = True
 
-        # Mock /proc/self/cgroup without docker info
-        mock_cgroup = MagicMock()
-        mock_cgroup.read_text.return_value = "12:memory:/\n11:cpu:/\n"
+        # Mock /proc/self/mountinfo without docker container ID
+        mock_mountinfo = MagicMock()
+        mock_mountinfo.read_text.return_value = "100 99 0:50 / / rw - overlay overlay rw\n"
 
         # Mock /etc/hostname
         mock_hostname = MagicMock()
@@ -1016,8 +1017,8 @@ class TestDevcontainerHostPath:
         def path_side_effect(path_str):
             if path_str == "/.dockerenv":
                 return mock_dockerenv
-            elif path_str == "/proc/self/cgroup":
-                return mock_cgroup
+            elif path_str == "/proc/self/mountinfo":
+                return mock_mountinfo
             elif path_str == "/etc/hostname":
                 return mock_hostname
             return Path(path_str)
@@ -1042,19 +1043,20 @@ class TestDevcontainerHostPath:
     def test_mount_with_target_key(self, mock_path_class):
         """Test that 'Target' key is also supported in mount info."""
         mock_client = MagicMock()
-        container_id = "test123"
+        # Container ID must be 64 hex characters
+        container_id = "test123test123test123test123test123test123test123test123test1234"
 
         mock_dockerenv = MagicMock()
         mock_dockerenv.exists.return_value = True
 
-        mock_cgroup = MagicMock()
-        mock_cgroup.read_text.return_value = "0::/docker/" + container_id
+        mock_mountinfo = MagicMock()
+        mock_mountinfo.read_text.return_value = f"918 917 0:30 /docker/{container_id} /sys/fs/cgroup ro - cgroup cgroup rw\n"
 
         def path_side_effect(path_str):
             if path_str == "/.dockerenv":
                 return mock_dockerenv
-            elif path_str == "/proc/self/cgroup":
-                return mock_cgroup
+            elif path_str == "/proc/self/mountinfo":
+                return mock_mountinfo
             return Path(path_str)
 
         mock_path_class.side_effect = path_side_effect
@@ -1073,28 +1075,83 @@ class TestDevcontainerHostPath:
 
         assert result == "/var/lib/docker/volumes/app/src/index.ts"
 
-    @patch("asqi.container_manager.logger")
     @patch("asqi.container_manager.Path")
-    def test_exception_handling_returns_fallback(self, mock_path_class, mock_logger):
-        """Test that exceptions are caught and fallback path is returned."""
+    def test_fallback_to_hostname_when_mountinfo_read_fails(self, mock_path_class):
+        """Test fallback to hostname when /proc/self/mountinfo cannot be read."""
         mock_client = MagicMock()
+        hostname_id = "container-from-hostname"
 
         mock_dockerenv = MagicMock()
         mock_dockerenv.exists.return_value = True
 
-        mock_cgroup = MagicMock()
-        mock_cgroup.read_text.side_effect = FileNotFoundError(
-            "/proc/self/cgroup not found"
+        # Mock /proc/self/mountinfo to raise an exception
+        mock_mountinfo = MagicMock()
+        mock_mountinfo.read_text.side_effect = FileNotFoundError(
+            "/proc/self/mountinfo not found"
         )
+
+        # Mock /etc/hostname
+        mock_hostname = MagicMock()
+        mock_hostname.read_text.return_value = hostname_id + "\n"
+
+        def path_side_effect(path_str):
+            if path_str == "/.dockerenv":
+                return mock_dockerenv
+            elif path_str == "/proc/self/mountinfo":
+                return mock_mountinfo
+            elif path_str == "/etc/hostname":
+                return mock_hostname
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        mock_client.api.inspect_container.return_value = {
+            "Mounts": [
+                {
+                    "Destination": "/workspaces/project",
+                    "Source": "/home/user/project",
+                }
+            ]
+        }
+
+        result = _devcontainer_host_path(mock_client, "/workspaces/project/file.py")
+
+        # Should fallback to hostname and successfully resolve the path
+        mock_client.api.inspect_container.assert_called_once_with(hostname_id)
+        assert result == "/home/user/project/file.py"
+
+    @patch("asqi.container_manager.logger")
+    @patch("asqi.container_manager.Path")
+    def test_exception_in_container_inspect_returns_fallback(
+        self, mock_path_class, mock_logger
+    ):
+        """Test that exceptions in container inspection are caught and fallback returned."""
+        mock_client = MagicMock()
+        hostname_id = "some-container"
+
+        mock_dockerenv = MagicMock()
+        mock_dockerenv.exists.return_value = True
+
+        # cgroup has no docker info
+        mock_cgroup = MagicMock()
+        mock_cgroup.read_text.return_value = "0::/\n"
+
+        mock_hostname = MagicMock()
+        mock_hostname.read_text.return_value = hostname_id + "\n"
 
         def path_side_effect(path_str):
             if path_str == "/.dockerenv":
                 return mock_dockerenv
             elif path_str == "/proc/self/cgroup":
                 return mock_cgroup
+            elif path_str == "/etc/hostname":
+                return mock_hostname
             return Path(path_str)
 
         mock_path_class.side_effect = path_side_effect
+
+        # Container inspection fails
+        mock_client.api.inspect_container.side_effect = Exception("Container not found")
 
         result = _devcontainer_host_path(mock_client, "/workspaces/project/file.py")
 
