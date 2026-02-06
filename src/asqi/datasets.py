@@ -11,6 +11,7 @@ from asqi.schemas import (
     AudioFeature,
     ClassLabelFeature,
     DatasetFeature,
+    DatasetLoaderParams,
     DictFeature,
     HFDatasetDefinition,
     HFFeature,
@@ -171,7 +172,7 @@ def validate_dataset_features(
 
 
 def _load_from_hub(
-    loader_params: "DatasetLoaderParams",
+    loader_params: DatasetLoaderParams,
 ) -> Dataset | IterableDataset:
     """Load a dataset from HuggingFace Hub.
 
@@ -199,7 +200,7 @@ def _load_from_hub(
 
 
 def _load_from_local(
-    loader_params: "DatasetLoaderParams", input_mount_path: Path | None
+    loader_params: DatasetLoaderParams, input_mount_path: Path | None
 ) -> Dataset | IterableDataset:
     """Load a dataset from local files.
 

@@ -8,16 +8,10 @@ without making real API calls.
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from datasets import Dataset, IterableDataset
 
-from asqi.datasets import (
-    _load_from_hub,
-    _load_from_local,
-    load_hf_dataset,
-    validate_dataset_features,
-)
-from asqi.schemas import DatasetLoaderParams, HFDatasetDefinition, DatasetFeature
+from asqi.datasets import load_hf_dataset
+from asqi.schemas import DatasetFeature, DatasetLoaderParams, HFDatasetDefinition
 
 
 def _make_hub_config(mapping=None, **loader_overrides):
@@ -201,7 +195,7 @@ class TestStreamingMode:
         mock_ld.return_value = MagicMock(spec=IterableDataset)
         cfg = _make_hub_config(streaming=True)
 
-        result = load_hf_dataset(cfg)
+        load_hf_dataset(cfg)
 
         kw = mock_ld.call_args.kwargs
         assert kw["streaming"] is True
@@ -211,7 +205,7 @@ class TestStreamingMode:
         mock_ld.return_value = MagicMock(spec=IterableDataset)
         cfg = _make_local_config(streaming=True)
 
-        result = load_hf_dataset(cfg)
+        load_hf_dataset(cfg)
 
         kw = mock_ld.call_args.kwargs
         assert kw["streaming"] is True
