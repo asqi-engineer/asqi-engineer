@@ -1,7 +1,9 @@
+import logging
+import os
 from pathlib import Path
 from typing import Optional, Sequence, Union
 
-from datasets import Dataset, Value, load_dataset
+from datasets import Dataset, IterableDataset, Value, load_dataset
 from datasets import Sequence as HFSequence
 from datasets.features import Audio, ClassLabel, Image, Video
 
@@ -9,6 +11,7 @@ from asqi.schemas import (
     AudioFeature,
     ClassLabelFeature,
     DatasetFeature,
+    DatasetLoaderParams,
     DictFeature,
     HFDatasetDefinition,
     HFFeature,
@@ -119,6 +122,14 @@ def validate_dataset_features(
         for Image/Audio/Video/List/ClassLabel). Complex nested structures (DictFeature
         fields) are not fully validated.
     """
+    if dataset.column_names is None or dataset.features is None:
+        logging.getLogger(__name__).debug(
+            "Skipping feature validation for dataset '%s': "
+            "column_names or features not available (streaming dataset).",
+            dataset_name,
+        )
+        return
+
     dataset_columns = set(dataset.column_names)
     missing_features = []
     type_mismatches = []
@@ -160,20 +171,87 @@ def validate_dataset_features(
         raise ValueError(error_msg)
 
 
+def _load_from_hub(
+    loader_params: DatasetLoaderParams,
+) -> Dataset | IterableDataset:
+    """Load a dataset from HuggingFace Hub.
+
+    Args:
+        loader_params: Configuration containing hub_path and optional name, split, revision.
+
+    Returns:
+        Dataset: Loaded HuggingFace dataset.
+
+    Security Note:
+        hub_path allows loading arbitrary Hub datasets. The trust_remote_code
+        flag controls whether remote code execution is allowed.
+    """
+    token = loader_params.token or os.environ.get("HF_TOKEN")
+
+    return load_dataset(  # nosec B615
+        path=loader_params.hub_path,
+        name=loader_params.name,
+        split=loader_params.split or "train",
+        revision=loader_params.revision,
+        trust_remote_code=loader_params.trust_remote_code,
+        streaming=loader_params.streaming,
+        token=token,
+    )
+
+
+def _load_from_local(
+    loader_params: DatasetLoaderParams, input_mount_path: Path | None
+) -> Dataset | IterableDataset:
+    """Load a dataset from local files.
+
+    Args:
+        loader_params: Configuration containing builder_name and data_dir/data_files.
+        input_mount_path: Optional path to prepend to relative paths.
+
+    Returns:
+        Dataset: Loaded HuggingFace dataset.
+    """
+    data_dir = loader_params.data_dir
+    data_files = loader_params.data_files
+
+    if input_mount_path:
+        if data_dir:
+            data_dir = (input_mount_path / Path(data_dir)).as_posix()
+        elif data_files:
+            if isinstance(data_files, list):
+                data_files = [
+                    (input_mount_path / Path(file)).as_posix() for file in data_files
+                ]
+            else:
+                data_files = (input_mount_path / Path(data_files)).as_posix()
+
+    return load_dataset(  # nosec B615
+        path=loader_params.builder_name,
+        data_dir=data_dir,
+        data_files=data_files,
+        split=loader_params.split or "train",
+        streaming=loader_params.streaming,
+    )
+
+
 def load_hf_dataset(
     dataset_config: Union[dict, HFDatasetDefinition],
     input_mount_path: Path | None = None,
     expected_features: Sequence[Union[DatasetFeature, HFFeature]] | None = None,
     dataset_name: str = "dataset",
-) -> Dataset:
+) -> Dataset | IterableDataset:
     # TODO: consider using load_from_disk for caching purposes
-    """Load a HuggingFace dataset using the provided loader parameters.
+    """Load a HuggingFace dataset from Hub or local files.
+
+    Supports two modes:
+    - Hub mode: Load from HuggingFace Hub using `hub_path` in loader_params
+    - Local mode: Load from local files using `builder_name` with `data_dir` or `data_files`
 
     Args:
         dataset_config: Configuration for loading the HuggingFace dataset.
         input_mount_path: Optional path to prepend to relative data_files/data_dir paths.
             Typically used in containers to resolve paths relative to the input mount point.
-            Absolute paths in the dataset config are not modified.
+            Only used in local file mode; ignored for Hub datasets.
         expected_features: Optional list of features to validate after loading.
             If provided, validates both feature existence and types (dtypes for scalars,
             feature types for Image/Audio/Video/List/ClassLabel).
@@ -186,51 +264,23 @@ def load_hf_dataset(
     Raises:
         ValidationError: If dataset_config dict fails Pydantic validation.
         ValueError: If expected_features is provided and validation fails.
-
-    Security Note:
-        This function uses local file loaders (json, csv, parquet, etc.) via
-        builder_name constrained by Literal types in DatasetLoaderParams.
-        The revision parameter is provided for forward compatibility with HF Hub
-        datasets, but current usage is limited to local files only.
     """
     if isinstance(dataset_config, dict):
         dataset_config = HFDatasetDefinition(**dataset_config)
     loader_params = dataset_config.loader_params
     mapping = dataset_config.mapping
-    # B615: Only local file loaders (json, csv, parquet, etc.) are used via
-    # builder_name constrained by Literal type. revision provided for future
-    # compatibility with HF Hub datasets but not required for local files.
-    #
-    # NOTE: split="train" is hardcoded because:
-    # 1. For local files (json, parquet, etc.), load_dataset with split=None returns
-    #    a DatasetDict containing a single "train" split
-    # 2. We want this function to always return a Dataset (not DatasetDict) for simplicity
-    # 3. The "train" split is the default convention for single-split datasets in HuggingFace
-    if input_mount_path:
-        if loader_params.data_dir:
-            loader_params.data_dir = (
-                input_mount_path / Path(loader_params.data_dir)
-            ).as_posix()
-        elif loader_params.data_files:
-            if isinstance(loader_params.data_files, list):
-                loader_params.data_files = [
-                    (input_mount_path / Path(file)).as_posix()
-                    for file in loader_params.data_files
-                ]
-            else:
-                loader_params.data_files = (
-                    input_mount_path / Path(loader_params.data_files)
-                ).as_posix()
-    dataset = load_dataset(  # nosec B615
-        path=loader_params.builder_name,
-        data_dir=loader_params.data_dir,
-        data_files=loader_params.data_files,
-        revision=loader_params.revision,
-        split="train",
-    )
-    dataset = dataset.rename_columns(mapping)
 
-    if expected_features is not None:
+    if loader_params.hub_path is not None:
+        dataset = _load_from_hub(loader_params)
+    else:
+        dataset = _load_from_local(loader_params, input_mount_path)
+
+    if mapping:
+        dataset = dataset.rename_columns(mapping)
+
+    # Skip feature validation for streaming datasets (IterableDataset) because
+    # column_names and features are None until data is materialized.
+    if expected_features is not None and not isinstance(dataset, IterableDataset):
         validate_dataset_features(dataset, expected_features, dataset_name)
 
     return dataset
