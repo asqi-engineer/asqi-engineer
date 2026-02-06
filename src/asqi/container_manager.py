@@ -338,8 +338,27 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
         if not abs_path.startswith("/workspaces/"):
             return abs_path
 
+        # Skip translation if not running inside a container
+        if not Path("/.dockerenv").exists():
+            return abs_path
+
         # Inspect *this* container, then map Destination -> Source
-        cid = Path("/etc/hostname").read_text().strip()
+        # Get container ID from mountinfo (works on cgroup v1 and v2)
+        cid = None
+        try:
+            import re
+
+            mountinfo = Path("/proc/self/mountinfo").read_text()
+            # Look for /docker/<64-char-hex-id> pattern (container ID)
+            match = re.search(r"/docker/([a-f0-9]{64})", mountinfo)
+            if match:
+                cid = match.group(1)
+        except Exception:  # nosec B110 fallback to hostname
+            pass
+
+        if not cid:
+            # Fallback to hostname (reliable in Docker/devcontainer setups)
+            cid = Path("/etc/hostname").read_text().strip()
         info = client.api.inspect_container(cid)
         for m in info.get("Mounts", []):
             dest = m.get("Destination") or m.get("Target")
