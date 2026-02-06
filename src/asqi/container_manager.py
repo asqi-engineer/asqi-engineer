@@ -353,7 +353,7 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
             match = re.search(r"/docker/([a-f0-9]{64})", mountinfo)
             if match:
                 cid = match.group(1)
-        except Exception:
+        except Exception:  # nosec B110 fallback to hostname
             pass
 
         if not cid:
