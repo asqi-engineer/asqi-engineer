@@ -957,7 +957,9 @@ class TestDevcontainerHostPath:
         """Test that container ID is correctly extracted from /proc/self/mountinfo."""
         mock_client = MagicMock()
         # Container ID must be 64 hex characters
-        container_id = "abc123def456abc123def456abc123def456abc123def456abc123def456abcd"
+        container_id = (
+            "abc123def456abc123def456abc123def456abc123def456abc123def456abcd"
+        )
 
         # Mock /.dockerenv exists
         mock_dockerenv = MagicMock()
@@ -1008,7 +1010,9 @@ class TestDevcontainerHostPath:
 
         # Mock /proc/self/mountinfo without docker container ID
         mock_mountinfo = MagicMock()
-        mock_mountinfo.read_text.return_value = "100 99 0:50 / / rw - overlay overlay rw\n"
+        mock_mountinfo.read_text.return_value = (
+            "100 99 0:50 / / rw - overlay overlay rw\n"
+        )
 
         # Mock /etc/hostname
         mock_hostname = MagicMock()
@@ -1044,7 +1048,9 @@ class TestDevcontainerHostPath:
         """Test that 'Target' key is also supported in mount info."""
         mock_client = MagicMock()
         # Container ID must be 64 hex characters
-        container_id = "test123test123test123test123test123test123test123test123test1234"
+        container_id = (
+            "test123test123test123test123test123test123test123test123test1234"
+        )
 
         mock_dockerenv = MagicMock()
         mock_dockerenv.exists.return_value = True
