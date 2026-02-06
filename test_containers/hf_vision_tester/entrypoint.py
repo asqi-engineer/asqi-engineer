@@ -68,7 +68,9 @@ def load_samples(
         yield sample
 
 
-def call_detection_api(client: InferenceClient, image: Image.Image, model: str, api_key: str | None = None) -> list:
+def call_detection_api(
+    client: InferenceClient, image: Image.Image, model: str, api_key: str | None = None
+) -> list:
     """Call HF Inference API for object detection."""
     buf = io.BytesIO()
     image.save(buf, format="PNG")
@@ -76,7 +78,9 @@ def call_detection_api(client: InferenceClient, image: Image.Image, model: str, 
         headers = {"Content-Type": "image/png"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
-        resp = http_requests.post(model, headers=headers, data=buf.getvalue(), timeout=30)
+        resp = http_requests.post(
+            model, headers=headers, data=buf.getvalue(), timeout=30
+        )
         resp.raise_for_status()
         return resp.json()
     return client.object_detection(image=buf.getvalue(), model=model)
@@ -125,12 +129,22 @@ def parse_ground_truth(sample: dict, bbox_format: str) -> dict:
     return to_tensors(boxes, objects.get("category", []))
 
 
-_EXPORTED_METRICS = frozenset({
-    "map", "map_50", "map_75",
-    "map_small", "map_medium", "map_large",
-    "mar_1", "mar_10", "mar_100",
-    "mar_small", "mar_medium", "mar_large",
-})
+_EXPORTED_METRICS = frozenset(
+    {
+        "map",
+        "map_50",
+        "map_75",
+        "map_small",
+        "map_medium",
+        "map_large",
+        "mar_1",
+        "mar_10",
+        "mar_100",
+        "mar_small",
+        "mar_medium",
+        "mar_large",
+    }
+)
 
 
 def calculate_metrics(predictions: list, targets: list, iou_threshold: float) -> dict:
@@ -237,7 +251,9 @@ def main():
 
             log("INFO", f"[{i}] Calling API...")
             try:
-                detections = call_detection_api(client, image, config["model_id"], config["api_key"])
+                detections = call_detection_api(
+                    client, image, config["model_id"], config["api_key"]
+                )
                 log("INFO", f"[{i}] Got {len(detections)} detections")
             except Exception as e:
                 log("WARN", f"[{i}] API error: {e}")
@@ -252,7 +268,10 @@ def main():
             raise ValueError("No valid samples to evaluate")
 
         metrics = calculate_metrics(predictions, targets, config["iou_threshold"])
-        log("INFO", f"Results: {', '.join(f'{k}={v:.4f}' for k, v in sorted(metrics.items()))}")
+        log(
+            "INFO",
+            f"Results: {', '.join(f'{k}={v:.4f}' for k, v in sorted(metrics.items()))}",
+        )
 
         report = write_report(metrics, config["model_id"], "evaluation_data")
 

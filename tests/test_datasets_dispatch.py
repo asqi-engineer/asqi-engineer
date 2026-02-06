@@ -246,7 +246,9 @@ class TestStreamingMode:
 
     @patch("asqi.datasets.validate_dataset_features")
     @patch("asqi.datasets.load_dataset")
-    def test_non_streaming_calls_validate_dataset_features(self, mock_ld, mock_validate):
+    def test_non_streaming_calls_validate_dataset_features(
+        self, mock_ld, mock_validate
+    ):
         """validate_dataset_features is called for non-streaming datasets."""
         ds = _fake_dataset()
         mock_ld.return_value = ds

@@ -664,7 +664,9 @@ class TestDatasetLoaderParamsSchema:
 
     def test_local_mode_with_data_dir(self):
         """Test builder_name with data_dir is valid."""
-        params = DatasetLoaderParams(builder_name="imagefolder", data_dir="/data/images")
+        params = DatasetLoaderParams(
+            builder_name="imagefolder", data_dir="/data/images"
+        )
         assert params.data_dir == "/data/images"
 
     # --- Invalid cases ---
