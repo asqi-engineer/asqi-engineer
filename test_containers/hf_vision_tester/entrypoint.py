@@ -1,13 +1,14 @@
 import argparse
+import html
 import json
 import os
 import sys
-import tempfile
 import traceback
+from collections.abc import Iterator
 from pathlib import Path
 
 import torch
-from datasets import load_dataset
+from asqi.datasets import load_hf_dataset
 from huggingface_hub import InferenceClient
 from PIL import Image
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
@@ -18,23 +19,32 @@ def log(level: str, message: str) -> None:
     print(f"[{level}] {message}", file=sys.stderr)
 
 
+def normalize_label_map(label_map: dict) -> dict:
+    """Convert {id: name} to {name: id} for label lookups."""
+    if not label_map:
+        return {}
+    first_val = next(iter(label_map.values()), None)
+    if isinstance(first_val, str):
+        return {
+            v.lower(): (int(k) if isinstance(k, str) else k)
+            for k, v in label_map.items()
+        }
+    return {k.lower(): v for k, v in label_map.items()}
+
+
 def parse_config(sys_params: dict, test_params: dict) -> dict:
     """Extract configuration from system and test parameters."""
     sut = sys_params.get("system_under_test", {})
     if sut.get("type") != "hf_inference_api":
         raise ValueError(f"Expected hf_inference_api, got: {sut.get('type')}")
 
-    # Support both input_datasets format and direct params
     ds_config = test_params.get("input_datasets", {}).get("evaluation_data", {})
-    loader = ds_config.get("loader_params", {})
 
     return {
         "model_id": sut.get("model_id", "facebook/detr-resnet-50"),
         "api_key": sut.get("api_key") or os.environ.get("HF_TOKEN"),
         "timeout": sut.get("timeout", 30.0),
-        "dataset": loader.get("path")
-        or test_params.get("dataset_path", "detection-datasets/coco"),
-        "split": loader.get("split") or test_params.get("dataset_split", "val"),
+        "ds_config": ds_config,
         "label_map": ds_config.get("label_map") or test_params.get("label_map", {}),
         "bbox_format": ds_config.get("bbox_format")
         or test_params.get("bbox_format", "xyxy"),
@@ -44,35 +54,21 @@ def parse_config(sys_params: dict, test_params: dict) -> dict:
     }
 
 
-def load_samples(path: str, split: str, max_samples: int | None) -> list:
-    """Load dataset samples, streaming if max_samples is set."""
-    log("INFO", f"Loading: {path} ({split})")
-    try:
-        if max_samples:
-            log("INFO", f"Streaming {max_samples} samples...")
-            stream = load_dataset(path, split=split, streaming=True)  # nosec B615
-            samples = []
-            for i, s in enumerate(stream):
-                if i >= max_samples:
-                    break
-                samples.append(s)
-                log("INFO", f"  Loaded sample {i + 1}/{max_samples}")
-            return samples
-        return list(load_dataset(path, split=split))  # nosec B615
-    except Exception as e:
-        log("ERROR", f"Dataset loading failed: {e}")
-        raise
+def load_samples(
+    dataset_config: dict, max_samples: int | None = None
+) -> Iterator[dict]:
+    """Stream dataset samples using asqi.datasets.load_hf_dataset."""
+    dataset_config.setdefault("loader_params", {})["streaming"] = True
+    dataset = load_hf_dataset(dataset_config)
+    for i, sample in enumerate(dataset):
+        if max_samples and i >= max_samples:
+            break
+        yield sample
 
 
 def call_detection_api(client: InferenceClient, image: Image.Image, model: str) -> list:
     """Call HF Inference API for object detection."""
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
-        image.save(f, format="JPEG")
-        temp_path = f.name
-    try:
-        return client.object_detection(image=temp_path, model=model)
-    finally:
-        os.unlink(temp_path)
+    return client.object_detection(image=image, model=model)
 
 
 def to_tensors(boxes: list, labels: list, scores: list | None = None) -> dict:
@@ -118,15 +114,27 @@ def parse_ground_truth(sample: dict, bbox_format: str) -> dict:
     return to_tensors(boxes, objects.get("category", []))
 
 
+_EXPORTED_METRICS = frozenset({
+    "map", "map_50", "map_75",
+    "map_small", "map_medium", "map_large",
+    "mar_1", "mar_10", "mar_100",
+    "mar_small", "mar_medium", "mar_large",
+})
+
+
 def calculate_metrics(predictions: list, targets: list, iou_threshold: float) -> dict:
-    """Calculate mAP metrics."""
+    """Calculate mAP metrics. Returns only metrics listed in _EXPORTED_METRICS."""
     metric = MeanAveragePrecision(iou_thresholds=[iou_threshold])
     metric.update(predictions, targets)
     results = metric.compute()
-    return {
-        "map": float(results.get("map", 0)),
-        "map_50": float(results.get("map_50", 0)),
-    }
+    extracted = {}
+    for k in sorted(_EXPORTED_METRICS):
+        v = results.get(k)
+        if v is None:
+            log("WARN", f"Expected metric '{k}' missing from torchmetrics output")
+            continue
+        extracted[k] = float(v)
+    return extracted
 
 
 def format_value(value) -> str:
@@ -134,15 +142,22 @@ def format_value(value) -> str:
     return f"{value:.4f}" if isinstance(value, float) else str(value)
 
 
-def write_report(metrics: dict, model: str, dataset: str) -> dict:
-    """Write HTML report to output volume."""
-    reports_dir = Path(os.environ["OUTPUT_MOUNT_PATH"]) / "reports"
+def write_report(metrics: dict, model: str, dataset: str) -> dict | None:
+    """Write HTML report to output volume. Returns None if OUTPUT_MOUNT_PATH not set."""
+    output_path = os.environ.get("OUTPUT_MOUNT_PATH")
+    if not output_path:
+        log("WARN", "OUTPUT_MOUNT_PATH not set, skipping report")
+        return None
+
+    reports_dir = Path(output_path) / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
 
+    safe_model = html.escape(model)
+    safe_dataset = html.escape(dataset)
     rows = "".join(
         f"<tr><td>{k}</td><td>{format_value(v)}</td></tr>" for k, v in metrics.items()
     )
-    html = f"""<!DOCTYPE html>
+    content = f"""<!DOCTYPE html>
 <html>
 <head>
     <title>Detection Report</title>
@@ -154,7 +169,7 @@ def write_report(metrics: dict, model: str, dataset: str) -> dict:
 </head>
 <body>
     <h1>HF Vision Evaluator</h1>
-    <p>Model: {model} | Dataset: {dataset}</p>
+    <p>Model: {safe_model} | Dataset: {safe_dataset}</p>
     <table>
         <tr><th>Metric</th><th>Value</th></tr>
         {rows}
@@ -163,7 +178,7 @@ def write_report(metrics: dict, model: str, dataset: str) -> dict:
 </html>"""
 
     report_path = reports_dir / "detection_report.html"
-    report_path.write_text(html)
+    report_path.write_text(content)
     log("INFO", f"Report written: {report_path}")
 
     return {
@@ -180,44 +195,33 @@ def main():
     args = parser.parse_args()
 
     try:
-        # Parse configuration
         config = parse_config(
             json.loads(args.systems_params), json.loads(args.test_params)
         )
         log("INFO", f"Model: {config['model_id']}, Timeout: {config['timeout']}s")
 
-        # Load dataset
-        samples = load_samples(
-            config["dataset"], config["split"], config["max_samples"]
-        )
-
-        # Initialize client
         client = InferenceClient(
             provider="hf-inference",
             api_key=config["api_key"],
             timeout=config["timeout"],
         )
 
-        # Build label name -> id mapping
-        label_map = {str(v).lower(): int(k) for k, v in config["label_map"].items()}
-
-        # Run inference
-        log("INFO", f"Running on {len(samples)} samples...")
+        label_map = normalize_label_map(config["label_map"])
         predictions, targets = [], []
 
-        for i, sample in enumerate(samples):
+        for i, sample in enumerate(
+            load_samples(config["ds_config"], config["max_samples"]), start=1
+        ):
             image = sample.get("image")
             if not isinstance(image, Image.Image):
                 continue
 
-            log("INFO", f"[{i + 1}/{len(samples)}] Calling API...")
+            log("INFO", f"[{i}] Calling API...")
             try:
                 detections = call_detection_api(client, image, config["model_id"])
-                log(
-                    "INFO", f"[{i + 1}/{len(samples)}] Got {len(detections)} detections"
-                )
+                log("INFO", f"[{i}] Got {len(detections)} detections")
             except Exception as e:
-                log("WARN", f"[{i + 1}] API error: {e}")
+                log("WARN", f"[{i}] API error: {e}")
                 detections = []
 
             predictions.append(
@@ -228,18 +232,14 @@ def main():
         if not predictions:
             raise ValueError("No valid samples to evaluate")
 
-        # Calculate metrics
         metrics = calculate_metrics(predictions, targets, config["iou_threshold"])
-        log(
-            "INFO", f"Results: mAP={metrics['map']:.4f}, mAP@50={metrics['map_50']:.4f}"
-        )
+        log("INFO", f"Results: {', '.join(f'{k}={v:.4f}' for k, v in sorted(metrics.items()))}")
 
-        # Write report and output results
-        report = write_report(metrics, config["model_id"], config["dataset"])
+        report = write_report(metrics, config["model_id"], "evaluation_data")
 
         output = {
             "test_results": {"success": True, "score": metrics["map"], **metrics},
-            "generated_reports": [report],
+            "generated_reports": [report] if report else [],
         }
         print(json.dumps(output, indent=2))
 

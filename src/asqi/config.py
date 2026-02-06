@@ -74,7 +74,7 @@ class ContainerConfig(BaseModel):
         "detach": True,
         "remove": False,
         "network_mode": "host",
-        "mem_limit": "8g",
+        "mem_limit": "2g",
         "cpu_period": 100000,
         "cpu_quota": 200000,
         "cap_drop": ["ALL"],

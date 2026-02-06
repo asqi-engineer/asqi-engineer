@@ -1,24 +1,77 @@
 {
   "$defs": {
     "DatasetLoaderParams": {
-      "description": "Parameters for loading a HuggingFace dataset from the mounted folder in the container.",
+      "description": "Parameters for loading a HuggingFace dataset.\n\nSupports two mutually exclusive modes:\n- Hub mode: Load from HuggingFace Hub using `hub_path`\n- Local mode: Load from local files using `builder_name` with `data_dir` or `data_files`",
       "properties": {
-        "builder_name": {
-          "description": "The dataset builder name. Gets passed to datasets.load_dataset() as the path argument.",
-          "enum": [
-            "json",
-            "csv",
-            "parquet",
-            "arrow",
-            "text",
-            "xml",
-            "webdataset",
-            "imagefolder",
-            "audiofolder",
-            "videofolder"
+        "hub_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Builder Name",
-          "type": "string"
+          "default": null,
+          "description": "HuggingFace Hub dataset path (e.g., 'detection-datasets/coco'). Mutually exclusive with builder_name.",
+          "title": "Hub Path"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Configuration name for multi-config Hub datasets (e.g., 'default', '2017').",
+          "title": "Name"
+        },
+        "split": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dataset split to load (e.g., 'train', 'validation', 'test'). Defaults to 'train' if not specified.",
+          "title": "Split"
+        },
+        "trust_remote_code": {
+          "default": false,
+          "description": "Allow execution of remote code from HuggingFace Hub datasets. Only set to True for trusted datasets.",
+          "title": "Trust Remote Code",
+          "type": "boolean"
+        },
+        "builder_name": {
+          "anyOf": [
+            {
+              "enum": [
+                "json",
+                "csv",
+                "parquet",
+                "arrow",
+                "text",
+                "xml",
+                "webdataset",
+                "imagefolder",
+                "audiofolder",
+                "videofolder"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The dataset builder name for local files. Gets passed to datasets.load_dataset() as the path argument. Mutually exclusive with hub_path.",
+          "title": "Builder Name"
         },
         "data_dir": {
           "anyOf": [
@@ -62,13 +115,29 @@
             }
           ],
           "default": null,
-          "description": "Git revision (commit hash, tag, or branch) for HuggingFace Hub datasets. Required for security when loading datasets from the Hub. Not needed for local file loaders (json, csv, parquet, etc.).",
+          "description": "Git revision (commit hash, tag, or branch) for HuggingFace Hub datasets. Recommended for reproducibility when using hub_path.",
           "title": "Revision"
+        },
+        "streaming": {
+          "default": false,
+          "description": "Enable streaming mode to avoid loading entire dataset into memory. Returns IterableDataset instead of Dataset. Recommended for large datasets.",
+          "title": "Streaming",
+          "type": "boolean"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "HuggingFace token for accessing private datasets. If not provided, falls back to HF_TOKEN environment variable.",
+          "title": "Token"
         }
       },
-      "required": [
-        "builder_name"
-      ],
       "title": "DatasetLoaderParams",
       "type": "object"
     },
@@ -105,6 +174,22 @@
           "description": "Optional mapping from existing dataset column names to their required names in manifest i.e. current_name: manifest_name.",
           "title": "Mapping",
           "type": "object"
+        },
+        "label_map": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional mapping from class IDs to class names for CV datasets (e.g., {0: 'person', 1: 'car'}). Used by detection and classification containers to match predictions with ground truth labels.",
+          "title": "Label Map"
         },
         "tags": {
           "description": "Optional tags for categorization (e.g., ['evaluation', 'en']).",

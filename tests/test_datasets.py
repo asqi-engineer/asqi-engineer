@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from datasets import Dataset, Features, Value
 from datasets import Sequence as HFSequence
 from datasets.features import Image as HFImage
@@ -601,3 +602,214 @@ class TestTypeValidation:
             assert "Type mismatches" in error_msg
             assert "metadata" in error_msg
             assert "expected Dict" in error_msg
+
+
+class TestDatasetLoaderParamsSchema:
+    """Test DatasetLoaderParams schema validation for Hub and Local modes."""
+
+    # --- Hub mode: valid cases ---
+
+    def test_hub_mode_minimal(self):
+        """Test hub_path alone is valid."""
+        params = DatasetLoaderParams(hub_path="detection-datasets/coco")
+        assert params.hub_path == "detection-datasets/coco"
+        assert params.builder_name is None
+
+    def test_hub_mode_with_split(self):
+        """Test hub_path with split is valid."""
+        params = DatasetLoaderParams(hub_path="x", split="val")
+        assert params.hub_path == "x"
+        assert params.split == "val"
+
+    def test_hub_mode_with_streaming(self):
+        """Test hub_path with streaming is valid."""
+        params = DatasetLoaderParams(hub_path="x", streaming=True)
+        assert params.hub_path == "x"
+        assert params.streaming is True
+
+    def test_hub_mode_with_name(self):
+        """Test hub_path with config name is valid."""
+        params = DatasetLoaderParams(hub_path="squad", name="default")
+        assert params.name == "default"
+
+    def test_hub_mode_with_revision(self):
+        """Test hub_path with revision is valid."""
+        params = DatasetLoaderParams(hub_path="x", revision="abc123")
+        assert params.revision == "abc123"
+
+    def test_hub_mode_with_token(self):
+        """Test hub_path with token is valid."""
+        params = DatasetLoaderParams(hub_path="x", token="hf_secret")
+        assert params.token == "hf_secret"
+
+    def test_hub_mode_with_trust_remote_code(self):
+        """Test hub_path with trust_remote_code is valid."""
+        params = DatasetLoaderParams(hub_path="x", trust_remote_code=True)
+        assert params.trust_remote_code is True
+
+    # --- Local mode: valid cases ---
+
+    def test_local_mode_with_data_files_string(self):
+        """Test builder_name with data_files as string is valid."""
+        params = DatasetLoaderParams(builder_name="json", data_files="x.json")
+        assert params.builder_name == "json"
+        assert params.data_files == "x.json"
+
+    def test_local_mode_with_data_files_list(self):
+        """Test builder_name with data_files as list is valid."""
+        params = DatasetLoaderParams(
+            builder_name="parquet", data_files=["a.parquet", "b.parquet"]
+        )
+        assert params.data_files == ["a.parquet", "b.parquet"]
+
+    def test_local_mode_with_data_dir(self):
+        """Test builder_name with data_dir is valid."""
+        params = DatasetLoaderParams(builder_name="imagefolder", data_dir="/data/images")
+        assert params.data_dir == "/data/images"
+
+    # --- Invalid cases ---
+
+    def test_both_hub_path_and_builder_name_raises(self):
+        """Test that specifying both hub_path and builder_name raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            DatasetLoaderParams(hub_path="x", builder_name="json", data_files="x.json")
+        assert "Cannot specify both" in str(exc_info.value)
+
+    def test_neither_hub_path_nor_builder_name_raises(self):
+        """Test that specifying neither hub_path nor builder_name raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            DatasetLoaderParams()
+        assert "Must specify either" in str(exc_info.value)
+
+    def test_hub_mode_with_data_dir_raises(self):
+        """Test that hub_path with data_dir raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            DatasetLoaderParams(hub_path="x", data_dir="/some/path")
+        assert "data_dir" in str(exc_info.value)
+        assert "not used with" in str(exc_info.value)
+
+    def test_hub_mode_with_data_files_raises(self):
+        """Test that hub_path with data_files raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            DatasetLoaderParams(hub_path="x", data_files="file.json")
+        assert "data_files" in str(exc_info.value)
+        assert "not used with" in str(exc_info.value)
+
+    def test_local_mode_without_data_dir_or_data_files_raises(self):
+        """Test that builder_name without data_dir or data_files raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            DatasetLoaderParams(builder_name="json")
+        assert "data_dir" in str(exc_info.value) or "data_files" in str(exc_info.value)
+
+    def test_local_mode_with_both_data_dir_and_data_files_raises(self):
+        """Test that builder_name with both data_dir and data_files raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            DatasetLoaderParams(
+                builder_name="json", data_dir="/data", data_files="x.json"
+            )
+        assert "Cannot specify both" in str(exc_info.value)
+
+    def test_invalid_builder_name_raises(self):
+        """Test that an invalid builder_name raises ValidationError."""
+        with pytest.raises(ValidationError):
+            DatasetLoaderParams(builder_name="invalid_builder", data_files="x.json")
+
+
+class TestHFDatasetDefinitionSchema:
+    """Test HFDatasetDefinition schema with label_map and other fields."""
+
+    def test_hf_dataset_definition_with_label_map(self):
+        """Test HFDatasetDefinition accepts label_map field."""
+        defn = HFDatasetDefinition(
+            type="huggingface",
+            loader_params=DatasetLoaderParams(
+                hub_path="detection-datasets/coco",
+            ),
+            label_map={0: "person", 1: "car", 2: "bicycle"},
+        )
+        assert defn.label_map == {0: "person", 1: "car", 2: "bicycle"}
+
+    def test_hf_dataset_definition_label_map_defaults_to_none(self):
+        """Test HFDatasetDefinition label_map defaults to None."""
+        defn = HFDatasetDefinition(
+            type="huggingface",
+            loader_params=DatasetLoaderParams(
+                hub_path="x",
+            ),
+        )
+        assert defn.label_map is None
+
+    def test_hf_dataset_definition_with_mapping(self):
+        """Test HFDatasetDefinition with column mapping."""
+        defn = HFDatasetDefinition(
+            type="huggingface",
+            loader_params=DatasetLoaderParams(
+                hub_path="x",
+            ),
+            mapping={"image_id": "id", "category": "label"},
+        )
+        assert defn.mapping == {"image_id": "id", "category": "label"}
+
+    def test_hf_dataset_definition_with_tags(self):
+        """Test HFDatasetDefinition with tags."""
+        defn = HFDatasetDefinition(
+            type="huggingface",
+            loader_params=DatasetLoaderParams(
+                hub_path="x",
+            ),
+            tags=["evaluation", "vision"],
+        )
+        assert defn.tags == ["evaluation", "vision"]
+
+    def test_hf_dataset_definition_with_description(self):
+        """Test HFDatasetDefinition with description."""
+        defn = HFDatasetDefinition(
+            type="huggingface",
+            description="COCO detection dataset for evaluation",
+            loader_params=DatasetLoaderParams(
+                hub_path="detection-datasets/coco",
+            ),
+        )
+        assert defn.description == "COCO detection dataset for evaluation"
+
+    def test_hf_dataset_definition_hub_mode_full(self):
+        """Test HFDatasetDefinition with hub mode and all optional fields."""
+        defn = HFDatasetDefinition(
+            type="huggingface",
+            description="Full hub dataset config",
+            loader_params=DatasetLoaderParams(
+                hub_path="detection-datasets/coco",
+                name="2017",
+                split="validation",
+                streaming=True,
+                revision="main",
+            ),
+            mapping={"image_col": "image"},
+            label_map={0: "person", 1: "car"},
+            tags=["cv", "detection"],
+        )
+        assert defn.loader_params.hub_path == "detection-datasets/coco"
+        assert defn.loader_params.name == "2017"
+        assert defn.loader_params.split == "validation"
+        assert defn.loader_params.streaming is True
+        assert defn.label_map == {0: "person", 1: "car"}
+
+    def test_hf_dataset_definition_local_mode(self):
+        """Test HFDatasetDefinition with local/builder mode."""
+        defn = HFDatasetDefinition(
+            type="huggingface",
+            loader_params=DatasetLoaderParams(
+                builder_name="parquet",
+                data_files="data.parquet",
+            ),
+        )
+        assert defn.loader_params.builder_name == "parquet"
+        assert defn.loader_params.data_files == "data.parquet"
+
+    def test_hf_dataset_definition_requires_type(self):
+        """Test HFDatasetDefinition requires type='huggingface'."""
+        with pytest.raises(ValidationError):
+            HFDatasetDefinition(
+                type="invalid",
+                loader_params=DatasetLoaderParams(hub_path="x"),
+            )
