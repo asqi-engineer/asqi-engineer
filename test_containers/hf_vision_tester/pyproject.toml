@@ -1,0 +1,14 @@
+[project]
+name = "hf-vision-tester"
+version = "0.1.0"
+description = "HuggingFace Vision object detection evaluator for ASQI testing"
+requires-python = ">=3.12"
+dependencies = [
+    "huggingface_hub>=0.20.0",
+    "datasets>=2.16.0",
+    "Pillow>=10.0.0",
+    "numpy>=1.24.0",
+    "torch>=2.0.0",
+    "torchmetrics[detection]>=1.2.0",
+    "pycocotools>=2.0.0",
+]

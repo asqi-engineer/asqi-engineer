@@ -23,21 +23,13 @@ for _mod_name in _MOCK_MODULES:
         sys.modules[_mod_name] = MagicMock()
         _mocked_names.append(_mod_name)
 
-# Import entrypoint.py from test_containers/hf_vision_tester/ using importlib
-# since it's not a regular package.
-_ENTRYPOINT_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "test_containers"
-    / "hf_vision_tester"
-    / "entrypoint.py"
-)
+_ENTRYPOINT_PATH = Path(__file__).resolve().parent.parent / "entrypoint.py"
 _spec = importlib.util.spec_from_file_location("hf_vision_entrypoint", _ENTRYPOINT_PATH)
 _module = importlib.util.module_from_spec(_spec)
 sys.modules[_spec.name] = _module
 _spec.loader.exec_module(_module)
 
-# Remove mocked modules so they don't pollute other tests (e.g. datasets/dill
-# checks "torch" in sys.modules and then calls issubclass(..., torch.Tensor)).
+
 for _mod_name in _mocked_names:
     sys.modules.pop(_mod_name, None)
 

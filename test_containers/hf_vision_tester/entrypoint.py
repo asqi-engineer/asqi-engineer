@@ -1,5 +1,6 @@
 import argparse
 import html
+import io
 import json
 import os
 import sys
@@ -7,6 +8,7 @@ import traceback
 from collections.abc import Iterator
 from pathlib import Path
 
+import requests as http_requests
 import torch
 from asqi.datasets import load_hf_dataset
 from huggingface_hub import InferenceClient
@@ -66,9 +68,18 @@ def load_samples(
         yield sample
 
 
-def call_detection_api(client: InferenceClient, image: Image.Image, model: str) -> list:
+def call_detection_api(client: InferenceClient, image: Image.Image, model: str, api_key: str | None = None) -> list:
     """Call HF Inference API for object detection."""
-    return client.object_detection(image=image, model=model)
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    if model.startswith("http"):
+        headers = {"Content-Type": "image/png"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        resp = http_requests.post(model, headers=headers, data=buf.getvalue(), timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+    return client.object_detection(image=buf.getvalue(), model=model)
 
 
 def to_tensors(boxes: list, labels: list, scores: list | None = None) -> dict:
@@ -200,11 +211,19 @@ def main():
         )
         log("INFO", f"Model: {config['model_id']}, Timeout: {config['timeout']}s")
 
-        client = InferenceClient(
-            provider="hf-inference",
-            api_key=config["api_key"],
-            timeout=config["timeout"],
-        )
+        model_id = config["model_id"]
+        if model_id.startswith("http"):
+            client = InferenceClient(
+                model=model_id,
+                token=config["api_key"],
+                timeout=config["timeout"],
+            )
+        else:
+            client = InferenceClient(
+                provider="hf-inference",
+                api_key=config["api_key"],
+                timeout=config["timeout"],
+            )
 
         label_map = normalize_label_map(config["label_map"])
         predictions, targets = [], []
@@ -218,7 +237,7 @@ def main():
 
             log("INFO", f"[{i}] Calling API...")
             try:
-                detections = call_detection_api(client, image, config["model_id"])
+                detections = call_detection_api(client, image, config["model_id"], config["api_key"])
                 log("INFO", f"[{i}] Got {len(detections)} detections")
             except Exception as e:
                 log("WARN", f"[{i}] API error: {e}")
