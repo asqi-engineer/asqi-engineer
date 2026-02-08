@@ -638,17 +638,88 @@ docker build -t my-registry/image_vlm_tester:latest .
 
 While ASQI's primary focus is LLM testing, it also includes specialized containers for computer vision evaluation:
 
-### Computer Vision Tester
+### HF Vision Tester
 
-**Purpose**: General computer vision model testing and evaluation.
+**Purpose**: Object detection evaluation using HuggingFace Inference API with streaming dataset support and COCO-style metrics.
 
-**Location**: `test_containers/computer_vision/`
+**Framework**: [HuggingFace Inference API](https://huggingface.co/docs/huggingface_hub/guides/inference) + [torchmetrics](https://lightning.ai/docs/torchmetrics/stable/)
+**Location**: `test_containers/hf_vision_tester/`
 
-### CV Tester
+#### System Requirements
+- **System Under Test**: `hf_inference_api` (required) - HuggingFace Inference API model for object detection
 
-**Purpose**: Specialized computer vision testing framework with advanced detection capabilities.
+#### Input Parameters
+- `dataset_path` (string, optional): HuggingFace dataset path (default: `"detection-datasets/coco"`). Required if `input_datasets` not provided.
+- `dataset_split` (string, optional): Dataset split to evaluate (default: `"val"`)
+- `confidence_threshold` (float, optional): Minimum confidence for detections, 0.0-1.0 (default: `0.5`)
+- `iou_threshold` (float, optional): IoU threshold for matching predictions to ground truth, 0.0-1.0 (default: `0.5`)
+- `max_samples` (integer, optional): Maximum number of samples to evaluate. If not set, all samples in the dataset are evaluated.
+- `label_map` (object, optional): Mapping from category ID (integer) to label name (string). Example: `{"0": "person", "1": "bicycle", "2": "car"}`. Can also be defined in the dataset config.
+- `bbox_format` (enum, optional): Bounding box format — `"xyxy"` or `"xywh"` (default: `"xyxy"`). Can also be defined in the dataset config.
 
-**Location**: `test_containers/cv_tester/`
+#### Input Datasets
+
+The container expects a HuggingFace dataset with the following features:
+- `image` (Image, required) - Input images
+- `objects` (Dict, required) - Ground truth annotations with `bbox` (list of bounding boxes) and `category` (list of category IDs)
+
+#### Output Metrics
+- `map` (float): Mean Average Precision across IoU thresholds
+- `map_50` (float): mAP at IoU=0.50
+- `map_75` (float): mAP at IoU=0.75
+- `map_small` (float): mAP for small objects
+- `map_medium` (float): mAP for medium objects
+- `map_large` (float): mAP for large objects
+- `mar_1` (float): Mean Average Recall with 1 detection per image
+- `mar_10` (float): Mean Average Recall with 10 detections per image
+- `mar_100` (float): Mean Average Recall with 100 detections per image
+- `mar_small` (float): Mean Average Recall for small objects
+- `mar_medium` (float): Mean Average Recall for medium objects
+- `mar_large` (float): Mean Average Recall for large objects
+
+#### Example Configuration
+```yaml
+suite_name: "COCO HuggingFace Detection"
+description: "Object detection evaluation using DETR via HuggingFace Inference API on COCO dataset"
+
+test_suite:
+  - id: "coco_hf_detr"
+    name: "COCO DETR Detection"
+    image: "asqiengineer/test-container:hf_vision_tester-latest"
+    systems_under_test:
+      - "hf_detr"
+    volumes:
+      output: ./output
+    params:
+      dataset_path: "detection-datasets/coco"
+      dataset_split: "val"
+      bbox_format: "xyxy"
+      confidence_threshold: 0.3
+      iou_threshold: 0.5
+      max_samples: 10
+      label_map:
+        0: "person"
+        1: "bicycle"
+        2: "car"
+```
+
+#### Build Instructions
+```bash
+# Prepare asqi package dependency (run from repo root)
+scripts/prepare_asqi_pkg.sh test_containers/hf_vision_tester
+
+# Build
+cd test_containers/hf_vision_tester
+docker build -t my-registry/hf_vision_tester:latest .
+```
+
+This container depends on the `asqi` package. See [Using the ASQI Package](custom-test-containers.md#using-the-asqi-package) for details.
+
+#### Environment Requirements
+```bash
+export HF_TOKEN="hf_your_token_here"
+# Or pass api_key in the system configuration
+```
 
 ---
 

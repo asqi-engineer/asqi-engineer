@@ -44,25 +44,29 @@ input_schema:
     type: "float"
     required: false
     default: 0.5
-    description: "Minimum confidence for detections"
+    description: "Minimum confidence for detections (0.0-1.0)"
   - name: "iou_threshold"
     type: "float"
     required: false
     default: 0.5
-    description: "IoU threshold for matching predictions to ground truth"
+    description: "IoU threshold for matching predictions to ground truth (0.0-1.0)"
   - name: "max_samples"
     type: "integer"
     required: false
-    description: "Maximum number of samples to evaluate"
+    description: "Maximum number of samples to evaluate. If not set, all samples in the dataset are evaluated."
   - name: "label_map"
     type: "object"
     required: false
-    description: "Mapping from category ID to label name. Can also be defined in the dataset config."
+    description: |
+      Mapping from category ID (integer) to label name (string).
+      Example: {"0": "person", "1": "bicycle", "2": "car"}
+      Can also be defined in the dataset config.
   - name: "bbox_format"
-    type: "string"
+    type: "enum"
     required: false
     default: "xyxy"
-    description: "Bounding box format: 'xywh' or 'xyxy'. Can also be defined in the dataset config."
+    choices: ["xyxy", "xywh"]
+    description: "Bounding box format. Can also be defined in the dataset config."
 
 output_metrics:
   - name: "map"

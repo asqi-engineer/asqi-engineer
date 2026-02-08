@@ -153,14 +153,7 @@ jobs:
 
       - name: Prepare asqi_pkg for containers that need it
         if: ${{ matrix.skip != true }}
-        run: |
-          CONTAINER_DIR="./${{ matrix.folder_type }}/${{ matrix.name }}"
-          if grep -q 'asqi_pkg/' "$CONTAINER_DIR/Dockerfile" 2>/dev/null; then
-            mkdir -p "$CONTAINER_DIR/asqi_pkg/src"
-            cp -r src/asqi "$CONTAINER_DIR/asqi_pkg/src/asqi"
-            printf '[project]\nname = "asqi-engineer"\nversion = "0.0.0"\nrequires-python = ">=3.12"\ndependencies = ["datasets[vision]>=4.4.1","pydantic>=2.11.7","pyyaml>=6.0.2"]\n\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n\n[tool.hatch.build.targets.wheel]\npackages = ["src/asqi"]\n' > "$CONTAINER_DIR/asqi_pkg/pyproject.toml"
-            echo "Prepared asqi_pkg for ${{ matrix.name }}"
-          fi
+        run: scripts/prepare_asqi_pkg.sh "./${{ matrix.folder_type }}/${{ matrix.name }}"
 
       - name: Build image for ${{ matrix.name }} (${{ matrix.platform }})
         if: ${{ matrix.skip != true }}
@@ -322,6 +315,9 @@ jobs:
             echo "Dockerfile not found for container '${{ steps.parse.outputs.name }}' in '${{ steps.parse.outputs.folder_type }}'" >&2
             exit 1
           fi
+
+      - name: Prepare asqi_pkg for containers that need it
+        run: scripts/prepare_asqi_pkg.sh "./${{ steps.parse.outputs.folder_type }}/${{ steps.parse.outputs.name }}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
