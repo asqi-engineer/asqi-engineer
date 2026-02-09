@@ -18,6 +18,10 @@ input_schema:
     type: "list"
     required: false
     description: "List of task names within a dataset to run (enables parallel execution)."
+  - name: "concurrency"
+    type: "integer"
+    required: false
+    description: "Number of tasks to run in parallel (default: 1)"
 
 output_metrics:
   - name: "success"
