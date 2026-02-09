@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_score_card.schema.json
+score_card_name: "Vision Score Card"
+indicators:
+  - id: "detection_map_score"
+    name: "Object Detection mAP Score"
+    apply_to:
+      test_id: "coco_hf_detr"
+    metric: "map"
+    assessment:
+      - { outcome: "PASS", condition: "greater_equal", threshold: 0.6, description: "Model achieves acceptable detection accuracy" }
+      - { outcome: "FAIL", condition: "less_than", threshold: 0.6, description: "Detection accuracy below minimum threshold" }
+
+  - id: "detection_map50_score"
+    name: "Object Detection mAP@50 Score"
+    apply_to:
+      test_id: "coco_hf_detr"
+    metric: "map_50"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 0.85, description: "Excellent detection at IoU 0.5" }
+      - { outcome: "B", condition: "greater_equal", threshold: 0.70, description: "Good detection at IoU 0.5" }
+      - { outcome: "C", condition: "greater_equal", threshold: 0.50, description: "Acceptable detection at IoU 0.5" }
+      - { outcome: "F", condition: "less_than", threshold: 0.50, description: "Poor detection at IoU 0.5" }
+
+  - id: "pipeline_success"
+    name: "Pipeline Execution Success"
+    apply_to:
+      test_id: "coco_hf_detr"
+    metric: "success"
+    assessment:
+      - { outcome: "PASS", condition: "equal_to", threshold: true, description: "Pipeline completed successfully" }
+      - { outcome: "FAIL", condition: "equal_to", threshold: false, description: "Pipeline execution failed" }

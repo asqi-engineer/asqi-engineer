@@ -1064,8 +1064,8 @@ def test_image_pulled_but_manifest_not_extracted_bug():
         ]
 
         mock_extract.return_value = {"test/image:latest": manifest}
-        mock_validate.side_effect = (
-            lambda s, sys, manifests: [] if manifests else ["No manifest"]
+        mock_validate.side_effect = lambda s, sys, manifests: (
+            [] if manifests else ["No manifest"]
         )
         mock_plan.return_value = [
             {

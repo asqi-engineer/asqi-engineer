@@ -326,6 +326,62 @@ docker run --rm my-registry/my_tester:latest \
 
 ---
 
+## Using the ASQI Package
+
+If your container needs to import from the `asqi` package (e.g. `asqi.datasets.load_hf_dataset`), you can include it as a build-time dependency.
+
+### How It Works
+
+The script `scripts/prepare_asqi_pkg.sh` copies `src/asqi` from the repository root into your container's build context as `asqi_pkg/`. Your Dockerfile then installs it as a local package.
+
+### Setup
+
+**1. Reference `asqi_pkg/` in your Dockerfile:**
+
+```dockerfile
+FROM python:3.12-slim AS builder
+WORKDIR /app
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Install asqi package
+COPY asqi_pkg/ /tmp/asqi_pkg/
+RUN uv pip install --system --no-cache /tmp/asqi_pkg/ && rm -rf /tmp/asqi_pkg/
+
+# Install container dependencies
+COPY pyproject.toml .
+RUN uv pip install --system --no-cache -e .
+
+COPY entrypoint.py manifest.yaml ./
+
+FROM python:3.12-slim
+WORKDIR /app
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /app .
+
+ENTRYPOINT ["python", "./entrypoint.py"]
+```
+
+**2. Run the prep script before building:**
+
+```bash
+scripts/prepare_asqi_pkg.sh test_containers/my_tester
+docker build -t my-registry/my_tester:latest test_containers/my_tester
+```
+
+The CI pipeline runs this automatically for any container whose Dockerfile references `asqi_pkg/`. The generated `asqi_pkg/` directory is git-ignored.
+
+**3. Import in your entrypoint:**
+
+```python
+from asqi.datasets import load_hf_dataset
+```
+
+See `test_containers/hf_vision_tester/` for a working example.
+
+---
+
 ## Advanced Features
 
 ### Technical Reports (Optional)

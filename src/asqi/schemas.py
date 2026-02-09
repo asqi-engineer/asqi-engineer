@@ -752,22 +752,49 @@ class SystemsConfig(BaseModel):
 
 
 class DatasetLoaderParams(BaseModel):
-    """Parameters for loading a HuggingFace dataset from the mounted folder in the container."""
+    """Parameters for loading a HuggingFace dataset.
 
-    builder_name: Literal[
-        "json",
-        "csv",
-        "parquet",
-        "arrow",
-        "text",
-        "xml",
-        "webdataset",
-        "imagefolder",
-        "audiofolder",
-        "videofolder",
+    Supports two mutually exclusive modes:
+    - Hub mode: Load from HuggingFace Hub using `hub_path`
+    - Local mode: Load from local files using `builder_name` with `data_dir` or `data_files`
+    """
+
+    hub_path: Optional[str] = Field(
+        default=None,
+        description="HuggingFace Hub dataset path (e.g., 'detection-datasets/coco'). "
+        "Mutually exclusive with builder_name.",
+    )
+    name: Optional[str] = Field(
+        default=None,
+        description="Configuration name for multi-config Hub datasets (e.g., 'default', '2017').",
+    )
+    split: Optional[str] = Field(
+        default=None,
+        description="Dataset split to load (e.g., 'train', 'validation', 'test'). "
+        "Defaults to 'train' if not specified.",
+    )
+    trust_remote_code: bool = Field(
+        default=False,
+        description="Allow execution of remote code from HuggingFace Hub datasets. "
+        "Only set to True for trusted datasets.",
+    )
+    builder_name: Optional[
+        Literal[
+            "json",
+            "csv",
+            "parquet",
+            "arrow",
+            "text",
+            "xml",
+            "webdataset",
+            "imagefolder",
+            "audiofolder",
+            "videofolder",
+        ]
     ] = Field(
-        ...,
-        description="The dataset builder name. Gets passed to datasets.load_dataset() as the path argument.",
+        default=None,
+        description="The dataset builder name for local files. Gets passed to datasets.load_dataset() as the path argument. "
+        "Mutually exclusive with hub_path.",
     )
     data_dir: Optional[str] = Field(
         default=None,
@@ -780,14 +807,46 @@ class DatasetLoaderParams(BaseModel):
     revision: Optional[str] = Field(
         default=None,
         description="Git revision (commit hash, tag, or branch) for HuggingFace Hub datasets. "
-        "Required for security when loading datasets from the Hub. "
-        "Not needed for local file loaders (json, csv, parquet, etc.).",
+        "Recommended for reproducibility when using hub_path.",
+    )
+    streaming: bool = Field(
+        default=False,
+        description="Enable streaming mode to avoid loading entire dataset into memory. "
+        "Returns IterableDataset instead of Dataset. Recommended for large datasets.",
+    )
+    token: Optional[str] = Field(
+        default=None,
+        description="HuggingFace token for accessing private datasets. "
+        "If not provided, falls back to HF_TOKEN environment variable.",
     )
 
     @model_validator(mode="after")
-    def _validate_data_source(self) -> "DatasetLoaderParams":
-        if (self.data_dir is None) == (self.data_files is None):
-            raise ValueError("Exactly one of data_dir or data_files must be provided.")
+    def _validate_loader_params(self) -> "DatasetLoaderParams":
+        is_hub = self.hub_path is not None
+        is_local = self.builder_name is not None
+
+        if is_hub and is_local:
+            raise ValueError(
+                "Cannot specify both 'hub_path' and 'builder_name'. "
+                "Use 'hub_path' for HuggingFace Hub datasets or 'builder_name' for local files."
+            )
+        if not is_hub and not is_local:
+            raise ValueError(
+                "Must specify either 'hub_path' (for Hub datasets) or 'builder_name' (for local files)."
+            )
+        if is_hub and (self.data_dir or self.data_files):
+            raise ValueError(
+                "'data_dir' and 'data_files' are not used with 'hub_path'. "
+                "These options are only for local file loading with 'builder_name'."
+            )
+        if is_local and not (self.data_dir or self.data_files):
+            raise ValueError(
+                "Local mode requires either 'data_dir' or 'data_files' to specify the data location."
+            )
+        if is_local and self.data_dir and self.data_files:
+            raise ValueError(
+                "Cannot specify both 'data_dir' and 'data_files'. Use one or the other."
+            )
         return self
 
 
@@ -809,6 +868,11 @@ class HFDatasetDefinition(BaseModel):
     mapping: dict[str, str] = Field(
         default_factory=dict,
         description="Optional mapping from existing dataset column names to their required names in manifest i.e. current_name: manifest_name.",
+    )
+    label_map: Optional[dict[int, str]] = Field(
+        default=None,
+        description="Optional mapping from class IDs to class names for CV datasets (e.g., {0: 'person', 1: 'car'}). "
+        "Used by detection and classification containers to match predictions with ground truth labels.",
     )
     tags: list[str] = Field(
         default_factory=list,
