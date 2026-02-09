@@ -563,6 +563,7 @@ def run_harbor(sut_params, test_params):
 
     dataset = test_params.get("dataset", DEFAULT_DATASET)
     tasks = test_params.get("tasks")
+    concurrency = test_params.get("concurrency", 1)
     job_name = _job_name(provider, model, dataset)
 
     jobs_dir = _configure_job_dirs(os.environ.get("HOST_OUTPUT_PATH"))
@@ -583,6 +584,8 @@ def run_harbor(sut_params, test_params):
         job_name,
         "--jobs-dir",
         str(jobs_dir),
+        "--n-concurrent",
+        str(concurrency),
     ]
 
     # Add task(s)
