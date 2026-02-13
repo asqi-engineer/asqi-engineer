@@ -77,23 +77,36 @@ model_list:
   # RAG API Systems - Retrieval-Augmented Generation with contextual retrieval
   - model_name: custom_rag_chatbot
     litellm_params:
-      model: custom_rag
+      model: custom_rag_chatbot
+      base_url: os.environ/RAG_BASE_URL  # Replace with your actual RAG endpoint
       api_key: os.environ/RAG_API_KEY  # Replace with your actual RAG endpoint authentication
+      custom_llm_provider: rag_api_chatbot
+
+  litellm_settings:
+    # ... existing config ...
+    custom_provider_map:
+      - {
+          "provider": "rag_api_chatbot",
+          "custom_handler": "litellm_integrations.litellm_handlers.rag_chatbot_llm",
+        }
 ```
+
+The custom handler (`RAGChatbotLLM`) is defined in `litellm_integrations/litellm_handlers.py` and preserves response fields like context.citations, that LiteLLM would otherwise filter out if provider is set to `openai`.
+
 
 Then reference it in your ASQI systems configuration:
 
 ```yaml
 systems:
   # LiteLLM proxy configuration
-  rag_proxy_system:
+  custom_rag_chatbot:
     type: "rag_api"
     description: "Custom RAG chatbot"
-    provider: "openai"
     params:
       base_url: "http://localhost:4000/v1"
-      model: "custom_rag"
+      model: "custom_rag_chatbot"
       api_key: "sk-1234"
+
 ```
 
 #### Expected Request Format
