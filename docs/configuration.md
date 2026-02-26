@@ -73,10 +73,10 @@ First, configure the model in `litellm_config.yaml`:
 model_list:
   - model_name: claude-opus-thinking
     litellm_params:
-      model: anthropic/claude-opus-4-6
+      model: "anthropic/claude-opus-4-6"
       api_key: os.environ/ANTHROPIC_API_KEY
       thinking:
-        type: adaptive
+        type: "adaptive"
         budget_tokens: 10000
 ```
 
@@ -100,9 +100,9 @@ First, configure the model in `litellm_config.yaml`:
 model_list:
   - model_name: o1-high-reasoning
     litellm_params:
-      model: openai/o1
+      model: "openai/o1"
       api_key: os.environ/OPENAI_API_KEY
-      reasoning_effort: high
+      reasoning_effort: "high"
 ```
 
 Then reference it in your `systems.yaml`:
@@ -115,7 +115,7 @@ systems:
     params:
       base_url: "http://localhost:4000/v1"  # Or your litellm proxy URL
       model: "o1-high-reasoning"
-      reasoning_effort: high
+      reasoning_effort: "high"
 ```
 
 **Important Notes:**
