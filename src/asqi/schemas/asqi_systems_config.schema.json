@@ -86,6 +86,32 @@
           "description": "Direct API key for authentication (alternative to env_file)",
           "title": "Api Key"
         },
+        "thinking_enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Enable extended thinking/reasoning mode. When set to true, the model in litellm_config.yaml must be pre-configured with thinking parameters (e.g., 'thinking.type' and 'thinking.budget_tokens' for Claude). Requires corresponding setup in the model_list entry.",
+          "title": "Thinking Enabled"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reasoning effort level for models supporting it (e.g., 'low', 'medium', 'high' for OpenAI o1/o3). Must match a model in litellm_config.yaml that is pre-configured with the corresponding reasoning_effort parameter. Ignored if model doesn't support it.",
+          "title": "Reasoning Effort"
+        },
         "provider": {
           "description": "The agent CLI provider name (e.g., 'aider', 'cline', 'goose', 'codex')",
           "title": "Provider",
@@ -290,7 +316,7 @@
       "type": "object"
     },
     "LLMAPIParams": {
-      "description": "Parameters for the LLM API systems.",
+      "description": "Parameters for the LLM API systems.\n\nSee configuration.md \"Extended Thinking and Reasoning Modes\" section for detailed examples\nof configuring thinking_enabled and reasoning_effort parameters with litellm_config.yaml.",
       "properties": {
         "base_url": {
           "description": "Base URL for the OpenAI-compatible API (e.g., 'http://localhost:4000/v1', 'https://api.openai.com/v1')",
@@ -327,6 +353,32 @@
           "default": null,
           "description": "Direct API key for authentication (alternative to env_file)",
           "title": "Api Key"
+        },
+        "thinking_enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Enable extended thinking/reasoning mode. When set to true, the model in litellm_config.yaml must be pre-configured with thinking parameters (e.g., 'thinking.type' and 'thinking.budget_tokens' for Claude). Requires corresponding setup in the model_list entry.",
+          "title": "Thinking Enabled"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reasoning effort level for models supporting it (e.g., 'low', 'medium', 'high' for OpenAI o1/o3). Must match a model in litellm_config.yaml that is pre-configured with the corresponding reasoning_effort parameter. Ignored if model doesn't support it.",
+          "title": "Reasoning Effort"
         }
       },
       "required": [
@@ -468,6 +520,32 @@
           "default": null,
           "description": "Direct API key for authentication (alternative to env_file)",
           "title": "Api Key"
+        },
+        "thinking_enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Enable extended thinking/reasoning mode. When set to true, the model in litellm_config.yaml must be pre-configured with thinking parameters (e.g., 'thinking.type' and 'thinking.budget_tokens' for Claude). Requires corresponding setup in the model_list entry.",
+          "title": "Thinking Enabled"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reasoning effort level for models supporting it (e.g., 'low', 'medium', 'high' for OpenAI o1/o3). Must match a model in litellm_config.yaml that is pre-configured with the corresponding reasoning_effort parameter. Ignored if model doesn't support it.",
+          "title": "Reasoning Effort"
         },
         "supports_vision": {
           "const": true,
