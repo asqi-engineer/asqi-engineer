@@ -564,7 +564,11 @@ class SystemDefinition(BaseModel):
 
 
 class LLMAPIParams(BaseModel):
-    """Parameters for the LLM API systems."""
+    """Parameters for the LLM API systems.
+
+    See configuration.md "Extended Thinking and Reasoning Modes" section for detailed examples
+    of configuring thinking_enabled and reasoning_effort parameters with litellm_config.yaml.
+    """
 
     base_url: str = Field(
         ...,
@@ -581,6 +585,14 @@ class LLMAPIParams(BaseModel):
     api_key: Optional[str] = Field(
         None,
         description="Direct API key for authentication (alternative to env_file)",
+    )
+    thinking_enabled: Optional[bool] = Field(
+        None,
+        description="Enable extended thinking/reasoning mode. When set to true, the model in litellm_config.yaml must be pre-configured with thinking parameters (e.g., 'thinking.type' and 'thinking.budget_tokens' for Claude). Requires corresponding setup in the model_list entry.",
+    )
+    reasoning_effort: Optional[str] = Field(
+        None,
+        description="Reasoning effort level for models supporting it (e.g., 'low', 'medium', 'high' for OpenAI o1/o3). Must match a model in litellm_config.yaml that is pre-configured with the corresponding reasoning_effort parameter. Ignored if model doesn't support it.",
     )
 
 

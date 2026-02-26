@@ -62,6 +62,69 @@ systems:
       # base_url and api_key will use fallbacks from .env
 ```
 
+#### Extended Thinking and Reasoning Modes
+
+Some models support extended thinking (e.g., Claude with extended thinking) or reasoning effort levels (e.g., OpenAI o1/o3). When using these modes, you must configure the model in `litellm_config.yaml` AND specify the corresponding parameters in your system configuration.
+
+**Claude with Extended Thinking:**
+
+First, configure the model in `litellm_config.yaml`:
+```yaml
+model_list:
+  - model_name: claude-opus-thinking
+    litellm_params:
+      model: anthropic/claude-opus-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY
+      thinking:
+        type: adaptive
+        budget_tokens: 10000
+```
+
+Then reference it in your `systems.yaml`:
+```yaml
+systems:
+  claude_extended_thinking:
+    type: "llm_api"
+    description: "Claude Opus with Extended Thinking"
+    provider: "anthropic"
+    params:
+      base_url: "http://localhost:4000/v1"  # Or your litellm proxy URL
+      model: "claude-opus-thinking"
+      thinking_enabled: true
+```
+
+**OpenAI o1/o3 with Reasoning Effort:**
+
+First, configure the model in `litellm_config.yaml`:
+```yaml
+model_list:
+  - model_name: o1-high-reasoning
+    litellm_params:
+      model: openai/o1
+      api_key: os.environ/OPENAI_API_KEY
+      reasoning_effort: high
+```
+
+Then reference it in your `systems.yaml`:
+```yaml
+systems:
+  o1_high_reasoning:
+    type: "llm_api"
+    description: "OpenAI o1 with High Reasoning Effort"
+    provider: "openai"
+    params:
+      base_url: "http://localhost:4000/v1"  # Or your litellm proxy URL
+      model: "o1-high-reasoning"
+      reasoning_effort: high
+```
+
+**Important Notes:**
+- The `thinking_enabled` and `reasoning_effort` parameters in your system configuration are declarations that enable these modes during test execution
+- These parameters MUST be pre-configured in your `litellm_config.yaml` model_list entries
+- The model name in your system configuration must match a model_name entry in litellm_config.yaml
+- Not all models support these modes - check model capabilities in LiteLLM documentation
+- When using LiteLLM proxy, it will validate that the requested mode is compatible with the model
+
 ### RAG API Systems
 
 `rag_api` systems extend the OpenAI chat response format with a specified response interface - see expected response schema below. Assuming an API has been configured with to support RAG functionality, you can define RAG systems as follows:
