@@ -1,0 +1,116 @@
+# =============================================================================
+# Sync to private monorepo
+# =============================================================================
+#
+# Syncs this repo (asqi-engineer) back into the private monorepo at
+# libs/asqi-engineer/. Runs when a PR is merged into main. All files from this
+# repo are copied into the monorepo; the monorepo's libs/asqi-engineer/ tree
+# is replaced with this repo's contents (excluding .git).
+#
+# Requires:
+#   - vars.PRIVATE_MONOREPO_URL  (e.g. https://github.com/org/your-private-monorepo.git)
+#   - secrets.SYNC_TO_PRIVATE_TOKEN (PAT with push access to the monorepo)
+# =============================================================================
+
+name: Sync to private monorepo
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+jobs:
+  sync-to-private:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      PRIVATE_MONOREPO_URL: ${{ vars.PRIVATE_MONOREPO_URL }}
+      PRIVATE_MONOREPO_BRANCH: main
+
+    steps:
+      - name: Checkout this repo (merge commit)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Capture merge commit message
+        run: |
+          git log -1 --format=%B > "$RUNNER_TEMP/sync_commit_msg.txt"
+
+      - name: Clone private monorepo
+        env:
+          TOKEN: ${{ secrets.SYNC_TO_PRIVATE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$TOKEN" ]; then
+            echo "SYNC_TO_PRIVATE_TOKEN is not set"
+            exit 1
+          fi
+
+          if [ -z "$PRIVATE_MONOREPO_URL" ]; then
+            echo "PRIVATE_MONOREPO_URL is not set (define as a repo or org variable)"
+            exit 1
+          fi
+
+          TARGET_URL="${PRIVATE_MONOREPO_URL/https:\/\//https://x-access-token:${TOKEN}@}"
+
+          if ! git clone --depth 1 --branch "$PRIVATE_MONOREPO_BRANCH" "$TARGET_URL" "$RUNNER_TEMP/monorepo" 2>/dev/null; then
+            git clone "$TARGET_URL" "$RUNNER_TEMP/monorepo"
+            cd "$RUNNER_TEMP/monorepo"
+            git checkout -b "$PRIVATE_MONOREPO_BRANCH"
+            cd -
+          fi
+
+      - name: Copy this repo into monorepo libs/asqi-engineer
+        run: |
+          set -euo pipefail
+
+          MONOREPO_DIR="$RUNNER_TEMP/monorepo"
+          TARGET_DIR="$MONOREPO_DIR/libs/asqi-engineer"
+
+          mkdir -p "$TARGET_DIR"
+
+          # Remove existing contents under libs/asqi-engineer (except .git stays in monorepo root)
+          find "$TARGET_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+          # Copy everything from this repo into libs/asqi-engineer, excluding .git
+          rsync -a --exclude '.git' ./ "$TARGET_DIR/"
+
+      - name: Commit and push to a sync branch
+        env:
+          TOKEN: ${{ secrets.SYNC_TO_PRIVATE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.SYNC_TO_PRIVATE_TOKEN }} # Needed for 'gh' CLI
+        run: |
+          set -euo pipefail
+          MONOREPO_DIR="$RUNNER_TEMP/monorepo"
+          cd "$MONOREPO_DIR"
+
+          # Use a specific branch name for the sync
+          SYNC_BRANCH="sync/asqi-engineer-from-public"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git status --porcelain | grep -q .; then
+            git checkout -b "$SYNC_BRANCH"
+            git add -A
+            git commit -F "$RUNNER_TEMP/sync_commit_msg.txt"
+            
+            # Push the sync branch to the monorepo
+            TARGET_URL="${PRIVATE_MONOREPO_URL/https:\/\//https://x-access-token:${TOKEN}@}"
+            git push -f "$TARGET_URL" "$SYNC_BRANCH"
+
+            # Create a PR in the monorepo using the GitHub CLI
+            # This requires the TOKEN to have 'pull-requests: write' permissions
+            gh pr create \
+              --repo "$PRIVATE_MONOREPO_URL" \
+              --title "Sync: Updates from public asqi-engineer" \
+              --body "This is an automated sync from the public repository." \
+              --base main \
+              --head "$SYNC_BRANCH" || echo "PR already exists"
+          else
+            echo "No changes to sync back to monorepo"
+          fi
