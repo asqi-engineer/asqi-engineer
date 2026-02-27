@@ -29,4 +29,10 @@ jobs:
         run: uv run bandit -r . --configfile pyproject.toml
 
       - name: Run safety check
-        run: uv run pip-audit --ignore-vuln GHSA-4xh5-x5gv-qwph --ignore-vuln CVE-2026-0994
+        run: |
+          uv run pip-audit --ignore-vuln GHSA-4xh5-x5gv-qwph --ignore-vuln CVE-2026-0994 || {
+            echo "=== ❌ Security vulnerabilitie(s) detected ==="
+            echo "Run: uv lock --upgrade-package <package>"
+            echo "Then commit the updated uv.lock file"
+            exit 1
+          }
