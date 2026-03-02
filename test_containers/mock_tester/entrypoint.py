@@ -43,7 +43,7 @@ def main():
         if delay_seconds > 0:
             time.sleep(delay_seconds)
 
-        # Simulate LLM API call (this is a mock, so we don't actually call the API)
+        # Simulate LLM API call (this is a mock, so we don't actually call the API).
         # In a real test container, you would use:
         # import openai
         # client = openai.OpenAI(base_url=base_url, api_key=os.getenv("API_KEY"))
