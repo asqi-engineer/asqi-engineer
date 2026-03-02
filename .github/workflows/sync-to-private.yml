@@ -74,10 +74,11 @@ jobs:
         run: |
           set -euo pipefail
           # Identify base and head for the diff
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          # We use the PR merge base to correctly identify what changed in this PR
+          BASE_SHA=$(git merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           
-          echo "Identifying changes between $BASE_SHA and $HEAD_SHA"
+          echo "Identifying changes between merge-base $BASE_SHA and head $HEAD_SHA"
           
           # Files to change (Modified)
           git diff --name-only --diff-filter=M "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/files_to_change.txt"
