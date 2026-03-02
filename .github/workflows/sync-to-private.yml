@@ -10,7 +10,7 @@
 # Requires:
 #   - vars.PRIVATE_MONOREPO_URL  (e.g. https://github.com/org/your-private-monorepo.git)
 #   - secrets.GH_APP_ID (GitHub App ID for sync)
-#   - secrets.GH_APP_PRIVATE_KEY (GitHub App Private Key for sync)
+#   - secrets.GH_APP_PRIVATE_KEY (GitHub App Private Key for sync).
 # =============================================================================
 
 name: Sync to private monorepo
