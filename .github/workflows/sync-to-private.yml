@@ -134,7 +134,9 @@ jobs:
           echo "Checking for changes in monorepo..."
           git status --short
 
-          if git status --porcelain | grep -q .; then
+          # Check if there are any changes (including untracked files)
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Changes detected, proceeding with commit."
             git checkout -b "$SYNC_BRANCH"
             git add -A
             git commit -F "$RUNNER_TEMP/sync_commit_msg.txt"
