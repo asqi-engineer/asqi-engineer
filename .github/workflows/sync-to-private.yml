@@ -66,6 +66,32 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0 # Fetch all history for diffing
+
+      - name: Identify PR changes
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        id: identify_changes
+        run: |
+          set -euo pipefail
+          # Identify base and head for the diff
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          
+          echo "Identifying changes between $BASE_SHA and $HEAD_SHA"
+          
+          # Files to change (Modified)
+          git diff --name-only --diff-filter=M "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/files_to_change.txt"
+          # Files to create (Added)
+          git diff --name-only --diff-filter=A "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/files_to_create.txt"
+          # Files to delete (Deleted)
+          git diff --name-only --diff-filter=D "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/files_to_delete.txt"
+          
+          echo "Files to change:"
+          cat "$RUNNER_TEMP/files_to_change.txt"
+          echo "Files to create:"
+          cat "$RUNNER_TEMP/files_to_create.txt"
+          echo "Files to delete:"
+          cat "$RUNNER_TEMP/files_to_delete.txt"
 
       - name: Capture merge commit message
         if: steps.check_secrets.outputs.secrets_available == 'true'
@@ -98,7 +124,7 @@ jobs:
             cd -
           fi
 
-      - name: Copy this repo into monorepo libs/asqi-engineer
+      - name: Selective Sync to monorepo libs/asqi-engineer
         if: steps.check_secrets.outputs.secrets_available == 'true'
         run: |
           set -euo pipefail
@@ -108,11 +134,47 @@ jobs:
 
           mkdir -p "$TARGET_DIR"
 
-          # Remove existing contents under libs/asqi-engineer (except .git stays in monorepo root)
-          find "$TARGET_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+          # 1. Copy files to change
+          echo "Processing files to change..."
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              echo "Updating $file in monorepo"
+              mkdir -p "$(dirname "$TARGET_DIR/$file")"
+              cp "$file" "$TARGET_DIR/$file"
+            fi
+          done < "$RUNNER_TEMP/files_to_change.txt"
 
-          # Copy everything from this repo into libs/asqi-engineer, excluding .git
-          rsync -a --exclude '.git' ./ "$TARGET_DIR/"
+          # 2. Copy files to create (only if they don't exist in monorepo)
+          echo "Processing files to create..."
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              if [ ! -f "$TARGET_DIR/$file" ]; then
+                echo "Creating $file in monorepo"
+                mkdir -p "$(dirname "$TARGET_DIR/$file")"
+                cp "$file" "$TARGET_DIR/$file"
+              else
+                echo "Skipping $file: already exists in monorepo"
+              fi
+            fi
+          done < "$RUNNER_TEMP/files_to_create.txt"
+
+          # 3. Delete files to delete
+          echo "Processing files to delete..."
+          while IFS= read -r file; do
+            if [ -f "$TARGET_DIR/$file" ]; then
+              echo "Deleting $file from monorepo"
+              rm "$TARGET_DIR/$file"
+              # Clean up empty parent directories
+              parent_dir="$(dirname "$TARGET_DIR/$file")"
+              while [ "$parent_dir" != "$TARGET_DIR" ] && [ -d "$parent_dir" ] && [ -z "$(ls -A "$parent_dir")" ]; do
+                echo "Removing empty directory $parent_dir"
+                rmdir "$parent_dir"
+                parent_dir="$(dirname "$parent_dir")"
+              done
+            else
+              echo "Skipping deletion of $file: not found in monorepo"
+            fi
+          done < "$RUNNER_TEMP/files_to_delete.txt"
 
       - name: Commit and push to a sync branch
         if: steps.check_secrets.outputs.secrets_available == 'true'
