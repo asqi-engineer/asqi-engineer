@@ -10,7 +10,7 @@
 # Requires:
 #   - vars.PRIVATE_MONOREPO_URL  (e.g. https://github.com/org/your-private-monorepo.git)
 #   - secrets.GH_APP_ID (GitHub App ID for sync)
-#   - secrets.GH_APP_PRIVATE_KEY (GitHub App Private Key for sync)
+#   - secrets.GH_APP_PRIVATE_KEY (GitHub App Private Key for sync).
 # =============================================================================
 
 name: Sync to private monorepo
@@ -31,7 +31,18 @@ jobs:
       PRIVATE_MONOREPO_BRANCH: main
 
     steps:
+      - name: Check for secrets
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.GH_APP_ID }}" ] || [ -z "${{ secrets.GH_APP_PRIVATE_KEY }}" ]; then
+            echo "secrets_available=false" >> $GITHUB_OUTPUT
+            echo "::warning::GH_APP_ID or GH_APP_PRIVATE_KEY is missing. Skipping sync (likely a fork PR)."
+          else
+            echo "secrets_available=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate Token
+        if: steps.check_secrets.outputs.secrets_available == 'true'
         id: get_workflow_token
         uses: actions/create-github-app-token@v1
         with:
@@ -39,15 +50,18 @@ jobs:
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
       - name: Checkout this repo (merge commit)
+        if: steps.check_secrets.outputs.secrets_available == 'true'
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
 
       - name: Capture merge commit message
+        if: steps.check_secrets.outputs.secrets_available == 'true'
         run: |
           git log -1 --format=%B > "$RUNNER_TEMP/sync_commit_msg.txt"
 
       - name: Clone private monorepo
+        if: steps.check_secrets.outputs.secrets_available == 'true'
         env:
           TOKEN: ${{ steps.get_workflow_token.outputs.token }}
         run: |
@@ -73,6 +87,7 @@ jobs:
           fi
 
       - name: Copy this repo into monorepo libs/asqi-engineer
+        if: steps.check_secrets.outputs.secrets_available == 'true'
         run: |
           set -euo pipefail
 
@@ -88,6 +103,7 @@ jobs:
           rsync -a --exclude '.git' ./ "$TARGET_DIR/"
 
       - name: Commit and push to a sync branch
+        if: steps.check_secrets.outputs.secrets_available == 'true'
         env:
           TOKEN: ${{ steps.get_workflow_token.outputs.token }}
           GH_TOKEN: ${{ steps.get_workflow_token.outputs.token }} # Needed for 'gh' CLI
