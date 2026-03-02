@@ -108,17 +108,11 @@ jobs:
 
           mkdir -p "$TARGET_DIR"
 
-          echo "DEBUG: Current monorepo state in $TARGET_DIR:"
-          ls -R "$TARGET_DIR" || echo "Directory empty"
-
           # Remove existing contents under libs/asqi-engineer (except .git stays in monorepo root)
           find "$TARGET_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
           # Copy everything from this repo into libs/asqi-engineer, excluding .git
-          rsync -av --exclude '.git' ./ "$TARGET_DIR/"
-
-          echo "DEBUG: Monorepo state after copy:"
-          ls -R "$TARGET_DIR"
+          rsync -a --exclude '.git' ./ "$TARGET_DIR/"
 
       - name: Commit and push to a sync branch
         if: steps.check_secrets.outputs.secrets_available == 'true'
@@ -136,11 +130,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          echo "DEBUG: Git status before checking for changes:"
-          git status
+          # Only show summary of changes
+          echo "Checking for changes in monorepo..."
+          git status --short
 
           if git status --porcelain | grep -q .; then
-            echo "DEBUG: Changes detected, proceeding with commit."
             git checkout -b "$SYNC_BRANCH"
             git add -A
             git commit -F "$RUNNER_TEMP/sync_commit_msg.txt"
@@ -158,5 +152,4 @@ jobs:
               --head "$SYNC_BRANCH" || echo "PR already exists"
           else
             echo "No changes to sync back to monorepo"
-            git diff # Show what git thinks is different (if anything)
           fi
