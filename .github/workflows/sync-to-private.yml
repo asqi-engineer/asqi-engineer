@@ -10,7 +10,7 @@
 # Requires:
 #   - vars.PRIVATE_MONOREPO_URL  (e.g. https://github.com/org/your-private-monorepo.git)
 #   - secrets.GH_APP_ID (GitHub App ID for sync)
-#   - secrets.GH_APP_PRIVATE_KEY (GitHub App Private Key for sync).
+#   - secrets.GH_APP_PRIVATE_KEY (GitHub App Private Key for sync)
 # =============================================================================
 
 name: Sync to private monorepo
@@ -132,6 +132,7 @@ jobs:
 
           MONOREPO_DIR="$RUNNER_TEMP/monorepo"
           TARGET_DIR="$MONOREPO_DIR/libs/asqi-engineer"
+          ALLOWLIST_PATH="$MONOREPO_DIR/.github/asqi-engineer-sync/sync-public-allowlist.yaml"
 
           mkdir -p "$TARGET_DIR"
 
@@ -142,6 +143,10 @@ jobs:
               echo "Updating $file in monorepo"
               mkdir -p "$(dirname "$TARGET_DIR/$file")"
               cp "$file" "$TARGET_DIR/$file"
+              
+              # Update hash in allowlist
+              HASH="sha256:$(shasum -a 256 "$file" | awk '{ print $1 }')"
+              yq -i "(.files[] | select(.path == \"$file\") | .hash) = \"$HASH\"" "$ALLOWLIST_PATH"
             fi
           done < "$RUNNER_TEMP/files_to_change.txt"
 
@@ -153,6 +158,10 @@ jobs:
                 echo "Creating $file in monorepo"
                 mkdir -p "$(dirname "$TARGET_DIR/$file")"
                 cp "$file" "$TARGET_DIR/$file"
+                
+                # Add to allowlist
+                HASH="sha256:$(shasum -a 256 "$file" | awk '{ print $1 }')"
+                yq -i ".files += [{\"path\": \"$file\", \"hash\": \"$HASH\"}]" "$ALLOWLIST_PATH"
               else
                 echo "Skipping $file: already exists in monorepo"
               fi
@@ -162,6 +171,10 @@ jobs:
           # 3. Delete files to delete
           echo "Processing files to delete..."
           while IFS= read -r file; do
+            # Remove from allowlist regardless of existence in monorepo
+            echo "Removing $file from allowlist"
+            yq -i "del(.files[] | select(.path == \"$file\"))" "$ALLOWLIST_PATH"
+
             if [ -f "$TARGET_DIR/$file" ]; then
               echo "Deleting $file from monorepo"
               rm "$TARGET_DIR/$file"
@@ -176,6 +189,9 @@ jobs:
               echo "Skipping deletion of $file: not found in monorepo"
             fi
           done < "$RUNNER_TEMP/files_to_delete.txt"
+
+          # Sort allowlist by path for consistency
+          yq -i '.files |= sort_by(.path)' "$ALLOWLIST_PATH"
 
       - name: Commit and push to a sync branch
         if: steps.check_secrets.outputs.secrets_available == 'true'
