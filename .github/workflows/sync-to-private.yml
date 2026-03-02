@@ -48,6 +48,7 @@ jobs:
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          repositories: "resaro-ai-monorepo"
 
       - name: Debug Token Permissions
         if: steps.check_secrets.outputs.secrets_available == 'true'
