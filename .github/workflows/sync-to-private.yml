@@ -52,9 +52,9 @@ jobs:
       - name: Debug Token Permissions
         if: steps.check_secrets.outputs.secrets_available == 'true'
         run: |
-          echo "Checking token identity..."
-          gh api user
-          echo "Checking token scopes and status..."
+          echo "Checking token identity (App Installation)..."
+          gh api /installation/repositories --jq '.repositories[].full_name' || echo "Could not list repositories. Check App permissions."
+          echo "Checking token status..."
           gh auth status
         env:
           GH_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
