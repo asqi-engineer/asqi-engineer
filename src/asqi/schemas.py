@@ -3,6 +3,7 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     StringConstraints,
     model_validator,
@@ -563,6 +564,30 @@ class SystemDefinition(BaseModel):
 # LLM API system
 
 
+class ThinkingParams(BaseModel):
+    """Extended reasoning configuration for models that support it (e.g., Claude Opus 4.6 etc.)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["enabled", "adaptive"] = Field(
+        ...,
+        description="Thinking mode: 'enabled' activates extended reasoning (requires budget_tokens), 'adaptive' lets the model decide when to think.",
+    )
+    budget_tokens: Optional[int] = Field(
+        None,
+        ge=1,
+        description="Maximum token budget for the thinking process. Required when type='enabled'.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_budget_tokens(self) -> "ThinkingParams":
+        if self.type == "enabled" and self.budget_tokens is None:
+            raise ValueError("budget_tokens is required when type='enabled'")
+        if self.type == "adaptive" and self.budget_tokens is not None:
+            raise ValueError("budget_tokens must not be set when type='adaptive'")
+        return self
+
+
 class LLMAPIParams(BaseModel):
     """Parameters for the LLM API systems."""
 
@@ -581,6 +606,14 @@ class LLMAPIParams(BaseModel):
     api_key: Optional[str] = Field(
         None,
         description="Direct API key for authentication (alternative to env_file)",
+    )
+    thinking: Optional[ThinkingParams] = Field(
+        None,
+        description="Optional thinking/extended reasoning configuration. Only applicable to models that support this feature.",
+    )
+    reasoning_effort: Optional[str] = Field(
+        None,
+        description="Reasoning effort level for models supporting it (e.g., 'low', 'medium', 'high', 'none' etc. - the types vary depending on the model and provider )",
     )
 
 

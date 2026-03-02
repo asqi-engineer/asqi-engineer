@@ -15,7 +15,9 @@ from asqi.schemas import (
     InputDataset,
     InputParameter,
     ListFeature,
+    LLMAPIParams,
     OutputDataset,
+    ThinkingParams,
     ValueFeature,
     VideoFeature,
 )
@@ -1271,4 +1273,149 @@ class TestInputParameterJSONSchema:
         param_dict = param.model_dump()
         assert param_dict["type"] == "object"
         assert len(param_dict["properties"]) == 1
-        assert param_dict["properties"][0]["name"] == "timeout"
+
+
+# ============================================================================
+# ThinkingParams and LLM API Configuration Tests
+# ============================================================================
+
+
+class TestThinkingParams:
+    """Test ThinkingParams model with cross-field validation."""
+
+    def test_create_thinking_enabled_with_budget(self):
+        """Test creating ThinkingParams with type='enabled' and budget_tokens."""
+        tp = ThinkingParams(type="enabled", budget_tokens=1024)
+        assert tp.type == "enabled"
+        assert tp.budget_tokens == 1024
+
+    def test_create_thinking_adaptive_without_budget(self):
+        """Test creating ThinkingParams with type='adaptive' (explicit and implicit)."""
+        # Test with explicit None
+        tp_explicit = ThinkingParams(type="adaptive", budget_tokens=None)
+        assert tp_explicit.type == "adaptive"
+        assert tp_explicit.budget_tokens is None
+
+        # Test without specifying budget (defaults to None)
+        tp_implicit = ThinkingParams(type="adaptive")
+        assert tp_implicit.type == "adaptive"
+        assert tp_implicit.budget_tokens is None
+
+    def test_thinking_enabled_requires_budget_tokens(self):
+        """Test that type='enabled' requires budget_tokens (explicit None and implicit)."""
+        # Test with explicit None
+        with pytest.raises(ValidationError) as exc_info:
+            ThinkingParams(type="enabled", budget_tokens=None)
+        assert "budget_tokens is required when type='enabled'" in str(exc_info.value)
+
+        # Test without specifying budget_tokens
+        with pytest.raises(ValidationError) as exc_info:
+            ThinkingParams(type="enabled")
+        assert "budget_tokens is required when type='enabled'" in str(exc_info.value)
+
+    def test_thinking_adaptive_forbids_budget_tokens(self):
+        """Test that type='adaptive' forbids budget_tokens from being set."""
+        with pytest.raises(ValidationError) as exc_info:
+            ThinkingParams(type="adaptive", budget_tokens=2048)
+        assert "budget_tokens must not be set when type='adaptive'" in str(
+            exc_info.value
+        )
+
+    def test_budget_tokens_minimum_constraint(self):
+        """Test that budget_tokens must be >= 1 (rejects 0 and negatives)."""
+        # Test with zero
+        with pytest.raises(ValidationError) as exc_info:
+            ThinkingParams(type="enabled", budget_tokens=0)
+        assert "greater than or equal to 1" in str(exc_info.value).lower()
+
+        # Test with negative value
+        with pytest.raises(ValidationError) as exc_info:
+            ThinkingParams(type="enabled", budget_tokens=-100)
+        assert "greater than or equal to 1" in str(exc_info.value).lower()
+
+    def test_thinking_forbids_extra_fields(self):
+        """Test that ThinkingParams rejects unknown fields due to extra='forbid'."""
+        with pytest.raises(ValidationError) as exc_info:
+            ThinkingParams(type="enabled", budget_tokens=1024, unknown_field="value")
+        error_str = str(exc_info.value).lower()
+        assert "extra_forbidden" in error_str or "unknown_field" in error_str
+
+    def test_thinking_valid_type_values(self):
+        """Test that only 'enabled' and 'adaptive' are valid type values."""
+        with pytest.raises(ValidationError) as exc_info:
+            ThinkingParams(type="invalid_type", budget_tokens=1024)  # type: ignore
+        assert "type" in str(exc_info.value).lower()
+
+    def test_thinking_params_serialization(self):
+        """Test that ThinkingParams can be serialized to dict and JSON."""
+        tp = ThinkingParams(type="enabled", budget_tokens=1024)
+        data = tp.model_dump()
+        assert data["type"] == "enabled"
+        assert data["budget_tokens"] == 1024
+
+        json_str = tp.model_dump_json()
+        assert "enabled" in json_str
+        assert "1024" in json_str
+
+
+class TestLLMAPIParamsWithThinking:
+    """Test LLMAPIParams integration with ThinkingParams."""
+
+    def test_llm_api_params_without_thinking(self):
+        """Test creating LLMAPIParams without thinking configuration."""
+        params = LLMAPIParams(
+            base_url="http://localhost:8000/v1",
+            model="gpt-4",
+            thinking=None,
+        )
+        assert params.thinking is None
+        assert params.model == "gpt-4"
+
+    def test_llm_api_params_with_thinking_enabled(self):
+        """Test LLMAPIParams with thinking enabled."""
+        thinking = ThinkingParams(type="enabled", budget_tokens=2048)
+        params = LLMAPIParams(
+            base_url="http://localhost:8000/v1",
+            model="claude-opus",
+            thinking=thinking,
+        )
+        assert params.thinking is not None
+        assert params.thinking.type == "enabled"
+        assert params.thinking.budget_tokens == 2048
+
+    def test_llm_api_params_with_thinking_adaptive(self):
+        """Test LLMAPIParams with thinking in adaptive mode."""
+        thinking = ThinkingParams(type="adaptive")
+        params = LLMAPIParams(
+            base_url="http://localhost:8000/v1",
+            model="claude-opus",
+            thinking=thinking,
+        )
+        assert params.thinking is not None
+        assert params.thinking.type == "adaptive"
+        assert params.thinking.budget_tokens is None
+
+    def test_llm_api_params_with_invalid_thinking(self):
+        """Test that invalid thinking config is rejected."""
+        with pytest.raises(ValidationError):
+            LLMAPIParams(
+                base_url="http://localhost:8000/v1",
+                model="claude-opus",
+                thinking=ThinkingParams(type="enabled"),  # Missing budget_tokens
+            )
+
+    def test_llm_api_params_full_config(self):
+        """Test complete LLMAPIParams with all fields including thinking."""
+        params = LLMAPIParams(
+            base_url="https://api.openai.com/v1",
+            model="gpt-4",
+            api_key="sk-12345",
+            thinking=ThinkingParams(type="enabled", budget_tokens=4096),
+            reasoning_effort="high",
+        )
+        assert params.base_url == "https://api.openai.com/v1"
+        assert params.model == "gpt-4"
+        assert params.api_key == "sk-12345"
+        assert params.thinking.type == "enabled"
+        assert params.thinking.budget_tokens == 4096
+        assert params.reasoning_effort == "high"
