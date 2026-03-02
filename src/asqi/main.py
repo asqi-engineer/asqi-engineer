@@ -196,8 +196,8 @@ def load_and_validate_plan(
 
         # Load manifests - currently just loads locally. TODO: obtain from registry
         manifests: Dict[str, Manifest] = {}
-        manifest_files = glob.glob(
-            os.path.join(manifests_path, "**/manifest.yaml"), recursive=True
+        manifest_files = sorted(
+            glob.glob(os.path.join(manifests_path, "**/manifest.yaml"), recursive=True)
         )
 
         for manifest_path in manifest_files:
@@ -214,10 +214,12 @@ def load_and_validate_plan(
             # e.g., "test_containers/mock_tester/manifest.yaml" -> "mock_tester"
             container_dir = os.path.basename(os.path.dirname(manifest_path))
 
-            # Check for duplicate container directories
             if container_dir in manifests:
-                # If two manifests have the same container directory, we currently just overwrite and keep the last one.
-                pass
+                errors.append(
+                    f"Duplicate manifest key '{container_dir}': found in '{manifest_path}' "
+                    f"but already loaded from a previous manifest file."
+                )
+                return {"status": "failure", "errors": errors}
             manifests[container_dir] = manifest
 
     except (FileNotFoundError, ValueError, ValidationError, PermissionError) as e:

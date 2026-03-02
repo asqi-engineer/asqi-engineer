@@ -1018,6 +1018,74 @@ class TestLoadAndValidatePlan:
             assert result["status"] == "success"
 
 
+class TestDuplicateManifestDetection:
+    """Test that duplicate manifest keys are detected and rejected (BUG-04)."""
+
+    def test_duplicate_manifest_directory_raises_error(self):
+        """Two manifests resolving to the same container_dir key should fail validation."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            suite_file = os.path.join(temp_dir, "suite.yaml")
+            systems_file = os.path.join(temp_dir, "systems.yaml")
+            manifests_dir = os.path.join(temp_dir, "manifests")
+
+            # Create minimal valid suite and systems
+            with open(suite_file, "w") as f:
+                yaml.dump({"suite_name": "Test", "test_suite": []}, f)
+            with open(systems_file, "w") as f:
+                yaml.dump({"systems": {}}, f)
+
+            # Two dirs named "duplicatie_container" at different depths -> same key
+            dir_a = os.path.join(manifests_dir, "sub1", "duplicatie_container")
+            dir_b = os.path.join(manifests_dir, "sub2", "duplicatie_container")
+            os.makedirs(dir_a)
+            os.makedirs(dir_b)
+
+            manifest_data = {
+                "name": "duplicatie_container",
+                "version": "1.0",
+                "description": "Duplicate test manifest",
+            }
+            with open(os.path.join(dir_a, "manifest.yaml"), "w") as f:
+                yaml.dump(manifest_data, f)
+            with open(os.path.join(dir_b, "manifest.yaml"), "w") as f:
+                yaml.dump(manifest_data, f)
+
+            from asqi.main import load_and_validate_plan
+
+            result = load_and_validate_plan(suite_file, systems_file, manifests_dir)
+            assert result["status"] == "failure"
+            assert any("duplicate" in error.lower() for error in result["errors"]), (
+                f"Expected a duplicate manifest error, got: {result['errors']}"
+            )
+
+    def test_single_manifest_still_succeeds(self):
+        """Ensure the fix doesn't break the normal single-manifest case."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            suite_file = os.path.join(temp_dir, "suite.yaml")
+            systems_file = os.path.join(temp_dir, "systems.yaml")
+            manifests_dir = os.path.join(temp_dir, "manifests")
+
+            with open(suite_file, "w") as f:
+                yaml.dump({"suite_name": "Test", "test_suite": []}, f)
+            with open(systems_file, "w") as f:
+                yaml.dump({"systems": {}}, f)
+
+            container_dir = os.path.join(manifests_dir, "unique_container")
+            os.makedirs(container_dir)
+            manifest_data = {
+                "name": "unique_container",
+                "version": "1.0",
+                "description": "Unique test manifest",
+            }
+            with open(os.path.join(container_dir, "manifest.yaml"), "w") as f:
+                yaml.dump(manifest_data, f)
+
+            from asqi.main import load_and_validate_plan
+
+            result = load_and_validate_plan(suite_file, systems_file, manifests_dir)
+            assert result["status"] == "success"
+
+
 class TestLoadDotenvFunctionality:
     """Test that load_dotenv is functioning correctly in main.py."""
 
