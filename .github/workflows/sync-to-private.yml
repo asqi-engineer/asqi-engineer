@@ -9,7 +9,8 @@
 #
 # Requires:
 #   - vars.PRIVATE_MONOREPO_URL  (e.g. https://github.com/org/your-private-monorepo.git)
-#   - secrets.SYNC_TO_PRIVATE_TOKEN (PAT with push access to the monorepo)
+#   - secrets.GH_APP_ID (GitHub App ID for sync)
+#   - secrets.GH_APP_PRIVATE_KEY (GitHub App Private Key for sync)
 # =============================================================================
 
 name: Sync to private monorepo
@@ -30,6 +31,13 @@ jobs:
       PRIVATE_MONOREPO_BRANCH: main
 
     steps:
+      - name: Generate Token
+        id: get_workflow_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
       - name: Checkout this repo (merge commit)
         uses: actions/checkout@v4
         with:
@@ -41,12 +49,12 @@ jobs:
 
       - name: Clone private monorepo
         env:
-          TOKEN: ${{ secrets.SYNC_TO_PRIVATE_TOKEN }}
+          TOKEN: ${{ steps.get_workflow_token.outputs.token }}
         run: |
           set -euo pipefail
 
           if [ -z "$TOKEN" ]; then
-            echo "SYNC_TO_PRIVATE_TOKEN is not set"
+            echo "Token from GitHub App is not set"
             exit 1
           fi
 
@@ -81,8 +89,8 @@ jobs:
 
       - name: Commit and push to a sync branch
         env:
-          TOKEN: ${{ secrets.SYNC_TO_PRIVATE_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.SYNC_TO_PRIVATE_TOKEN }} # Needed for 'gh' CLI
+          TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+          GH_TOKEN: ${{ steps.get_workflow_token.outputs.token }} # Needed for 'gh' CLI
         run: |
           set -euo pipefail
           MONOREPO_DIR="$RUNNER_TEMP/monorepo"
@@ -104,7 +112,6 @@ jobs:
             git push -f "$TARGET_URL" "$SYNC_BRANCH"
 
             # Create a PR in the monorepo using the GitHub CLI
-            # This requires the TOKEN to have 'pull-requests: write' permissions
             gh pr create \
               --repo "$PRIVATE_MONOREPO_URL" \
               --title "Sync: Updates from public asqi-engineer" \
