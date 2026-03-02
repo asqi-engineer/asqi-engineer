@@ -188,7 +188,7 @@ jobs:
           cd "$MONOREPO_DIR"
 
           # Use a specific branch name for the sync
-          SYNC_BRANCH="sync/asqi-engineer-from-public"
+          SYNC_BRANCH="sync/asqi-engineer-from-public-v1"
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
