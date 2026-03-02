@@ -27,7 +27,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@e0021407031f5be11a464abee9a0776171c79891
+        uses: tj-actions/changed-files@7dee1b0c1557f278e5c7dc244927139d78c0e22a
         with:
           files: |
             test_containers/**
@@ -177,7 +177,7 @@ jobs:
 
       - name: Upload Docker image as artifact (${{ matrix.name }}-${{ matrix.platform_pair }})
         if: ${{ matrix.skip != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository) }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: docker-image-${{ matrix.name }}-${{ matrix.platform_pair }}
           path: /tmp/image-${{ matrix.name }}-${{ matrix.platform_pair }}.tar
@@ -204,7 +204,7 @@ jobs:
 
       - name: Download Docker image artifacts (${{ matrix.name }})
         if: ${{ matrix.skip != true }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: /tmp
           pattern: docker-image-${{ matrix.name }}-*
@@ -353,7 +353,7 @@ jobs:
           docker run --rm --platform ${{ matrix.platform }} ${{ env.REGISTRY }}/${{ steps.parse.outputs.image_name }}:${{ steps.parse.outputs.name }}-sha-${GITHUB_SHA}-${{ env.PLATFORM_PAIR }} --help
 
       - name: Upload Docker image as artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: docker-image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}
           path: /tmp/image-${{ steps.parse.outputs.name }}-${{ env.PLATFORM_PAIR }}.tar
@@ -373,7 +373,7 @@ jobs:
       attestations: write
     steps:
       - name: Download Docker image artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: /tmp
           pattern: docker-image-${{ needs.build-and-test-tag.outputs.name }}-*
@@ -425,7 +425,7 @@ jobs:
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Attest
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         id: attest
         with:
           subject-name: ${{ env.REGISTRY }}/${{ needs.build-and-test-tag.outputs.image_name }}
