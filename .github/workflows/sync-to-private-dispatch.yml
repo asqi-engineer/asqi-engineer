@@ -1,8 +1,8 @@
 # =============================================================================
-# Dummy Sync Dispatch to private monorepo
+# Sync Dispatch to private monorepo
 # =============================================================================
 #
-# Sends a repository dispatch event "dummy-sync" to the private monorepo.
+# Sends a repository dispatch event to the private monorepo.
 # This is used to test connectivity and trigger downstream workflows.
 #
 # Requires:
@@ -11,7 +11,7 @@
 #   - secrets.GH_APP_PRIVATE_KEY (GitHub App Private Key for sync)
 # =============================================================================
 
-name: Dummy Sync Dispatch
+name: Sync Dispatch
 
 on:
   workflow_dispatch: # Allows manual triggering for testing
@@ -53,7 +53,7 @@ jobs:
           REPO_PATH=$(echo "$MONOREPO_URL" | sed -E 's|https://github.com/([^/]+/[^/.]+)(\.git)?|\1|')
           
           # The filename of the workflow you want to trigger in the monorepo
-          WORKFLOW_FILENAME="dummy_sync.yml"
+          WORKFLOW_FILENAME="sync-to-private.yml"
           
           echo "Sending 'workflow_dispatch' for $WORKFLOW_FILENAME to $REPO_PATH..."
           
