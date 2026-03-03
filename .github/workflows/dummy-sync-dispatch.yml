@@ -40,7 +40,7 @@ jobs:
           owner: "resaro-ai"
           repositories: "resaro-ai-monorepo"
 
-      - name: Send Repository Dispatch
+      - name: Send Workflow Dispatch
         if: steps.check_secrets.outputs.secrets_available == 'true'
         env:
           GH_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
@@ -51,15 +51,18 @@ jobs:
           # Extract owner/repo from URL (e.g., https://github.com/resaro-ai/resaro-ai-monorepo.git -> resaro-ai/resaro-ai-monorepo)
           REPO_PATH=$(echo "$MONOREPO_URL" | sed -E 's|https://github.com/([^/]+/[^/.]+)(\.git)?|\1|')
           
-          echo "Sending 'dummy-sync' dispatch to $REPO_PATH..."
+          # The filename of the workflow you want to trigger in the monorepo
+          WORKFLOW_FILENAME="asqi-engineer-sync.yml"
+          
+          echo "Sending 'workflow_dispatch' for $WORKFLOW_FILENAME to $REPO_PATH..."
           
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/$REPO_PATH/dispatches" \
-            -f "event_type=dummy-sync" \
-            -f "client_payload[ref]=${{ github.ref }}" \
-            -f "client_payload[sha]=${{ github.sha }}"
+            "/repos/$REPO_PATH/actions/workflows/$WORKFLOW_FILENAME/dispatches" \
+            -f "ref=main" \
+            -f "inputs[ref]=${{ github.ref }}" \
+            -f "inputs[sha]=${{ github.sha }}"
           
-          echo "Dispatch sent successfully."
+          echo "Workflow dispatch sent successfully."
