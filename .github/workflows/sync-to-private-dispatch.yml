@@ -14,7 +14,10 @@
 name: Sync Dispatch
 
 on:
-  workflow_dispatch: # Allows manual triggering for testing
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Keep this to allow manual testing
 
 jobs:
   send-dispatch:
