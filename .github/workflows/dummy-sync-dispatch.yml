@@ -52,7 +52,7 @@ jobs:
           REPO_PATH=$(echo "$MONOREPO_URL" | sed -E 's|https://github.com/([^/]+/[^/.]+)(\.git)?|\1|')
           
           # The filename of the workflow you want to trigger in the monorepo
-          WORKFLOW_FILENAME="asqi-engineer-sync.yml"
+          WORKFLOW_FILENAME="dummy_sync.yml"
           
           echo "Sending 'workflow_dispatch' for $WORKFLOW_FILENAME to $REPO_PATH..."
           
