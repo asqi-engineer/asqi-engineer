@@ -19,6 +19,7 @@ on:
 jobs:
   send-dispatch:
     runs-on: ubuntu-latest
+    environment: monorepo-sync
     steps:
       - name: Check for secrets
         id: check_secrets
