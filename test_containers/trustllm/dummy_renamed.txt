@@ -1,1 +1,1 @@
-Checking if a renamed file is synced to private correctly
+Checking if a renamed and modified file is synced to private correctly
