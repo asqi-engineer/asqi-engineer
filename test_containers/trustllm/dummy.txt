@@ -1,1 +1,0 @@
-Checking if a modified file is synced to private correctly
