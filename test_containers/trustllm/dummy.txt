@@ -1,0 +1,1 @@
+Checking if an added file is synced to private correctly
