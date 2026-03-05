@@ -1,0 +1,236 @@
+# =============================================================================
+# Sync to private monorepo
+# =============================================================================
+#
+# Syncs this repo (asqi-engineer) back into the private monorepo at
+# libs/asqi-engineer/. Runs when a PR is merged into main. All files from this
+# repo are copied into the monorepo; the monorepo's libs/asqi-engineer/ tree
+# is replaced with this repo's contents (excluding .git).
+#
+# Requires:
+#   - vars.PRIVATE_MONOREPO_URL  (e.g. https://github.com/org/your-private-monorepo.git)
+#   - secrets.GH_APP_ID (GitHub App ID for sync)
+#   - secrets.GH_APP_PRIVATE_KEY (GitHub App Private Key for sync).
+# =============================================================================
+
+name: Sync to private monorepo
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+jobs:
+  sync-to-private:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      PRIVATE_MONOREPO_URL: ${{ vars.PRIVATE_MONOREPO_URL }}
+      PRIVATE_MONOREPO_BRANCH: main
+
+    steps:
+      - name: Check for secrets
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.GH_APP_ID }}" ] || [ -z "${{ secrets.GH_APP_PRIVATE_KEY }}" ]; then
+            echo "secrets_available=false" >> $GITHUB_OUTPUT
+            echo "::warning::GH_APP_ID or GH_APP_PRIVATE_KEY is missing. Skipping sync (likely a fork PR)."
+          else
+            echo "secrets_available=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Token
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        id: get_workflow_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: "resaro-ai"
+          repositories: "resaro-ai-monorepo"
+
+      - name: Debug Token Permissions
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        run: |
+          echo "Checking token identity (App Installation)..."
+          gh api /installation/repositories --jq '.repositories[].full_name' || echo "Could not list repositories. Check App permissions."
+          echo "Checking token status..."
+          gh auth status
+        env:
+          GH_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+
+      - name: Checkout this repo (merge commit)
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0 # Fetch all history for diffing
+
+      - name: Identify PR changes
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        id: identify_changes
+        run: |
+          set -euo pipefail
+          # Identify base and head for the diff
+          # We use the PR merge base to correctly identify what changed in this PR
+          BASE_SHA=$(git merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          
+          echo "Identifying changes between merge-base $BASE_SHA and head $HEAD_SHA"
+          
+          # Files to change (Modified)
+          git diff --name-only --diff-filter=M "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/files_to_change.txt"
+          # Files to create (Added)
+          git diff --name-only --diff-filter=A "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/files_to_create.txt"
+          # Files to delete (Deleted)
+          git diff --name-only --diff-filter=D "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/files_to_delete.txt"
+          
+          echo "Files to change:"
+          cat "$RUNNER_TEMP/files_to_change.txt"
+          echo "Files to create:"
+          cat "$RUNNER_TEMP/files_to_create.txt"
+          echo "Files to delete:"
+          cat "$RUNNER_TEMP/files_to_delete.txt"
+
+      - name: Capture merge commit message
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        run: |
+          git log -1 --format=%B > "$RUNNER_TEMP/sync_commit_msg.txt"
+
+      - name: Clone private monorepo
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        env:
+          TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$TOKEN" ]; then
+            echo "Token from GitHub App is not set"
+            exit 1
+          fi
+
+          if [ -z "$PRIVATE_MONOREPO_URL" ]; then
+            echo "PRIVATE_MONOREPO_URL is not set (define as a repo or org variable)"
+            exit 1
+          fi
+
+          TARGET_URL="${PRIVATE_MONOREPO_URL/https:\/\//https://x-access-token:${TOKEN}@}"
+
+          if ! git clone --depth 1 --branch "$PRIVATE_MONOREPO_BRANCH" "$TARGET_URL" "$RUNNER_TEMP/monorepo" 2>/dev/null; then
+            git clone "$TARGET_URL" "$RUNNER_TEMP/monorepo"
+            cd "$RUNNER_TEMP/monorepo"
+            git checkout -b "$PRIVATE_MONOREPO_BRANCH"
+            cd -
+          fi
+
+      - name: Selective Sync to monorepo libs/asqi-engineer
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        run: |
+          set -euo pipefail
+
+          MONOREPO_DIR="$RUNNER_TEMP/monorepo"
+          TARGET_DIR="$MONOREPO_DIR/libs/asqi-engineer"
+          ALLOWLIST_PATH="$MONOREPO_DIR/.github/asqi-engineer-sync/sync-public-allowlist.yaml"
+
+          mkdir -p "$TARGET_DIR"
+
+          # 1. Copy files to change
+          echo "Processing files to change..."
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              echo "Updating $file in monorepo"
+              mkdir -p "$(dirname "$TARGET_DIR/$file")"
+              cp "$file" "$TARGET_DIR/$file"
+              
+              # Update hash in allowlist
+              HASH="sha256:$(shasum -a 256 "$file" | awk '{ print $1 }')"
+              yq -i "(.files[] | select(.path == \"$file\") | .hash) = \"$HASH\"" "$ALLOWLIST_PATH"
+            fi
+          done < "$RUNNER_TEMP/files_to_change.txt"
+
+          # 2. Copy files to create (only if they don't exist in monorepo)
+          echo "Processing files to create..."
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              if [ ! -f "$TARGET_DIR/$file" ]; then
+                echo "Creating $file in monorepo"
+                mkdir -p "$(dirname "$TARGET_DIR/$file")"
+                cp "$file" "$TARGET_DIR/$file"
+                
+                # Add to allowlist
+                HASH="sha256:$(shasum -a 256 "$file" | awk '{ print $1 }')"
+                yq -i ".files += [{\"path\": \"$file\", \"hash\": \"$HASH\"}]" "$ALLOWLIST_PATH"
+              else
+                echo "Skipping $file: already exists in monorepo"
+              fi
+            fi
+          done < "$RUNNER_TEMP/files_to_create.txt"
+
+          # 3. Delete files to delete
+          echo "Processing files to delete..."
+          while IFS= read -r file; do
+            # Remove from allowlist regardless of existence in monorepo
+            echo "Removing $file from allowlist"
+            yq -i "del(.files[] | select(.path == \"$file\"))" "$ALLOWLIST_PATH"
+
+            if [ -f "$TARGET_DIR/$file" ]; then
+              echo "Deleting $file from monorepo"
+              rm "$TARGET_DIR/$file"
+              # Clean up empty parent directories
+              parent_dir="$(dirname "$TARGET_DIR/$file")"
+              while [ "$parent_dir" != "$TARGET_DIR" ] && [ -d "$parent_dir" ] && [ -z "$(ls -A "$parent_dir")" ]; do
+                echo "Removing empty directory $parent_dir"
+                rmdir "$parent_dir"
+                parent_dir="$(dirname "$parent_dir")"
+              done
+            else
+              echo "Skipping deletion of $file: not found in monorepo"
+            fi
+          done < "$RUNNER_TEMP/files_to_delete.txt"
+
+          # Sort allowlist by path for consistency
+          yq -i '.files |= sort_by(.path)' "$ALLOWLIST_PATH"
+
+      - name: Commit and push to a sync branch
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        env:
+          TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+          GH_TOKEN: ${{ steps.get_workflow_token.outputs.token }} # Needed for 'gh' CLI
+        run: |
+          set -euo pipefail
+          MONOREPO_DIR="$RUNNER_TEMP/monorepo"
+          cd "$MONOREPO_DIR"
+
+          # Use a specific branch name for the sync
+          SYNC_BRANCH="sync/asqi-engineer-from-public-v3"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Only show summary of changes
+          echo "Checking for changes in monorepo..."
+          git status --short
+
+          # Check if there are any changes (including untracked files)
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Changes detected, proceeding with commit."
+            git checkout -b "$SYNC_BRANCH"
+            git add -A
+            git commit -F "$RUNNER_TEMP/sync_commit_msg.txt"
+            
+            # Push the sync branch to the monorepo
+            TARGET_URL="${PRIVATE_MONOREPO_URL/https:\/\//https://x-access-token:${TOKEN}@}"
+            git push -f "$TARGET_URL" "$SYNC_BRANCH"
+
+            # Create a PR in the monorepo using the GitHub CLI
+            gh pr create \
+              --repo "$PRIVATE_MONOREPO_URL" \
+              --title "Sync: Updates from public asqi-engineer" \
+              --body "This is an automated sync from the public repository." \
+              --base main \
+              --head "$SYNC_BRANCH" || echo "PR already exists"
+          else
+            echo "No changes to sync back to monorepo"
+          fi
