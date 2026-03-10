@@ -129,6 +129,20 @@ test_suite:
       delay_seconds: 1
 """
 
+DEMO_EMBEDDING_SUITE_YAML = """
+suite_name: "Mock Embedding Tester Sanity Check"
+description: "Suite description"
+test_suite:
+  - name: "run_mock_on_compatible_system"
+    id: "run_mock_on_compatible_system"
+    description: "Test description"
+    image: "my-registry/mock_embedding_tester:latest"
+    systems_under_test:
+      - "my_embedding_api"
+    params:
+      delay_seconds: 1
+"""
+
 DEMO_systems_YAML = """
 systems:
   # This system is compatible with our mock_tester
@@ -335,6 +349,24 @@ MOCK_VLM_MANIFEST = {
     ],
 }
 
+MOCK_EMBEDDING_MANIFEST = {
+    "name": "mock_embedding_tester",
+    "version": "1.0.0",
+    "description": "A lightweight mock container for testing embedding API systems.",
+    "input_systems": [
+        {"name": "system_under_test", "type": "embedding_api", "required": True},
+    ],
+    "input_schema": [
+        {
+            "name": "delay_seconds",
+            "type": "integer",
+            "required": False,
+            "description": "Seconds to sleep to simulate work.",
+        }
+    ],
+    "output_metrics": ["success", "score", "delay_used", "base_url", "model"],
+}
+
 
 @pytest.fixture
 def demo_suite():
@@ -372,6 +404,13 @@ def demo_vlm_suite():
 
 
 @pytest.fixture
+def demo_embedding_suite():
+    """Fixture providing parsed demo embedding test suite."""
+    data = yaml.safe_load(DEMO_EMBEDDING_SUITE_YAML)
+    return SuiteConfig(**data)
+
+
+@pytest.fixture
 def demo_systems():
     """Fixture providing parsed demo systems."""
     data = yaml.safe_load(DEMO_systems_YAML)
@@ -393,6 +432,7 @@ def manifests():
             **MOCK_IMAGE_EDITING_MANIFEST
         ),
         "my-registry/vlm_evaluator_tester:latest": Manifest(**MOCK_VLM_MANIFEST),
+        "my-registry/mock_embedding_tester:latest": Manifest(**MOCK_EMBEDDING_MANIFEST),
     }
 
 
@@ -658,6 +698,50 @@ class TestSchemaValidation:
 
         errors = validate_test_plan(demo_vlm_suite, vlm_systems, manifests)
         assert errors == [], f"Expected no errors for VLM system, but got: {errors}"
+
+    def test_embedding_system_compatibility(self, demo_embedding_suite, manifests):
+        """Test validation passes for embedding_api systems with compatible container."""
+        embedding_systems = SystemsConfig(
+            systems={
+                "my_embedding_api": {
+                    "type": "embedding_api",
+                    "description": "Test embedding system",
+                    "provider": "openai",
+                    "params": {
+                        "base_url": "http://test-url/v1",
+                        "model": "text-embedding-3-small",
+                        "api_key": "sk-test",
+                    },
+                }
+            }
+        )
+
+        errors = validate_test_plan(demo_embedding_suite, embedding_systems, manifests)
+        assert errors == [], (
+            f"Expected no errors for embedding_api system, but got: {errors}"
+        )
+
+    def test_embedding_system_incompatible_with_llm_container(
+        self, demo_suite, manifests
+    ):
+        """Test validation fails when embedding_api system is used with llm_api-only container."""
+        embedding_systems = SystemsConfig(
+            systems={
+                "my_llm_api": {
+                    "type": "embedding_api",
+                    "description": "Test embedding system",
+                    "provider": "openai",
+                    "params": {
+                        "base_url": "http://test-url/v1",
+                        "model": "text-embedding-3-small",
+                        "api_key": "sk-test",
+                    },
+                }
+            }
+        )
+
+        errors = validate_test_plan(demo_suite, embedding_systems, manifests)
+        assert errors != [], "Expected validation errors when embedding_api is used with llm_api-only container"
 
     def test_vlm_vision_enforcement(self):
         """Test that supports_vision must be True for VLM systems."""

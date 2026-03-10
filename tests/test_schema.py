@@ -1,3 +1,4 @@
+import yaml
 from typing import get_args
 
 import pytest
@@ -10,13 +11,17 @@ from asqi.schemas import (
     DatasetFeature,
     DatasetType,
     DictFeature,
+    EmbeddingAPIConfig,
     HFDtype,
     ImageFeature,
     InputDataset,
     InputParameter,
-    ListFeature,
     LLMAPIParams,
+    ListFeature,
+    Manifest,
     OutputDataset,
+    SuiteConfig,
+    SystemsConfig,
     ThinkingParams,
     ValueFeature,
     VideoFeature,
@@ -1419,3 +1424,84 @@ class TestLLMAPIParamsWithThinking:
         assert params.thinking.type == "enabled"
         assert params.thinking.budget_tokens == 4096
         assert params.reasoning_effort == "high"
+
+
+DEMO_EMBEDDING_SUITE_YAML = """
+suite_name: "Mock Embedding Tester Sanity Check"
+description: "Suite description"
+test_suite:
+  - name: "run_mock_on_compatible_system"
+    id: "run_mock_on_compatible_system"
+    description: "Test description"
+    image: "my-registry/mock_embedding_tester:latest"
+    systems_under_test:
+      - "my_embedding_api"
+    params:
+      delay_seconds: 1
+"""
+
+MOCK_EMBEDDING_MANIFEST = {
+    "name": "mock_embedding_tester",
+    "version": "1.0.0",
+    "description": "A lightweight mock container for testing embedding API systems.",
+    "input_systems": [
+        {"name": "system_under_test", "type": "embedding_api", "required": True},
+    ],
+    "input_schema": [
+        {
+            "name": "delay_seconds",
+            "type": "integer",
+            "required": False,
+            "description": "Seconds to sleep to simulate work.",
+        }
+    ],
+    "output_metrics": ["success", "score", "delay_used", "base_url", "model"],
+}
+
+
+@pytest.fixture
+def demo_embedding_suite():
+    """Fixture providing parsed demo embedding test suite."""
+    data = yaml.safe_load(DEMO_EMBEDDING_SUITE_YAML)
+    return SuiteConfig(**data)
+
+
+class TestEmbeddingAPIConfig:
+    """Tests for EmbeddingAPIConfig schema."""
+
+    def test_embedding_api_config_parses_correctly(self):
+        """Test that embedding_api system config parses type, base_url, and model."""
+        system = SystemsConfig(
+            systems={
+                "my_embedding_api": EmbeddingAPIConfig(
+                    type="embedding_api",
+                    description="Embedding system",
+                    provider="openai",
+                    params=LLMAPIParams(
+                        base_url="http://localhost:4000/v1",
+                        model="text-embedding-3-small",
+                        api_key="sk-test-123",
+                    ),
+                )
+            }
+        )
+
+        cfg = system.systems["my_embedding_api"]
+        assert cfg.type == "embedding_api"
+        assert cfg.params.base_url == "http://localhost:4000/v1"
+        assert cfg.params.model == "text-embedding-3-small"
+        assert cfg.params.api_key == "sk-test-123"
+
+    def test_embedding_api_compatible_with_manifest(self, demo_embedding_suite):
+        """Test that embedding_api system is compatible with an embedding_api manifest."""
+        manifest = Manifest(**MOCK_EMBEDDING_MANIFEST)
+        system_input = manifest.input_systems[0]
+
+        assert system_input.name == "system_under_test"
+        assert system_input.type == "embedding_api"
+
+        suite = demo_embedding_suite
+        assert suite.suite_name == "Mock Embedding Tester Sanity Check"
+        test = suite.test_suite[0]
+        assert test.image == "my-registry/mock_embedding_tester:latest"
+        assert test.systems_under_test == ["my_embedding_api"]
