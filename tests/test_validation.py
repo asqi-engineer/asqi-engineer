@@ -741,7 +741,9 @@ class TestSchemaValidation:
         )
 
         errors = validate_test_plan(demo_suite, embedding_systems, manifests)
-        assert errors != [], "Expected validation errors when embedding_api is used with llm_api-only container"
+        assert errors != [], (
+            "Expected validation errors when embedding_api is used with llm_api-only container"
+        )
 
     def test_vlm_vision_enforcement(self):
         """Test that supports_vision must be True for VLM systems."""

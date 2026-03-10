@@ -664,7 +664,6 @@ class EmbeddingAPIConfig(SystemDefinition):
     )
 
 
-
 # RAG API system
 
 
