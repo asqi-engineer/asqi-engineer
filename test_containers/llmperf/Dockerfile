@@ -22,7 +22,7 @@ WORKDIR /app/llmperf
 
 RUN uv venv
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install -e .
+    uv pip install -e . openai
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim
@@ -36,6 +36,9 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 COPY manifest.yaml .
 COPY entrypoint.py .
+COPY openai_client.py .
+COPY utils.py .
 
 RUN chmod +x entrypoint.py
 ENTRYPOINT ["python", "./entrypoint.py"]
+

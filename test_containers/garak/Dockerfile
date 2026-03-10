@@ -7,7 +7,7 @@ WORKDIR /app
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
-    apt-get install -y --no-install-recommends curl build-essential ca-certificates && \
+    apt-get install -y --no-install-recommends git curl build-essential ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 # Configure uv for faster builds
@@ -29,7 +29,8 @@ RUN --mount=type=cache,target=/root/.cache \
     . "$HOME/.cargo/env" && \
     rustup default stable && \
     uv pip install torch --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match && \
-    uv pip install garak==0.12.0
+    uv pip install garak==0.12.0 && \
+    uv pip install asqi-engineer@git+https://github.com/asqi-engineer/asqi-engineer
 
 FROM debian:bookworm-slim
 

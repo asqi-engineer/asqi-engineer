@@ -1,0 +1,2 @@
+# Container configuration for tests that need longer execution time
+timeout_seconds: 7200  # 2 hours

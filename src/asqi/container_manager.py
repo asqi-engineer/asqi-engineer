@@ -338,8 +338,27 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
         if not abs_path.startswith("/workspaces/"):
             return abs_path
 
+        # Skip translation if not running inside a container
+        if not Path("/.dockerenv").exists():
+            return abs_path
+
         # Inspect *this* container, then map Destination -> Source
-        cid = Path("/etc/hostname").read_text().strip()
+        # Get container ID from mountinfo (works on cgroup v1 and v2)
+        cid = None
+        try:
+            import re
+
+            mountinfo = Path("/proc/self/mountinfo").read_text()
+            # Look for /docker/<64-char-hex-id> pattern (container ID)
+            match = re.search(r"/docker/([a-f0-9]{64})", mountinfo)
+            if match:
+                cid = match.group(1)
+        except Exception:  # nosec B110 fallback to hostname
+            pass
+
+        if not cid:
+            # Fallback to hostname (reliable in Docker/devcontainer setups)
+            cid = Path("/etc/hostname").read_text().strip()
         info = client.api.inspect_container(cid)
         for m in info.get("Mounts", []):
             dest = m.get("Destination") or m.get("Target")
@@ -439,6 +458,7 @@ def run_container_with_args(
     environment: Optional[Dict[str, str]] = None,
     name: Optional[str] = None,
     workflow_id: str = "",
+    manifest: Optional[Manifest] = None,
 ) -> Dict[str, Any]:
     """
     Run a Docker container with specified arguments and return results.
@@ -450,6 +470,7 @@ def run_container_with_args(
         environment: Optional dictionary of environment variables to pass to container
         name: Optional name for the container (will be used as container name in Docker)
         workflow_id: Workflow identifier to uniquely associate the container with a workflow
+        manifest: Optional Manifest object to check for host_access flag
 
     Returns:
         Dictionary with execution results including exit_code, output, success, etc.
@@ -482,11 +503,22 @@ def run_container_with_args(
             if mounts:
                 logger.info(f"Mounts: {mounts}")
 
+            # For Docker-in-Docker containers, pass the host output path
+            # Only set for containers with host_access (Docker-in-Docker via socket mounting)
+            env = dict(environment or {})
+            if manifest and manifest.host_access and mounts:
+                for mount in mounts:
+                    if mount["Target"] == str(OUTPUT_MOUNT_PATH):
+                        env["HOST_OUTPUT_PATH"] = mount["Source"]
+                        logger.info(
+                            f"Set HOST_OUTPUT_PATH to {mount['Source']} for Docker-in-Docker support"
+                        )
+
             # Prepare run parameters
             run_kwargs = {
                 "image": image,
                 "command": args,
-                "environment": environment or {},
+                "environment": env,
                 "mounts": mounts,
                 "labels": labels,
                 **container_config.run_params,

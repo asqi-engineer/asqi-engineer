@@ -1,0 +1,72 @@
+# =============================================================================
+# Sync Dispatch to private monorepo
+# =============================================================================
+#
+# Sends a repository dispatch event to the private monorepo.
+# This is used to test connectivity and trigger downstream workflows.
+#
+# Requires:
+#   - vars.PRIVATE_MONOREPO_URL  (e.g. https://github.com/org/your-private-monorepo.git)
+#   - secrets.GH_APP_ID (GitHub App ID for sync)
+#   - secrets.GH_APP_PRIVATE_KEY (GitHub App Private Key for sync)
+# =============================================================================
+
+name: Sync Dispatch
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Keep this to allow manual testing
+
+jobs:
+  send-dispatch:
+    runs-on: ubuntu-latest
+    environment: monorepo-sync
+    steps:
+      - name: Check for secrets
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.GH_APP_ID }}" ] || [ -z "${{ secrets.GH_APP_PRIVATE_KEY }}" ]; then
+            echo "secrets_available=false" >> $GITHUB_OUTPUT
+            echo "::warning::GH_APP_ID or GH_APP_PRIVATE_KEY is missing."
+          else
+            echo "secrets_available=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Token
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        id: get_workflow_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: "resaro-ai"
+          repositories: "resaro-ai-monorepo"
+
+      - name: Send Workflow Dispatch
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        env:
+          GH_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+          MONOREPO_URL: ${{ vars.PRIVATE_MONOREPO_URL }}
+        run: |
+          set -euo pipefail
+          
+          # Extract owner/repo from URL (e.g., https://github.com/resaro-ai/resaro-ai-monorepo.git -> resaro-ai/resaro-ai-monorepo)
+          REPO_PATH=$(echo "$MONOREPO_URL" | sed -E 's|https://github.com/([^/]+/[^/.]+)(\.git)?|\1|')
+          
+          # The filename of the workflow you want to trigger in the monorepo
+          WORKFLOW_FILENAME="sync-to-private.yml"
+          
+          echo "Sending 'workflow_dispatch' for $WORKFLOW_FILENAME to $REPO_PATH..."
+          
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$REPO_PATH/actions/workflows/$WORKFLOW_FILENAME/dispatches" \
+            -f "ref=main" \
+            -f "inputs[ref]=${{ github.ref }}" \
+            -f "inputs[sha]=${{ github.sha }}"
+          
+          echo "Workflow dispatch sent successfully."

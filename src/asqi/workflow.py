@@ -587,6 +587,7 @@ def _execute_container_job(
         container_config=container_config,
         name=container_name,
         workflow_id=DBOS.workflow_id or "",
+        manifest=manifest,
     )
 
     result.end_time = time.time()

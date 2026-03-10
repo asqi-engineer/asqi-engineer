@@ -1,12 +1,23 @@
 import argparse
-import glob
 import hashlib
 import json
 import os
+import random
 import sys
 import tempfile
+import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+import pandas as pd
+import ray  # type: ignore
+from llmperf import common_metrics  # type: ignore
+from llmperf.models import RequestConfig  # type: ignore
+from llmperf.utils import (  # type: ignore
+    flatten_dict,
+    randomly_sample_sonnet_lines_prompt,
+)
+from openai_client import OpenAISDKClient
 
 sys.path.insert(0, "/app/llmperf")
 
@@ -43,6 +54,9 @@ def _derive_params(
     if not api_key:
         raise ValueError("No API key found for system_under_test")
 
+    # Extract metadata for tracking (injected by ASQI workflow)
+    metadata = test_params.get("metadata", {})
+
     # Defaults per user request
     params = {
         "llm_api": "openai",
@@ -62,6 +76,7 @@ def _derive_params(
     return {
         "base_url": base_url,
         "api_key": api_key,
+        "metadata": metadata,
         **params,
     }
 
@@ -75,7 +90,7 @@ def _ensure_results_dir(subfolder: str = "") -> str:
 
 
 def _run_benchmark_and_collect(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Run LLMPerf token benchmark in-process, then load summary JSON."""
+    """Run LLMPerf token benchmark using custom OpenAI SDK client with metadata support."""
     # Generate unique folder name: llmperf_<8digit_hash>
     hash_input = json.dumps(
         {k: v for k, v in params.items() if k not in ["base_url", "api_key"]},
@@ -86,52 +101,215 @@ def _run_benchmark_and_collect(params: Dict[str, Any]) -> Dict[str, Any]:
     results_dir = _ensure_results_dir(folder_name)
 
     try:
-        # Import the function from the installed llmperf package
-        from token_benchmark_ray import run_token_benchmark  # type: ignore
-        import ray  # type: ignore
-
-        # Propagate environment into Ray workers
         env_vars = {
             "OPENAI_API_BASE": params["base_url"],
             "OPENAI_API_KEY": params["api_key"],
         }
         if not ray.is_initialized():
-            ray.init(runtime_env={"env_vars": env_vars})  # type: ignore
+            ray.init(runtime_env={"env_vars": env_vars})
 
-        run_token_benchmark(
-            llm_api=params["llm_api"],
-            model=params["model"],
-            test_timeout_s=params["timeout"],
-            max_num_completed_requests=params["max_num_completed_requests"],
-            num_concurrent_requests=params["num_concurrent_requests"],
-            mean_input_tokens=params["mean_input_tokens"],
-            stddev_input_tokens=params["stddev_input_tokens"],
-            mean_output_tokens=params["mean_output_tokens"],
-            stddev_output_tokens=params["stddev_output_tokens"],
-            additional_sampling_params="{}",
-            results_dir=results_dir,
-            user_metadata={},
+        metadata = params.get("metadata", {})
+        model = params["model"]
+        max_requests = params["max_num_completed_requests"]
+        num_concurrent = params["num_concurrent_requests"]
+        mean_input = params["mean_input_tokens"]
+        stddev_input = params["stddev_input_tokens"]
+        mean_output = params["mean_output_tokens"]
+        stddev_output = params["stddev_output_tokens"]
+        timeout = params["timeout"]
+
+        # Generate prompts with varying lengths
+        prompts = []
+        num_output_tokens_list = []
+        for _ in range(max_requests):
+            num_input = max(1, int(random.gauss(mean_input, stddev_input)))
+            num_output = max(1, int(random.gauss(mean_output, stddev_output)))
+            prompt = randomly_sample_sonnet_lines_prompt(num_input)
+            prompts.append(prompt)
+            num_output_tokens_list.append(num_output)
+
+        # Create client actors with metadata
+        clients = [
+            OpenAISDKClient.remote(metadata=metadata) for _ in range(num_concurrent)
+        ]
+
+        # Submit requests
+        start_time = time.monotonic()
+        pending_refs: List[Any] = []
+        results: List[Dict[str, Any]] = []
+        request_idx = 0
+
+        while request_idx < max_requests or pending_refs:
+            # Check timeout
+            if time.monotonic() - start_time > timeout:
+                print(f"Timeout reached after {timeout}s")
+                break
+
+            # Submit new requests up to concurrency limit
+            while len(pending_refs) < num_concurrent and request_idx < max_requests:
+                client = clients[request_idx % num_concurrent]
+                request_config = RequestConfig(
+                    model=model,
+                    prompt=prompts[request_idx],
+                    sampling_params={"max_tokens": num_output_tokens_list[request_idx]},
+                    llm_api="openai",
+                    metadata={},
+                )
+                ref = client.llm_request.remote(request_config)
+                pending_refs.append(ref)
+                request_idx += 1
+
+            # Wait for any request to complete
+            if pending_refs:
+                done_refs, pending_refs = ray.wait(
+                    pending_refs, num_returns=1, timeout=1.0
+                )
+                for ref in done_refs:
+                    try:
+                        metrics, generated_text, req_config = ray.get(ref)
+                        results.append(
+                            {
+                                "metrics": metrics,
+                                "generated_text": generated_text,
+                                "request_config": req_config,
+                            }
+                        )
+                    except Exception as e:
+                        print(f"Request failed: {e}")
+
+        end_time = time.monotonic()
+        total_time = end_time - start_time
+
+        # Calculate summary statistics using llmperf format
+        if len(results) == 0:
+            raise RuntimeError("No requests completed successfully")
+
+        # Build metrics list for pandas DataFrame (same as llmperf)
+        metrics_list = [r["metrics"] for r in results]
+        df = pd.DataFrame(metrics_list)
+        df_without_errored_req = df[df[common_metrics.ERROR_CODE].isna()]
+
+        # Calculate statistics for each metric (matching llmperf's metrics_summary)
+        ret = {}
+        for key in [
+            common_metrics.INTER_TOKEN_LAT,
+            common_metrics.TTFT,
+            common_metrics.E2E_LAT,
+            common_metrics.REQ_OUTPUT_THROUGHPUT,
+            common_metrics.NUM_INPUT_TOKENS,
+            common_metrics.NUM_OUTPUT_TOKENS,
+        ]:
+            ret[key] = {}
+            series = pd.Series(df_without_errored_req[key].tolist()).dropna()
+            if len(series) > 0:
+                quantiles = series.quantile(
+                    [0.25, 0.5, 0.75, 0.9, 0.95, 0.99]
+                ).to_dict()
+                quantiles_reformatted = {
+                    f"p{int(q * 100)}": v for q, v in quantiles.items()
+                }
+                ret[key]["quantiles"] = quantiles_reformatted
+                ret[key]["mean"] = series.mean()
+                ret[key]["min"] = series.min()
+                ret[key]["max"] = series.max()
+                ret[key]["stddev"] = series.std()
+            else:
+                ret[key]["quantiles"] = {}
+                ret[key]["mean"] = 0
+                ret[key]["min"] = 0
+                ret[key]["max"] = 0
+                ret[key]["stddev"] = 0
+
+        # Additional aggregate metrics (matching llmperf)
+        ret[common_metrics.NUM_REQ_STARTED] = len(metrics_list)
+
+        error_codes = df[common_metrics.ERROR_CODE].dropna()
+        num_errors = len(error_codes)
+        ret[common_metrics.ERROR_RATE] = (
+            num_errors / len(metrics_list) if len(metrics_list) else 0
         )
+        ret[common_metrics.NUM_ERRORS] = num_errors
+        ret[common_metrics.ERROR_CODE_FREQ] = (
+            str(dict(error_codes.value_counts())) if num_errors else "{}"
+        )
+
+        overall_output_throughput = (
+            df_without_errored_req[common_metrics.NUM_OUTPUT_TOKENS].sum() / total_time
+            if total_time > 0
+            else 0
+        )
+        ret[common_metrics.OUTPUT_THROUGHPUT] = overall_output_throughput
+
+        num_completed_requests = len(df_without_errored_req)
+        ret[common_metrics.NUM_COMPLETED_REQUESTS] = num_completed_requests
+        ret[common_metrics.COMPLETED_REQUESTS_PER_MIN] = (
+            num_completed_requests / total_time * 60 if total_time > 0 else 0
+        )
+
+        # Build metadata structure (matching llmperf's LLMPerfResults)
+        summary = {
+            "model": model,
+            "mean_input_tokens": mean_input,
+            "stddev_input_tokens": stddev_input,
+            "mean_output_tokens": mean_output,
+            "stddev_output_tokens": stddev_output,
+            "num_concurrent_requests": num_concurrent,
+            "results": ret,
+        }
+
+        # Flatten to produce keys like results_ttft_s_mean
+        flattened_summary = flatten_dict(summary)
+
+        # Convert numpy types to native Python types for JSON serialization
+        def convert_numpy(obj):
+            if hasattr(obj, "item"):  # numpy scalar
+                return obj.item()
+            return obj
+
+        flattened_summary = {k: convert_numpy(v) for k, v in flattened_summary.items()}
+
+        # Save summary (flattened format matching llmperf output)
+        summary_path = os.path.join(
+            results_dir, f"{model.replace('/', '_')}_summary.json"
+        )
+        with open(summary_path, "w") as f:
+            json.dump(flattened_summary, f, indent=2)
+
+        # Save individual results
+        individual_path = os.path.join(
+            results_dir, f"{model.replace('/', '_')}_individual.json"
+        )
+        with open(individual_path, "w") as f:
+            json.dump(
+                [
+                    {
+                        "ttft": r["metrics"].get(common_metrics.TTFT, 0),
+                        "e2e_latency": r["metrics"].get(common_metrics.E2E_LAT, 0),
+                        "output_throughput": r["metrics"].get(
+                            common_metrics.REQ_OUTPUT_THROUGHPUT, 0
+                        ),
+                        "output_tokens": r["metrics"].get(
+                            common_metrics.NUM_OUTPUT_TOKENS, 0
+                        ),
+                        "input_tokens": r["metrics"].get(
+                            common_metrics.NUM_INPUT_TOKENS, 0
+                        ),
+                        "error_code": r["metrics"].get(common_metrics.ERROR_CODE),
+                        "error_msg": r["metrics"].get(common_metrics.ERROR_MSG, ""),
+                    }
+                    for r in results
+                ],
+                f,
+                indent=2,
+            )
+
     except Exception as e:
-        # Fail fast if llmperf is not importable or runtime is missing
-        raise RuntimeError(f"llmperf runtime not available: {e}")
-
-    # Find the latest *_summary.json file emitted
-    summary_files = sorted(
-        glob.glob(os.path.join(results_dir, "*_summary.json")),
-        key=lambda p: os.path.getmtime(p),
-        reverse=True,
-    )
-    if not summary_files:
-        raise FileNotFoundError(f"No summary file produced in {results_dir}")
-
-    with open(summary_files[0], "r") as f:
-        summary = json.load(f)
+        raise RuntimeError(f"Benchmark failed: {e}")
 
     return {
         "success": True,
         "results_dir": results_dir,
-        "metrics": summary,
+        "metrics": flattened_summary,
     }
 
 

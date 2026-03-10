@@ -151,6 +151,10 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Prepare asqi_pkg for containers that need it
+        if: ${{ matrix.skip != true }}
+        run: scripts/prepare_asqi_pkg.sh "./${{ matrix.folder_type }}/${{ matrix.name }}"
+
       - name: Build image for ${{ matrix.name }} (${{ matrix.platform }})
         if: ${{ matrix.skip != true }}
         id: build
@@ -311,6 +315,9 @@ jobs:
             echo "Dockerfile not found for container '${{ steps.parse.outputs.name }}' in '${{ steps.parse.outputs.folder_type }}'" >&2
             exit 1
           fi
+
+      - name: Prepare asqi_pkg for containers that need it
+        run: scripts/prepare_asqi_pkg.sh "./${{ steps.parse.outputs.folder_type }}/${{ steps.parse.outputs.name }}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

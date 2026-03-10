@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+from typing import Any, Dict, Optional
+
+
+def get_openai_tracking_kwargs(
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Convert ASQI metadata into kwargs that can be splatted into OpenAI/LiteLLM calls.
+
+    Expected ASQI metadata format (from workflow):
+    {
+      "user_id": "<optional>",          # Top-level from metadata_config
+      "custom_field": "<optional>",     # Other top-level from metadata_config
+      "tags": {                          # Workflow tracking + metadata_config["tags"]
+        "job_id": "...",
+        "job_type": "...",
+        "parent_id": "...",
+        "experiment_id": "...",          # Example custom tag
+      }
+    }
+
+    Output (OpenAI/LiteLLM client kwargs):
+    {
+      "user": "<user_id>",                          # From metadata["user_id"]
+      "extra_body": {
+        "metadata": {
+          "tags": ["k:v", ...],                     # From metadata["tags"]
+          "custom_field": "..."                      # Other metadata keys
+        }
+      }
+    }
+    """
+    metadata = metadata or {}
+
+    user_id = metadata.get("user_id", "") or ""
+    tags_dict = metadata.get("tags", {}) or {}
+
+    # If tags is not a dict, fail safe (avoid crashing container)
+    if not isinstance(tags_dict, dict):
+        tags_dict = {"tags": str(tags_dict)}
+
+    # Convert tags dict into ["key:value", ...]
+    tags_list = []
+    for k, v in tags_dict.items():
+        if v is None:
+            continue
+        # Flatten values safely
+        if isinstance(v, (dict, list, tuple)):
+            v_str = str(v)
+        else:
+            v_str = str(v)
+        tags_list.append(f"{k}:{v_str}")
+
+    # Build extra_body.metadata with tags and any other metadata fields
+    extra_metadata = {"tags": tags_list}
+
+    # Add other top-level metadata fields to extra_body.metadata
+    reserved_keys = {"user_id", "tags"}
+    for key, value in metadata.items():
+        if key not in reserved_keys:
+            extra_metadata[key] = value
+
+    kwargs: Dict[str, Any] = {
+        "extra_body": {
+            "metadata": extra_metadata,
+        }
+    }
+    if user_id:
+        kwargs["user"] = user_id
+
+    return kwargs

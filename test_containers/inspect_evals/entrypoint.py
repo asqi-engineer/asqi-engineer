@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 from inspect_ai import eval
 from inspect_ai.log import read_eval_log
 
-
 EVALUATION_REGISTRY = {
     ## Coding
     # ❌ APPS
@@ -510,6 +509,44 @@ def main():
                 metrics = {}
                 total_samples = limit
 
+            # ---  Extract token usage metadata -------------------------------
+            metadata_info = {}
+
+            try:
+                stats = getattr(log, "stats", None)
+                if stats:
+                    model_usage_dict = getattr(stats, "model_usage", None)
+                    if model_usage_dict:
+                        usage_info = {}
+                        for model_name, usage in model_usage_dict.items():
+                            usage_data = {
+                                "input_tokens": getattr(usage, "input_tokens", 0),
+                                "output_tokens": getattr(usage, "output_tokens", 0),
+                                "total_tokens": getattr(usage, "total_tokens", 0),
+                            }
+                            # Add optional fields if present
+                            for field in [
+                                "input_tokens_cache_write",
+                                "input_tokens_cache_read",
+                                "reasoning_tokens",
+                            ]:
+                                value = getattr(usage, field, None)
+                                if value is not None:
+                                    usage_data[field] = value
+
+                            usage_info[model_name] = usage_data
+
+                        metadata_info["usage"] = usage_info
+                        print(
+                            f"DEBUG: Extracted usage info: {usage_info}",
+                            file=sys.stderr,
+                        )
+            except Exception as e:
+                print(f"DEBUG: Metadata extraction failed: {e}", file=sys.stderr)
+                import traceback
+
+                print(f"DEBUG: Traceback: {traceback.format_exc()}", file=sys.stderr)
+
             result = {
                 "success": True,
                 "evaluation": evaluation,
@@ -518,6 +555,7 @@ def main():
                 "model": model,
                 "metrics": metrics,
                 "log_dir": persistent_log_dir,
+                "metadata": metadata_info,
             }
 
             print(json.dumps(result, indent=2))
@@ -531,6 +569,7 @@ def main():
             "evaluation": "unknown",
             "total_samples": 0,
             "metrics": {},
+            "metadata": {},
         }
         print(json.dumps(error_result, indent=2))
         sys.exit(1)
@@ -546,6 +585,7 @@ def main():
             "evaluation": "unknown",
             "total_samples": 0,
             "metrics": {},
+            "metadata": {},
         }
         print(json.dumps(error_result, indent=2))
         sys.exit(1)

@@ -62,6 +62,74 @@ systems:
       # base_url and api_key will use fallbacks from .env
 ```
 
+#### Extended Reasoning and Thinking
+
+Some models support extended reasoning capabilities for complex problem-solving tasks. These capabilities are provided by models from Anthropic (Claude), OpenAI (GPT-5 series), Google (Gemini), and other providers.
+
+**Thinking Mode** - For models that support extended reasoning:
+
+```yaml
+systems:
+  # Claude Opus 4.6 with adaptive thinking (model decides when to use reasoning)
+  claude_opus_adaptive:
+    type: "llm_api"
+    description: "Claude Opus 4.6 with Adaptive Thinking"
+    provider: "anthropic"
+    params:
+      base_url: "http://localhost:4000/v1"
+      model: "claude-opus-4.6"
+      api_key: "sk-1234"
+      thinking:
+        type: "adaptive"  # Model decides when to use thinking
+
+  # Claude Sonnet 4.5 with enabled thinking (always uses reasoning with token budget)
+  claude_sonnet_with_thinking:
+    type: "llm_api"
+    description: "Claude Sonnet 4.5 with Extended Reasoning"
+    provider: "anthropic"
+    params:
+      base_url: "http://localhost:4000/v1"
+      model: "claude-sonnet-4.5"
+      api_key: "sk-1234"
+      thinking:
+        type: "enabled"
+        budget_tokens: 5000  # Required when type='enabled'
+```
+
+**Reasoning Effort** - For models that support reasoning effort levels:
+
+```yaml
+systems:
+  # GPT-5.1 with high reasoning effort
+  gpt51_reasoning:
+    type: "llm_api"
+    description: "GPT-5.1 with High Reasoning Effort"
+    provider: "openai"
+    params:
+      base_url: "http://localhost:4000/v1"
+      model: "gpt-5.1"
+      api_key: "sk-1234"
+      reasoning_effort: "high"  # Options: low, medium, high
+
+  # Gemini models also support reasoning effort
+  gemini_with_reasoning:
+    type: "llm_api"
+    description: "Google Gemini with Reasoning"
+    provider: "google"
+    params:
+      base_url: "http://localhost:4000/v1"
+      model: "gemini-2.0-flash"
+      api_key: "sk-1234"
+      reasoning_effort: "high"  # Options: low, medium, high
+```
+
+**Field Descriptions:**
+- `thinking.type`: Controls extended reasoning behavior (E.g. for Anthropic models)
+  - `"enabled"`: Always use extended reasoning (requires `budget_tokens`)
+  - `"adaptive"`: Let the model decide when to use reasoning
+- `thinking.budget_tokens`: Maximum tokens allowed for thinking (required when `type="enabled"`, min: 1)
+- `reasoning_effort`: Reasoning level for models supporting it (E.g. for OpenAI, Gemini models; e.g., "low", "medium", "high" - varies by provider)
+
 ### RAG API Systems
 
 `rag_api` systems extend the OpenAI chat response format with a specified response interface - see expected response schema below. Assuming an API has been configured with to support RAG functionality, you can define RAG systems as follows:
@@ -345,6 +413,24 @@ ASQI sends multimodal chat completion requests:
 #### Expected Response Schema
 
 VLMs return standard chat completion format with text responses.
+
+### Agent CLI Systems
+
+`agent_cli` systems support autonomous agents and coding frameworks that can be invoked via CLI or API.
+
+```yaml
+systems:
+  codex-oaic:
+    type: "agent_cli"
+    description: "Codex agent with OpenAI backend"
+    params:
+      provider: "codex"
+      model: "openai/gpt-4o-mini"
+      base_url: "https://api.openai.com/v1"
+      api_key: ${OPENAI_API_KEY}
+```
+
+Use in test suites by referencing the system in the `systems` field of a test.
 
 ### Environment Variable Handling
 

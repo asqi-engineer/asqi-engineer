@@ -1,0 +1,117 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_manifest.schema.json
+name: "hf_vision_tester"
+version: "1.0"
+description: "Object detection evaluation using HuggingFace Inference API"
+
+input_systems:
+  - name: "system_under_test"
+    type: "hf_inference_api"
+    required: true
+    description: "HuggingFace Inference API model for object detection"
+
+input_datasets:
+  - name: "evaluation_data"
+    type: "huggingface"
+    required: false
+    description: "Dataset with images and ground truth annotations"
+    features:
+      - name: "image"
+        feature_type: "Image"
+        required: true
+      - name: "objects"
+        feature_type: "Dict"
+        required: true
+        fields:
+          - name: "bbox"
+            feature_type: "List"
+            feature: "List"
+          - name: "category"
+            feature_type: "List"
+            feature: "int64"
+
+input_schema:
+  - name: "dataset_path"
+    type: "string"
+    required: false
+    default: "detection-datasets/coco"
+    description: "HuggingFace dataset path. Required if input_datasets not provided."
+  - name: "dataset_split"
+    type: "string"
+    required: false
+    default: "val"
+    description: "Dataset split to evaluate"
+  - name: "confidence_threshold"
+    type: "float"
+    required: false
+    default: 0.5
+    description: "Minimum confidence for detections (0.0-1.0)"
+  - name: "iou_threshold"
+    type: "float"
+    required: false
+    default: 0.5
+    description: "IoU threshold for matching predictions to ground truth (0.0-1.0)"
+  - name: "max_samples"
+    type: "integer"
+    required: false
+    description: "Maximum number of samples to evaluate. If not set, all samples in the dataset are evaluated."
+  - name: "label_map"
+    type: "object"
+    required: false
+    description: |
+      Mapping from category ID (integer) to label name (string).
+      Example: {"0": "person", "1": "bicycle", "2": "car"}
+      Can also be defined in the dataset config.
+  - name: "bbox_format"
+    type: "enum"
+    required: false
+    default: "xyxy"
+    choices: ["xyxy", "xywh"]
+    description: "Bounding box format. Can also be defined in the dataset config."
+
+output_metrics:
+  - name: "map"
+    type: "float"
+    description: "Mean Average Precision across IoU thresholds"
+  - name: "map_50"
+    type: "float"
+    description: "mAP at IoU=0.50"
+  - name: "map_75"
+    type: "float"
+    description: "mAP at IoU=0.75"
+  - name: "map_small"
+    type: "float"
+    description: "mAP for small objects"
+  - name: "map_medium"
+    type: "float"
+    description: "mAP for medium objects"
+  - name: "map_large"
+    type: "float"
+    description: "mAP for large objects"
+  - name: "mar_1"
+    type: "float"
+    description: "Mean Average Recall with 1 detection per image"
+  - name: "mar_10"
+    type: "float"
+    description: "Mean Average Recall with 10 detections per image"
+  - name: "mar_100"
+    type: "float"
+    description: "Mean Average Recall with 100 detections per image"
+  - name: "mar_small"
+    type: "float"
+    description: "Mean Average Recall for small objects"
+  - name: "mar_medium"
+    type: "float"
+    description: "Mean Average Recall for medium objects"
+  - name: "mar_large"
+    type: "float"
+    description: "Mean Average Recall for large objects"
+
+environment_variables:
+  - name: "HF_TOKEN"
+    required: false
+    description: "HuggingFace API token (optional if api_key provided in system params)"
+
+output_reports:
+  - name: "detection_report"
+    type: "html"
+    description: "Detection evaluation report with visualizations"
