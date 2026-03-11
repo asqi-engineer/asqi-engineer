@@ -125,6 +125,53 @@
       "title": "AgentCLIParams",
       "type": "object"
     },
+    "EmbeddingAPIConfig": {
+      "description": "Configuration for Embedding API systems.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+          "title": "Provider"
+        },
+        "type": {
+          "const": "embedding_api",
+          "description": "Embedding API system: embedding_api",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/LLMAPIParams",
+          "description": "Parameters specific to the Embedding API system (e.g., base url, model name, API key and env file)."
+        }
+      },
+      "required": [
+        "type",
+        "params"
+      ],
+      "title": "EmbeddingAPIConfig",
+      "type": "object"
+    },
     "GenericSystemConfig": {
       "description": "Generic system configuration for system types without specific validation.\n\nThis allows backward compatibility and support for system types that don't have dedicated config classes yet.",
       "properties": {
@@ -616,6 +663,9 @@
           },
           {
             "$ref": "#/$defs/AgentCLIConfig"
+          },
+          {
+            "$ref": "#/$defs/EmbeddingAPIConfig"
           },
           {
             "$ref": "#/$defs/GenericSystemConfig"

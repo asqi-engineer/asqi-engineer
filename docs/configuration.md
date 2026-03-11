@@ -432,6 +432,25 @@ systems:
 
 Use in test suites by referencing the system in the `systems` field of a test.
 
+### Embedding API Systems
+
+`embedding_api` systems support text embedding models using OpenAI-compatible APIs.
+
+```yaml
+systems:
+  # Direct provider configuration
+  openai_embeddings:
+    type: "embedding_api"
+    description: "OpenAI text-embedding-3-small"
+    provider: "openai"
+    params:
+      base_url: "https://api.openai.com/v1"
+      model: "text-embedding-3-small"
+      api_key: "sk-your-openai-key"
+```
+
+The `embedding_api` type uses the same `params` structure as `llm_api` (`base_url`, `model`, `api_key`, `env_file`). Use it for test containers that require an embedding model as a system. (e.g. for semantic similarity scoring or retrieval evaluation).
+
 ### Environment Variable Handling
 
 ASQI supports a three-level configuration hierarchy:

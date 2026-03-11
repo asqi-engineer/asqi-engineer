@@ -648,6 +648,22 @@ class LLMAPIConfig(SystemDefinition):
     )
 
 
+# Embedding API system
+
+
+class EmbeddingAPIConfig(SystemDefinition):
+    """Configuration for Embedding API systems."""
+
+    type: Literal["embedding_api"] = Field(
+        ...,
+        description="Embedding API system: embedding_api",
+    )
+    params: LLMAPIParams = Field(
+        ...,
+        description="Parameters specific to the Embedding API system (e.g., base url, model name, API key and env file).",
+    )
+
+
 # RAG API system
 
 
@@ -759,6 +775,7 @@ SystemConfig = Union[
     ImageEditingAPIConfig,
     VLMAPIConfig,
     AgentCLIConfig,
+    EmbeddingAPIConfig,
     GenericSystemConfig,
 ]
 
