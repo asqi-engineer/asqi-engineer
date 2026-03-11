@@ -32,7 +32,8 @@ jobs:
         run: |
           uv run pip-audit --ignore-vuln GHSA-4xh5-x5gv-qwph --ignore-vuln CVE-2026-0994 || {
             echo "=== ❌ Security vulnerabilities detected ==="
-            echo "  Run: uv lock --upgrade-package <package>"
+            echo "Run:"
+            echo "  uv lock --upgrade-package <package>"
             echo "Then commit the updated uv.lock file"
             echo ""
             echo "If the package cannot be upgraded, you can temporarily ignore it by adding:"
