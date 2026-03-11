@@ -1034,14 +1034,14 @@ class TestDuplicateManifestDetection:
             with open(systems_file, "w") as f:
                 yaml.dump({"systems": {}}, f)
 
-            # Two dirs named "duplicatie_container" at different depths -> same key
-            dir_a = os.path.join(manifests_dir, "sub1", "duplicatie_container")
-            dir_b = os.path.join(manifests_dir, "sub2", "duplicatie_container")
+            # Two dirs named "duplicate_container" at different depths -> same key
+            dir_a = os.path.join(manifests_dir, "sub1", "duplicate_container")
+            dir_b = os.path.join(manifests_dir, "sub2", "duplicate_container")
             os.makedirs(dir_a)
             os.makedirs(dir_b)
 
             manifest_data = {
-                "name": "duplicatie_container",
+                "name": "duplicate_container",
                 "version": "1.0",
                 "description": "Duplicate test manifest",
             }
