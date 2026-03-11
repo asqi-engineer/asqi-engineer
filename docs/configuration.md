@@ -449,7 +449,7 @@ systems:
       api_key: "sk-your-openai-key"
 ```
 
-The `embedding_api` type uses the same `params` structure as `llm_api` (`base_url`, `model`, `api_key`, `env_file`). Use it for test containers that require an embedding model as a system role (e.g. for semantic similarity scoring or retrieval evaluation).
+The `embedding_api` type uses the same `params` structure as `llm_api` (`base_url`, `model`, `api_key`, `env_file`). Use it for test containers that require an embedding model as a system. (e.g. for semantic similarity scoring or retrieval evaluation).
 
 ### Environment Variable Handling
 
