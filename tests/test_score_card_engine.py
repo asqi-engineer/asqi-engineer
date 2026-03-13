@@ -11,7 +11,11 @@ from asqi.schemas import (
     ScoreCardFilter,
     ScoreCardIndicator,
 )
-from asqi.score_card_engine import ScoreCardEngine, get_nested_value, parse_metric_path
+from asqi.score_card_engine import (
+    ScoreCardEngine,
+    get_nested_value,
+    parse_metric_path,
+)
 from asqi.workflow import TestExecutionResult
 
 
@@ -2189,3 +2193,314 @@ class TestCrossContainerExpressions:
                     ),
                 ],
             )
+
+
+class TestScoreCardEvaluationResultTestIds:
+    """Test ScoreCardEvaluationResult.test_ids field for single and multi-container indicators."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.engine = ScoreCardEngine()
+
+    def create_test_result(
+        self,
+        test_name: str,
+        test_id: str,
+        test_results: dict,
+        sut_name: str = "test_sut",
+    ) -> TestExecutionResult:
+        """Helper to create a TestExecutionResult for testing."""
+        result = TestExecutionResult(test_name, test_id, sut_name, "test_image")
+        result.test_results = test_results
+        result.success = True
+        return result
+
+    def test_evaluation_result_test_ids_single_container(self):
+        """
+        Verify test_ids field is populated correctly for single-container indicators.
+        """
+        result = self.create_test_result(
+            "accuracy_test", "accuracy_test", {"score": 0.9}
+        )
+
+        indicator = ScoreCardIndicator(
+            id="accuracy_only",
+            name="Accuracy Only",
+            apply_to=ScoreCardFilter(test_id="accuracy_test"),
+            metric="score",
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS", condition="greater_equal", threshold=0.85
+                ),
+            ],
+        )
+
+        eval_results = self.engine.evaluate_indicator([result], indicator)
+
+        assert len(eval_results) == 1
+        eval_result = eval_results[0]
+
+        # Verify test_ids field is populated correctly
+        assert eval_result.test_ids == ["accuracy_test"]
+        # Verify to_dict() includes test_ids
+        result_dict = eval_result.to_dict()
+        assert result_dict["test_ids"] == ["accuracy_test"]
+
+    def test_evaluation_result_test_ids_multi_container(self):
+        """
+        Verify test_ids field contains all containers for multi-container indicators.
+        """
+        result_accuracy = self.create_test_result(
+            "accuracy_test", "accuracy_test", {"score": 0.92}
+        )
+        result_robustness = self.create_test_result(
+            "robustness_test", "robustness_test", {"ood_accuracy": 0.78}
+        )
+
+        indicator = ScoreCardIndicator(
+            id="combined",
+            name="Combined",
+            apply_to=ScoreCardFilter(test_id=["accuracy_test", "robustness_test"]),
+            metric=MetricExpression(
+                expression="0.6 * acc + 0.4 * ood",
+                values={
+                    "acc": "accuracy_test::score",
+                    "ood": "robustness_test::ood_accuracy",
+                },
+            ),
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS", condition="greater_equal", threshold=0.80
+                ),
+            ],
+        )
+
+        eval_results = self.engine.evaluate_indicator(
+            [result_accuracy, result_robustness], indicator
+        )
+
+        assert len(eval_results) == 1
+        eval_result = eval_results[0]
+
+        # Verify test_ids contains all containers
+        assert eval_result.test_ids == ["accuracy_test", "robustness_test"]
+        # Verify to_dict() includes all containers
+        result_dict = eval_result.to_dict()
+        assert result_dict["test_ids"] == ["accuracy_test", "robustness_test"]
+
+
+class TestScoreCardFilterTestIdsProperty:
+    """Test ScoreCardFilter.test_ids property normalization."""
+
+    def test_test_ids_normalizes_single_string(self):
+        """Verify test_ids property converts single string to list."""
+        filter_obj = ScoreCardFilter(test_id="single_test")
+        assert filter_obj.test_ids == ["single_test"]
+        # Also verify the original field is unchanged
+        assert filter_obj.test_id == "single_test"
+
+    def test_test_ids_normalizes_list(self):
+        """Verify test_ids property returns list unchanged."""
+        filter_obj = ScoreCardFilter(test_id=["test_a", "test_b", "test_c"])
+        assert filter_obj.test_ids == ["test_a", "test_b", "test_c"]
+        # Also verify the original field is unchanged
+        assert filter_obj.test_id == ["test_a", "test_b", "test_c"]
+
+    def test_test_ids_empty_list(self):
+        """Verify test_ids handles empty list."""
+        filter_obj = ScoreCardFilter(test_id=[])
+        assert filter_obj.test_ids == []
+
+    def test_test_ids_consistency_in_indicator(self):
+        """Verify test_ids property works consistently when used in ScoreCardIndicator."""
+        indicator = ScoreCardIndicator(
+            id="test_indicator",
+            name="Test Indicator",
+            apply_to=ScoreCardFilter(test_id=["accuracy_test", "robustness_test"]),
+            metric="some_metric",
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS", condition="greater_equal", threshold=0.8
+                ),
+            ],
+        )
+
+        # Verify that test_ids works correctly on the apply_to filter
+        assert indicator.apply_to.test_ids == ["accuracy_test", "robustness_test"]
+
+
+class TestValidateScoreCardTestIdsMultiContainer:
+    """Test validate_scorecard_test_ids collects test_ids from multi-container indicators."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.engine = ScoreCardEngine()
+
+    def create_test_result(
+        self,
+        test_name: str,
+        test_id: str,
+        test_results: dict,
+        sut_name: str = "test_sut",
+    ) -> TestExecutionResult:
+        """Helper to create a TestExecutionResult for testing."""
+        result = TestExecutionResult(test_name, test_id, sut_name, "test_image")
+        result.test_results = test_results
+        result.success = True
+        return result
+
+    def test_validate_scorecard_extracts_multi_test_ids(self):
+        """
+        Verify validate_scorecard_test_ids correctly processes indicators
+        with multi-container apply_to.test_id lists without raising errors.
+        """
+        # Create test results for all containers
+        test_results = [
+            self.create_test_result("accuracy_test", "accuracy_test", {"score": 0.9}),
+            self.create_test_result(
+                "robustness_test", "robustness_test", {"ood_accuracy": 0.8}
+            ),
+        ]
+
+        scorecard = ScoreCard(
+            score_card_name="Test Score Card",
+            indicators=[
+                # Single-container indicator
+                ScoreCardIndicator(
+                    id="accuracy_only",
+                    name="Accuracy Only",
+                    apply_to=ScoreCardFilter(test_id="accuracy_test"),
+                    metric="score",
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.85
+                        ),
+                    ],
+                ),
+                # Multi-container indicator with list
+                ScoreCardIndicator(
+                    id="combined",
+                    name="Combined",
+                    apply_to=ScoreCardFilter(
+                        test_id=["accuracy_test", "robustness_test"]
+                    ),
+                    metric=MetricExpression(
+                        expression="0.6 * acc + 0.4 * ood",
+                        values={
+                            "acc": "accuracy_test::score",
+                            "ood": "robustness_test::ood_accuracy",
+                        },
+                    ),
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.80
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        # Should not raise - validation should pass for multi-container indicators
+        # when all required test_ids are present
+        self.engine.validate_scorecard_test_ids(test_results, scorecard)
+
+    def test_validate_scorecard_with_partial_multi_container_test_ids(self):
+        """
+        Verify validate_scorecard_test_ids succeeds when at least one test_id from
+        a multi-container indicator matches, even if others are missing.
+        Note: Per-SUT validation happens during evaluation (evaluate_indicator).
+        """
+        # Only have accuracy_test, missing robustness_test
+        test_results = [
+            self.create_test_result("accuracy_test", "accuracy_test", {"score": 0.9}),
+        ]
+
+        scorecard = ScoreCard(
+            score_card_name="Test Score Card",
+            indicators=[
+                ScoreCardIndicator(
+                    id="combined",
+                    name="Combined",
+                    apply_to=ScoreCardFilter(
+                        test_id=["accuracy_test", "robustness_test"]
+                    ),
+                    metric=MetricExpression(
+                        expression="0.6 * acc + 0.4 * ood",
+                        values={
+                            "acc": "accuracy_test::score",
+                            "ood": "robustness_test::ood_accuracy",
+                        },
+                    ),
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.80
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        # Should succeed - at least one test_id matches (accuracy_test)
+        # Per-SUT validation (missing containers) happens in evaluate_indicator
+        self.engine.validate_scorecard_test_ids(test_results, scorecard)
+
+    def test_validate_scorecard_handles_multi_container_deduplication(self):
+        """
+        Verify validate_scorecard_test_ids correctly handles multiple indicators
+        referencing the same multi-container set.
+        """
+        # Create test results for all containers
+        test_results = [
+            self.create_test_result("accuracy_test", "accuracy_test", {"score": 0.9}),
+            self.create_test_result(
+                "robustness_test", "robustness_test", {"ood_accuracy": 0.8}
+            ),
+            self.create_test_result("fairness_test", "fairness_test", {"bias": 0.85}),
+        ]
+
+        scorecard = ScoreCard(
+            score_card_name="Test Score Card",
+            indicators=[
+                ScoreCardIndicator(
+                    id="indicator1",
+                    name="Indicator 1",
+                    apply_to=ScoreCardFilter(
+                        test_id=["accuracy_test", "robustness_test"]
+                    ),
+                    metric=MetricExpression(
+                        expression="0.5 * acc + 0.5 * ood",
+                        values={
+                            "acc": "accuracy_test::score",
+                            "ood": "robustness_test::ood_accuracy",
+                        },
+                    ),
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.80
+                        ),
+                    ],
+                ),
+                ScoreCardIndicator(
+                    id="indicator2",
+                    name="Indicator 2",
+                    apply_to=ScoreCardFilter(
+                        test_id=["accuracy_test", "fairness_test"]
+                    ),
+                    metric=MetricExpression(
+                        expression="0.7 * acc + 0.3 * bias",
+                        values={
+                            "acc": "accuracy_test::score",
+                            "bias": "fairness_test::bias",
+                        },
+                    ),
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.80
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        # Should not raise - all test_ids from both indicators are present
+        self.engine.validate_scorecard_test_ids(test_results, scorecard)
