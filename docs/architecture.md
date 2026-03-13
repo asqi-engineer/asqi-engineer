@@ -49,6 +49,8 @@ ASQI Engineer is built around a modular, fault-tolerant architecture that enable
 ### Score Card Engine (`src/asqi/score_card_engine.py`)
 - **Individual Test Assessment**: Evaluates each test execution separately (no aggregation)
 - **System Type Filtering**: Filter test results by system type using `target_system_type` in indicators
+- **Metric Expressions**: Combine metrics using mathematical expressions (weighted averages, min/max, conditional logic)
+- **Cross-Container Metrics**: Reference metrics from multiple test containers using `container_id::metric_path` syntax
 - **Flexible Criteria**: Configurable assessment conditions and thresholds
 - **Multiple Outcomes**: Support for complex grading schemes (PASS/FAIL, A/B/C, custom outcomes)
 - **Metric Extraction**: Works with any field from test container JSON output
