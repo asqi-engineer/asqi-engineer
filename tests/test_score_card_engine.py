@@ -11,7 +11,11 @@ from asqi.schemas import (
     ScoreCardFilter,
     ScoreCardIndicator,
 )
-from asqi.score_card_engine import ScoreCardEngine, get_nested_value, parse_metric_path
+from asqi.score_card_engine import (
+    ScoreCardEngine,
+    get_nested_value,
+    parse_metric_path,
+)
 from asqi.workflow import TestExecutionResult
 
 
@@ -152,7 +156,7 @@ class TestscorecardEngine:
         result1 = evaluation_results[0]
         assert result1.indicator_id == "test_individual_success"
         assert result1.indicator_name == "Test individual success"
-        assert result1.test_id == "test1"
+        assert result1.test_ids[0] == "test1"
         assert result1.outcome == "PASS"
         assert result1.metric_value is True
         assert result1.error is None
@@ -161,7 +165,7 @@ class TestscorecardEngine:
         result2 = evaluation_results[1]
         assert result2.indicator_id == "test_individual_success"
         assert result2.indicator_name == "Test individual success"
-        assert result2.test_id == "test1"
+        assert result2.test_ids[0] == "test1"
         assert result2.outcome == "PASS"
         assert result2.metric_value is True
         assert result2.error is None
@@ -267,7 +271,7 @@ class TestscorecardEngine:
         for evaluation in result:
             assert "indicator_id" in evaluation
             assert "indicator_name" in evaluation
-            assert "test_id" in evaluation
+            assert "test_ids" in evaluation
             assert "sut_name" in evaluation
             assert "outcome" in evaluation
 
@@ -379,7 +383,7 @@ class TestscorecardEngine:
         assert len(results) == 1
         r = results[0]
         assert r.indicator_id == "config_easy"
-        assert r.test_id == "audit"
+        assert r.test_ids[0] == "audit"
         assert r.outcome is None
         assert r.error.startswith(
             "No audit responses provided for indicator_id 'config_easy'"
@@ -412,7 +416,7 @@ class TestscorecardEngine:
         assert len(results) == 1
         r = results[0]
         assert r.indicator_id == "config_easy"
-        assert r.test_id == "audit"
+        assert r.test_ids[0] == "audit"
         assert r.outcome is None
         assert r.error == "No audit response found for indicator_id 'config_easy'"
 
@@ -447,7 +451,7 @@ class TestscorecardEngine:
         assert len(results) == 1
         r = results[0]
         assert r.indicator_id == "config_easy"
-        assert r.test_id == "audit"
+        assert r.test_ids[0] == "audit"
         assert r.outcome == "C"
         assert r.notes == "a bit tricky but manageable"
         # description from the matching AuditAssessmentRule
@@ -485,7 +489,7 @@ class TestscorecardEngine:
         assert len(results) == 1
         r = results[0]
         assert r.indicator_id == "config_easy"
-        assert r.test_id == "audit"
+        assert r.test_ids[0] == "audit"
         assert r.outcome == "Z"  # The invalid outcome is still recorded
         assert r.error is not None
         assert "Invalid selected_outcome 'Z'" in r.error
@@ -1047,7 +1051,9 @@ class TestMetricExpressions:
         """Test that simple metric paths still work (backward compatibility)."""
         test_result = self.create_test_result("test1", "test_id_1", {"accuracy": 0.85})
 
-        value, error = self.engine.resolve_metric_or_expression(test_result, "accuracy")
+        value, error = self.engine.resolve_metric_or_expression(
+            [test_result], "accuracy"
+        )
 
         assert error is None
         assert value == 0.85
@@ -1066,7 +1072,7 @@ class TestMetricExpressions:
         )
 
         value, error = self.engine.resolve_metric_or_expression(
-            test_result, metric_expr
+            [test_result], metric_expr
         )
 
         assert error is None
@@ -1086,7 +1092,7 @@ class TestMetricExpressions:
         )
 
         value, error = self.engine.resolve_metric_or_expression(
-            test_result, metric_expr
+            [test_result], metric_expr
         )
 
         assert error is None
@@ -1106,7 +1112,7 @@ class TestMetricExpressions:
         )
 
         value, error = self.engine.resolve_metric_or_expression(
-            test_result, metric_expr
+            [test_result], metric_expr
         )
 
         assert error is None
@@ -1126,7 +1132,7 @@ class TestMetricExpressions:
         )
 
         value, error = self.engine.resolve_metric_or_expression(
-            test_result, metric_expr
+            [test_result], metric_expr
         )
 
         assert error is None
@@ -1146,7 +1152,7 @@ class TestMetricExpressions:
         )
 
         value, error = self.engine.resolve_metric_or_expression(
-            test_result, metric_expr
+            [test_result], metric_expr
         )
 
         assert error is None
@@ -1170,7 +1176,7 @@ class TestMetricExpressions:
         )
 
         value, error = self.engine.resolve_metric_or_expression(
-            test_result, metric_expr
+            [test_result], metric_expr
         )
 
         assert error is None
@@ -1186,7 +1192,7 @@ class TestMetricExpressions:
         )
 
         value, error = self.engine.resolve_metric_or_expression(
-            test_result, metric_expr
+            [test_result], metric_expr
         )
 
         assert value is None
@@ -1207,7 +1213,7 @@ class TestMetricExpressions:
         )
 
         value, error = self.engine.resolve_metric_or_expression(
-            test_result, metric_expr
+            [test_result], metric_expr
         )
 
         assert value is None
@@ -1226,7 +1232,7 @@ class TestMetricExpressions:
         )
 
         value, error = self.engine.resolve_metric_or_expression(
-            test_result, metric_expr
+            [test_result], metric_expr
         )
 
         assert value is None
@@ -1378,7 +1384,7 @@ class TestMetricExpressions:
         assert len(results) == 1
         r = results[0]
         assert r["indicator_id"] == "config_easy"
-        assert r["test_id"] == "audit"
+        assert r["test_ids"] == ["audit"]
         assert r["outcome"] == "B"
         assert r["audit_notes"] == "pretty simple"
         assert r["error"] is None
@@ -1445,13 +1451,13 @@ class TestMetricExpressions:
         audit_eval = next(r for r in results if r["indicator_id"] == "config_easy")
 
         # Metric indicator result
-        assert success_eval["test_id"] == "quality_test"
+        assert success_eval["test_ids"] == ["quality_test"]
         assert success_eval["outcome"] == "PASS"
         assert success_eval["metric_value"] is True
         assert success_eval["error"] is None
 
         # Audit indicator result
-        assert audit_eval["test_id"] == "audit"
+        assert audit_eval["test_ids"] == ["audit"]
         assert audit_eval["outcome"] == "C"
         assert audit_eval["audit_notes"] == "UI is a bit complex"
         assert audit_eval["description"] == "Medium"
@@ -1535,6 +1541,216 @@ class TestDisplayGeneratedReports:
         results = engine.evaluate_indicator([test_execution_result], indicator)
         # Only the valid_report should be included since it matches display_reports
         assert results[0].report_paths == ["/reports/valid_report.pdf"]
+
+    def test_explicit_display_reports_syntax(self):
+        """Test display_reports with explicit test_id::report_name syntax."""
+        engine = ScoreCardEngine()
+
+        # Create test results for two containers
+        accuracy_result = TestExecutionResult(
+            "accuracy_test", "accuracy_test", "sut", "accuracy-image:latest"
+        )
+        accuracy_result.test_results = {"score": 0.95}
+        accuracy_result.success = True
+        accuracy_result.generated_reports = [
+            GeneratedReport(
+                report_name="accuracy_report",
+                report_type="html",
+                report_path="/reports/accuracy_report.html",
+            ),
+            GeneratedReport(
+                report_name="quick_summary",
+                report_type="html",
+                report_path="/reports/accuracy_summary.html",
+            ),
+        ]
+
+        robustness_result = TestExecutionResult(
+            "robustness_test", "robustness_test", "sut", "robustness-image:latest"
+        )
+        robustness_result.test_results = {
+            "ood_detection_accuracy": 0.85,
+            "adversarial_robustness": 0.80,
+        }
+        robustness_result.success = True
+        robustness_result.generated_reports = [
+            GeneratedReport(
+                report_name="robustness_report",
+                report_type="html",
+                report_path="/reports/robustness_report.html",
+            ),
+            GeneratedReport(
+                report_name="quick_summary",
+                report_type="html",
+                report_path="/reports/robustness_summary.html",
+            ),
+        ]
+
+        # Create indicator with explicit syntax
+        indicator = ScoreCardIndicator(
+            id="multi_container_reports",
+            name="Multi-Container Reports",
+            apply_to=ScoreCardFilter(test_id=["accuracy_test", "robustness_test"]),
+            metric=MetricExpression(
+                expression="0.6 * acc + 0.4 * ood",
+                values={
+                    "acc": "accuracy_test::score",
+                    "ood": "robustness_test::ood_detection_accuracy",
+                },
+            ),
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="greater_equal", threshold=0.8)
+            ],
+            display_reports=[
+                "accuracy_test::accuracy_report",
+                "robustness_test::robustness_report",
+            ],
+        )
+
+        results = engine.evaluate_indicator(
+            [accuracy_result, robustness_result], indicator
+        )
+
+        assert len(results) == 1
+        assert results[0].outcome == "PASS"
+        # Should have reports from both containers
+        assert len(results[0].report_paths) == 2
+        assert "/reports/accuracy_report.html" in results[0].report_paths
+        assert "/reports/robustness_report.html" in results[0].report_paths
+
+    def test_mixed_display_reports_syntax(self):
+        """Test display_reports with mixed simple names and explicit syntax."""
+        engine = ScoreCardEngine()
+
+        # Both containers have quick_summary
+        accuracy_result = TestExecutionResult(
+            "accuracy_test", "accuracy_test", "sut", "accuracy-image:latest"
+        )
+        accuracy_result.test_results = {"score": 0.95}
+        accuracy_result.success = True
+        accuracy_result.generated_reports = [
+            GeneratedReport(
+                report_name="accuracy_report",
+                report_type="html",
+                report_path="/reports/accuracy_report.html",
+            ),
+            GeneratedReport(
+                report_name="quick_summary",
+                report_type="html",
+                report_path="/reports/accuracy_summary.html",
+            ),
+        ]
+
+        robustness_result = TestExecutionResult(
+            "robustness_test", "robustness_test", "sut", "robustness-image:latest"
+        )
+        robustness_result.test_results = {"ood_detection_accuracy": 0.85}
+        robustness_result.success = True
+        robustness_result.generated_reports = [
+            GeneratedReport(
+                report_name="robustness_report",
+                report_type="html",
+                report_path="/reports/robustness_report.html",
+            ),
+            GeneratedReport(
+                report_name="quick_summary",
+                report_type="html",
+                report_path="/reports/robustness_summary.html",
+            ),
+        ]
+
+        # Mixed: simple name (found in both) + explicit syntax (specific container)
+        indicator = ScoreCardIndicator(
+            id="mixed_reports",
+            name="Mixed Reports",
+            apply_to=ScoreCardFilter(test_id=["accuracy_test", "robustness_test"]),
+            metric=MetricExpression(
+                expression="0.6 * acc + 0.4 * ood",
+                values={
+                    "acc": "accuracy_test::score",
+                    "ood": "robustness_test::ood_detection_accuracy",
+                },
+            ),
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="greater_equal", threshold=0.8)
+            ],
+            display_reports=[
+                "quick_summary",  # Simple name - should match from both
+                "accuracy_test::accuracy_report",  # Explicit - only from accuracy
+            ],
+        )
+
+        results = engine.evaluate_indicator(
+            [accuracy_result, robustness_result], indicator
+        )
+
+        assert len(results) == 1
+        # Should have: accuracy_summary, robustness_summary, accuracy_report = 3 reports
+        assert len(results[0].report_paths) == 3
+        assert "/reports/accuracy_summary.html" in results[0].report_paths
+        assert "/reports/robustness_summary.html" in results[0].report_paths
+        assert "/reports/accuracy_report.html" in results[0].report_paths
+        assert "/reports/robustness_report.html" not in results[0].report_paths
+
+    def test_explicit_syntax_nonexistent_report(self):
+        """Test error handling when explicit syntax references non-existent report."""
+        engine = ScoreCardEngine()
+
+        accuracy_result = TestExecutionResult(
+            "accuracy_test", "accuracy_test", "sut", "accuracy-image:latest"
+        )
+        accuracy_result.test_results = {"score": 0.95}
+        accuracy_result.success = True
+        accuracy_result.generated_reports = [
+            GeneratedReport(
+                report_name="accuracy_report",
+                report_type="html",
+                report_path="/reports/accuracy_report.html",
+            ),
+        ]
+
+        robustness_result = TestExecutionResult(
+            "robustness_test", "robustness_test", "sut", "robustness-image:latest"
+        )
+        robustness_result.test_results = {"ood_detection_accuracy": 0.85}
+        robustness_result.success = True
+        robustness_result.generated_reports = [
+            GeneratedReport(
+                report_name="robustness_report",
+                report_type="html",
+                report_path="/reports/robustness_report.html",
+            ),
+        ]
+
+        # Request nonexistent report from robustness container
+        indicator = ScoreCardIndicator(
+            id="nonexistent_report",
+            name="Nonexistent Report",
+            apply_to=ScoreCardFilter(test_id=["accuracy_test", "robustness_test"]),
+            metric=MetricExpression(
+                expression="0.6 * acc + 0.4 * ood",
+                values={
+                    "acc": "accuracy_test::score",
+                    "ood": "robustness_test::ood_detection_accuracy",
+                },
+            ),
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="greater_equal", threshold=0.8)
+            ],
+            display_reports=[
+                "accuracy_test::accuracy_report",
+                "robustness_test::nonexistent_report",  # Doesn't exist
+            ],
+        )
+
+        results = engine.evaluate_indicator(
+            [accuracy_result, robustness_result], indicator
+        )
+
+        assert len(results) == 1
+        # Should only have the accuracy_report since robustness one doesn't exist
+        assert len(results[0].report_paths) == 1
+        assert "/reports/accuracy_report.html" in results[0].report_paths
 
 
 class TestScoreCardSystemTypeFiltering:
@@ -1759,3 +1975,532 @@ class TestScoreCardSystemTypeFiltering:
             in eval_results[0].error
         )
         assert "Available tests: test1" in eval_results[0].error
+
+
+class TestCrossContainerExpressions:
+    """Test cross-container metric expression support."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.engine = ScoreCardEngine()
+
+    def create_test_result(
+        self,
+        test_name: str,
+        test_id: str,
+        test_results: dict,
+        sut_name: str = "test_sut",
+    ) -> TestExecutionResult:
+        """Helper to create a TestExecutionResult for testing."""
+        result = TestExecutionResult(test_name, test_id, sut_name, "test_image")
+        result.test_results = test_results
+        result.success = True
+        return result
+
+    def test_resolve_cross_container_metric(self):
+        """Test resolving a metric from a different container."""
+        result_accuracy = self.create_test_result(
+            "accuracy_test", "accuracy_rag", {"pass_rate": 0.9}
+        )
+        result_robustness = self.create_test_result(
+            "robustness_test", "robustness_rag", {"ood_accuracy": 0.8}
+        )
+
+        metric_expr = MetricExpression(
+            expression="0.6 * acc + 0.4 * ood",
+            values={
+                "acc": "accuracy_rag::pass_rate",
+                "ood": "robustness_rag::ood_accuracy",
+            },
+        )
+
+        # Resolve from accuracy container, but with both containers available
+        value, error = self.engine.resolve_metric_or_expression(
+            [result_accuracy, result_robustness],
+            metric_expr,
+        )
+
+        assert error is None
+        assert value == pytest.approx(0.6 * 0.9 + 0.4 * 0.8)
+
+    def test_resolve_cross_container_metric_missing_container(self):
+        """Test error when referenced container is missing."""
+        result_accuracy = self.create_test_result(
+            "accuracy_test", "accuracy_rag", {"pass_rate": 0.9}
+        )
+
+        metric_expr = MetricExpression(
+            expression="0.6 * acc + 0.4 * ood",
+            values={
+                "acc": "accuracy_rag::pass_rate",
+                "ood": "robustness_rag::ood_accuracy",
+            },
+        )
+
+        # Only provide accuracy container, robustness is missing
+        value, error = self.engine.resolve_metric_or_expression(
+            [result_accuracy],
+            metric_expr,
+        )
+
+        assert error is not None
+        assert "No result found for test_id 'robustness_rag'" in error
+
+    def test_evaluate_indicator_multi_test_id(self):
+        """Test evaluating indicator with multiple test_ids."""
+        result_accuracy = self.create_test_result(
+            "accuracy_test",
+            "accuracy_rag",
+            {"hard_gate_pass_rate": 0.9},
+            sut_name="my_model",
+        )
+        result_robustness = self.create_test_result(
+            "robustness_test",
+            "robustness_rag",
+            {"ood_detection_accuracy": 0.8},
+            sut_name="my_model",
+        )
+
+        indicator = ScoreCardIndicator(
+            id="combined_score",
+            name="Combined Accuracy + Robustness",
+            apply_to=ScoreCardFilter(test_id=["accuracy_rag", "robustness_rag"]),
+            metric=MetricExpression(
+                expression="0.6 * acc + 0.4 * ood",
+                values={
+                    "acc": "accuracy_rag::hard_gate_pass_rate",
+                    "ood": "robustness_rag::ood_detection_accuracy",
+                },
+            ),
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS", condition="greater_equal", threshold=0.8
+                ),
+                AssessmentRule(outcome="FAIL", condition="less_than", threshold=0.8),
+            ],
+        )
+
+        eval_results = self.engine.evaluate_indicator(
+            [result_accuracy, result_robustness], indicator
+        )
+
+        assert len(eval_results) == 1
+        assert eval_results[0].error is None
+        assert eval_results[0].sut_name == "my_model"
+        expected_value = 0.6 * 0.9 + 0.4 * 0.8  # 0.86
+        assert eval_results[0].metric_value == pytest.approx(expected_value)
+        assert eval_results[0].outcome == "PASS"
+
+    def test_evaluate_indicator_multi_test_id_missing_container(self):
+        """Test error when SUT has results in one container but not another."""
+        result_accuracy = self.create_test_result(
+            "accuracy_test",
+            "accuracy_rag",
+            {"hard_gate_pass_rate": 0.9},
+            sut_name="my_model",
+        )
+        # robustness_rag is missing for my_model
+
+        indicator = ScoreCardIndicator(
+            id="combined_score",
+            name="Combined Accuracy + Robustness",
+            apply_to=ScoreCardFilter(test_id=["accuracy_rag", "robustness_rag"]),
+            metric=MetricExpression(
+                expression="0.6 * acc + 0.4 * ood",
+                values={
+                    "acc": "accuracy_rag::hard_gate_pass_rate",
+                    "ood": "robustness_rag::ood_detection_accuracy",
+                },
+            ),
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS", condition="greater_equal", threshold=0.8
+                ),
+            ],
+        )
+
+        eval_results = self.engine.evaluate_indicator([result_accuracy], indicator)
+
+        assert len(eval_results) == 1
+        assert eval_results[0].error is not None
+        assert "Missing test results for SUT 'my_model'" in eval_results[0].error
+        assert "robustness_rag" in eval_results[0].error
+
+    def test_cross_reference_rejected_with_single_test_id(self):
+        """Test that cross-container references with single test_id are rejected at validation time."""
+        from pydantic import ValidationError
+
+        # This is now caught when creating the indicator, not during evaluation
+        with pytest.raises(
+            ValidationError,
+            match="uses cross-container metric references.*apply_to.test_id is a single string",
+        ):
+            ScoreCardIndicator(
+                id="combined_score",
+                name="Combined Score",
+                apply_to=ScoreCardFilter(test_id="accuracy_rag"),
+                metric=MetricExpression(
+                    expression="0.6 * acc + 0.4 * ood",
+                    values={
+                        "acc": "accuracy_rag::pass_rate",
+                        "ood": "robustness_rag::ood_accuracy",  # Not allowed!
+                    },
+                ),
+                assessment=[
+                    AssessmentRule(
+                        outcome="PASS", condition="greater_than", threshold=0.75
+                    ),
+                ],
+            )
+
+    def test_metric_expression_validator_invalid_syntax(self):
+        """Test MetricExpression validator rejects invalid :: syntax."""
+        # Empty test_id before ::
+        with pytest.raises(ValueError, match="test_id before"):
+            MetricExpression(
+                expression="x",
+                values={"x": "::metric_path"},
+            )
+
+        # Empty metric path after ::
+        with pytest.raises(ValueError, match="metric path after"):
+            MetricExpression(
+                expression="x",
+                values={"x": "test_id::"},
+            )
+
+    def test_single_test_id_with_cross_reference_rejected(self):
+        """Test that cross-container references with single test_id are rejected at validation."""
+        # Cross-container refs are only allowed when test_id is a list
+        with pytest.raises(
+            ValueError,
+            match="uses cross-container metric references.*apply_to.test_id is a single string",
+        ):
+            ScoreCardIndicator(
+                id="cross_ref_score",
+                name="Cross Reference Score",
+                apply_to=ScoreCardFilter(test_id="primary_test"),  # Single test_id
+                metric=MetricExpression(
+                    expression="0.5 * primary + 0.5 * cross",
+                    values={
+                        "primary": "primary_metric",
+                        "cross": "cross_test::cross_metric",  # Not allowed!
+                    },
+                ),
+                assessment=[
+                    AssessmentRule(
+                        outcome="PASS", condition="greater_equal", threshold=0.8
+                    ),
+                ],
+            )
+
+
+class TestScoreCardEvaluationResultTestIds:
+    """Test ScoreCardEvaluationResult.test_ids field for single and multi-container indicators."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.engine = ScoreCardEngine()
+
+    def create_test_result(
+        self,
+        test_name: str,
+        test_id: str,
+        test_results: dict,
+        sut_name: str = "test_sut",
+    ) -> TestExecutionResult:
+        """Helper to create a TestExecutionResult for testing."""
+        result = TestExecutionResult(test_name, test_id, sut_name, "test_image")
+        result.test_results = test_results
+        result.success = True
+        return result
+
+    def test_evaluation_result_test_ids_single_container(self):
+        """
+        Verify test_ids field is populated correctly for single-container indicators.
+        """
+        result = self.create_test_result(
+            "accuracy_test", "accuracy_test", {"score": 0.9}
+        )
+
+        indicator = ScoreCardIndicator(
+            id="accuracy_only",
+            name="Accuracy Only",
+            apply_to=ScoreCardFilter(test_id="accuracy_test"),
+            metric="score",
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS", condition="greater_equal", threshold=0.85
+                ),
+            ],
+        )
+
+        eval_results = self.engine.evaluate_indicator([result], indicator)
+
+        assert len(eval_results) == 1
+        eval_result = eval_results[0]
+
+        # Verify test_ids field is populated correctly
+        assert eval_result.test_ids == ["accuracy_test"]
+        # Verify to_dict() includes test_ids
+        result_dict = eval_result.to_dict()
+        assert result_dict["test_ids"] == ["accuracy_test"]
+
+    def test_evaluation_result_test_ids_multi_container(self):
+        """
+        Verify test_ids field contains all containers for multi-container indicators.
+        """
+        result_accuracy = self.create_test_result(
+            "accuracy_test", "accuracy_test", {"score": 0.92}
+        )
+        result_robustness = self.create_test_result(
+            "robustness_test", "robustness_test", {"ood_accuracy": 0.78}
+        )
+
+        indicator = ScoreCardIndicator(
+            id="combined",
+            name="Combined",
+            apply_to=ScoreCardFilter(test_id=["accuracy_test", "robustness_test"]),
+            metric=MetricExpression(
+                expression="0.6 * acc + 0.4 * ood",
+                values={
+                    "acc": "accuracy_test::score",
+                    "ood": "robustness_test::ood_accuracy",
+                },
+            ),
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS", condition="greater_equal", threshold=0.80
+                ),
+            ],
+        )
+
+        eval_results = self.engine.evaluate_indicator(
+            [result_accuracy, result_robustness], indicator
+        )
+
+        assert len(eval_results) == 1
+        eval_result = eval_results[0]
+
+        # Verify test_ids contains all containers
+        assert eval_result.test_ids == ["accuracy_test", "robustness_test"]
+        # Verify to_dict() includes all containers
+        result_dict = eval_result.to_dict()
+        assert result_dict["test_ids"] == ["accuracy_test", "robustness_test"]
+
+
+class TestScoreCardFilterTestIdsProperty:
+    """Test ScoreCardFilter.test_ids property normalization."""
+
+    def test_test_ids_normalizes_single_string(self):
+        """Verify test_ids property converts single string to list."""
+        filter_obj = ScoreCardFilter(test_id="single_test")
+        assert filter_obj.test_ids == ["single_test"]
+        # Also verify the original field is unchanged
+        assert filter_obj.test_id == "single_test"
+
+    def test_test_ids_normalizes_list(self):
+        """Verify test_ids property returns list unchanged."""
+        filter_obj = ScoreCardFilter(test_id=["test_a", "test_b", "test_c"])
+        assert filter_obj.test_ids == ["test_a", "test_b", "test_c"]
+        # Also verify the original field is unchanged
+        assert filter_obj.test_id == ["test_a", "test_b", "test_c"]
+
+    def test_test_ids_empty_list(self):
+        """Verify test_ids handles empty list."""
+        filter_obj = ScoreCardFilter(test_id=[])
+        assert filter_obj.test_ids == []
+
+    def test_test_ids_consistency_in_indicator(self):
+        """Verify test_ids property works consistently when used in ScoreCardIndicator."""
+        indicator = ScoreCardIndicator(
+            id="test_indicator",
+            name="Test Indicator",
+            apply_to=ScoreCardFilter(test_id=["accuracy_test", "robustness_test"]),
+            metric="some_metric",
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS", condition="greater_equal", threshold=0.8
+                ),
+            ],
+        )
+
+        # Verify that test_ids works correctly on the apply_to filter
+        assert indicator.apply_to.test_ids == ["accuracy_test", "robustness_test"]
+
+
+class TestValidateScoreCardTestIdsMultiContainer:
+    """Test validate_scorecard_test_ids collects test_ids from multi-container indicators."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.engine = ScoreCardEngine()
+
+    def create_test_result(
+        self,
+        test_name: str,
+        test_id: str,
+        test_results: dict,
+        sut_name: str = "test_sut",
+    ) -> TestExecutionResult:
+        """Helper to create a TestExecutionResult for testing."""
+        result = TestExecutionResult(test_name, test_id, sut_name, "test_image")
+        result.test_results = test_results
+        result.success = True
+        return result
+
+    def test_validate_scorecard_extracts_multi_test_ids(self):
+        """
+        Verify validate_scorecard_test_ids correctly processes indicators
+        with multi-container apply_to.test_id lists without raising errors.
+        """
+        # Create test results for all containers
+        test_results = [
+            self.create_test_result("accuracy_test", "accuracy_test", {"score": 0.9}),
+            self.create_test_result(
+                "robustness_test", "robustness_test", {"ood_accuracy": 0.8}
+            ),
+        ]
+
+        scorecard = ScoreCard(
+            score_card_name="Test Score Card",
+            indicators=[
+                # Single-container indicator
+                ScoreCardIndicator(
+                    id="accuracy_only",
+                    name="Accuracy Only",
+                    apply_to=ScoreCardFilter(test_id="accuracy_test"),
+                    metric="score",
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.85
+                        ),
+                    ],
+                ),
+                # Multi-container indicator with list
+                ScoreCardIndicator(
+                    id="combined",
+                    name="Combined",
+                    apply_to=ScoreCardFilter(
+                        test_id=["accuracy_test", "robustness_test"]
+                    ),
+                    metric=MetricExpression(
+                        expression="0.6 * acc + 0.4 * ood",
+                        values={
+                            "acc": "accuracy_test::score",
+                            "ood": "robustness_test::ood_accuracy",
+                        },
+                    ),
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.80
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        # Should not raise - validation should pass for multi-container indicators
+        # when all required test_ids are present
+        self.engine.validate_scorecard_test_ids(test_results, scorecard)
+
+    def test_validate_scorecard_with_partial_multi_container_test_ids(self):
+        """
+        Verify validate_scorecard_test_ids succeeds when at least one test_id from
+        a multi-container indicator matches, even if others are missing.
+        Note: Per-SUT validation happens during evaluation (evaluate_indicator).
+        """
+        # Only have accuracy_test, missing robustness_test
+        test_results = [
+            self.create_test_result("accuracy_test", "accuracy_test", {"score": 0.9}),
+        ]
+
+        scorecard = ScoreCard(
+            score_card_name="Test Score Card",
+            indicators=[
+                ScoreCardIndicator(
+                    id="combined",
+                    name="Combined",
+                    apply_to=ScoreCardFilter(
+                        test_id=["accuracy_test", "robustness_test"]
+                    ),
+                    metric=MetricExpression(
+                        expression="0.6 * acc + 0.4 * ood",
+                        values={
+                            "acc": "accuracy_test::score",
+                            "ood": "robustness_test::ood_accuracy",
+                        },
+                    ),
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.80
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        # Should succeed - at least one test_id matches (accuracy_test)
+        # Per-SUT validation (missing containers) happens in evaluate_indicator
+        self.engine.validate_scorecard_test_ids(test_results, scorecard)
+
+    def test_validate_scorecard_handles_multi_container_deduplication(self):
+        """
+        Verify validate_scorecard_test_ids correctly handles multiple indicators
+        referencing the same multi-container set.
+        """
+        # Create test results for all containers
+        test_results = [
+            self.create_test_result("accuracy_test", "accuracy_test", {"score": 0.9}),
+            self.create_test_result(
+                "robustness_test", "robustness_test", {"ood_accuracy": 0.8}
+            ),
+            self.create_test_result("fairness_test", "fairness_test", {"bias": 0.85}),
+        ]
+
+        scorecard = ScoreCard(
+            score_card_name="Test Score Card",
+            indicators=[
+                ScoreCardIndicator(
+                    id="indicator1",
+                    name="Indicator 1",
+                    apply_to=ScoreCardFilter(
+                        test_id=["accuracy_test", "robustness_test"]
+                    ),
+                    metric=MetricExpression(
+                        expression="0.5 * acc + 0.5 * ood",
+                        values={
+                            "acc": "accuracy_test::score",
+                            "ood": "robustness_test::ood_accuracy",
+                        },
+                    ),
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.80
+                        ),
+                    ],
+                ),
+                ScoreCardIndicator(
+                    id="indicator2",
+                    name="Indicator 2",
+                    apply_to=ScoreCardFilter(
+                        test_id=["accuracy_test", "fairness_test"]
+                    ),
+                    metric=MetricExpression(
+                        expression="0.7 * acc + 0.3 * bias",
+                        values={
+                            "acc": "accuracy_test::score",
+                            "bias": "fairness_test::bias",
+                        },
+                    ),
+                    assessment=[
+                        AssessmentRule(
+                            outcome="PASS", condition="greater_equal", threshold=0.80
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        # Should not raise - all test_ids from both indicators are present
+        self.engine.validate_scorecard_test_ids(test_results, scorecard)

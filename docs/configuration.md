@@ -906,6 +906,52 @@ indicators:
 - Every report listed in `display_reports` exists in the container manifest (`output_reports`).
 - There are no duplicate report names in `display_reports`.
 
+#### Multi-Container Report Selection
+
+When an indicator references multiple test containers, you can specify which container's reports to display using explicit `test_id::report_name` syntax:
+
+```yaml
+indicators:
+  - id: "prompt_injection_qi_with_reports"
+    name: "Prompt Injection QI with Reports"
+    apply_to:
+      test_id:
+        - "garak_prompt_injection"
+        - "profanity_test"
+    display_reports:
+      - "garak_prompt_injection::quick_summary"      # From garak container
+      - "profanity_test::detailed_results"           # From profanity container
+    metric:
+      expression: "0.6 * injection_resistance + 0.4 * toxicity_resilience"
+      values:
+        injection_resistance: "garak_prompt_injection::score"
+        toxicity_resilience: "profanity_test::pass_rate"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 0.85 }
+      - { outcome: "B", condition: "greater_equal", threshold: 0.70 }
+      - { outcome: "F", condition: "less_than", threshold: 0.70 }
+```
+
+**Mixed Syntax (Simple Names + Explicit References):**
+
+You can combine simple report names (apply to all containers) with explicit container references:
+
+```yaml
+display_reports:
+  - "summary"                                  # From all containers that have it
+  - "garak_prompt_injection::detailed_analysis" # From garak container only
+  - "profanity_test::attack_results"           # From profanity container only
+```
+
+**Format:**
+- Simple name: `"report_name"` — resolves from all containers (backward compatible)
+- Explicit container: `"container_id::report_name"` — resolves from specific container
+
+**Behavior:**
+- Simple names are resolved from all referenced containers that declare that report
+- Explicit references must match the container ID in `apply_to.test_id`
+- Each report appears in the final output, even if multiple containers provide it
+
 ### Available Conditions
 
 - `equal_to`: Exact value matching (supports boolean and numeric)
@@ -1094,6 +1140,34 @@ expression: "0.95 if (risk < 0.1) else (0.75 if (risk < 0.3) else (0.5 if (risk 
 values:
   risk: "metrics.risk_score"
 ```
+
+### Cross-Container Metric Expressions
+
+Combine metrics from multiple test containers in a single indicator using the `test_id::metric_path` syntax. Specify multiple containers in `apply_to.test_id` as a list:
+
+```yaml
+indicators:
+  - id: "prompt_injection_qi"
+    name: "Prompt Injection Quality Index"
+    apply_to:
+      test_id:
+        - "garak_prompt_injection"
+        - "profanity_test"
+    metric:
+      expression: "0.6 * injection_resistance + 0.4 * toxicity_resilience"
+      values:
+        injection_resistance: "garak_prompt_injection::score"
+        toxicity_resilience: "profanity_test::pass_rate"
+    assessment:
+      - { outcome: "A", condition: "greater_equal", threshold: 0.85 }
+      - { outcome: "B", condition: "greater_equal", threshold: 0.70 }
+      - { outcome: "F", condition: "less_than", threshold: 0.70 }
+```
+
+**Key points:**
+- Use `test_id::metric_path` to reference metrics from specific containers (e.g., `garak_prompt_injection::score`)
+- All containers in `apply_to.test_id` must have results for a given system-under-test, or an error is produced
+- Backward compatible: existing single-container indicators and simple metric paths work unchanged
 
 ### Audit Indicators
 
