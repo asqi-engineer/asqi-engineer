@@ -908,27 +908,28 @@ indicators:
 
 #### Multi-Container Report Selection
 
-When an indicator references multiple test containers, you can specify which container's reports to display using explicit `container_id::report_name` syntax:
+When an indicator references multiple test containers, you can specify which container's reports to display using explicit `test_id::report_name` syntax:
 
 ```yaml
 indicators:
-  - id: "security_and_redteam"
-    name: "Security and Red Team Reports"
+  - id: "prompt_injection_qi_with_reports"
+    name: "Prompt Injection QI with Reports"
     apply_to:
       test_id:
-        - "garak_security"
-        - "deepteam_redteam"
+        - "garak_prompt_injection"
+        - "profanity_test"
     display_reports:
-      - "garak_security::quick_summary"      # From garak container
-      - "deepteam_redteam::detailed_results" # From deepteam container
+      - "garak_prompt_injection::quick_summary"      # From garak container
+      - "profanity_test::detailed_results"           # From profanity container
     metric:
-      expression: "0.6 * garak_score + 0.4 * redteam_score"
+      expression: "0.6 * injection_resistance + 0.4 * toxicity_resilience"
       values:
-        garak_score: "garak_security::score"
-        redteam_score: "deepteam_redteam::pass_rate"
+        injection_resistance: "garak_prompt_injection::score"
+        toxicity_resilience: "profanity_test::pass_rate"
     assessment:
-      - { outcome: "SECURE", condition: "greater_equal", threshold: 0.75 }
-      - { outcome: "VULNERABLE", condition: "less_than", threshold: 0.75 }
+      - { outcome: "A", condition: "greater_equal", threshold: 0.85 }
+      - { outcome: "B", condition: "greater_equal", threshold: 0.70 }
+      - { outcome: "F", condition: "less_than", threshold: 0.70 }
 ```
 
 **Mixed Syntax (Simple Names + Explicit References):**
@@ -937,9 +938,9 @@ You can combine simple report names (apply to all containers) with explicit cont
 
 ```yaml
 display_reports:
-  - "summary"                           # From all containers that have it
-  - "garak_security::detailed_analysis" # From specific container
-  - "deepteam_redteam::attack_results"  # From specific container
+  - "summary"                                  # From all containers that have it
+  - "garak_prompt_injection::detailed_analysis" # From garak container only
+  - "profanity_test::attack_results"           # From profanity container only
 ```
 
 **Format:**
