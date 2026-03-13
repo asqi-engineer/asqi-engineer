@@ -2,13 +2,45 @@ systems:
   # --- Codex (OpenAI-compatible endpoint) ---
   # OPENAI_BASE_URL = <OAI compatible endpoint>
   # OPENAI_API_KEY = <API key>
-  codex-oaic:
+  codex-oaic-gpt-5-mini:
     type: "agent_cli"
     params:
       provider: "codex"
-      model: "openai/gpt-4o-mini"
+      model: "openai/gpt-5-mini"
       base_url: "https://api.openai.com/v1"
       api_key: ${OPENAI_API_KEY}
+      env_file: .env
+
+  codex-oaic-gpt-5.1-high:
+    type: "agent_cli"
+    params:
+      provider: "codex"
+      model: "openai/gpt-5.1"
+      base_url: "https://api.openai.com/v1"
+      api_key: ${OPENAI_API_KEY}
+      env_file: .env
+      reasoning_effort: "high"
+      
+  aider-oaic-gpt-5-mini:
+      type: "agent_cli"
+      params:
+        provider: "aider" 
+        model: "openai/gpt-5-mini"
+        base_url: "https://api.openai.com/v1"
+        api_key: ${OPENAI_API_KEY}
+        env_file: .env
+
+  # claude-code-opus-4-5-thinking:
+  #   type: "agent_cli"
+  #   params:
+  #     provider: "claude-code"
+  #     model: "anthropic/claude-opus-4-5"
+  #     base_url: "https://api.anthropic.com"
+  #     api_key: ${ANTHROPIC_API_KEY}
+  #     env_file: .env
+  #     thinking: {
+  #       type: "enabled", budget_tokens: 8000
+  #     }
 
   # --- Qwen Coder (OpenAI-compatible endpoint) ---
   # OPENAI_BASE_URL = <OAI compatible endpoint>
@@ -35,19 +67,4 @@ systems:
   #   params:
   #     provider: "goose" 
   #     model: "openai/gpt-4o-mini"
-  #     api_key: ${OPENAI_API_KEY}
-
-  # # https://aider.chat/docs/llms.html
-  # aider-oaic:
-  #   type: "agent_cli"
-  #   params:
-  #     provider: "aider" 
-  #     model: "openai/gpt-4o-mini"
-  #     api_key: ${OPENAI_API_KEY}
-
-  # cline-oaic:
-  #   type: "agent_cli"
-  #   params:
-  #     provider: "cline-cli" 
-  #     model: "openai:gpt-4o-mini"
   #     api_key: ${OPENAI_API_KEY}
