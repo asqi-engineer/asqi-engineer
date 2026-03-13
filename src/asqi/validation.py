@@ -1241,23 +1241,40 @@ def validate_indicator_display_reports(
         for indicator in score_card.indicators:
             if isinstance(indicator, AuditScoreCardIndicator):
                 continue
-            test_id = indicator.apply_to.test_id
-            if test_id not in test_id_to_image:
-                errors.append(
-                    f"Indicator id '{indicator.id}': Referenced test id '{test_id}' does not exist in the test"
-                )
-                continue
-            image = test_id_to_image[test_id]
-            manifest = manifests.get(image)
-            if not manifest:
-                errors.append(
-                    f"Indicator id '{indicator.id}': No manifest found for image '{image}' (test '{test_id}')"
-                )
+            test_ids = (
+                indicator.apply_to.test_ids
+            )  # Get as list (property handles both str and list)
+
+            # Check that all referenced test_ids exist in test_id_to_image
+            for test_id in test_ids:
+                if test_id not in test_id_to_image:
+                    errors.append(
+                        f"Indicator id '{indicator.id}': Referenced test id '{test_id}' does not exist in the test suite"
+                    )
+                    continue
+
+            # Build a map of test_id -> available reports for validation
+            test_id_to_reports = {}
+            all_available_reports = set()
+            for test_id in test_ids:
+                if test_id not in test_id_to_image:
+                    # Error already reported above, skip this test_id
+                    continue
+                image = test_id_to_image[test_id]
+                manifest = manifests.get(image)
+                if not manifest:
+                    errors.append(
+                        f"Indicator id '{indicator.id}': No manifest found for image '{image}' (test '{test_id}')"
+                    )
+                    continue
+                reports = {report.name for report in (manifest.output_reports or [])}
+                test_id_to_reports[test_id] = reports
+                all_available_reports.update(reports)
+
+            # Skip report validation if no manifests were found (error already reported above)
+            if not test_id_to_reports:
                 continue
 
-            available_reports = {
-                report.name for report in (manifest.output_reports or [])
-            }
             # Check for duplicate report names in display_reports
             reports_set = set()
             for report_name in indicator.display_reports:
@@ -1267,12 +1284,36 @@ def validate_indicator_display_reports(
                     )
                 reports_set.add(report_name)
 
-            # Validate that the reports are declared in the test container manifest
+            # Validate that the reports are declared in at least one of the test container manifests
             for requested_report in indicator.display_reports:
-                if requested_report not in available_reports:
-                    errors.append(
-                        f"Indicator id '{indicator.id}': Requested display_report '{requested_report}' from test '{test_id}' not found with an exact case sensitive match. Manifest for image '{image}' only defines: {sorted(list(available_reports)) if available_reports else 'none'}"
-                    )
+                if "::" in requested_report:
+                    # Explicit test_id::report_name format
+                    req_test_id, req_report_name = requested_report.split("::", 1)
+                    if req_test_id not in test_id_to_reports:
+                        errors.append(
+                            f"Indicator id '{indicator.id}': Referenced test_id '{req_test_id}' in display_report '{requested_report}' does not exist in apply_to.test_id"
+                        )
+                    elif req_report_name not in test_id_to_reports[req_test_id]:
+                        available = (
+                            sorted(list(test_id_to_reports[req_test_id]))
+                            if test_id_to_reports[req_test_id]
+                            else "none"
+                        )
+                        errors.append(
+                            f"Indicator id '{indicator.id}': Requested display_report '{req_report_name}' not found in test '{req_test_id}'. Available reports: {available}"
+                        )
+                else:
+                    # Simple report name (backward compatible)
+                    if requested_report not in all_available_reports:
+                        container_list = ", ".join(test_ids)
+                        all_reports_list = (
+                            sorted(list(all_available_reports))
+                            if all_available_reports
+                            else "none"
+                        )
+                        errors.append(
+                            f"Indicator id '{indicator.id}': Requested display_report '{requested_report}' not found in any containers [{container_list}]. Available reports: {all_reports_list}"
+                        )
 
     return errors
 
