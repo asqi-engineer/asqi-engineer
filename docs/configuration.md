@@ -906,6 +906,51 @@ indicators:
 - Every report listed in `display_reports` exists in the container manifest (`output_reports`).
 - There are no duplicate report names in `display_reports`.
 
+#### Multi-Container Report Selection
+
+When an indicator references multiple test containers, you can specify which container's reports to display using explicit `container_id::report_name` syntax:
+
+```yaml
+indicators:
+  - id: "security_and_redteam"
+    name: "Security and Red Team Reports"
+    apply_to:
+      test_id:
+        - "garak_security"
+        - "deepteam_redteam"
+    display_reports:
+      - "garak_security::quick_summary"      # From garak container
+      - "deepteam_redteam::detailed_results" # From deepteam container
+    metric:
+      expression: "0.6 * garak_score + 0.4 * redteam_score"
+      values:
+        garak_score: "garak_security::score"
+        redteam_score: "deepteam_redteam::pass_rate"
+    assessment:
+      - { outcome: "SECURE", condition: "greater_equal", threshold: 0.75 }
+      - { outcome: "VULNERABLE", condition: "less_than", threshold: 0.75 }
+```
+
+**Mixed Syntax (Simple Names + Explicit References):**
+
+You can combine simple report names (apply to all containers) with explicit container references:
+
+```yaml
+display_reports:
+  - "summary"                           # From all containers that have it
+  - "garak_security::detailed_analysis" # From specific container
+  - "deepteam_redteam::attack_results"  # From specific container
+```
+
+**Format:**
+- Simple name: `"report_name"` — resolves from all containers (backward compatible)
+- Explicit container: `"container_id::report_name"` — resolves from specific container
+
+**Behavior:**
+- Simple names are resolved from all referenced containers that declare that report
+- Explicit references must match the container ID in `apply_to.test_id`
+- Each report appears in the final output, even if multiple containers provide it
+
 ### Available Conditions
 
 - `equal_to`: Exact value matching (supports boolean and numeric)
@@ -1094,6 +1139,33 @@ expression: "0.95 if (risk < 0.1) else (0.75 if (risk < 0.3) else (0.5 if (risk 
 values:
   risk: "metrics.risk_score"
 ```
+
+### Cross-Container Metric Expressions
+
+Combine metrics from multiple test containers in a single indicator using the `test_id::metric_path` syntax. Specify multiple containers in `apply_to.test_id` as a list:
+
+```yaml
+indicators:
+  - id: "combined_security_assessment"
+    name: "Combined Security Assessment"
+    apply_to:
+      test_id:
+        - "garak_security"
+        - "deepteam_redteam"
+    metric:
+      expression: "0.6 * injection + 0.4 * resilience"
+      values:
+        injection: "garak_security::score"
+        resilience: "deepteam_redteam::pass_rate"
+    assessment:
+      - { outcome: "SECURE", condition: "greater_equal", threshold: 0.8 }
+      - { outcome: "VULNERABLE", condition: "less_than", threshold: 0.8 }
+```
+
+**Key points:**
+- Use `container_id::metric_path` to reference metrics from specific containers (e.g., `garak_security::score`)
+- All containers in `apply_to.test_id` must have results for a given system-under-test, or an error is produced
+- Backward compatible: existing single-container indicators and simple metric paths work unchanged
 
 ### Audit Indicators
 
