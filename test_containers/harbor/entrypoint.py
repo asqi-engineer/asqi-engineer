@@ -558,7 +558,7 @@ def run_harbor(sut_params, test_params):
     thinking_enabled = thinking_params.get("enabled", False)
     if thinking_enabled:
         max_thinking_tokens = thinking_params.get("budget_tokens", 2048)
-    else: 
+    else:
         max_thinking_tokens = 0  # Disable thinking if not enabled
 
     if not provider:
@@ -594,13 +594,13 @@ def run_harbor(sut_params, test_params):
         "--n-concurrent",
         str(concurrency),
         "--ak",
-        f"reasoning_effort={reasoning_effort}" # Harbor framework uses this reasoning_effort parameter to adjust agent thinking time and budget according to the specified level (e.g., low, medium, high, across CLI agents that support it)
+        f"reasoning_effort={reasoning_effort}",  # Harbor framework uses this reasoning_effort parameter to adjust agent thinking time and budget according to the specified level (e.g., low, medium, high, across CLI agents that support it)
     ]
 
     # Harbor framework uses these provider-specific thinking parameters as additional --ak flags
-    if provider=='claude-code' and max_thinking_tokens > 0:
+    if provider == "claude-code" and max_thinking_tokens > 0:
         harbor_cmd.extend(["--ak", f"max_thinking_tokens={max_thinking_tokens}"])
-    elif provider=="aider" and max_thinking_tokens > 0:
+    elif provider == "aider" and max_thinking_tokens > 0:
         harbor_cmd.extend(["--ak", f"thinking_tokens={max_thinking_tokens}"])
 
     # Add task(s)
