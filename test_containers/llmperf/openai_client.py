@@ -62,7 +62,7 @@ class OpenAISDKClient(LLMClient):
         if not key:
             raise ValueError("the environment variable OPENAI_API_KEY must be set.")
 
-        # Build request kwargs - filter out metadata/user from sampling_params -
+        # Build request kwargs - filter out metadata/user from sampling_params
         # since we handle them separately via tracking_kwargs
         filtered_sampling = {
             k: v for k, v in sampling_params.items() if k not in ("metadata", "user")
