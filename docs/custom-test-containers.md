@@ -159,6 +159,18 @@ ASQI supports rich parameter types for sophisticated test configurations:
         choices: ["low", "medium", "high"]
 ```
 
+**UI Configuration** - Optional hints for UI rendering:
+```yaml
+- name: "is_preview"
+  type: "boolean"
+  required: true
+  description: "If true, generates only 5 questions for quick testing."
+  ui_config:
+    advanced: false
+```
+
+The `ui_config` field accepts any key-value pairs and is not validated — use it to pass arbitrary metadata to UI consumers.
+
 **Complete Example:**
 ```yaml
 input_schema:
@@ -173,6 +185,8 @@ input_schema:
       - name: "max_iterations"
         type: "integer"
         default: 10
+        ui_config:
+          advanced: true
       - name: "attack_types"
         type: "list"
         items: "string"
