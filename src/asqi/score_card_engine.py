@@ -917,7 +917,6 @@ class ScoreCardEngine:
                             test_ids=["audit"],
                         )
                         eval_result.sut_name = resp.sut_name
-                        eval_result.test_result_id = None
                         eval_result.metric_value = None
                         eval_result.computed_value = None
                         eval_result.details = "Manual audit indicator response"
@@ -957,7 +956,6 @@ class ScoreCardEngine:
                 test_ids=["audit"],
             )
             eval_result.sut_name = resp.sut_name
-            eval_result.test_result_id = None
             eval_result.metric_value = None
             eval_result.computed_value = None
             eval_result.details = "Manual audit indicator response"
