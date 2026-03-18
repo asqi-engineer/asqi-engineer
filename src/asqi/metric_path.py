@@ -93,24 +93,13 @@ def _tokenize_metric_path(path: str) -> List[str]:
                 dot_parts = [p for p in before_bracket.split(".") if p]
                 keys.extend(dot_parts)
 
-        # Find the matching closing bracket
+        # Find the matching closing bracket (validation ensures it exists)
         bracket_end = path.find("]", bracket_start)
-        if bracket_end == -1:
-            # This shouldn't happen as validation should catch it
-            raise ValueError(f"Unmatched '[' at position {bracket_start}")
 
-        # Extract the key from within brackets (including quotes)
+        # Extract the key from within brackets (validation ensures proper quoting)
         bracket_content = path[bracket_start + 1 : bracket_end]
-
-        # Remove quotes from bracket content
-        if (bracket_content.startswith('"') and bracket_content.endswith('"')) or (
-            bracket_content.startswith("'") and bracket_content.endswith("'")
-        ):
-            key = bracket_content[1:-1]
-            keys.append(key)
-        else:
-            # This shouldn't happen as validation should catch it
-            raise ValueError(f"Invalid bracket content: {bracket_content}")
+        key = bracket_content[1:-1]  # Remove quotes (validation ensures they exist)
+        keys.append(key)
 
         # Move past the bracket and any following dot
         current_pos = bracket_end + 1

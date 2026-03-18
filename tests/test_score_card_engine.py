@@ -193,13 +193,39 @@ class TestscorecardEngine:
         assert result is True  # False is falsy, so any_false returns True
         assert "falsy" in desc
 
+    def test_apply_condition_equal_to_numeric_type_conversion(self):
+        """Test equal_to condition with numeric type conversion (lines 489-493)."""
+        # String numbers converted to float
+        result, desc = self.engine.apply_condition_to_value("0.8", "equal_to", "0.8")
+        assert result is True
+        assert "equals" in desc
+
+        # Different string numbers
+        result, desc = self.engine.apply_condition_to_value("0.7", "equal_to", "0.8")
+        assert result is False
+
+    def test_apply_condition_equal_to_non_numeric_fallback(self):
+        """Test equal_to condition with non-numeric fallback (lines 497-499)."""
+        # Non-numeric string values
+        result, desc = self.engine.apply_condition_to_value(
+            "passed", "equal_to", "passed"
+        )
+        assert result is True
+        assert "equals" in desc
+
+        # Non-numeric different values
+        result, desc = self.engine.apply_condition_to_value(
+            "failed", "equal_to", "passed"
+        )
+        assert result is False
+
     def test_extract_metric_values_edge_cases(self):
         """Test extract_metric_values with edge cases (empty, missing data, missing keys)."""
         # Empty list
         values = self.engine.extract_metric_values([], "some_metric")
         assert values == []
 
-        # No test_results data
+        # No test_results data (triggers if block at line 338-342)
         result = self.create_test_result("test", "test_id", "image", {})
         result.test_results = None
         values = self.engine.extract_metric_values([result], "metric")
@@ -211,6 +237,19 @@ class TestscorecardEngine:
         )
         values = self.engine.extract_metric_values([result], "missing_key")
         assert values == []
+
+    def test_extract_metric_values_unexpected_exception(self):
+        """Test extract_metric_values exception handling (lines 354-357)."""
+        result = self.create_test_result("test", "test_id", "image", {"score": 0.9})
+
+        # Mock get_nested_value to raise an exception
+        from unittest.mock import patch
+
+        with patch("asqi.score_card_engine.get_nested_value") as mock_get:
+            mock_get.side_effect = RuntimeError("Unexpected error")
+            values = self.engine.extract_metric_values([result], "score")
+            # Should return empty list and log warning instead of raising
+            assert values == []
 
     def test_evaluate_indicator_failure(self):
         """Test indicator evaluation with failures."""
@@ -883,6 +922,10 @@ class TestNestedMetricAccess:
         assert parse_metric_path(".success") == ["success"]
         assert parse_metric_path("success.") == ["success"]
 
+        # Dot before bracket (removes trailing dot before bracket notation)
+        assert parse_metric_path('a.["b"]') == ["a", "b"]
+        assert parse_metric_path('stats.["pass_rate"]') == ["stats", "pass_rate"]
+
         # Keys with special characters in brackets
         assert parse_metric_path('data["key-with-dashes"]') == [
             "data",
@@ -1523,6 +1566,23 @@ class TestMetricExpressions:
         assert value is None
         assert "No test results provided" in error
 
+    def test_resolve_metric_expression_exception(self):
+        """Test resolve_metric_or_expression handles unexpected exceptions (line 455-456)."""
+        result = self.create_test_result("test", "test_id", {"a": 0.8})
+
+        # Use a cross-container reference to non-existent SUT to trigger exception path
+        metric_expr = MetricExpression(
+            expression="a + b",
+            values={
+                "a": "a",
+                "b": "other_container::metric",  # This will cause an exception during cross-container lookup
+            },
+        )
+        value, error = self.engine.resolve_metric_or_expression([result], metric_expr)
+        assert value is None
+        # Should get an error from missing cross-container result
+        assert error is not None
+
     def test_evaluate_indicator_assessment_rule_exception(self):
         """Test that exception in assessment rule evaluation is caught and logged."""
         # Set score to a complex object that can't be compared
@@ -1572,6 +1632,63 @@ class TestMetricExpressions:
         assert len(eval_results) == 1
         assert eval_results[0].error == "No assessment rule conditions were satisfied"
         assert eval_results[0].outcome is None
+
+    def test_evaluate_indicator_metric_extraction_error(self):
+        """Test error when metric extraction fails (line 738)."""
+        result = self.create_test_result("test", "test_id", {"score": 0.9})
+
+        indicator = ScoreCardIndicator(
+            id="missing_metric",
+            name="Missing Metric",
+            apply_to=ScoreCardFilter(test_id="test_id"),
+            metric="nonexistent_metric",  # This metric doesn't exist
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS",
+                    condition="greater_equal",
+                    threshold=0.5,
+                ),
+            ],
+        )
+
+        eval_results = self.engine.evaluate_indicator([result], indicator)
+        assert len(eval_results) == 1
+        assert eval_results[0].error is not None
+        assert "Failed to extract metric" in eval_results[0].error
+
+    def test_evaluate_indicator_general_exception(self):
+        """Test general exception handling in indicator evaluation (lines 740-744)."""
+        # Create a test result but with a problematic indicator that will cause an exception
+        result = self.create_test_result("test", "test_id", {"score": 0.9})
+
+        indicator = ScoreCardIndicator(
+            id="exception_test",
+            name="Exception Test",
+            apply_to=ScoreCardFilter(test_id="test_id"),
+            metric="score",
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS",
+                    condition="greater_equal",
+                    threshold=0.5,
+                ),
+            ],
+        )
+
+        # Mock the resolve_metric_or_expression to raise an unexpected exception
+        original_resolve = self.engine.resolve_metric_or_expression
+
+        def mock_resolve(*args, **kwargs):
+            raise RuntimeError("Unexpected error in metric resolution")
+
+        self.engine.resolve_metric_or_expression = mock_resolve
+        try:
+            eval_results = self.engine.evaluate_indicator([result], indicator)
+            assert len(eval_results) == 1
+            assert eval_results[0].error == "Unexpected error in metric resolution"
+        finally:
+            # Restore original method
+            self.engine.resolve_metric_or_expression = original_resolve
 
 
 class TestDisplayGeneratedReports:
