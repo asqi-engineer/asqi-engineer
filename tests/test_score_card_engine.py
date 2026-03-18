@@ -844,42 +844,34 @@ class TestNestedMetricAccess:
         ]
 
     def test_parse_metric_path_invalid(self):
-        """Test error handling for invalid paths."""
-        try:
+        """Test error handling for invalid paths with comprehensive ValueError coverage."""
+        # Empty path
+        with pytest.raises(ValueError, match="cannot be empty"):
             parse_metric_path("")
-            assert False, "Should have raised ValueError for empty path"
-        except ValueError as e:
-            assert "cannot be empty" in str(e)
 
-        try:
+        # Whitespace-only path
+        with pytest.raises(ValueError, match="whitespace"):
             parse_metric_path("   ")
-            assert False, "Should have raised ValueError for whitespace path"
-        except ValueError as e:
-            assert "whitespace" in str(e)
 
-        try:
+        # Unclosed bracket
+        with pytest.raises(ValueError, match="Unmatched brackets"):
             parse_metric_path('probe_results["unclosed')
-            assert False, "Should have raised ValueError for unclosed bracket"
-        except ValueError as e:
-            assert "Unmatched brackets" in str(e)
 
-        try:
+        # Unquoted bracket content
+        with pytest.raises(ValueError, match="must be quoted"):
             parse_metric_path("probe_results[unquoted]")
-            assert False, "Should have raised ValueError for unquoted bracket"
-        except ValueError as e:
-            assert "must be quoted" in str(e)
 
-        try:
+        # Empty bracket content
+        with pytest.raises(ValueError, match="Empty bracket content not allowed"):
             parse_metric_path('probe_results[""]')
-            assert False, "Should have raised ValueError for empty bracket content"
-        except ValueError as e:
-            assert "Empty bracket content not allowed" in str(e)
 
-        try:
+        # Mixed quote types
+        with pytest.raises(ValueError, match="must be quoted"):
             parse_metric_path("probe_results[\"mixed']")
-            assert False, "Should have raised ValueError for mixed quotes"
-        except ValueError as e:
-            assert "must be quoted" in str(e)
+
+        # Only dots (results in no keys)
+        with pytest.raises(ValueError, match="Invalid metric path resulted in no keys"):
+            parse_metric_path(".")
 
     def test_parse_metric_path_edge_cases(self):
         """Test parsing edge cases that should work."""
@@ -988,6 +980,25 @@ class TestNestedMetricAccess:
         assert error is not None
         assert "Cannot access key 'c' at path 'a.b'" in error
         assert "value is not a dictionary: int" in error
+
+    def test_get_nested_value_invalid_path_format(self):
+        """Test get_nested_value with invalid metric path formats (triggers parse_metric_path exceptions)."""
+        data = {"a": 1, "b": 2}
+
+        # Invalid path (empty) - triggers ValueError in parse_metric_path
+        value, error = get_nested_value(data, "")
+        assert value is None
+        assert "cannot be empty" in error
+
+        # Invalid path (whitespace only)
+        value, error = get_nested_value(data, "   ")
+        assert value is None
+        assert "whitespace" in error
+
+        # Invalid path (unquoted bracket)
+        value, error = get_nested_value(data, "a[unquoted]")
+        assert value is None
+        assert "must be quoted" in error
 
     def test_scorecard_engine_with_nested_metrics(self):
         """Test the complete scorecard engine with nested metric paths."""
