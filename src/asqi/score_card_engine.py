@@ -205,9 +205,6 @@ class ScoreCardEngine:
                 f"with system type(s) [{target_types_str}]. "
                 f"Test '{test_id}' has results for system type(s): {available_types}"
             )
-        elif test_id_matches:
-            # Test ID exists but all filtered out (shouldn't happen without target_types)
-            error_message = f"Test '{test_id}' found but no results matched filters"
         else:
             # Test ID doesn't exist at all
             available_tests = (
@@ -511,8 +508,6 @@ class ScoreCardEngine:
                     result = numeric_value >= numeric_threshold
                 elif condition == "less_equal":
                     result = numeric_value <= numeric_threshold
-                else:
-                    result = False  # Default assignment if none of the above matches
 
                 return (
                     result,
