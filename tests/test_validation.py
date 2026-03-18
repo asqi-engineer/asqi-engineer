@@ -21,6 +21,7 @@ from asqi.schemas import (
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
+    MetricExpression,
     OutputDataset,
     OutputReports,
     RAGAPIConfig,
@@ -790,6 +791,43 @@ class TestSchemaValidation:
         assert vlm_manifest.name == "vlm_evaluator_tester"
         assert len(vlm_manifest.input_systems) == 1
         assert vlm_manifest.input_systems[0].type == "vlm_api"
+
+    def test_metric_expression_valid_simple_paths(self):
+        """Test valid simple metric paths without test_id prefix."""
+        expr = MetricExpression(
+            expression="a + b",
+            values={
+                "a": "pass_rate",
+                "b": "success_rate",
+            },
+        )
+        assert expr.values == {"a": "pass_rate", "b": "success_rate"}
+
+    def test_metric_expression_valid_with_test_id_prefix(self):
+        """Test valid metric paths with test_id:: prefix syntax."""
+        expr = MetricExpression(
+            expression="0.6 * acc + 0.4 * ood",
+            values={
+                "acc": "accuracy_rag::pass_rate",
+                "ood": "robustness_rag::ood_detection_accuracy",
+            },
+        )
+        assert expr.values == {
+            "acc": "accuracy_rag::pass_rate",
+            "ood": "robustness_rag::ood_detection_accuracy",
+        }
+
+    def test_metric_expression_invalid_empty_test_id(self):
+        """Test that empty test_id before :: raises validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            MetricExpression(expression="a + b", values={"a": "::metric_path"})
+        assert "test_id before '::' cannot be empty" in str(exc_info.value)
+
+    def test_metric_expression_invalid_empty_metric_path(self):
+        """Test that empty metric path after :: raises validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            MetricExpression(expression="a + b", values={"a": "test_id::"})
+        assert "metric path after '::' cannot be empty" in str(exc_info.value)
 
 
 class TestCrossFileValidation:

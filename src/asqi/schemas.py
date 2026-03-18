@@ -1137,13 +1137,7 @@ class MetricExpression(BaseModel):
         for var_name, metric_path in values.items():
             if "::" in metric_path:
                 # Split on first :: only to allow :: in the metric path part
-                parts = metric_path.split("::", 1)
-                if len(parts) != 2:
-                    raise ValueError(
-                        f"Invalid metric path '{metric_path}' for variable '{var_name}': "
-                        f"Multiple '::' separators found"
-                    )
-                test_id_part, path_part = parts
+                test_id_part, path_part = metric_path.split("::", 1)
 
                 if not test_id_part:
                     raise ValueError(
