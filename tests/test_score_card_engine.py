@@ -11,11 +11,8 @@ from asqi.schemas import (
     ScoreCardFilter,
     ScoreCardIndicator,
 )
-from asqi.score_card_engine import (
-    ScoreCardEngine,
-    get_nested_value,
-    parse_metric_path,
-)
+from asqi.metric_path import get_nested_value, parse_metric_path
+from asqi.score_card_engine import ScoreCardEngine
 from asqi.workflow import TestExecutionResult
 
 
