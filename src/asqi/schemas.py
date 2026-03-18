@@ -335,6 +335,11 @@ class InputParameter(BaseModel):
         description="Default value for this parameter when not provided by user",
     )
 
+    ui_config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional UI configuration hints as arbitrary key-value pairs.",
+    )
+
     @model_validator(mode="after")
     def validate_rich_fields(self) -> "InputParameter":
         """Validate that rich-type fields are only used with appropriate types."""

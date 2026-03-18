@@ -582,6 +582,20 @@
           "default": null,
           "description": "Default value for this parameter when not provided by user",
           "title": "Default"
+        },
+        "ui_config": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional UI configuration hints as arbitrary key-value pairs.",
+          "title": "Ui Config"
         }
       },
       "required": [
