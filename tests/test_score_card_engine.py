@@ -167,6 +167,51 @@ class TestscorecardEngine:
         assert result2.metric_value is True
         assert result2.error is None
 
+    def test_apply_condition_errors(self):
+        """Test error cases in apply_condition_to_value."""
+        # Missing threshold
+        with pytest.raises(ValueError, match="condition requires threshold"):
+            self.engine.apply_condition_to_value(0.5, "greater_than", None)
+
+        # Unknown condition
+        with pytest.raises(ValueError, match="Unknown condition"):
+            self.engine.apply_condition_to_value(0.5, "unknown_condition", 0.5)
+
+        # Non-numeric comparison
+        with pytest.raises(ValueError, match="Cannot apply.*non-numeric value"):
+            self.engine.apply_condition_to_value("not_a_number", "greater_than", 0.5)
+
+    def test_apply_condition_deprecated_conditions(self):
+        """Test deprecated conditions (all_true, any_false) still work for backward compatibility."""
+        # all_true condition
+        result, desc = self.engine.apply_condition_to_value(True, "all_true", None)
+        assert result is True
+        assert "truthy" in desc
+
+        # any_false condition
+        result, desc = self.engine.apply_condition_to_value(False, "any_false", None)
+        assert result is True  # False is falsy, so any_false returns True
+        assert "falsy" in desc
+
+    def test_extract_metric_values_edge_cases(self):
+        """Test extract_metric_values with edge cases (empty, missing data, missing keys)."""
+        # Empty list
+        values = self.engine.extract_metric_values([], "some_metric")
+        assert values == []
+
+        # No test_results data
+        result = self.create_test_result("test", "test_id", "image", {})
+        result.test_results = None
+        values = self.engine.extract_metric_values([result], "metric")
+        assert values == []
+
+        # Missing key
+        result = self.create_test_result(
+            "test", "test_id", "image", {"existing_key": 0.8}
+        )
+        values = self.engine.extract_metric_values([result], "missing_key")
+        assert values == []
+
     def test_evaluate_indicator_failure(self):
         """Test indicator evaluation with failures."""
         # Create test results with one failure
@@ -1460,6 +1505,62 @@ class TestMetricExpressions:
         assert audit_eval["description"] == "Medium"
         assert audit_eval["metric_value"] is None
         assert audit_eval["error"] is None
+
+    def test_resolve_metric_empty_test_results(self):
+        """Test resolve_metric_or_expression with empty test_results list."""
+        value, error = self.engine.resolve_metric_or_expression([], "metric_path")
+        assert value is None
+        assert "No test results provided" in error
+
+    def test_evaluate_indicator_assessment_rule_exception(self):
+        """Test that exception in assessment rule evaluation is caught and logged."""
+        # Set score to a complex object that can't be compared
+        result = self.create_test_result(
+            "test", "test_id", {"score": {"nested": "object"}}
+        )
+
+        indicator = ScoreCardIndicator(
+            id="bad_assessment",
+            name="Bad Assessment",
+            apply_to=ScoreCardFilter(test_id="test_id"),
+            metric="score",
+            assessment=[
+                AssessmentRule(
+                    # Will fail when trying to convert complex object to number
+                    outcome="PASS",
+                    condition="greater_equal",
+                    threshold=0.5,
+                ),
+            ],
+        )
+
+        eval_results = self.engine.evaluate_indicator([result], indicator)
+        assert len(eval_results) == 1
+        # Should have error from the exception during condition evaluation
+        assert eval_results[0].error is not None
+
+    def test_evaluate_indicator_no_rule_matches(self):
+        """Test when metric value doesn't match any assessment rule."""
+        result = self.create_test_result("test", "test_id", {"score": 0.3})
+
+        indicator = ScoreCardIndicator(
+            id="no_match",
+            name="No Match",
+            apply_to=ScoreCardFilter(test_id="test_id"),
+            metric="score",
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS",
+                    condition="greater_equal",
+                    threshold=0.8,
+                ),
+            ],
+        )
+
+        eval_results = self.engine.evaluate_indicator([result], indicator)
+        assert len(eval_results) == 1
+        assert eval_results[0].error == "No assessment rule conditions were satisfied"
+        assert eval_results[0].outcome is None
 
 
 class TestDisplayGeneratedReports:
