@@ -2532,3 +2532,92 @@ class TestValidateScoreCardTestIdsMultiContainer:
 
         # Should not raise - all test_ids from both indicators are present
         self.engine.validate_scorecard_test_ids(test_results, scorecard)
+
+
+class TestScoreCardEvaluationResultFactoryMethods:
+    """Test ScoreCardEvaluationResult factory methods."""
+
+    def test_as_success_creates_successful_result(self):
+        """Test as_success factory method creates a proper success result."""
+        from asqi.score_card_engine import ScoreCardEvaluationResult
+
+        result = ScoreCardEvaluationResult.as_success(
+            indicator_id="test_indicator",
+            indicator_name="Test Indicator",
+            test_ids="test_container",
+            sut_name="my_model",
+            outcome="PASS",
+            metric_value=0.95,
+            computed_value=True,
+            details="Threshold met",
+            description="Excellent performance",
+            test_result_ids=["test_container_my_model"],
+            report_paths=["/path/to/report.html"],
+        )
+
+        assert result.indicator_id == "test_indicator"
+        assert result.indicator_name == "Test Indicator"
+        assert result.test_ids == ["test_container"]  # Normalized to list
+        assert result.sut_name == "my_model"
+        assert result.outcome == "PASS"
+        assert result.metric_value == 0.95
+        assert result.computed_value is True
+        assert result.details == "Threshold met"
+        assert result.description == "Excellent performance"
+        assert result.test_result_ids == ["test_container_my_model"]
+        assert result.report_paths == ["/path/to/report.html"]
+        assert result.error is None
+
+    def test_as_success_with_multi_container_test_ids(self):
+        """Test as_success with multiple containers."""
+        from asqi.score_card_engine import ScoreCardEvaluationResult
+
+        result = ScoreCardEvaluationResult.as_success(
+            indicator_id="combined",
+            indicator_name="Combined Indicator",
+            test_ids=["container1", "container2"],
+            sut_name="model_v2",
+            outcome="A",
+            metric_value=0.87,
+            computed_value=True,
+            details="Combined score",
+            description="Good score",
+        )
+
+        assert result.test_ids == ["container1", "container2"]
+        assert result.error is None
+
+    def test_as_error_creates_error_result(self):
+        """Test as_error factory method creates a proper error result."""
+        from asqi.score_card_engine import ScoreCardEvaluationResult
+
+        result = ScoreCardEvaluationResult.as_error(
+            indicator_id="bad_indicator",
+            indicator_name="Bad Indicator",
+            test_ids="missing_container",
+            error_message="Container not found",
+            sut_name="my_model",
+        )
+
+        assert result.indicator_id == "bad_indicator"
+        assert result.indicator_name == "Bad Indicator"
+        assert result.test_ids == ["missing_container"]  # Normalized to list
+        assert result.error == "Container not found"
+        assert result.sut_name == "my_model"
+        assert result.outcome is None
+        assert result.metric_value is None
+
+    def test_as_error_with_multi_container_test_ids(self):
+        """Test as_error with multiple containers."""
+        from asqi.score_card_engine import ScoreCardEvaluationResult
+
+        result = ScoreCardEvaluationResult.as_error(
+            indicator_id="multi_error",
+            indicator_name="Multi Error",
+            test_ids=["container1", "container2"],
+            error_message="Multiple containers missing",
+        )
+
+        assert result.test_ids == ["container1", "container2"]
+        assert result.error == "Multiple containers missing"
+        assert result.sut_name is None
