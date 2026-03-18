@@ -2122,6 +2122,37 @@ class TestCrossContainerExpressions:
         assert eval_results[0].error is not None
         assert "Missing test results for SUT 'my_model'" in eval_results[0].error
         assert "robustness_rag" in eval_results[0].error
+        # Error result should indicate which containers are specifically missing
+        assert eval_results[0].test_ids == ["robustness_rag"]
+
+    def test_evaluate_indicator_multi_test_id_no_containers(self):
+        """Test error when no containers have any results."""
+        # No test results provided at all
+        indicator = ScoreCardIndicator(
+            id="combined_score",
+            name="Combined Accuracy + Robustness",
+            apply_to=ScoreCardFilter(test_id=["accuracy_rag", "robustness_rag"]),
+            metric=MetricExpression(
+                expression="0.6 * acc + 0.4 * ood",
+                values={
+                    "acc": "accuracy_rag::hard_gate_pass_rate",
+                    "ood": "robustness_rag::ood_detection_accuracy",
+                },
+            ),
+            assessment=[
+                AssessmentRule(
+                    outcome="PASS", condition="greater_equal", threshold=0.8
+                ),
+            ],
+        )
+
+        eval_results = self.engine.evaluate_indicator([], indicator)
+
+        assert len(eval_results) == 1
+        assert eval_results[0].error is not None
+        assert "No test results found for any of test_ids" in eval_results[0].error
+        # Error result should include all required containers
+        assert eval_results[0].test_ids == ["accuracy_rag", "robustness_rag"]
 
     def test_cross_reference_rejected_with_single_test_id(self):
         """Test that cross-container references with single test_id are rejected at validation time."""

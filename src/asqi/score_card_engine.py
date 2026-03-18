@@ -255,7 +255,7 @@ class ScoreCardEngine:
         return ScoreCardEvaluationResult.as_error(
             indicator_id=indicator.id,
             indicator_name=indicator.name,
-            test_ids=required_test_ids[0],
+            test_ids=required_test_ids,
             error_message=(
                 f"No test results found for any of test_ids {required_test_ids}. "
                 f"Available tests: {available_tests}"
@@ -273,7 +273,7 @@ class ScoreCardEngine:
         result = ScoreCardEvaluationResult.as_error(
             indicator_id=indicator.id,
             indicator_name=indicator.name,
-            test_ids=required_test_ids[0],
+            test_ids=missing_test_ids,
             error_message=(
                 f"Missing test results for SUT '{sut_name}' in container(s): {', '.join(missing_test_ids)}. "
                 f"All containers {required_test_ids} are required for this indicator."
