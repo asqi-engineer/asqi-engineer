@@ -8,7 +8,7 @@ test_suite:
     systems_under_test:
       - openai_gpt4o_mini
     volumes:
-      output: /Users/Saloni Gupta/Documents/saloniguptaresaro-github/asqi-engineer/output/garak
+      output: /workspaces/asqi/output
     params:
       probes: ["dan"]
       generations: 1
@@ -23,7 +23,7 @@ test_suite:
       simulator_system: "openai_gpt4o_mini"
       evaluator_system: "openai_gpt4o_mini"
     volumes:
-      output: /Users/Saloni Gupta/Documents/saloniguptaresaro-github/asqi-engineer/output/deepteam
+      output: /workspaces/asqi/output
     params:
       vulnerabilities:
         - { "name": "toxicity", "types": ["profanity"] }
