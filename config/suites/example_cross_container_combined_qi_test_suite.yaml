@@ -1,0 +1,31 @@
+suite_name: "Prompt Injection Quality Indicator Test Suite"
+description: "Cross-container security assessment combining garak prompt injection testing with deepteam vulnerability testing"
+
+test_suite:
+  - id: "garak_prompt_injection"
+    name: "Garak Prompt Injection Testing"
+    image: "asqiengineer/test-container:garak-latest"
+    systems_under_test:
+      - openai_gpt4o_mini
+    volumes:
+      output: /workspaces/asqi/output
+    params:
+      probes: ["dan"]
+      generations: 1
+      garak_log_filename: garak_output_dan.jsonl
+
+  - id: "profanity_test"
+    name: "Deepteam Toxicity Testing"
+    image: "asqiengineer/test-container:deepteam-latest"
+    systems_under_test:
+      - openai_gpt4o_mini
+    systems:
+      simulator_system: "openai_gpt4o_mini"
+      evaluator_system: "openai_gpt4o_mini"
+    volumes:
+      output: /workspaces/asqi/output
+    params:
+      vulnerabilities:
+        - { "name": "toxicity", "types": ["profanity"] }
+      attacks:
+        - roleplay

@@ -6,6 +6,7 @@ from pydantic import (
     ConfigDict,
     Field,
     StringConstraints,
+    field_validator,
     model_validator,
 )
 
@@ -1083,14 +1084,19 @@ class SuiteConfig(BaseModel):
 class ScoreCardFilter(BaseModel):
     """Defines which test results an indicator applies to."""
 
-    test_id: str = Field(
+    test_id: Union[str, List[str]] = Field(
         ...,
-        description="Test id to filter by, e.g., 'run_mock_on_compatible_sut'",
+        description="Test id(s) to filter by. Can be a single test_id (e.g., 'garak') or a list of test_ids for cross-container expressions (e.g., ['garak', 'deepteam']). When a list is provided, metric paths can use 'test_id::metric_path' syntax to specify which container to pull from.",
     )
     target_system_type: Optional[Union[str, List[str]]] = Field(
         None,
         description="Optional: Filter by system type(s). Can be a single type (e.g., 'llm_api') or a list of types (e.g., ['llm_api', 'vlm_api']). If omitted, applies to all system types.",
     )
+
+    @property
+    def test_ids(self) -> List[str]:
+        """Get test_id as a list. Returns the single test_id in a list if it's a string."""
+        return [self.test_id] if isinstance(self.test_id, str) else self.test_id
 
 
 class AssessmentRule(BaseModel):
@@ -1126,8 +1132,29 @@ class MetricExpression(BaseModel):
     )
     values: Dict[str, str] = Field(
         ...,
-        description="Mapping from expression variable names to metric paths. Keys are used in the expression, values are paths to extract from test results.",
+        description="Mapping from expression variable names to metric paths. Keys are used in the expression, values are paths to extract from test results. Paths can optionally use 'test_id::metric_path' syntax to reference metrics from specific test containers (e.g., 'accuracy_rag::pass_rate').",
     )
+
+    @field_validator("values")
+    @classmethod
+    def validate_metric_paths(cls, values: Dict[str, str]) -> Dict[str, str]:
+        """Validate metric paths with optional test_id:: prefix syntax."""
+        for var_name, metric_path in values.items():
+            if "::" in metric_path:
+                # Split on first :: only to allow :: in the metric path part
+                test_id_part, path_part = metric_path.split("::", 1)
+
+                if not test_id_part:
+                    raise ValueError(
+                        f"Invalid metric path '{metric_path}' for variable '{var_name}': "
+                        f"test_id before '::' cannot be empty"
+                    )
+                if not path_part:
+                    raise ValueError(
+                        f"Invalid metric path '{metric_path}' for variable '{var_name}': "
+                        f"metric path after '::' cannot be empty"
+                    )
+        return values
 
 
 class ScoreCardIndicator(BaseModel):
@@ -1156,7 +1183,8 @@ class ScoreCardIndicator(BaseModel):
             "       accuracy: 'average_answer_accuracy'\n"
             "       relevance: 'average_answer_relevance'\n"
             "   Supports arithmetic operators (+, -, *, /), functions (min, max, avg), and parentheses.\n"
-            "   Variable names in expression are mapped to metric paths via the 'values' dict."
+            "   Variable names in expression are mapped to metric paths via the 'values' dict.\n"
+            "   For cross-container references (test_id::metric_path), apply_to.test_id must be a list of container names."
         ),
     )
     assessment: List[AssessmentRule] = Field(
@@ -1165,9 +1193,55 @@ class ScoreCardIndicator(BaseModel):
     display_reports: List[str] = Field(
         default_factory=list,
         description=(
-            "List of report names to include from the test container manifest."
+            "List of report names to include from the test container manifest. "
+            "For multi-container indicators, use 'test_id::report_name' syntax to specify which container's reports to display. "
+            "Example: ['mock_accuracy_test::quick_summary', 'mock_robustness_test::quick_summary']. "
+            "Simple report names without '::' are included from all containers (backward compatible)."
         ),
     )
+
+    @model_validator(mode="after")
+    def validate_cross_container_requires_list_test_id(self) -> "ScoreCardIndicator":
+        """
+        Enforce that cross-container references (test_id::metric_path) are only allowed
+        when apply_to.test_id is a list of containers that includes all referenced test_ids.
+
+        This ensures clarity: if you use ::, all containers must be explicitly listed in apply_to.test_id.
+        """
+        # Only check if metric is a MetricExpression
+        if not isinstance(self.metric, MetricExpression):
+            return self
+
+        # Extract all test_ids referenced via :: syntax
+        cross_container_test_ids = set()
+        for path in self.metric.values.values():
+            if "::" in path:
+                cross_test_id = path.split("::", 1)[0]
+                cross_container_test_ids.add(cross_test_id)
+
+        if not cross_container_test_ids:
+            return self
+
+        # If cross-container refs are used, test_id must be a list
+        if isinstance(self.apply_to.test_id, str):
+            raise ValueError(
+                f"Indicator '{self.id}' uses cross-container metric references (test_id::metric_path) "
+                f"but apply_to.test_id is a single string '{self.apply_to.test_id}'. "
+                f"Cross-container references are only allowed when apply_to.test_id is a list of container names. "
+                f"Change apply_to.test_id to a list, e.g., apply_to.test_id: ['{self.apply_to.test_id}', 'other_container']"
+            )
+
+        # Ensure all referenced test_ids are in the apply_to.test_id list
+        listed_test_ids = set(self.apply_to.test_id)
+        missing_test_ids = cross_container_test_ids - listed_test_ids
+        if missing_test_ids:
+            raise ValueError(
+                f"Indicator '{self.id}' references test_id(s) {missing_test_ids} via cross-container metric paths, "
+                f"but they are not in apply_to.test_id {list(self.apply_to.test_id)}. "
+                f"Add the missing test_id(s) to apply_to.test_id to make them available."
+            )
+
+        return self
 
 
 # ----------------------------------------------------------------------------

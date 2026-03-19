@@ -21,6 +21,7 @@ from asqi.schemas import (
     LLMAPIConfig,
     LLMAPIParams,
     Manifest,
+    MetricExpression,
     OutputDataset,
     OutputReports,
     RAGAPIConfig,
@@ -790,6 +791,43 @@ class TestSchemaValidation:
         assert vlm_manifest.name == "vlm_evaluator_tester"
         assert len(vlm_manifest.input_systems) == 1
         assert vlm_manifest.input_systems[0].type == "vlm_api"
+
+    def test_metric_expression_valid_simple_paths(self):
+        """Test valid simple metric paths without test_id prefix."""
+        expr = MetricExpression(
+            expression="a + b",
+            values={
+                "a": "pass_rate",
+                "b": "success_rate",
+            },
+        )
+        assert expr.values == {"a": "pass_rate", "b": "success_rate"}
+
+    def test_metric_expression_valid_with_test_id_prefix(self):
+        """Test valid metric paths with test_id:: prefix syntax."""
+        expr = MetricExpression(
+            expression="0.6 * acc + 0.4 * ood",
+            values={
+                "acc": "accuracy_rag::pass_rate",
+                "ood": "robustness_rag::ood_detection_accuracy",
+            },
+        )
+        assert expr.values == {
+            "acc": "accuracy_rag::pass_rate",
+            "ood": "robustness_rag::ood_detection_accuracy",
+        }
+
+    def test_metric_expression_invalid_empty_test_id(self):
+        """Test that empty test_id before :: raises validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            MetricExpression(expression="a + b", values={"a": "::metric_path"})
+        assert "test_id before '::' cannot be empty" in str(exc_info.value)
+
+    def test_metric_expression_invalid_empty_metric_path(self):
+        """Test that empty metric path after :: raises validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            MetricExpression(expression="a + b", values={"a": "test_id::"})
+        assert "metric path after '::' cannot be empty" in str(exc_info.value)
 
 
 class TestCrossFileValidation:
@@ -2424,6 +2462,7 @@ class TestValidateIndicatorDisplayReports:
     def test_missing_manifest_error(self, test_id_to_image):
         """
         Test validation fails when the manifest is missing.
+        Validation should report the manifest not found error and skip report validation.
         """
         score_cards = self.create_scorecard_with_reports(["detailed_report"])
         manifests = {}
@@ -2434,6 +2473,7 @@ class TestValidateIndicatorDisplayReports:
 
         assert len(errors) == 1
         assert "No manifest found for image 'report-image:latest'" in errors[0]
+        assert "test 'test_report_validation'" in errors[0]
 
     def test_manifest_with_no_output_error(self, test_id_to_image):
         """
@@ -2457,7 +2497,9 @@ class TestValidateIndicatorDisplayReports:
 
         assert len(errors) == 1
         assert (
-            "Manifest for image 'report-image:latest' only defines: none" in errors[0]
+            "Requested display_report 'detailed_report' not found in any containers"
+            in errors[0]
+            and "Available reports: none" in errors[0]
         )
 
     def test_audit_indicators(self, test_id_to_image, report_validation_manifest):
@@ -2530,7 +2572,315 @@ class TestValidateIndicatorDisplayReports:
         )
 
         assert len(errors) == 1
-        assert "not found with an exact case sensitive match" in errors[0]
+        assert (
+            "Requested display_report 'Detailed_Report' not found in any containers"
+            in errors[0]
+            and "Available reports:" in errors[0]
+        )
+
+
+class TestMultiContainerDisplayReports:
+    """Test validation of display_reports with multi-container indicators (new feature)."""
+
+    @pytest.fixture
+    def multi_container_test_suite(self):
+        """Create a test suite with multiple test containers."""
+        suite = SuiteConfig(
+            suite_name="Multi-Container Test Suite",
+            test_suite=[
+                {
+                    "name": "accuracy test",
+                    "id": "accuracy_test",
+                    "image": "accuracy-image:latest",
+                    "systems_under_test": ["my_llm_api"],
+                },
+                {
+                    "name": "robustness test",
+                    "id": "robustness_test",
+                    "image": "robustness-image:latest",
+                    "systems_under_test": ["my_llm_api"],
+                },
+            ],
+        )
+        return {test.id: test.image for test in suite.test_suite}
+
+    @pytest.fixture
+    def accuracy_manifest(self):
+        """Manifest for accuracy test container."""
+        manifest = Manifest(
+            name="accuracy_container",
+            version="1.0",
+            input_systems=[
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            output_reports=[
+                OutputReports(
+                    name="accuracy_report", type="html", description="Accuracy report"
+                ),
+                OutputReports(
+                    name="quick_summary", type="html", description="Quick summary"
+                ),
+            ],
+        )
+        return {"accuracy-image:latest": manifest}
+
+    @pytest.fixture
+    def robustness_manifest(self):
+        """Manifest for robustness test container."""
+        manifest = Manifest(
+            name="robustness_container",
+            version="1.0",
+            input_systems=[
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            output_reports=[
+                OutputReports(
+                    name="robustness_report",
+                    type="html",
+                    description="Robustness report",
+                ),
+                OutputReports(
+                    name="quick_summary", type="html", description="Quick summary"
+                ),
+            ],
+        )
+        return {"robustness-image:latest": manifest}
+
+    def create_multi_container_scorecard(self, test_ids, report_list):
+        """Helper to create a scorecard with multi-container indicator."""
+        return [
+            ScoreCard(
+                score_card_name="Multi-Container Score Card",
+                indicators=[
+                    {
+                        "id": "multi_container_indicator",
+                        "name": "Multi-Container Indicator",
+                        "apply_to": {"test_id": test_ids},
+                        "metric": "combined_score",
+                        "assessment": [
+                            {
+                                "outcome": "PASS",
+                                "condition": "greater_equal",
+                                "threshold": 0.8,
+                            }
+                        ],
+                        "display_reports": report_list,
+                    }
+                ],
+            )
+        ]
+
+    def test_multi_container_with_all_containers_present(
+        self, multi_container_test_suite, accuracy_manifest, robustness_manifest
+    ):
+        """
+        Test validation passes when indicator uses multiple containers and all are present.
+        """
+        manifests = {**accuracy_manifest, **robustness_manifest}
+        test_ids = ["accuracy_test", "robustness_test"]
+        score_cards = self.create_multi_container_scorecard(
+            test_ids, ["accuracy_report", "robustness_report"]
+        )
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, multi_container_test_suite
+        )
+
+        assert errors == []
+
+    def test_multi_container_with_simple_report_name_found_in_one_container(
+        self, multi_container_test_suite, accuracy_manifest, robustness_manifest
+    ):
+        """
+        Test that simple report names (no ::) work across multiple containers.
+        Both containers have 'quick_summary', so request should pass.
+        """
+        manifests = {**accuracy_manifest, **robustness_manifest}
+        test_ids = ["accuracy_test", "robustness_test"]
+        score_cards = self.create_multi_container_scorecard(test_ids, ["quick_summary"])
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, multi_container_test_suite
+        )
+
+        assert errors == []
+
+    def test_multi_container_with_missing_container_manifest(
+        self, multi_container_test_suite, accuracy_manifest
+    ):
+        """
+        Test validation reports errors when one of multiple containers has missing manifest.
+        Reports both manifest-not-found error and report-not-found error for missing container's reports.
+        """
+        manifests = accuracy_manifest  # Only accuracy, missing robustness
+        test_ids = ["accuracy_test", "robustness_test"]
+        score_cards = self.create_multi_container_scorecard(
+            test_ids, ["accuracy_report", "robustness_report"]
+        )
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, multi_container_test_suite
+        )
+
+        # Should have 2 errors: manifest missing + report not found
+        assert len(errors) == 2
+        assert any(
+            "No manifest found for image 'robustness-image:latest'" in e for e in errors
+        )
+        assert any("test 'robustness_test'" in e for e in errors)
+        # Also reports that robustness_report not found
+        assert any(
+            "robustness_report" in e and "not found in any containers" in e
+            for e in errors
+        )
+
+    def test_explicit_syntax_valid_container_and_report(
+        self, multi_container_test_suite, accuracy_manifest, robustness_manifest
+    ):
+        """
+        Test validation passes with explicit test_id::report_name syntax for valid container and report.
+        """
+        manifests = {**accuracy_manifest, **robustness_manifest}
+        test_ids = ["accuracy_test", "robustness_test"]
+        score_cards = self.create_multi_container_scorecard(
+            test_ids,
+            ["accuracy_test::accuracy_report", "robustness_test::robustness_report"],
+        )
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, multi_container_test_suite
+        )
+
+        assert errors == []
+
+    def test_explicit_syntax_invalid_container_name(
+        self, multi_container_test_suite, accuracy_manifest, robustness_manifest
+    ):
+        """
+        Test validation fails when explicit :: syntax references a container not in apply_to.test_id.
+        """
+        manifests = {**accuracy_manifest, **robustness_manifest}
+        test_ids = ["accuracy_test", "robustness_test"]
+        score_cards = self.create_multi_container_scorecard(
+            test_ids, ["accuracy_test::accuracy_report", "unknown_test::some_report"]
+        )
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, multi_container_test_suite
+        )
+
+        assert len(errors) == 1
+        assert "Referenced test_id 'unknown_test'" in errors[0]
+        assert "does not exist in apply_to.test_id" in errors[0]
+
+    def test_explicit_syntax_invalid_report_name_in_container(
+        self, multi_container_test_suite, accuracy_manifest, robustness_manifest
+    ):
+        """
+        Test validation fails when explicit :: syntax references a report that doesn't exist in the container.
+        """
+        manifests = {**accuracy_manifest, **robustness_manifest}
+        test_ids = ["accuracy_test", "robustness_test"]
+        score_cards = self.create_multi_container_scorecard(
+            test_ids,
+            ["accuracy_test::accuracy_report", "robustness_test::nonexistent_report"],
+        )
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, multi_container_test_suite
+        )
+
+        assert len(errors) == 1
+        assert "Requested display_report 'nonexistent_report'" in errors[0]
+        assert "not found in test 'robustness_test'" in errors[0]
+        assert "Available reports:" in errors[0]
+        assert "robustness_report" in errors[0]
+        assert "quick_summary" in errors[0]
+
+    def test_mixed_syntax_simple_and_explicit(
+        self, multi_container_test_suite, accuracy_manifest, robustness_manifest
+    ):
+        """
+        Test validation passes with mixed syntax: some simple names, some explicit :: names.
+        """
+        manifests = {**accuracy_manifest, **robustness_manifest}
+        test_ids = ["accuracy_test", "robustness_test"]
+        # Mix: quick_summary is simple (found in both), accuracy_test::accuracy_report is explicit
+        score_cards = self.create_multi_container_scorecard(
+            test_ids, ["quick_summary", "accuracy_test::accuracy_report"]
+        )
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, multi_container_test_suite
+        )
+
+        assert errors == []
+
+    def test_multi_container_simple_report_not_found_in_any(
+        self, multi_container_test_suite, accuracy_manifest, robustness_manifest
+    ):
+        """
+        Test validation fails when simple report name doesn't exist in any of the containers.
+        """
+        manifests = {**accuracy_manifest, **robustness_manifest}
+        test_ids = ["accuracy_test", "robustness_test"]
+        score_cards = self.create_multi_container_scorecard(
+            test_ids, ["nonexistent_report"]
+        )
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, multi_container_test_suite
+        )
+
+        assert len(errors) == 1
+        assert "Requested display_report 'nonexistent_report'" in errors[0]
+        assert (
+            "not found in any containers [accuracy_test, robustness_test]" in errors[0]
+        )
+        assert "Available reports:" in errors[0]
+
+    def test_explicit_syntax_with_empty_report_name(
+        self, multi_container_test_suite, accuracy_manifest, robustness_manifest
+    ):
+        """
+        Test validation fails gracefully when explicit syntax has empty report name (test_id::).
+        """
+        manifests = {**accuracy_manifest, **robustness_manifest}
+        test_ids = ["accuracy_test", "robustness_test"]
+        score_cards = self.create_multi_container_scorecard(
+            test_ids, ["accuracy_test::"]
+        )
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, multi_container_test_suite
+        )
+
+        # Empty report name should be treated as "" which won't match any reports
+        assert len(errors) == 1
+        assert "not found in test 'accuracy_test'" in errors[0]
+
+    def test_nonexistent_test_id_in_apply_to(
+        self, multi_container_test_suite, accuracy_manifest, robustness_manifest
+    ):
+        """
+        Test validation fails when apply_to.test_id references a test_id not in test_id_to_image.
+        """
+        manifests = {**accuracy_manifest, **robustness_manifest}
+        test_ids = [
+            "accuracy_test",
+            "nonexistent_test",
+        ]  # nonexistent_test not in suite
+        score_cards = self.create_multi_container_scorecard(
+            test_ids, ["accuracy_report"]
+        )
+
+        errors = validate_indicator_display_reports(
+            manifests, score_cards, multi_container_test_suite
+        )
+
+        assert len(errors) == 1
+        assert "Referenced test id 'nonexistent_test'" in errors[0]
+        assert "does not exist in the test suite" in errors[0]
 
 
 class TestValidateGeneratedDatasets:
