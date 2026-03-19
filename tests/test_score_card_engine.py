@@ -219,6 +219,17 @@ class TestscorecardEngine:
         )
         assert result is False
 
+    def test_apply_condition_less_than(self):
+        """Test less_than condition (line 506)."""
+        # Value less than threshold
+        result, desc = self.engine.apply_condition_to_value(0.5, "less_than", 0.7)
+        assert result is True
+        assert "less_than" in desc
+
+        # Value not less than threshold
+        result, desc = self.engine.apply_condition_to_value(0.8, "less_than", 0.7)
+        assert result is False
+
     def test_extract_metric_values_edge_cases(self):
         """Test extract_metric_values with edge cases (empty, missing data, missing keys)."""
         # Empty list
@@ -840,6 +851,35 @@ class TestscorecardEngine:
 
         assert len(results) == 1
         assert "Duplicate audit responses" in results[0].error
+
+    def test_evaluate_single_test_id_exception_handler(self):
+        """Test exception handler in _evaluate_single_test_id catches unexpected errors."""
+        from unittest.mock import patch
+
+        # Create a result with test_id that won't match
+        result = self.create_test_result(
+            "test", "other_test_id", "image1", {"score": 0.9}
+        )
+        indicator = ScoreCardIndicator(
+            id="test_exc",
+            name="Test Exception",
+            apply_to=ScoreCardFilter(test_id="test_id"),  # Different test_id
+            metric="score",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="greater_equal", threshold=0.5)
+            ],
+        )
+
+        # Mock _make_missing_test_id_error to raise an exception
+        with patch.object(self.engine, "_make_missing_test_id_error") as mock_error:
+            mock_error.side_effect = RuntimeError("Error in missing handler")
+
+            eval_results = self.engine.evaluate_indicator([result], indicator)
+
+            # Should catch the exception and return error result from exception handler
+            assert len(eval_results) == 1
+            assert eval_results[0].error == "Error in missing handler"
+            assert eval_results[0].indicator_id == "test_exc"
 
 
 class TestNestedMetricAccess:
@@ -1690,6 +1730,37 @@ class TestMetricExpressions:
             # Restore original method
             self.engine.resolve_metric_or_expression = original_resolve
 
+    def test_resolve_metric_or_expression_unexpected_exception(self):
+        """Test resolve_metric_or_expression handles non-MetricExpressionError exceptions (lines 452-453)."""
+        from unittest.mock import patch, MagicMock
+
+        # Create result with both 'a' and 'b' so metric resolution succeeds
+        result = self.create_test_result("test", "test_id", {"a": 0.5, "b": 0.3})
+
+        metric_expr = MetricExpression(
+            expression="a + b",
+            values={"a": "a", "b": "b"},
+        )
+
+        # Mock MetricExpressionEvaluator.evaluate_expression to raise a non-MetricExpressionError
+        with patch(
+            "asqi.score_card_engine.MetricExpressionEvaluator"
+        ) as mock_evaluator_class:
+            mock_instance = MagicMock()
+            mock_instance.evaluate_expression.side_effect = RuntimeError(
+                "Unexpected evaluation error"
+            )
+            mock_evaluator_class.return_value = mock_instance
+
+            value, error = self.engine.resolve_metric_or_expression(
+                [result], metric_expr
+            )
+
+            # Should return error from the exception handler at lines 452-453
+            assert value is None
+            assert error is not None
+            assert "Unexpected error evaluating expression" in error
+
 
 class TestDisplayGeneratedReports:
     @pytest.fixture
@@ -1977,6 +2048,58 @@ class TestDisplayGeneratedReports:
         # Should only have the accuracy_report since robustness one doesn't exist
         assert len(results[0].report_paths) == 1
         assert "/reports/accuracy_report.html" in results[0].report_paths
+
+    def test_no_display_reports_includes_all_reports(self):
+        """Test that when display_reports is not set, all reports are included (line 669)."""
+        engine = ScoreCardEngine()
+
+        # Create test result with multiple reports
+        test_result = TestExecutionResult(
+            "report_test",
+            "report_test",
+            "sut",
+            "report-image:latest",
+        )
+        test_result.test_results = {"score": 0.95}
+        test_result.success = True
+        test_result.generated_reports = [
+            GeneratedReport(
+                report_name="detailed_report",
+                report_type="html",
+                report_path="/reports/detailed_report.html",
+            ),
+            GeneratedReport(
+                report_name="summary_report",
+                report_type="html",
+                report_path="/reports/summary_report.html",
+            ),
+            GeneratedReport(
+                report_name="debug_report",
+                report_type="html",
+                report_path="/reports/debug_report.html",
+            ),
+        ]
+
+        # Create indicator WITHOUT setting display_reports (defaults to None)
+        indicator = ScoreCardIndicator(
+            id="include_all_reports",
+            name="Include All Reports",
+            apply_to=ScoreCardFilter(test_id="report_test"),
+            metric="score",
+            assessment=[
+                AssessmentRule(outcome="PASS", condition="greater_equal", threshold=0.9)
+            ],
+            # display_reports not set - defaults to None
+        )
+
+        results = engine.evaluate_indicator([test_result], indicator)
+
+        assert len(results) == 1
+        # All reports should be included when display_reports is not set
+        assert len(results[0].report_paths) == 3
+        assert "/reports/detailed_report.html" in results[0].report_paths
+        assert "/reports/summary_report.html" in results[0].report_paths
+        assert "/reports/debug_report.html" in results[0].report_paths
 
 
 class TestScoreCardSystemTypeFiltering:
