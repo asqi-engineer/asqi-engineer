@@ -26,6 +26,7 @@ dev = [
     "myst-parser>=4.0.1",
     "pip-audit>=2.9.0",
     "pre-commit>=4.3.0",
+    "pyright>=1.1.408",
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
     "ruff>=0.12.8",
@@ -66,7 +67,15 @@ path = "scripts/build_hooks.py"
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = "v(?P<version>\\d+\\.\\d+\\.\\d+)"
-raw-options = { version_scheme = "no-guess-dev" }
+
+[tool.hatch.version.raw-options]
+version_scheme = "no-guess-dev"
+search_parent_directories = true
+git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "v[0-9]*"]
+fallback_version = "0.0.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.uv]
 package = true

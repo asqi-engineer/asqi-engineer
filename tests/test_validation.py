@@ -1,10 +1,9 @@
 import tempfile
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 import yaml
-from pydantic import ValidationError
-
 from asqi.config import ExecutionMode
 from asqi.errors import DuplicateIDError, MissingIDFieldError
 from asqi.main import load_and_validate_plan
@@ -53,6 +52,7 @@ from asqi.validation import (
     validate_workflow_configurations,
 )
 from asqi.workflow import TestExecutionResult
+from pydantic import ValidationError
 from test_data import (
     MOCK_AUDIT_RESPONSES,
     MOCK_SCORE_CARD_CONFIG,
@@ -281,7 +281,10 @@ MOCK_IMAGE_GENERATION_MANIFEST = {
 MOCK_IMAGE_EDITING_MANIFEST = {
     "name": "mock_image_editing_tester",
     "version": "1.0.0",
-    "description": "A lightweight mock container for testing image editing systems with multipart handling and response validation.",
+    "description": (
+        "A lightweight mock container for testing image editing systems"
+        " with multipart handling and response validation."
+    ),
     "input_systems": [
         {"name": "system_under_test", "type": "image_editing_api", "required": True},
     ],
@@ -425,12 +428,8 @@ def manifests():
         "my-registry/mock_rag_tester:latest": Manifest(**MOCK_RAG_TESTER_MANIFEST),
         "my-registry/generic:latest": Manifest(**MOCK_GENERIC_MANIFEST),
         "my-registry/garak:latest": Manifest(**MOCK_MULTIPLE_MANIFEST),
-        "my-registry/mock_image_generation_tester:latest": Manifest(
-            **MOCK_IMAGE_GENERATION_MANIFEST
-        ),
-        "my-registry/mock_image_editing_tester:latest": Manifest(
-            **MOCK_IMAGE_EDITING_MANIFEST
-        ),
+        "my-registry/mock_image_generation_tester:latest": Manifest(**MOCK_IMAGE_GENERATION_MANIFEST),
+        "my-registry/mock_image_editing_tester:latest": Manifest(**MOCK_IMAGE_EDITING_MANIFEST),
         "my-registry/vlm_evaluator_tester:latest": Manifest(**MOCK_VLM_MANIFEST),
         "my-registry/mock_embedding_tester:latest": Manifest(**MOCK_EMBEDDING_MANIFEST),
     }
@@ -474,7 +473,7 @@ class TestSchemaValidation:
     def test_generic_systems_schema(self, manifests):
         """Test a generic system used for system types that don't have their own config classes."""
 
-        # This system type is not yet implemented. It’s just to check backward compatibility
+        # This system type is not yet implemented. It's just to check backward compatibility
         system = SystemsConfig(
             systems={
                 "new_system": GenericSystemConfig(
@@ -624,9 +623,7 @@ class TestSchemaValidation:
         errors = validate_test_plan(demo_rag_suite, system, manifests)
         assert errors == [], f"Expected no errors, but got: {errors}"
 
-    def test_image_generation_system_compatibility(
-        self, demo_image_generation_suite, manifests
-    ):
+    def test_image_generation_system_compatibility(self, demo_image_generation_suite, manifests):
         """Test validation passes for image generation systems."""
         # Create systems config with image generation system
         image_gen_systems = SystemsConfig(
@@ -644,16 +641,10 @@ class TestSchemaValidation:
             }
         )
 
-        errors = validate_test_plan(
-            demo_image_generation_suite, image_gen_systems, manifests
-        )
-        assert errors == [], (
-            f"Expected no errors for image generation system, but got: {errors}"
-        )
+        errors = validate_test_plan(demo_image_generation_suite, image_gen_systems, manifests)
+        assert errors == [], f"Expected no errors for image generation system, but got: {errors}"
 
-    def test_image_editing_system_compatibility(
-        self, demo_image_editing_suite, manifests
-    ):
+    def test_image_editing_system_compatibility(self, demo_image_editing_suite, manifests):
         """Test validation passes for image editing systems."""
         # Create systems config with image editing system
         image_edit_systems = SystemsConfig(
@@ -671,12 +662,8 @@ class TestSchemaValidation:
             }
         )
 
-        errors = validate_test_plan(
-            demo_image_editing_suite, image_edit_systems, manifests
-        )
-        assert errors == [], (
-            f"Expected no errors for image editing system, but got: {errors}"
-        )
+        errors = validate_test_plan(demo_image_editing_suite, image_edit_systems, manifests)
+        assert errors == [], f"Expected no errors for image editing system, but got: {errors}"
 
     def test_vlm_system_compatibility(self, demo_vlm_suite, manifests):
         """Test validation passes for VLM systems."""
@@ -717,13 +704,9 @@ class TestSchemaValidation:
         )
 
         errors = validate_test_plan(demo_embedding_suite, embedding_systems, manifests)
-        assert errors == [], (
-            f"Expected no errors for embedding_api system, but got: {errors}"
-        )
+        assert errors == [], f"Expected no errors for embedding_api system, but got: {errors}"
 
-    def test_embedding_system_incompatible_with_llm_container(
-        self, demo_suite, manifests
-    ):
+    def test_embedding_system_incompatible_with_llm_container(self, demo_suite, manifests):
         """Test validation fails when embedding_api system is used with llm_api-only container."""
         embedding_systems = SystemsConfig(
             systems={
@@ -741,9 +724,7 @@ class TestSchemaValidation:
         )
 
         errors = validate_test_plan(demo_suite, embedding_systems, manifests)
-        assert errors != [], (
-            "Expected validation errors when embedding_api is used with llm_api-only container"
-        )
+        assert errors != [], "Expected validation errors when embedding_api is used with llm_api-only container"
 
     def test_vlm_vision_enforcement(self):
         """Test that supports_vision must be True for VLM systems."""
@@ -772,9 +753,7 @@ class TestSchemaValidation:
         assert rag_manifest.input_systems[0].type == "rag_api"
 
         # Check image generation manifest
-        image_gen_manifest = manifests[
-            "my-registry/mock_image_generation_tester:latest"
-        ]
+        image_gen_manifest = manifests["my-registry/mock_image_generation_tester:latest"]
         assert image_gen_manifest.name == "mock_image_generation_tester"
         assert len(image_gen_manifest.input_systems) == 1
         assert image_gen_manifest.input_systems[0].type == "image_generation_api"
@@ -869,9 +848,7 @@ class TestCrossFileValidation:
 
         errors = validate_test_plan(suite, demo_systems, manifests)
         assert len(errors) > 0
-        assert any(
-            "Required parameter 'probes' is missing" in error for error in errors
-        )
+        assert any("Required parameter 'probes' is missing" in error for error in errors)
 
     def test_unknown_parameter(self, demo_systems, manifests):
         """Test validation fails when unknown parameters are provided."""
@@ -984,9 +961,7 @@ class TestFileLoading:
 
             # Test that we can load and validate
 
-            result = load_and_validate_plan(
-                str(suite_file), str(systems_file), str(manifest_dir)
-            )
+            result = load_and_validate_plan(str(suite_file), str(systems_file), str(manifest_dir))
 
             # Should have some validation errors due to incompatible system
             # (my_backend_api is not supported by mock_tester in this setup)
@@ -1017,9 +992,7 @@ class TestEdgeCases:
                     "description": "Test Description",
                     "image": "my-registry/garak:latest",
                     "systems_under_test": ["my_llm_service", "another_llm_service"],
-                    "params": {
-                        "probes": ["probe1", "probe2"]
-                    },  # Provide required param for garak
+                    "params": {"probes": ["probe1", "probe2"]},  # Provide required param for garak
                 }
             ],
         }
@@ -1112,9 +1085,7 @@ class TestEdgeCases:
 
         suite = SuiteConfig(**suite_data)
         errors = validate_test_plan(suite, systems_config, test_manifests)
-        assert errors == [], (
-            f"Expected no errors for valid required+optional systems, but got: {errors}"
-        )
+        assert errors == [], f"Expected no errors for valid required+optional systems, but got: {errors}"
 
         # Test case: test includes only required system (optional system not specified)
         suite_data_minimal = {
@@ -1134,9 +1105,7 @@ class TestEdgeCases:
 
         suite_minimal = SuiteConfig(**suite_data_minimal)
         errors = validate_test_plan(suite_minimal, systems_config, test_manifests)
-        assert errors == [], (
-            f"Expected no errors for required system only, but got: {errors}"
-        )
+        assert errors == [], f"Expected no errors for required system only, but got: {errors}"
 
 
 class TestValidationFunctions:
@@ -1146,7 +1115,7 @@ class TestValidationFunctions:
         # Test with missing required param (none required)
         class DummyTest:
             name = "t1"
-            params = {}
+            params: ClassVar[dict] = {}
 
         test = DummyTest()
         errors = validate_parameters(test, manifest)
@@ -1174,7 +1143,7 @@ class TestValidationFunctions:
         class DummyTest:
             name = "t1"
             image = "my-registry/mock_tester:latest"
-            systems_under_test = ["my_llm_service", "my_backend_api"]
+            systems_under_test: ClassVar[list] = ["my_llm_service", "my_backend_api"]
 
         test = DummyTest()
         errors = validate_system_compatibility(test, demo_systems.systems, manifest)
@@ -1207,8 +1176,8 @@ class TestValidationFunctions:
         class DummyTest:
             name = "multi_test"
             image = "multi-system:latest"
-            systems_under_test = ["my_llm_service"]
-            systems = {
+            systems_under_test: ClassVar[list] = ["my_llm_service"]
+            systems: ClassVar[dict] = {
                 "simulator_system": "my_llm_service",
                 "evaluator_system": "my_llm_service",
             }
@@ -1365,9 +1334,7 @@ class TestValidationInputFunctions:
 
         # Invalid execution_mode - only TESTS_ONLY and END_TO_END are valid
         with pytest.raises(ValueError, match="Invalid execution_mode"):
-            validate_execution_inputs(
-                "suite.yaml", "systems.yaml", ExecutionMode.EVALUATE_ONLY
-            )
+            validate_execution_inputs("suite.yaml", "systems.yaml", ExecutionMode.EVALUATE_ONLY)
 
     def test_validate_score_card_inputs_valid(self):
         """Test valid score card inputs."""
@@ -1407,14 +1374,10 @@ class TestValidationInputFunctions:
         """Test invalid test execution inputs."""
         # Invalid test_name - empty string
         with pytest.raises(ValueError, match="Invalid test id"):
-            validate_test_execution_inputs(
-                "", "image:latest", "system1", {"key": "value"}, {"param": "value"}
-            )
+            validate_test_execution_inputs("", "image:latest", "system1", {"key": "value"}, {"param": "value"})
         # Invalid image - empty string
         with pytest.raises(ValueError, match="Invalid image"):
-            validate_test_execution_inputs(
-                "test1", "", "system1", {"key": "value"}, {"param": "value"}
-            )
+            validate_test_execution_inputs("test1", "", "system1", {"key": "value"}, {"param": "value"})
         # Invalid system_name - empty string
         with pytest.raises(ValueError, match="Invalid system name"):
             validate_test_execution_inputs(
@@ -1509,9 +1472,7 @@ class TestValidationInputFunctions:
 class TestWorkflowValidation:
     """Test the validate_workflow_configurations function."""
 
-    def test_validate_workflow_configurations_valid(
-        self, demo_suite, demo_systems, manifests
-    ):
+    def test_validate_workflow_configurations_valid(self, demo_suite, demo_systems, manifests):
         """Test valid workflow configurations."""
         errors = validate_workflow_configurations(demo_suite, demo_systems, manifests)
         # Should have some errors due to incompatible systems in demo data
@@ -1530,9 +1491,7 @@ class TestWorkflowValidation:
         assert any("Test suite is empty" in e for e in errors)
         assert any("Systems configuration is empty" in e for e in errors)
 
-    def test_validate_workflow_configurations_with_manifests(
-        self, demo_systems, manifests
-    ):
+    def test_validate_workflow_configurations_with_manifests(self, demo_systems, manifests):
         """Test validation with manifests provided."""
         suite_data = {
             "suite_name": "Compatible Test",
@@ -1704,9 +1663,7 @@ class TestParameterValidationEdgeCases:
             "name": "no_params_test",
             "version": "1.0.0",
             "description": "Container with no parameters",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [],
             "output_metrics": ["success"],
         }
@@ -1714,7 +1671,7 @@ class TestParameterValidationEdgeCases:
 
         class DummyTest:
             name = "test"
-            params = {"unexpected_param": "value"}
+            params: ClassVar[dict] = {"unexpected_param": "value"}
 
         test = DummyTest()
         errors = validate_parameters(test, manifest)
@@ -1794,7 +1751,7 @@ class TestVolumeValidation:
 
 
 class TestValidateIDs:
-    score_card_duplicate_data = {
+    score_card_duplicate_data: ClassVar[dict] = {
         "score_card_name": "id duplicated score card",
         "indicators": [
             {
@@ -1808,7 +1765,7 @@ class TestValidateIDs:
         ],
     }
 
-    test_suite_duplicate_data = {
+    test_suite_duplicate_data: ClassVar[dict] = {
         "suite_name": "id duplicated test suite",
         "test_suite": [
             {
@@ -1870,9 +1827,7 @@ class TestValidateIDs:
         with open(suite_config_path, "w") as f:
             yaml.dump(test_suite_data, f)
 
-        with pytest.raises(
-            MissingIDFieldError, match="Missing required id field in test of test suite"
-        ):
+        with pytest.raises(MissingIDFieldError, match="Missing required id field in test of test suite"):
             validate_ids(suite_config_path)
 
     def test_id_score_card_missing_id_field_error(self, tmp_path):
@@ -1967,23 +1922,15 @@ class TestValidateIDs:
         with open(suite_config_path, "w") as f:
             yaml.dump(self.test_suite_duplicate_data, f)
 
-        with pytest.raises(
-            DuplicateIDError, match="Duplicate id -> id_bayau in test_suite"
-        ) as exe_raised:
+        with pytest.raises(DuplicateIDError, match="Duplicate id -> id_bayau in test_suite") as exe_raised:
             validate_ids(suite_config_path)
 
         error = exe_raised.value
         assert len(error.duplicate_dict["t_id_bayau"]["occurrences"]) == 2
         assert error.duplicate_dict["t_id_bayau"]["config_type"] == "test_suite"
         assert error.duplicate_dict["t_id_bayau"]["id"] == "id_bayau"
-        assert (
-            error.duplicate_dict["t_id_bayau"]["occurrences"][0]["test_name"]
-            == "this is the first dup name"
-        )
-        assert (
-            error.duplicate_dict["t_id_bayau"]["occurrences"][1]["test_name"]
-            == "this is the second dup name"
-        )
+        assert error.duplicate_dict["t_id_bayau"]["occurrences"][0]["test_name"] == "this is the first dup name"
+        assert error.duplicate_dict["t_id_bayau"]["occurrences"][1]["test_name"] == "this is the second dup name"
 
     def test_validation_score_card_with_duplicates_error(self, tmp_path):
         """Test ID validation in score card with duplicate IDs and DuplicateIDError exception."""
@@ -1994,23 +1941,15 @@ class TestValidateIDs:
         with open(score_card_config_path, "w") as f:
             yaml.dump(self.score_card_duplicate_data, f)
 
-        with pytest.raises(
-            DuplicateIDError, match="Duplicate id -> id_bayau in score_card"
-        ) as exe_raised:
+        with pytest.raises(DuplicateIDError, match="Duplicate id -> id_bayau in score_card") as exe_raised:
             validate_ids(score_card_config_path)
 
         error = exe_raised.value
         assert len(error.duplicate_dict["s_id_bayau"]["occurrences"]) == 2
         assert error.duplicate_dict["s_id_bayau"]["config_type"] == "score_card"
         assert error.duplicate_dict["s_id_bayau"]["id"] == "id_bayau"
-        assert (
-            error.duplicate_dict["s_id_bayau"]["occurrences"][0]["indicator_name"]
-            == "this is the first dup name"
-        )
-        assert (
-            error.duplicate_dict["s_id_bayau"]["occurrences"][1]["indicator_name"]
-            == "this is the second dup name"
-        )
+        assert error.duplicate_dict["s_id_bayau"]["occurrences"][0]["indicator_name"] == "this is the first dup name"
+        assert error.duplicate_dict["s_id_bayau"]["occurrences"][1]["indicator_name"] == "this is the second dup name"
 
     def test_validation_score_card_and_test_suite_with_duplicates_error(self, tmp_path):
         """Test ID validation in score card and test suite with duplicate IDs and DuplicateIDError exception."""
@@ -2138,9 +2077,7 @@ class TestValidateIDs:
 
         engine = ScoreCardEngine()
 
-        result = TestExecutionResult(
-            "test_name", "existing_test_id", "sut", "image:latest"
-        )
+        result = TestExecutionResult("test_name", "existing_test_id", "sut", "image:latest")
         result.test_results = {"success": True}
 
         score_card = ScoreCard(
@@ -2182,9 +2119,7 @@ class TestRAGResponseSchema:
             source_id="company_policies",
         )
 
-        assert (
-            citation.retrieved_context == "This is some retrieved text from a document."
-        )
+        assert citation.retrieved_context == "This is some retrieved text from a document."
         assert citation.document_id == "policy.pdf"
         assert citation.score == 0.95
         assert citation.source_id == "company_policies"
@@ -2195,15 +2130,21 @@ class TestRAGResponseSchema:
         with pytest.raises(ValidationError, match="string_too_short"):
             RAGCitation(retrieved_context="", document_id="doc.txt")
 
-        # Empty document_id
-        with pytest.raises(ValidationError, match="string_too_short"):
-            RAGCitation(retrieved_context="Some text", document_id="")
+        # Empty document_id is allowed (SIA agent returns "" for some citations)
+        citation = RAGCitation(retrieved_context="Some text", document_id="")
+        assert citation.document_id == ""
+
+        # None document_id is allowed (SIA agent may return null for some citations)
+        citation_none = RAGCitation(retrieved_context="Some text", document_id=None)
+        assert citation_none.document_id is None
+
+        # Missing document_id defaults to None (key absent in API response)
+        citation_missing = RAGCitation(retrieved_context="Some text")
+        assert citation_missing.document_id is None
 
         # Invalid score range
         with pytest.raises(ValidationError, match="greater_than_equal"):
-            RAGCitation(
-                retrieved_context="Some text", document_id="doc.txt", score=-0.1
-            )
+            RAGCitation(retrieved_context="Some text", document_id="doc.txt", score=-0.1)
 
         with pytest.raises(ValidationError, match="less_than_equal"):
             RAGCitation(retrieved_context="Some text", document_id="doc.txt", score=1.5)
@@ -2368,18 +2309,12 @@ class TestValidateIndicatorDisplayReports:
             )
         ]
 
-    def test_reports_defined_in_the_manifest(
-        self, test_id_to_image, report_validation_manifest
-    ):
+    def test_reports_defined_in_the_manifest(self, test_id_to_image, report_validation_manifest):
         """
         Test validation passes when requested reports are defined in the manifest.
         """
-        score_cards = self.create_scorecard_with_reports(
-            ["detailed_report", "summary_report"]
-        )
-        errors = validate_indicator_display_reports(
-            report_validation_manifest, score_cards, test_id_to_image
-        )
+        score_cards = self.create_scorecard_with_reports(["detailed_report", "summary_report"])
+        errors = validate_indicator_display_reports(report_validation_manifest, score_cards, test_id_to_image)
         assert errors == []
 
     def test_empty_display_reports(self, test_id_to_image, report_validation_manifest):
@@ -2387,9 +2322,7 @@ class TestValidateIndicatorDisplayReports:
         Test validation passes when display_reports list is empty.
         """
         score_cards = self.create_scorecard_with_reports([])
-        errors = validate_indicator_display_reports(
-            report_validation_manifest, score_cards, test_id_to_image
-        )
+        errors = validate_indicator_display_reports(report_validation_manifest, score_cards, test_id_to_image)
         assert errors == []
 
     def test_invalid_report_name(self, test_id_to_image, report_validation_manifest):
@@ -2397,9 +2330,7 @@ class TestValidateIndicatorDisplayReports:
         Test validation fails when a requested report name is missing from the manifest.
         """
         score_cards = self.create_scorecard_with_reports(["invalid_report"])
-        errors = validate_indicator_display_reports(
-            report_validation_manifest, score_cards, test_id_to_image
-        )
+        errors = validate_indicator_display_reports(report_validation_manifest, score_cards, test_id_to_image)
 
         assert len(errors) == 1
         assert "invalid_report" in errors[0]
@@ -2408,18 +2339,11 @@ class TestValidateIndicatorDisplayReports:
         """
         Test validation fails when duplicate report names are specified in the indicator.
         """
-        score_cards = self.create_scorecard_with_reports(
-            ["detailed_report", "detailed_report"]
-        )
-        errors = validate_indicator_display_reports(
-            report_validation_manifest, score_cards, test_id_to_image
-        )
+        score_cards = self.create_scorecard_with_reports(["detailed_report", "detailed_report"])
+        errors = validate_indicator_display_reports(report_validation_manifest, score_cards, test_id_to_image)
 
         assert len(errors) == 1
-        assert (
-            "duplicate report name 'detailed_report' in display_reports"
-            in errors[0].lower()
-        )
+        assert "duplicate report name 'detailed_report' in display_reports" in errors[0].lower()
 
     def test_missing_manifest_error(self, test_id_to_image):
         """
@@ -2428,9 +2352,7 @@ class TestValidateIndicatorDisplayReports:
         score_cards = self.create_scorecard_with_reports(["detailed_report"])
         manifests = {}
 
-        errors = validate_indicator_display_reports(
-            manifests, score_cards, test_id_to_image
-        )
+        errors = validate_indicator_display_reports(manifests, score_cards, test_id_to_image)
 
         assert len(errors) == 1
         assert "No manifest found for image 'report-image:latest'" in errors[0]
@@ -2443,22 +2365,16 @@ class TestValidateIndicatorDisplayReports:
         manifest_no_reports = Manifest(
             name="test_container",
             version="1.0",
-            input_systems=[
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            input_systems=[{"name": "system_under_test", "type": "llm_api", "required": True}],
             output_reports=[],
         )
         manifest = {"report-image:latest": manifest_no_reports}
         score_cards = self.create_scorecard_with_reports(["detailed_report"])
 
-        errors = validate_indicator_display_reports(
-            manifest, score_cards, test_id_to_image
-        )
+        errors = validate_indicator_display_reports(manifest, score_cards, test_id_to_image)
 
         assert len(errors) == 1
-        assert (
-            "Manifest for image 'report-image:latest' only defines: none" in errors[0]
-        )
+        assert "Manifest for image 'report-image:latest' only defines: none" in errors[0]
 
     def test_audit_indicators(self, test_id_to_image, report_validation_manifest):
         """
@@ -2471,31 +2387,23 @@ class TestValidateIndicatorDisplayReports:
             assessment=[{"outcome": "A", "description": "desc"}],
         )
 
-        score_cards = [
-            ScoreCard(score_card_name="Audit Score Card", indicators=[audit_indicator])
-        ]
+        score_cards = [ScoreCard(score_card_name="Audit Score Card", indicators=[audit_indicator])]
 
-        errors = validate_indicator_display_reports(
-            report_validation_manifest, score_cards, test_id_to_image
-        )
+        errors = validate_indicator_display_reports(report_validation_manifest, score_cards, test_id_to_image)
         assert errors == []
 
     def test_multiple_indicators(self, test_id_to_image, report_validation_manifest):
         """
         Test with 2 indicators where only the invalid one produces an error.
         """
-        valid_indicator = self.create_scorecard_with_reports(["detailed_report"])[
-            0
-        ].indicators[0]
+        valid_indicator = self.create_scorecard_with_reports(["detailed_report"])[0].indicators[0]
 
         invalid_indicator = ScoreCardIndicator(
             id="invalid_report_indicator",
             name="invalid indicator",
             apply_to={"test_id": "test_report_validation"},
             metric="pass_rate",
-            assessment=[
-                {"outcome": "PASS", "condition": "greater_equal", "threshold": 0.8}
-            ],
+            assessment=[{"outcome": "PASS", "condition": "greater_equal", "threshold": 0.8}],
             display_reports=["invalid_report_name"],
         )
 
@@ -2515,9 +2423,7 @@ class TestValidateIndicatorDisplayReports:
         assert len(errors) == 1
         assert "invalid_report_indicator" in errors[0]
 
-    def test_case_sensitive_display_reports_error(
-        self, test_id_to_image, report_validation_manifest
-    ):
+    def test_case_sensitive_display_reports_error(self, test_id_to_image, report_validation_manifest):
         """
         Test that requesting reports with incorrect casing results in a failure.
         """
@@ -2541,9 +2447,7 @@ class TestValidateGeneratedDatasets:
         manifest = Manifest(
             name="test_container",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
             output_datasets=[
                 OutputDataset(
                     name="augmented_data",
@@ -2576,9 +2480,7 @@ class TestValidateGeneratedDatasets:
             ),
         ]
 
-        warnings = validate_generated_datasets(
-            manifest, generated_datasets, "test_id", "my-registry/test:latest"
-        )
+        warnings = validate_generated_datasets(manifest, generated_datasets, "test_id", "my-registry/test:latest")
 
         assert len(warnings) == 0
 
@@ -2587,9 +2489,7 @@ class TestValidateGeneratedDatasets:
         manifest = Manifest(
             name="test_container",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
             output_datasets=[
                 OutputDataset(
                     name="declared_dataset",
@@ -2607,9 +2507,7 @@ class TestValidateGeneratedDatasets:
             )
         ]
 
-        warnings = validate_generated_datasets(
-            manifest, generated_datasets, "test_id", "my-registry/test:latest"
-        )
+        warnings = validate_generated_datasets(manifest, generated_datasets, "test_id", "my-registry/test:latest")
 
         assert len(warnings) == 1
         assert "undeclared_dataset" in warnings[0]
@@ -2621,9 +2519,7 @@ class TestValidateGeneratedDatasets:
         manifest = Manifest(
             name="test_container",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
             output_datasets=[
                 OutputDataset(
                     name="declared_dataset",
@@ -2646,9 +2542,7 @@ class TestValidateGeneratedDatasets:
             ),
         ]
 
-        warnings = validate_generated_datasets(
-            manifest, generated_datasets, "test_id", "my-registry/test:latest"
-        )
+        warnings = validate_generated_datasets(manifest, generated_datasets, "test_id", "my-registry/test:latest")
 
         assert len(warnings) == 2
         assert any("undeclared_1" in w for w in warnings)
@@ -2659,9 +2553,7 @@ class TestValidateGeneratedDatasets:
         manifest = Manifest(
             name="test_container",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
             output_datasets=[],
         )
 
@@ -2673,9 +2565,7 @@ class TestValidateGeneratedDatasets:
             )
         ]
 
-        warnings = validate_generated_datasets(
-            manifest, generated_datasets, "test_id", "my-registry/test:latest"
-        )
+        warnings = validate_generated_datasets(manifest, generated_datasets, "test_id", "my-registry/test:latest")
 
         # No warnings because manifest doesn't declare any output_datasets
         assert len(warnings) == 0
@@ -2690,9 +2580,7 @@ class TestValidateGeneratedDatasets:
             )
         ]
 
-        warnings = validate_generated_datasets(
-            None, generated_datasets, "test_id", "my-registry/test:latest"
-        )
+        warnings = validate_generated_datasets(None, generated_datasets, "test_id", "my-registry/test:latest")
 
         assert len(warnings) == 0
 
@@ -2701,9 +2589,7 @@ class TestValidateGeneratedDatasets:
         manifest = Manifest(
             name="test_container",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
             output_datasets=[
                 OutputDataset(
                     name="declared_dataset",
@@ -2713,9 +2599,7 @@ class TestValidateGeneratedDatasets:
             ],
         )
 
-        warnings = validate_generated_datasets(
-            manifest, [], "test_id", "my-registry/test:latest"
-        )
+        warnings = validate_generated_datasets(manifest, [], "test_id", "my-registry/test:latest")
 
         assert len(warnings) == 0
 
@@ -2723,7 +2607,7 @@ class TestValidateGeneratedDatasets:
 class TestMultipleSystemTypes:
     """Test validation with manifests that support multiple system types (Issue #287)."""
 
-    MOCK_MULTI_TYPE_MANIFEST = {
+    MOCK_MULTI_TYPE_MANIFEST: ClassVar[dict] = {
         "name": "multi_type_tester",
         "version": "1.0.0",
         "description": "Container that supports both LLM and VLM systems",
@@ -2771,18 +2655,14 @@ test_suite:
     def test_multi_type_manifest_with_llm_system(self):
         """LLM system should be compatible with manifest supporting ['llm_api', 'vlm_api']."""
         manifest = Manifest(**self.MOCK_MULTI_TYPE_MANIFEST)
-        suite_config = SuiteConfig.model_validate(
-            yaml.safe_load(self.MULTI_TYPE_SUITE_LLM)
-        )
+        suite_config = SuiteConfig.model_validate(yaml.safe_load(self.MULTI_TYPE_SUITE_LLM))
         test = suite_config.test_suite[0]
 
         # Create systems dict with LLM system
         systems_dict = {
             "my_llm_service": LLMAPIConfig(
                 type="llm_api",
-                params=LLMAPIParams(
-                    model="test", base_url="http://test", api_key="key"
-                ),
+                params=LLMAPIParams(model="test", base_url="http://test", api_key="key"),
             ),
         }
 
@@ -2794,9 +2674,7 @@ test_suite:
         """VLM system should be compatible with manifest supporting ['llm_api', 'vlm_api']."""
         manifest = Manifest(**self.MOCK_MULTI_TYPE_MANIFEST)
 
-        suite_config = SuiteConfig.model_validate(
-            yaml.safe_load(self.MULTI_TYPE_SUITE_VLM)
-        )
+        suite_config = SuiteConfig.model_validate(yaml.safe_load(self.MULTI_TYPE_SUITE_VLM))
         test = suite_config.test_suite[0]
 
         # Create systems dict with VLM system
@@ -2819,9 +2697,7 @@ test_suite:
         """RAG system should NOT be compatible with manifest supporting ['llm_api', 'vlm_api']."""
         manifest = Manifest(**self.MOCK_MULTI_TYPE_MANIFEST)
 
-        suite_config = SuiteConfig.model_validate(
-            yaml.safe_load(self.MULTI_TYPE_SUITE_INCOMPATIBLE)
-        )
+        suite_config = SuiteConfig.model_validate(yaml.safe_load(self.MULTI_TYPE_SUITE_INCOMPATIBLE))
         test = suite_config.test_suite[0]
 
         # Create systems dict with RAG system
@@ -2864,9 +2740,7 @@ test_suite:
         systems_dict = {
             "my_llm_service": LLMAPIConfig(
                 type="llm_api",
-                params=LLMAPIParams(
-                    model="test", base_url="http://test", api_key="key"
-                ),
+                params=LLMAPIParams(model="test", base_url="http://test", api_key="key"),
             ),
         }
 
@@ -2912,9 +2786,7 @@ test_suite:
         systems_dict = {
             "my_llm_api": LLMAPIConfig(
                 type="llm_api",
-                params=LLMAPIParams(
-                    model="test", base_url="http://test", api_key="key"
-                ),
+                params=LLMAPIParams(model="test", base_url="http://test", api_key="key"),
             ),
             "my_vlm_api": VLMAPIConfig(
                 type="vlm_api",
@@ -3013,9 +2885,7 @@ class TestValidateDataGenerationInput:
 class TestCreateDataGenerationPlan:
     """Test creation of execution plans with optional systems."""
 
-    def create_test_manifest(
-        self, supported_types: list[str] | None = None
-    ) -> Manifest:
+    def create_test_manifest(self, supported_types: list[str] | None = None) -> Manifest:
         """Helper to create a test manifest."""
         if supported_types is None:
             supported_types = ["llm_api"]
@@ -3069,9 +2939,7 @@ class TestCreateDataGenerationPlan:
 
         image_availability = {"my-registry/sdg:latest": True}
 
-        plan = create_data_generation_plan(
-            generation_config, systems_config, image_availability
-        )
+        plan = create_data_generation_plan(generation_config, systems_config, image_availability)
 
         assert len(plan) == 1
         assert plan[0]["job_id"] == "job1"
@@ -3097,9 +2965,7 @@ class TestCreateDataGenerationPlan:
         systems_config = None
         image_availability = {"my-registry/template:latest": True}
 
-        plan = create_data_generation_plan(
-            generation_config, systems_config, image_availability
-        )
+        plan = create_data_generation_plan(generation_config, systems_config, image_availability)
 
         assert len(plan) == 1
         assert plan[0]["job_id"] == "job2"
@@ -3124,9 +2990,7 @@ class TestCreateDataGenerationPlan:
         systems_config = SystemsConfig(systems={})
         image_availability = {"my-registry/nosys:latest": True}
 
-        plan = create_data_generation_plan(
-            generation_config, systems_config, image_availability
-        )
+        plan = create_data_generation_plan(generation_config, systems_config, image_availability)
 
         assert len(plan) == 1
         assert plan[0]["systems_params"] == {}
@@ -3148,9 +3012,7 @@ class TestCreateDataGenerationPlan:
         systems_config = None
         image_availability = {"my-registry/unavailable:latest": False}
 
-        plan = create_data_generation_plan(
-            generation_config, systems_config, image_availability
-        )
+        plan = create_data_generation_plan(generation_config, systems_config, image_availability)
 
         assert len(plan) == 0
 
@@ -3210,18 +3072,14 @@ class TestValidateDataGenerationPlan:
             systems={
                 "gpt4o": LLMAPIConfig(
                     type="llm_api",
-                    params=LLMAPIParams(
-                        model="gpt-4o", base_url="https://api.openai.com/v1"
-                    ),
+                    params=LLMAPIParams(model="gpt-4o", base_url="https://api.openai.com/v1"),
                 )
             }
         )
 
         manifests = {"my-registry/sdg:latest": self.create_test_manifest()}
 
-        errors = validate_data_generation_plan(
-            generation_config, systems_config, manifests
-        )
+        errors = validate_data_generation_plan(generation_config, systems_config, manifests)
 
         assert len(errors) == 0
 
@@ -3243,9 +3101,7 @@ class TestValidateDataGenerationPlan:
 
         manifests = {"my-registry/template:latest": self.create_test_manifest()}
 
-        errors = validate_data_generation_plan(
-            generation_config, systems_config, manifests
-        )
+        errors = validate_data_generation_plan(generation_config, systems_config, manifests)
 
         assert len(errors) == 0
 
@@ -3267,9 +3123,7 @@ class TestValidateDataGenerationPlan:
 
         manifests = {"my-registry/sdg:latest": self.create_test_manifest()}
 
-        errors = validate_data_generation_plan(
-            generation_config, systems_config, manifests
-        )
+        errors = validate_data_generation_plan(generation_config, systems_config, manifests)
 
         assert len(errors) == 1
         assert "missing_system" in errors[0]
@@ -3298,15 +3152,9 @@ class TestValidateDataGenerationPlan:
             }
         )
 
-        manifests = {
-            "my-registry/sdg:latest": self.create_test_manifest(
-                supported_types=["llm_api"]
-            )
-        }
+        manifests = {"my-registry/sdg:latest": self.create_test_manifest(supported_types=["llm_api"])}
 
-        errors = validate_data_generation_plan(
-            generation_config, systems_config, manifests
-        )
+        errors = validate_data_generation_plan(generation_config, systems_config, manifests)
 
         assert len(errors) == 1
         assert "Expected type in" in errors[0] or "not compatible" in errors[0]
@@ -3328,15 +3176,9 @@ class TestValidateDataGenerationPlan:
 
         systems_config = None
 
-        manifests = {
-            "my-registry/sdg:latest": self.create_test_manifest(
-                required_params=["required_param"]
-            )
-        }
+        manifests = {"my-registry/sdg:latest": self.create_test_manifest(required_params=["required_param"])}
 
-        errors = validate_data_generation_plan(
-            generation_config, systems_config, manifests
-        )
+        errors = validate_data_generation_plan(generation_config, systems_config, manifests)
 
         assert len(errors) == 1
         assert "required_param" in errors[0]
@@ -3358,15 +3200,10 @@ class TestValidateDataGenerationPlan:
         systems_config = None
         manifests = {}  # No manifest for the image
 
-        errors = validate_data_generation_plan(
-            generation_config, systems_config, manifests
-        )
+        errors = validate_data_generation_plan(generation_config, systems_config, manifests)
 
         assert len(errors) == 1
-        assert (
-            "does not have a loaded manifest" in errors[0]
-            or "No manifest available" in errors[0]
-        )
+        assert "does not have a loaded manifest" in errors[0] or "No manifest available" in errors[0]
 
 
 class TestComprehensiveTypeValidation:
@@ -3378,9 +3215,7 @@ class TestComprehensiveTypeValidation:
         manifest_data = {
             "name": "test",
             "version": "1.0.0",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [
                 {
                     "name": "my_string",
@@ -3395,7 +3230,7 @@ class TestComprehensiveTypeValidation:
 
         class DummyTest:
             name = "test"
-            params = {}
+            params: ClassVar[dict] = {}
 
         # Valid string
         test = DummyTest()
@@ -3418,9 +3253,7 @@ class TestComprehensiveTypeValidation:
         manifest_data = {
             "name": "test",
             "version": "1.0.0",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [{"name": "my_int", "type": "integer", "required": False}],
             "output_metrics": [{"name": "success", "type": "boolean"}],
         }
@@ -3428,7 +3261,7 @@ class TestComprehensiveTypeValidation:
 
         class DummyTest:
             name = "test"
-            params = {}
+            params: ClassVar[dict] = {}
 
         # Valid integer
         test = DummyTest()
@@ -3451,9 +3284,7 @@ class TestComprehensiveTypeValidation:
         manifest_data = {
             "name": "test",
             "version": "1.0.0",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [{"name": "my_float", "type": "float", "required": False}],
             "output_metrics": [{"name": "success", "type": "boolean"}],
         }
@@ -3461,7 +3292,7 @@ class TestComprehensiveTypeValidation:
 
         class DummyTest:
             name = "test"
-            params = {}
+            params: ClassVar[dict] = {}
 
         # Valid float
         test = DummyTest()
@@ -3489,9 +3320,7 @@ class TestComprehensiveTypeValidation:
         manifest_data = {
             "name": "test",
             "version": "1.0.0",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [{"name": "my_bool", "type": "boolean", "required": False}],
             "output_metrics": [{"name": "success", "type": "boolean"}],
         }
@@ -3499,7 +3328,7 @@ class TestComprehensiveTypeValidation:
 
         class DummyTest:
             name = "test"
-            params = {}
+            params: ClassVar[dict] = {}
 
         # Valid boolean
         test = DummyTest()
@@ -3526,9 +3355,7 @@ class TestComprehensiveTypeValidation:
         manifest_data = {
             "name": "test",
             "version": "1.0.0",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [
                 {
                     "name": "mode",
@@ -3543,7 +3370,7 @@ class TestComprehensiveTypeValidation:
 
         class DummyTest:
             name = "test"
-            params = {}
+            params: ClassVar[dict] = {}
 
         # Valid choice
         test = DummyTest()
@@ -3571,9 +3398,7 @@ class TestComprehensiveTypeValidation:
         manifest_data = {
             "name": "test",
             "version": "1.0.0",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [
                 {
                     "name": "my_list",
@@ -3588,7 +3413,7 @@ class TestComprehensiveTypeValidation:
 
         class DummyTest:
             name = "test"
-            params = {}
+            params: ClassVar[dict] = {}
 
         # Valid list
         test = DummyTest()
@@ -3611,9 +3436,7 @@ class TestComprehensiveTypeValidation:
         manifest_data = {
             "name": "test",
             "version": "1.0.0",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [
                 {
                     "name": "string_list",
@@ -3628,7 +3451,7 @@ class TestComprehensiveTypeValidation:
 
         class DummyTest:
             name = "test"
-            params = {}
+            params: ClassVar[dict] = {}
 
         # Valid - all strings
         test = DummyTest()
@@ -3639,32 +3462,24 @@ class TestComprehensiveTypeValidation:
         # Invalid - integers in list
         test.params = {"string_list": [1, 2, 3]}
         errors = validate_parameters(test, manifest)
-        assert any(
-            "string_list[0]" in e and "Expected type 'string'" in e for e in errors
-        )
+        assert any("string_list[0]" in e and "Expected type 'string'" in e for e in errors)
 
         # Invalid - mixed types
         test.params = {"string_list": ["hello", 123, "world"]}
         errors = validate_parameters(test, manifest)
-        assert any(
-            "string_list[1]" in e and "Expected type 'string'" in e for e in errors
-        )
+        assert any("string_list[1]" in e and "Expected type 'string'" in e for e in errors)
 
     def test_object_validation_structure(self):
         """Test object type validation for structure."""
         manifest_data = {
             "name": "test",
             "version": "1.0.0",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [
                 {
                     "name": "my_object",
                     "type": "object",
-                    "properties": [
-                        {"name": "field1", "type": "string", "required": True}
-                    ],
+                    "properties": [{"name": "field1", "type": "string", "required": True}],
                     "required": False,
                 }
             ],
@@ -3674,7 +3489,7 @@ class TestComprehensiveTypeValidation:
 
         class DummyTest:
             name = "test"
-            params = {}
+            params: ClassVar[dict] = {}
 
         # Valid object
         test = DummyTest()
@@ -3697,9 +3512,7 @@ class TestComprehensiveTypeValidation:
         manifest_data = {
             "name": "test",
             "version": "1.0.0",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [
                 {
                     "name": "config",
@@ -3717,7 +3530,7 @@ class TestComprehensiveTypeValidation:
 
         class DummyTest:
             name = "test"
-            params = {}
+            params: ClassVar[dict] = {}
 
         # Valid object with required property
         test = DummyTest()
@@ -3733,24 +3546,17 @@ class TestComprehensiveTypeValidation:
         # Invalid - missing required property
         test.params = {"config": {"timeout": 30.0}}
         errors = validate_parameters(test, manifest)
-        assert any(
-            "config.max_retries" in e and "Required property is missing" in e
-            for e in errors
-        )
+        assert any("config.max_retries" in e and "Required property is missing" in e for e in errors)
 
         # Invalid - wrong type for property
         test.params = {"config": {"max_retries": "three"}}
         errors = validate_parameters(test, manifest)
-        assert any(
-            "config.max_retries" in e and "Expected type 'integer'" in e for e in errors
-        )
+        assert any("config.max_retries" in e and "Expected type 'integer'" in e for e in errors)
 
         # Invalid - unknown property
         test.params = {"config": {"max_retries": 3, "unknown_field": "value"}}
         errors = validate_parameters(test, manifest)
-        assert any(
-            "config.unknown_field" in e and "Unknown property" in e for e in errors
-        )
+        assert any("config.unknown_field" in e and "Unknown property" in e for e in errors)
 
     def test_nested_list_of_objects(self):
         """Test validation of complex nested structure: list of objects."""
@@ -3758,9 +3564,7 @@ class TestComprehensiveTypeValidation:
         manifest_data = {
             "name": "test",
             "version": "1.0.0",
-            "input_systems": [
-                {"name": "system_under_test", "type": "llm_api", "required": True}
-            ],
+            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
             "input_schema": [
                 {
                     "name": "scenarios",
@@ -3782,7 +3586,7 @@ class TestComprehensiveTypeValidation:
 
         class DummyTest:
             name = "test"
-            params = {}
+            params: ClassVar[dict] = {}
 
         # Valid list of objects
         test = DummyTest()
@@ -3803,10 +3607,7 @@ class TestComprehensiveTypeValidation:
             ]
         }
         errors = validate_parameters(test, manifest)
-        assert any(
-            "scenarios[1].iterations" in e and "Required property is missing" in e
-            for e in errors
-        )
+        assert any("scenarios[1].iterations" in e and "Required property is missing" in e for e in errors)
 
         # Invalid - wrong type in nested property
         test.params = {
@@ -3815,7 +3616,4 @@ class TestComprehensiveTypeValidation:
             ]
         }
         errors = validate_parameters(test, manifest)
-        assert any(
-            "scenarios[0].iterations" in e and "Expected type 'integer'" in e
-            for e in errors
-        )
+        assert any("scenarios[0].iterations" in e and "Expected type 'integer'" in e for e in errors)

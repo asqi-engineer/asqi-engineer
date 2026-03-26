@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 __all__ = [
@@ -26,7 +27,7 @@ class RAGCitation(BaseModel):
             retrieved_context="All customers are eligible for 30-day refunds",
             document_id="return_policy.pdf",
             score=0.95,
-            source_id="company_policies"
+            source_id="company_policies",
         )
         ```
     """
@@ -36,20 +37,17 @@ class RAGCitation(BaseModel):
         description="The retrieved text content that was used in generation",
         min_length=1,
     )
-    document_id: str = Field(
-        ...,
+    document_id: str | None = Field(
+        None,
         description="Stable identifier for the originating document",
-        min_length=1,
     )
-    score: Optional[float] = Field(
+    score: float | None = Field(
         None,
         description="Retrieval ranking or confidence score (0.0-1.0)",
         ge=0.0,
         le=1.0,
     )
-    source_id: Optional[str] = Field(
-        None, description="Collection/index/knowledge-base identifier"
-    )
+    source_id: str | None = Field(None, description="Collection/index/knowledge-base identifier")
 
 
 class RAGContext(BaseModel):
@@ -64,23 +62,18 @@ class RAGContext(BaseModel):
 
     Example:
         ```python
-        context = RAGContext(citations=[
-            RAGCitation(
-                retrieved_context="Policy states 30-day returns...",
-                document_id="policy.pdf",
-                score=0.92
-            )
-        ])
+        context = RAGContext(
+            citations=[
+                RAGCitation(retrieved_context="Policy states 30-day returns...", document_id="policy.pdf", score=0.92)
+            ]
+        )
         ```
     """
 
-    citations: List[RAGCitation] = Field(
-        default_factory=list,
-        description="List of citations from retrieval (may be empty if no relevant context found)",
-    )
+    citations: list[RAGCitation] = []
 
 
-def validate_rag_response(response_dict: Dict[str, Any]) -> List[RAGCitation]:
+def validate_rag_response(response_dict: dict[str, Any]) -> list[RAGCitation]:
     """Validate a RAG API response and extract citations.
 
     This function validates that a RAG system's response contains the required
@@ -107,25 +100,17 @@ def validate_rag_response(response_dict: Dict[str, Any]) -> List[RAGCitation]:
 
         client = OpenAI(base_url=base_url, api_key=api_key)
         response = client.chat.completions.create(
-            model="rag-model",
-            messages=[{"role": "user", "content": "What is the policy?"}]
+            model="rag-model", messages=[{"role": "user", "content": "What is the policy?"}]
         )
 
         try:
             # Validate and extract citations
             citations = validate_rag_response(response.model_dump())
 
-            result = {
-                "success": True,
-                "num_citations": len(citations),
-                "documents": [c.document_id for c in citations]
-            }
+            result = {"success": True, "num_citations": len(citations), "documents": [c.document_id for c in citations]}
 
         except (ValidationError, KeyError, IndexError) as e:
-            result = {
-                "success": False,
-                "error": f"Invalid RAG response: {str(e)}"
-            }
+            result = {"success": False, "error": f"Invalid RAG response: {str(e)}"}
         ```
     """
     # Navigate to the context field in the first choice's message
@@ -134,9 +119,7 @@ def validate_rag_response(response_dict: Dict[str, Any]) -> List[RAGCitation]:
         message = response_dict["choices"][0]["message"]
         context_dict = message["context"]
     except (KeyError, IndexError, TypeError) as e:
-        raise KeyError(
-            f"Response missing required structure 'choices[0].message.context': {e}"
-        )
+        raise KeyError(f"Response missing required structure 'choices[0].message.context': {e}") from e
 
     # Validate the context structure using our Pydantic model
     context = RAGContext(**context_dict)
