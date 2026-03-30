@@ -233,6 +233,7 @@ Contributors
    cli
    library
    examples
+   system-apis
    autoapi/index
 
 .. toctree::
