@@ -924,10 +924,11 @@ class HFDatasetDefinition(BaseModel):
         default_factory=dict,
         description="Optional mapping from existing dataset column names to their required names in manifest i.e. current_name: manifest_name.",
     )
-    label_map: Optional[dict[int, str]] = Field(
+    label_map: Optional[dict[Any, Any]] = Field(
         default=None,
-        description="Optional mapping from class IDs to class names for CV datasets (e.g., {0: 'person', 1: 'car'}). "
-        "Used by detection and classification containers to match predictions with ground truth labels.",
+        description="Optional label mapping for datasets. Supports simple ID-to-name mappings "
+        "(e.g., {0: 'person', 1: 'car'}) and rich field definitions for classification tasks "
+        "(e.g., {'sentiment': {'field_data_type': 'string', 'field_enum_values': ['positive', 'negative']}}).",
     )
     tags: list[str] = Field(
         default_factory=list,
