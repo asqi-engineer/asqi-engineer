@@ -731,6 +731,44 @@ class TestHFDatasetDefinitionSchema:
         )
         assert defn.label_map == {0: "person", 1: "car", 2: "bicycle"}
 
+    def test_hf_dataset_definition_with_rich_label_map(self):
+        """Test HFDatasetDefinition accepts rich label_map format with field definitions."""
+        rich_label_map = {
+            "sentiment": {
+                "field_description": "Overall emotional tone of the text",
+                "field_data_type": "string",
+                "field_enum_values": ["positive", "negative"],
+            },
+            "tags": {
+                "field_description": "One or more issue/theme tags",
+                "field_data_type": "string",
+                "field_enum_values": ["billing", "bug", "performance", "ux"],
+                "field_multi_label": True,
+            },
+            "priority_score": {
+                "field_description": "Urgency/priority on a scale from 1 to 10",
+                "field_data_type": "int",
+            },
+            "confidence": {
+                "field_description": "Model confidence as a float between 0 and 1",
+                "field_data_type": "float",
+            },
+            "is_actionable": {
+                "field_description": "Whether the text requires follow-up action",
+                "field_data_type": "bool",
+            },
+        }
+        defn = HFDatasetDefinition(
+            type="huggingface",
+            loader_params=DatasetLoaderParams(
+                hub_path="text-datasets/reviews",
+            ),
+            label_map=rich_label_map,
+        )
+        assert defn.label_map == rich_label_map
+        assert defn.label_map["sentiment"]["field_data_type"] == "string"
+        assert defn.label_map["tags"]["field_multi_label"] is True
+
     def test_hf_dataset_definition_label_map_defaults_to_none(self):
         """Test HFDatasetDefinition label_map defaults to None."""
         defn = HFDatasetDefinition(
