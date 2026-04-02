@@ -86,4 +86,4 @@ jobs:
             exit 0
           fi
           echo "Running pytest for: ${{ matrix.name }}"
-          cd "$dir" && uv pip install -r requirements.txt --system && pytest tests/ -v
+          cd "$dir" && uv venv && uv pip install -r requirements.txt && .venv/bin/pytest tests/ -v
