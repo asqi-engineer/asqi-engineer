@@ -47,7 +47,9 @@ class RAGCitation(BaseModel):
         ge=0.0,
         le=1.0,
     )
-    source_id: str | None = Field(None, description="Collection/index/knowledge-base identifier")
+    source_id: str | None = Field(
+        None, description="Collection/index/knowledge-base identifier"
+    )
 
 
 class RAGContext(BaseModel):
@@ -119,7 +121,9 @@ def validate_rag_response(response_dict: dict[str, Any]) -> list[RAGCitation]:
         message = response_dict["choices"][0]["message"]
         context_dict = message["context"]
     except (KeyError, IndexError, TypeError) as e:
-        raise KeyError(f"Response missing required structure 'choices[0].message.context': {e}") from e
+        raise KeyError(
+            f"Response missing required structure 'choices[0].message.context': {e}"
+        ) from e
 
     # Validate the context structure using our Pydantic model
     context = RAGContext(**context_dict)

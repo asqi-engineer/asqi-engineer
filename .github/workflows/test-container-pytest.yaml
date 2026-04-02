@@ -1,0 +1,89 @@
+name: Run Container Unit Tests
+
+on:
+  pull_request:
+    paths:
+      - 'test_containers/*/tests/**'
+
+jobs:
+  determine-changed:
+    name: Determine changed containers
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62
+        with:
+          files: |
+            test_containers/*/tests/**
+
+      - name: Build matrix from changed containers
+        id: set-matrix
+        run: |
+          set -euo pipefail
+          IFS=' ' read -ra files <<< "${{ steps.changed-files.outputs.all_changed_files }}"
+          declare -A seen=()
+
+          json='{"include":['
+          first=1
+          for file in "${files[@]}"; do
+            name=$(echo "$file" | awk -F/ '{print $2}')
+            if [[ -z "$name" || -n "${seen[$name]:-}" ]]; then
+              continue
+            fi
+            seen["$name"]=1
+            entry='{"name":"'"$name"'"}'
+            if [ $first -eq 1 ]; then
+              json+="$entry"
+              first=0
+            else
+              json+=",$entry"
+            fi
+          done
+
+          if [ $first -eq 1 ]; then
+            echo "No changed test containers detected."
+            echo 'matrix={"include":[{"name":"noop","skip":true}]}' >> "$GITHUB_OUTPUT"
+          else
+            json+=']}'
+            echo "Matrix: $json"
+            echo "matrix=$json" >> "$GITHUB_OUTPUT"
+          fi
+
+  run-tests:
+    name: Test / ${{ matrix.name }}
+    needs: determine-changed
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
+    steps:
+      - name: No changes (noop)
+        if: ${{ matrix.skip == true }}
+        run: echo "No changed test containers; skipping."
+
+      - name: Checkout
+        if: ${{ matrix.skip != true }}
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        if: ${{ matrix.skip != true }}
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run pytest for ${{ matrix.name }}
+        if: ${{ matrix.skip != true }}
+        run: |
+          dir="test_containers/${{ matrix.name }}"
+          if [[ ! -d "$dir/tests" ]]; then
+            echo "No tests/ directory found for ${{ matrix.name }}, skipping."
+            exit 0
+          fi
+          echo "Running pytest for: ${{ matrix.name }}"
+          cd "$dir" && uv venv && uv pip install -r requirements.txt && .venv/bin/pytest tests/ -v
