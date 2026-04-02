@@ -8,7 +8,7 @@ on:
 jobs:
   determine-changed:
     name: Determine changed containers
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -60,7 +60,7 @@ jobs:
   run-tests:
     name: Test / ${{ matrix.name }}
     needs: determine-changed
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
