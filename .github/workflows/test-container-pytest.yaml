@@ -1,4 +1,4 @@
-name: Container Unit Tests
+name: Run Container Unit Tests
 
 on:
   pull_request:
@@ -88,4 +88,4 @@ jobs:
             exit 0
           fi
           echo "Running pytest for: ${{ matrix.name }}"
-          cd "$dir" && uv sync --locked && uv run pytest tests/ -v
+          cd "$dir" && pip install -r requirements.txt && pytest tests/ -v
