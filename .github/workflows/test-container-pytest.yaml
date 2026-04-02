@@ -75,9 +75,7 @@ jobs:
 
       - name: Install uv
         if: ${{ matrix.skip != true }}
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        uses: astral-sh/setup-uv@v5
 
       - name: Run pytest for ${{ matrix.name }}
         if: ${{ matrix.skip != true }}
@@ -88,4 +86,4 @@ jobs:
             exit 0
           fi
           echo "Running pytest for: ${{ matrix.name }}"
-          cd "$dir" && pip install -r requirements.txt && pytest tests/ -v
+          cd "$dir" && uv pip install -r requirements.txt --system && pytest tests/ -v
