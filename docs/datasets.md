@@ -136,65 +136,6 @@ test_suite:
       output: "path/to/output/"
 ```
 
-### Label Maps
-
-Label maps provide metadata about label columns in your dataset. They are useful for classification, detection, and other tasks where integer IDs or string keys need human-readable names or richer schema definitions.
-
-ASQI supports two label map formats:
-
-#### Label Maps
-
-Map integer IDs or string keys to human-readable label names:
-
-```yaml
-datasets:
-  coco_detection:
-    type: "huggingface"
-    loader_params:
-      hub_path: "detection-datasets/coco"
-    label_map:
-      0: "person"
-      1: "car"
-      2: "bicycle"
-```
-
-#### Rich Label Maps with Field Definitions
-
-For classification tasks that require richer schema information, use `LabelFieldDefinition` entries. Each entry can specify a description, data type, allowed enum values, and whether the field supports multi-label assignment:
-
-```yaml
-datasets:
-  review_classification:
-    type: "huggingface"
-    loader_params:
-      builder_name: "json"
-      data_files: "reviews.json"
-    label_map:
-      sentiment:
-        field_description: "Overall emotional tone of the text"
-        field_data_type: "string"
-        field_enum_values: ["positive", "negative", "neutral"]
-      tags:
-        field_description: "One or more issue/theme tags"
-        field_data_type: "string"
-        field_enum_values: ["billing", "bug", "performance", "ux"]
-        field_multi_label: true
-      priority_score:
-        field_description: "Urgency/priority on a scale from 1 to 10"
-        field_data_type: "int"
-```
-
-**`LabelFieldDefinition` fields:**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `field_description` | `string` | Yes | Human-readable description of the label field |
-| `field_data_type` | `string` | Yes | Data type of the field (e.g., `string`, `int`, `float`, `bool`) |
-| `field_enum_values` | `list[string]` | No | Allowed values for categorical fields |
-| `field_multi_label` | `bool` | No | Whether multiple values can be assigned (default: `false`) |
-
-Rich label maps are especially useful when test containers need to understand the full schema of classification outputs, such as which fields are categorical, what values are valid, and whether multi-label assignment is expected.
-
 ### Using Input Datasets in Test Suites
 
 Reference datasets from your registry in test suite configurations:
