@@ -80,4 +80,7 @@ testpaths = ["tests"]
 
 [tool.uv]
 package = true
- 
+
+constraint-dependencies = [
+    "pygments>=2.20.0"
+]
