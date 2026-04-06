@@ -839,6 +839,18 @@ class DatasetLoaderParams(BaseModel):
         return self
 
 
+class LabelFieldDefinition(BaseModel):
+    """Defines a rich field definition for classification tasks within a label map."""
+
+    field_description: str
+    field_data_type: str
+    field_enum_values: list[str] | None = None
+    field_multi_label: bool = False
+
+
+LabelMap = dict[int, str] | dict[str, str | LabelFieldDefinition]
+
+
 class HFDatasetDefinition(BaseModel):
     """Defines a reusable HuggingFace dataset that can be referenced by name in test suites and generation jobs."""
 
@@ -861,10 +873,12 @@ class HFDatasetDefinition(BaseModel):
             "manifest (current_name: manifest_name)."
         ),
     )
-    label_map: dict[int, str] | None = Field(
+    label_map: LabelMap | None = Field(
         default=None,
-        description="Optional mapping from class IDs to class names for CV datasets (e.g., {0: 'person', 1: 'car'}). "
-        "Used by detection and classification containers to match predictions with ground truth labels.",
+        description="Optional label mapping for datasets. Supports simple ID-to-name mappings "
+        "(e.g., {0: 'person', 1: 'car'}) and rich field definitions using LabelFieldDefinition "
+        "for classification tasks (e.g., {'sentiment': LabelFieldDefinition(field_description='...', "
+        "field_data_type='string', field_enum_values=['positive', 'negative'])}).",
     )
     tags: list[str] = Field(
         default_factory=list,
