@@ -11,4 +11,5 @@ dependencies = [
     "torch>=2.0.0",
     "torchmetrics[detection]>=1.2.0",
     "pycocotools>=2.0.0",
+    "asqi-engineer>=0.4.9"
 ]
