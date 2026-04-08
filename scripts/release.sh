@@ -21,6 +21,10 @@ p.write_text(re.sub(r'^version = \".*\"', 'version = \"${VERSION}\"', p.read_tex
 "
 echo "Bumped pyproject.toml → ${VERSION}"
 
+# Regenerate lockfile to reflect version change
+uv lock
+echo "Updated uv.lock"
+
 # Prepend changelog
 if [[ ! -f CHANGELOG.md ]]; then
   echo "# Changelog" > CHANGELOG.md
@@ -29,7 +33,7 @@ git-cliff --unreleased --tag "v${VERSION}" --prepend CHANGELOG.md
 echo "Updated CHANGELOG.md"
 
 # Commit, tag, push
-git add pyproject.toml CHANGELOG.md
+git add pyproject.toml uv.lock CHANGELOG.md
 git commit -m "chore(release): asqi-engineer ${VERSION}"
 git tag "v${VERSION}"
 git push origin HEAD "v${VERSION}"
