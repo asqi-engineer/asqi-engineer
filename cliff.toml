@@ -1,0 +1,54 @@
+# git-cliff configuration
+# https://git-cliff.org/docs/configuration
+
+[changelog]
+header = "# Changelog\n"
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | split(pat="\n") | first | trim | upper_first }} \
+            ({{ commit.id | truncate(length=7, end="") }})\
+    {% endfor %}
+{% endfor %}
+"""
+
+trim = true
+
+[git]
+conventional_commits = true
+# Filter out non-conventional lines produced by split_commits (body
+# paragraphs, markdown bullets, blank lines from squash-merge bodies).
+filter_unconventional = true
+# Split squash-merge "commit details" bodies so each "* type: desc"
+# line becomes its own changelog entry.
+split_commits = true
+commit_preprocessors = [
+  # Strip GitHub squash-merge bullet prefix ("* ") so conventional parsing works
+  { pattern = "(?m)^\\* ", replace = "" },
+  # Remove squash-merge separators and co-author trailers
+  { pattern = "---------", replace = "" },
+  { pattern = "(?m)^Co-authored-by:.*", replace = "" },
+]
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->🚀 Features" },
+  { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
+  { message = "^refactor", group = "<!-- 2 -->🚜 Refactor" },
+  { message = "^doc", group = "<!-- 3 -->📚 Documentation" },
+  { message = "^perf", group = "<!-- 4 -->⚡ Performance" },
+  { message = "^style", group = "<!-- 5 -->🎨 Styling" },
+  { message = "^test", group = "<!-- 6 -->🧪 Testing" },
+  { message = "^Merge branch", skip = true },
+  { message = "^Merge pull request", skip = true },
+  { message = "^chore|^ci", skip = true },
+  { body = ".*security", group = "<!-- 8 -->🛡️ Security" },
+  { message = "^revert", group = "<!-- 9 -->◀️ Revert" },
+]
+sort_commits = "oldest"

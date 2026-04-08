@@ -32,7 +32,7 @@ jobs:
     needs: [ lint, test, security ]
     permissions:
       id-token: write
-      contents: read
+      contents: write
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -42,9 +42,6 @@ jobs:
     steps:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          fetch-tags: true
 
       - name: 🔍 Verify git state
         run: |
@@ -104,3 +101,14 @@ jobs:
       - name: 🚀 Publish to PyPI
         # This action uses OIDC to securely authenticate with PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: 📝 Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          awk '/^## /{if(found) exit; found=1; next} found' \
+            CHANGELOG.md > notes.md || true
+          gh release create "${{ github.ref_name }}" \
+            --title "asqi-engineer ${{ github.ref_name }}" \
+            --notes-file notes.md \
+            dist/*
