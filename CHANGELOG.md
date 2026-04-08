@@ -1,4 +1,18 @@
 # Changelog
+## [0.4.10] - 2026-04-08
+
+### 🐛 Bug Fixes
+
+- Fixed other linting (fcc9e1b)
+- Fix lint and test issues (33e189f)
+
+### 🧪 Testing
+
+- Test multiple test change scenarios (d430b84)
+
+### ◀️ Revert
+
+- Revert smoke tests (fd29538)
 ## [0.4.9] - 2026-04-06
 
 ### 🚀 Features
