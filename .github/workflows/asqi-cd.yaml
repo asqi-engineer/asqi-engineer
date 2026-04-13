@@ -48,9 +48,14 @@ jobs:
           PREV=$(git show HEAD~1:pyproject.toml 2>/dev/null \
             | python3 -c "import sys,tomllib; print(tomllib.load(sys.stdin.buffer)['project']['version'])" 2>/dev/null || echo "")
           if [[ "${CURR}" != "${PREV}" && -n "${CURR}" ]]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "version=${CURR}" >> "$GITHUB_OUTPUT"
-            echo "Version bump detected: ${PREV:-<none>} → ${CURR}"
+            if git ls-remote --tags origin "v${CURR}" | grep -q "refs/tags/v${CURR}$"; then
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              echo "Tag v${CURR} already exists, skipping release"
+            else
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              echo "version=${CURR}" >> "$GITHUB_OUTPUT"
+              echo "Version bump detected: ${PREV:-<none>} → ${CURR}"
+            fi
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "Version unchanged (${CURR}), skipping release"
