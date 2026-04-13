@@ -153,7 +153,7 @@ wheels = [
 
 [[package]]
 name = "asqi-engineer"
-version = "0.4.10"
+version = "0.4.9"
 source = { editable = "." }
 dependencies = [
     { name = "datasets", extra = ["vision"] },
