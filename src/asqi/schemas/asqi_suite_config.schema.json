@@ -16,7 +16,7 @@
             }
           ],
           "default": null,
-          "description": "A list of system names (from systems.yaml) to run this test against. Can be inherited from test_suite_default.",
+          "description": "System names from systems.yaml to run this test against. Can be inherited from test_suite_default.",
           "title": "Systems Under Test"
         },
         "systems": {
@@ -78,7 +78,7 @@
             }
           ],
           "default": null,
-          "description": "Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
+          "description": "Input dataset names mapped to registry references. Values must be names from the datasets registry config (--datasets-config).",
           "title": "Input Datasets"
         },
         "volumes": {
@@ -105,7 +105,7 @@
             }
           ],
           "default": null,
-          "description": "Path to .env file containing environment variables for this test's container execution (e.g., '.env', 'test.env').",
+          "description": "Path to .env file with variables for this test's container (e.g. '.env', 'test.env').",
           "title": "Env File"
         },
         "environment": {
@@ -121,11 +121,11 @@
             }
           ],
           "default": null,
-          "description": "Dictionary of environment variables to pass to the test container. Supports interpolation syntax (e.g., {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
+          "description": "Environment variables for the test container. Supports interpolation (e.g. {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
           "title": "Environment"
         },
         "id": {
-          "description": "A unique, human-readable ID (up to 32 characters) for this test instance. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+          "description": "A unique, human-readable ID (up to 32 characters) for this test instance. Can include lowercase letters (a-z), digits (0-9) and underscore (_).",
           "pattern": "^[0-9a-z_]{1,32}$",
           "title": "Id",
           "type": "string"
@@ -185,7 +185,7 @@
             }
           ],
           "default": null,
-          "description": "A list of system names (from systems.yaml) to run this test against. Can be inherited from test_suite_default.",
+          "description": "System names from systems.yaml to run this test against. Can be inherited from test_suite_default.",
           "title": "Systems Under Test"
         },
         "systems": {
@@ -247,7 +247,7 @@
             }
           ],
           "default": null,
-          "description": "Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
+          "description": "Input dataset names mapped to registry references. Values must be names from the datasets registry config (--datasets-config).",
           "title": "Input Datasets"
         },
         "volumes": {
@@ -274,7 +274,7 @@
             }
           ],
           "default": null,
-          "description": "Path to .env file containing environment variables for this test's container execution (e.g., '.env', 'test.env').",
+          "description": "Path to .env file with variables for this test's container (e.g. '.env', 'test.env').",
           "title": "Env File"
         },
         "environment": {
@@ -290,7 +290,7 @@
             }
           ],
           "default": null,
-          "description": "Dictionary of environment variables to pass to the test container. Supports interpolation syntax (e.g., {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
+          "description": "Environment variables for the test container. Supports interpolation (e.g. {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
           "title": "Environment"
         }
       },

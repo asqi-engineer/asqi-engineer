@@ -70,7 +70,7 @@
             }
           ],
           "default": null,
-          "description": "The dataset builder name for local files. Gets passed to datasets.load_dataset() as the path argument. Mutually exclusive with hub_path.",
+          "description": "The dataset builder name for local files. Passed to datasets.load_dataset() as the path argument. Mutually exclusive with hub_path.",
           "title": "Builder Name"
         },
         "data_dir": {
@@ -171,7 +171,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Optional mapping from existing dataset column names to their required names in manifest i.e. current_name: manifest_name.",
+          "description": "Optional mapping from existing dataset column names to their required names in the manifest (current_name: manifest_name).",
           "title": "Mapping",
           "type": "object"
         },
@@ -318,7 +318,7 @@
           }
         ]
       },
-      "description": "Dictionary of dataset definitions, keyed by dataset name. Each definition can be HFDatasetDefinition, PDFDatasetDefinition, or TXTDatasetDefinition (discriminated by 'type' field).",
+      "description": "Dataset definitions keyed by name. Each entry is HFDatasetDefinition, PDFDatasetDefinition, or TXTDatasetDefinition (discriminated by 'type').",
       "title": "Datasets",
       "type": "object"
     }

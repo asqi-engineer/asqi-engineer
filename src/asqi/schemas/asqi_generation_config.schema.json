@@ -62,7 +62,7 @@
             }
           ],
           "default": null,
-          "description": "Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
+          "description": "Input dataset names mapped to registry references. Values must be names from the datasets registry config (--datasets-config).",
           "title": "Input Datasets"
         },
         "params": {
@@ -103,7 +103,7 @@
             }
           ],
           "default": null,
-          "description": "Path to .env file containing environment variables for this test's container execution (e.g., '.env', 'test.env').",
+          "description": "Path to .env file with variables for this job's container (e.g. '.env', 'test.env').",
           "title": "Env File"
         },
         "environment": {
@@ -119,7 +119,7 @@
             }
           ],
           "default": null,
-          "description": "Dictionary of environment variables to pass to the test container. Supports interpolation syntax (e.g., {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
+          "description": "Environment variables for the job container. Supports interpolation (e.g. {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
           "title": "Environment"
         }
       },

@@ -1,10 +1,12 @@
+import uuid
 from enum import StrEnum
-from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PrivateAttr,
     StringConstraints,
     model_validator,
 )
@@ -63,9 +65,7 @@ class ValueFeature(BaseModel):
     Represents a scalar value feature (string, int64, float32, bool, etc.)
     """
 
-    feature_type: Literal["Value"] = Field(
-        default="Value", description="Feature type discriminator"
-    )
+    feature_type: Literal["Value"] = Field(default="Value", description="Feature type discriminator")
     name: str = Field(..., description="The name of the feature")
     dtype: HFDtype = Field(
         ...,
@@ -78,24 +78,22 @@ class ValueFeature(BaseModel):
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: Optional[str] = Field(
-        default=None, description="Description of the feature - data type, purpose etc."
-    )
+    description: str | None = Field(default=None, description="Description of the feature - data type, purpose etc.")
 
 
 class ListFeature(BaseModel):
     """Corresponds to HuggingFace's List/Sequence feature type."""
 
-    feature_type: Literal["List"] = Field(
-        default="List", description="Feature type discriminator"
-    )
+    feature_type: Literal["List"] = Field(default="List", description="Feature type discriminator")
     name: str = Field(..., description="The name of the feature")
-    feature: Union[
-        HFDtype,
-        Literal["Image", "Audio", "Video", "ClassLabel", "Dict", "List"],
-    ] = Field(
+    feature: HFDtype | Literal["Image", "Audio", "Video", "ClassLabel", "Dict", "List"] = Field(
         ...,
-        description="List element type. Can be: (1) scalar dtype string ('string', 'int32', etc.) for List(Value(dtype)), or (2) simple feature type name ('Image', 'Audio', 'Video', 'ClassLabel', 'Dict', 'List') for List(FeatureType()). For complex nested structures with custom parameters, define nested ListFeature or DictFeature objects.",
+        description=(
+            "List element type. Can be: (1) scalar dtype string ('string', 'int32', etc.) for "
+            "List(Value(dtype)), or (2) simple feature type name ('Image', 'Audio', 'Video', "
+            "'ClassLabel', 'Dict', 'List') for List(FeatureType()). For complex nested structures "
+            "with custom parameters, define nested ListFeature or DictFeature objects."
+        ),
     )
     length: int = Field(
         default=-1,
@@ -106,17 +104,13 @@ class ListFeature(BaseModel):
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: Optional[str] = Field(
-        default=None, description="Description of the list feature"
-    )
+    description: str | None = Field(default=None, description="Description of the list feature")
 
     @model_validator(mode="after")
     def _validate_length(self) -> "ListFeature":
         """Ensure length is >= -1."""
         if self.length < -1:
-            raise ValueError(
-                f"List length must be >= -1 (got {self.length}). Use -1 for variable-length lists."
-            )
+            raise ValueError(f"List length must be >= -1 (got {self.length}). Use -1 for variable-length lists.")
         return self
 
 
@@ -128,7 +122,7 @@ class DictFeature(BaseModel):
         description="Feature type discriminator",
     )
     name: str = Field(..., description="The name of the feature")
-    fields: List["HFFeature"] = Field(
+    fields: list["HFFeature"] = Field(
         ...,
         min_length=1,
         description="Named fields within the dict. Each field can be any HFFeature type (Value, List, Dict, etc.)",
@@ -138,19 +132,15 @@ class DictFeature(BaseModel):
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: Optional[str] = Field(
-        default=None, description="Description of the dict feature"
-    )
+    description: str | None = Field(default=None, description="Description of the dict feature")
 
 
 class ClassLabelFeature(BaseModel):
     """Corresponds to HuggingFace's ClassLabel feature type. Represents categorical data with named categories."""
 
-    feature_type: Literal["ClassLabel"] = Field(
-        default="ClassLabel", description="Feature type discriminator"
-    )
+    feature_type: Literal["ClassLabel"] = Field(default="ClassLabel", description="Feature type discriminator")
     name: str = Field(..., description="The name of the feature")
-    names: List[str] = Field(
+    names: list[str] = Field(
         ...,
         min_length=1,
         description="Category names (e.g., ['positive', 'negative', 'neutral'])",
@@ -160,60 +150,46 @@ class ClassLabelFeature(BaseModel):
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: Optional[str] = Field(
-        default=None, description="Description of the classification categories"
-    )
+    description: str | None = Field(default=None, description="Description of the classification categories")
 
 
 class ImageFeature(BaseModel):
     """Corresponds to HuggingFace's Image feature type."""
 
-    feature_type: Literal["Image"] = Field(
-        default="Image", description="Feature type discriminator"
-    )
+    feature_type: Literal["Image"] = Field(default="Image", description="Feature type discriminator")
     name: str = Field(..., description="The name of the feature")
     required: bool = Field(
         default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: Optional[str] = Field(
-        default=None, description="Description of the image feature"
-    )
+    description: str | None = Field(default=None, description="Description of the image feature")
 
 
 class AudioFeature(BaseModel):
     """Corresponds to HuggingFace's Audio feature type."""
 
-    feature_type: Literal["Audio"] = Field(
-        default="Audio", description="Feature type discriminator"
-    )
+    feature_type: Literal["Audio"] = Field(default="Audio", description="Feature type discriminator")
     name: str = Field(..., description="The name of the feature")
     required: bool = Field(
         default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: Optional[str] = Field(
-        default=None, description="Description of the audio feature"
-    )
+    description: str | None = Field(default=None, description="Description of the audio feature")
 
 
 class VideoFeature(BaseModel):
     """Corresponds to HuggingFace's Video feature type."""
 
-    feature_type: Literal["Video"] = Field(
-        default="Video", description="Feature type discriminator"
-    )
+    feature_type: Literal["Video"] = Field(default="Video", description="Feature type discriminator")
     name: str = Field(..., description="The name of the feature")
     required: bool = Field(
         default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: Optional[str] = Field(
-        default=None, description="Description of the video feature"
-    )
+    description: str | None = Field(default=None, description="Description of the video feature")
 
 
 class DatasetFeature(BaseModel):
@@ -238,22 +214,12 @@ class DatasetFeature(BaseModel):
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: Optional[str] = Field(
-        default=None, description="Description of the feature - data type, purpose etc."
-    )
+    description: str | None = Field(default=None, description="Description of the feature - data type, purpose etc.")
 
 
 # Union type for all HuggingFace feature types
 HFFeature = Annotated[
-    Union[
-        ValueFeature,
-        ListFeature,
-        DictFeature,
-        ClassLabelFeature,
-        ImageFeature,
-        AudioFeature,
-        VideoFeature,
-    ],
+    ValueFeature | ListFeature | DictFeature | ClassLabelFeature | ImageFeature | AudioFeature | VideoFeature,
     Field(discriminator="feature_type"),
 ]
 
@@ -274,7 +240,7 @@ class SystemInput(BaseModel):
         ...,
         description="The system input name, e.g., 'system_under_test', 'simulator_system', 'evaluator_system'.",
     )
-    type: Union[str, List[str]] = Field(
+    type: str | list[str] = Field(
         ...,
         description=(
             "The system type(s) accepted. Can be a single string (e.g., 'llm_api') "
@@ -285,9 +251,7 @@ class SystemInput(BaseModel):
         ),
     )
     required: bool = Field(True, description="Whether this system input is required.")
-    description: Optional[str] = Field(
-        None, description="Description of the system's role in the test."
-    )
+    description: str | None = Field(None, description="Description of the system's role in the test.")
 
 
 class InputParameter(BaseModel):
@@ -297,45 +261,36 @@ class InputParameter(BaseModel):
     """
 
     name: str = Field(..., description="Parameter name")
-    type: Literal["string", "integer", "float", "boolean", "list", "object", "enum"] = (
-        Field(..., description="Parameter type")
+    type: Literal["string", "integer", "float", "boolean", "list", "object", "enum"] = Field(
+        ..., description="Parameter type"
     )
-    required: bool = Field(
-        default=False, description="Whether this parameter is required"
-    )
-    description: Optional[str] = Field(
-        default=None, description="Human-readable description of the parameter"
-    )
+    required: bool = Field(default=False, description="Whether this parameter is required")
+    description: str | None = Field(default=None, description="Human-readable description of the parameter")
 
-    items: Optional[
-        Union[
-            Literal["string", "integer", "float", "boolean", "object", "enum"],
-            "InputParameter",
-        ]
-    ] = Field(
+    items: Union[Literal["string", "integer", "float", "boolean", "object", "enum"], "InputParameter"] | None = Field(
         default=None,
         description="For type='list': defines the schema for list items. "
         "Can be a simple type name string (e.g., 'string', 'integer') for basic typed lists, "
         "or a full InputParameter object for complex items (enums, objects, nested lists). ",
     )
 
-    properties: Optional[List["InputParameter"]] = Field(
+    properties: list["InputParameter"] | None = Field(
         default=None,
         description="For type='object': list of nested parameter definitions. "
         "Each property is a full InputParameter with its own name, type, and constraints. ",
     )
 
-    choices: Optional[List[Union[str, int, float]]] = Field(
+    choices: list[str | int | float] | None = Field(
         default=None,
         description="For type='enum': list of allowed values. Required when type='enum'.",
     )
 
-    default: Optional[Union[str, int, float, bool, List, Dict]] = Field(
+    default: str | int | float | bool | list | dict | None = Field(
         default=None,
         description="Default value for this parameter when not provided by user",
     )
 
-    ui_config: Optional[Dict[str, Any]] = Field(
+    ui_config: dict[str, Any] | None = Field(
         default=None,
         description="Optional UI configuration hints as arbitrary key-value pairs.",
     )
@@ -345,36 +300,24 @@ class InputParameter(BaseModel):
         """Validate that rich-type fields are only used with appropriate types."""
 
         if self.items is not None and self.type != "list":
-            raise ValueError(
-                f"'items' field can only be specified when type='list' (got type='{self.type}')"
-            )
+            raise ValueError(f"'items' field can only be specified when type='list' (got type='{self.type}')")
 
         # properties only valid for type="object"
         if self.properties is not None and self.type != "object":
-            raise ValueError(
-                f"'properties' field can only be specified when type='object' (got type='{self.type}')"
-            )
+            raise ValueError(f"'properties' field can only be specified when type='object' (got type='{self.type}')")
 
         # choices only valid for type="enum"
         if self.choices is not None and self.type != "enum":
-            raise ValueError(
-                f"'choices' field can only be specified when type='enum' (got type='{self.type}')"
-            )
+            raise ValueError(f"'choices' field can only be specified when type='enum' (got type='{self.type}')")
 
         # type="enum" requires choices
         if self.type == "enum" and self.choices is None:
             raise ValueError("type='enum' requires 'choices' field to be specified")
 
         # Validate default value is in choices for enums
-        if (
-            self.type == "enum"
-            and self.default is not None
-            and self.choices is not None
-        ):
+        if self.type == "enum" and self.default is not None and self.choices is not None:
             if self.default not in self.choices:
-                raise ValueError(
-                    f"Default value '{self.default}' must be one of the allowed choices: {self.choices}"
-                )
+                raise ValueError(f"Default value '{self.default}' must be one of the allowed choices: {self.choices}")
 
         return self
 
@@ -388,7 +331,7 @@ class OutputMetric(BaseModel):
 
     name: str
     type: Literal["string", "integer", "float", "boolean", "list", "object"]
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class OutputArtifact(BaseModel):
@@ -396,7 +339,7 @@ class OutputArtifact(BaseModel):
 
     name: str
     path: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class EnvironmentVariable(BaseModel):
@@ -410,9 +353,7 @@ class EnvironmentVariable(BaseModel):
         True,
         description="Whether this environment variable is mandatory for execution.",
     )
-    description: Optional[str] = Field(
-        None, description="Explanation of what this variable is used for."
-    )
+    description: str | None = Field(None, description="Explanation of what this variable is used for.")
 
 
 class DatasetType(StrEnum):
@@ -441,18 +382,14 @@ class InputDataset(BaseModel):
         ...,
         description="The dataset name, e.g., 'evaluation_data', 'test_prompts'.",
     )
-    required: bool = Field(
-        default=True, description="Whether this dataset is mandatory for execution."
-    )
-    type: Union[DatasetType, List[DatasetType]] = Field(
+    required: bool = Field(default=True, description="Whether this dataset is mandatory for execution.")
+    type: DatasetType | list[DatasetType] = Field(
         default=...,
         description="The dataset type(s): single type or list of accepted types. "
         "Examples: 'huggingface', ['pdf', 'txt'], or ['huggingface', 'pdf', 'txt'].",
     )
-    description: Optional[str] = Field(
-        default=None, description="Description of the dataset's role in the test."
-    )
-    features: Optional[List[Union[DatasetFeature, HFFeature]]] = Field(
+    description: str | None = Field(default=None, description="Description of the dataset's role in the test.")
+    features: list[DatasetFeature | HFFeature] | None = Field(
         default=None,
         description="List of required features within a HuggingFace dataset. "
         "Supports both simple scalar features and complex feature types.",
@@ -477,12 +414,8 @@ class OutputReports(BaseModel):
         ...,
         description="The name of the report ('detailed_report', 'summary_report', ...).",
     )
-    type: Literal["pdf", "html"] = Field(
-        ..., description="The report file format ('pdf' or 'html')."
-    )
-    description: Optional[str] = Field(
-        None, description="Short description of the report content."
-    )
+    type: Literal["pdf", "html"] = Field(..., description="The report file format ('pdf' or 'html').")
+    description: str | None = Field(None, description="Short description of the report content.")
 
 
 # This is a slightly relaxed version of input dataset, if provided could be used for validation
@@ -493,14 +426,12 @@ class OutputDataset(BaseModel):
         ...,
         description="The name of this output dataset (e.g., 'augmented_rag_data')",
     )
-    type: DatasetType = Field(
-        ..., description="Type of dataset: huggingface, pdf, or txt"
-    )
-    description: Optional[str] = Field(
+    type: DatasetType = Field(..., description="Type of dataset: huggingface, pdf, or txt")
+    description: str | None = Field(
         default=None,
         description="Description of the output dataset's purpose and contents",
     )
-    features: Optional[List[Union[DatasetFeature, HFFeature]]] = Field(
+    features: list[DatasetFeature | HFFeature] | None = Field(
         default=None,
         description="List of required features within a HuggingFace dataset. "
         "Supports both simple scalar features and complex feature types.",
@@ -512,36 +443,42 @@ class Manifest(BaseModel):
 
     name: str = Field(..., description="The canonical name for the test framework.")
     version: str
-    description: Optional[str] = None
+    description: str | None = None
     host_access: bool = Field(
         False,
         description="Whether the container requires host access (e.g., for Docker-in-Docker).",
     )
-    input_systems: List[SystemInput] = Field(
+    input_systems: list[SystemInput] = Field(
         [],
-        description="Systems required as input. Can be empty for containers that don't require systems (e.g., pure data transformation).",
+        description=(
+            "Systems required as input. Can be empty for containers that don't require systems "
+            "(e.g., pure data transformation)."
+        ),
     )
-    input_schema: List[InputParameter] = Field(
+    input_schema: list[InputParameter] = Field(
         [], description="Defines the schema for the user-provided 'params' object."
     )
     input_datasets: list[InputDataset] = Field(
         [],
         description="Defines the schema for user-provided input datasets.",
     )
-    output_metrics: Union[List[str], List[OutputMetric]] = Field(
+    output_metrics: list[str] | list[OutputMetric] = Field(
         [],
-        description="Defines expected high-level metrics in the final JSON output. Can be a simple list of strings or detailed metric definitions.",
+        description=(
+            "Defines expected high-level metrics in the final JSON output. Can be a simple list "
+            "of strings or detailed metric definitions."
+        ),
     )
-    output_artifacts: Optional[List[OutputArtifact]] = None
-    environment_variables: List[EnvironmentVariable] = Field(
+    output_artifacts: list[OutputArtifact] | None = None
+    environment_variables: list[EnvironmentVariable] = Field(
         [],
         description="Environment variables required by this test container. Used for validation and documentation.",
     )
-    output_reports: List[OutputReports] = Field(
+    output_reports: list[OutputReports] = Field(
         default_factory=list,
         description="Defines the reports generated by the test container.",
     )
-    output_datasets: List[OutputDataset] = Field(
+    output_datasets: list[OutputDataset] = Field(
         default_factory=list,
         description="Defines the datasets generated by the container.",
     )
@@ -555,14 +492,17 @@ class Manifest(BaseModel):
 class SystemDefinition(BaseModel):
     """Base system definition."""
 
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None,
         description="Description of the system being evaluated.",
     )
 
-    provider: Optional[str] = Field(
+    provider: str | None = Field(
         None,
-        description="Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+        description=(
+            "Name of the provider of the system, either 'custom' for internal systems or "
+            "'openai, aws-bedrock...' for external systems."
+        ),
     )
 
 
@@ -576,9 +516,12 @@ class ThinkingParams(BaseModel):
 
     type: Literal["enabled", "adaptive"] = Field(
         ...,
-        description="Thinking mode: 'enabled' activates extended reasoning (requires budget_tokens), 'adaptive' lets the model decide when to think.",
+        description=(
+            "Thinking mode: 'enabled' activates extended reasoning (requires budget_tokens); "
+            "'adaptive' lets the model decide when to think."
+        ),
     )
-    budget_tokens: Optional[int] = Field(
+    budget_tokens: int | None = Field(
         None,
         ge=1,
         description="Maximum token budget for the thinking process. Required when type='enabled'.",
@@ -604,21 +547,26 @@ class LLMAPIParams(BaseModel):
         ...,
         description="Model name to use with the API",
     )
-    env_file: Optional[str] = Field(
+    env_file: str | None = Field(
         None,
         description="Path to .env file containing environment variables for authentication",
     )
-    api_key: Optional[str] = Field(
+    api_key: str | None = Field(
         None,
         description="Direct API key for authentication (alternative to env_file)",
     )
-    thinking: Optional[ThinkingParams] = Field(
+    thinking: ThinkingParams | None = Field(
         None,
-        description="Optional thinking/extended reasoning configuration. Only applicable to models that support this feature.",
+        description=(
+            "Optional thinking/extended reasoning configuration. Only applicable to models that support this feature."
+        ),
     )
-    reasoning_effort: Optional[str] = Field(
+    reasoning_effort: str | None = Field(
         None,
-        description="Reasoning effort level for models supporting it (e.g., 'low', 'medium', 'high', 'none' etc. - the types vary depending on the model and provider )",
+        description=(
+            "Reasoning effort level for models supporting it (e.g. 'low', 'medium', 'high', "
+            "'none'); allowed values depend on the model and provider."
+        ),
     )
 
 
@@ -649,7 +597,7 @@ class LLMAPIConfig(SystemDefinition):
     )
     params: LLMAPIParams = Field(
         ...,
-        description="Parameters specific to the LLM API system (e.g., base url, model name, API key and env file).",
+        description=("Parameters for the LLM API system (base URL, model, API key, env file)."),
     )
 
 
@@ -665,7 +613,7 @@ class EmbeddingAPIConfig(SystemDefinition):
     )
     params: LLMAPIParams = Field(
         ...,
-        description="Parameters specific to the Embedding API system (e.g., base url, model name, API key and env file).",
+        description=("Parameters for the Embedding API system (base URL, model, API key, env file)."),
     )
 
 
@@ -681,7 +629,7 @@ class RAGAPIConfig(SystemDefinition):
     )
     params: LLMAPIParams = Field(
         ...,
-        description="Parameters specific to the RAG API system (e.g., base url, model name, API key and env file).",
+        description=("Parameters for the RAG API system (base URL, model, API key, env file)."),
     )
 
 
@@ -697,7 +645,7 @@ class ImageGenerationAPIConfig(SystemDefinition):
     )
     params: LLMAPIParams = Field(
         ...,
-        description="Parameters specific to the Image Generation API system (e.g., base url, model name, API key and env file).",
+        description=("Parameters for the Image Generation API system (base URL, model, API key, env file)."),
     )
 
 
@@ -713,7 +661,7 @@ class ImageEditingAPIConfig(SystemDefinition):
     )
     params: LLMAPIParams = Field(
         ...,
-        description="Parameters specific to the Image Editing API system (e.g., base url, model name, API key and env file).",
+        description=("Parameters for the Image Editing API system (base URL, model, API key, env file)."),
     )
 
 
@@ -729,7 +677,7 @@ class VLMAPIConfig(SystemDefinition):
     )
     params: VLMAPIParams = Field(
         ...,
-        description="Parameters specific to the VLM API system (e.g., base url, model name, API key, env file, and vision support).",
+        description=("Parameters for the VLM API system (base URL, model, API key, env file, vision support)."),
     )
 
 
@@ -767,22 +715,22 @@ class GenericSystemConfig(SystemDefinition):
         ...,
         description="System type, e.g., 'rest_api', 'custom_api', etc.",
     )
-    params: Dict[str, Any] = Field(
+    params: dict[str, Any] = Field(
         ...,
         description="Parameters specific to the system type.",
     )
 
 
-SystemConfig = Union[
-    LLMAPIConfig,
-    RAGAPIConfig,
-    ImageGenerationAPIConfig,
-    ImageEditingAPIConfig,
-    VLMAPIConfig,
-    AgentCLIConfig,
-    EmbeddingAPIConfig,
-    GenericSystemConfig,
-]
+SystemConfig = (
+    LLMAPIConfig
+    | RAGAPIConfig
+    | ImageGenerationAPIConfig
+    | ImageEditingAPIConfig
+    | VLMAPIConfig
+    | AgentCLIConfig
+    | EmbeddingAPIConfig
+    | GenericSystemConfig
+)
 
 
 class SystemsConfig(BaseModel):
@@ -792,13 +740,11 @@ class SystemsConfig(BaseModel):
         1. Create a new XXXConfig class inheriting from SystemDefinition. e.g, RESTAPIConfig
         2. Create a new XXXParam class for the parameters of the system. e.g. RESTAPIParams
         2. Add the new system definition (XXXConfig) to the SystemConfig union type
-            e.g. SystemConfig = Union[LLMAPIConfig, XXXConfig, ..., GenericSystemConfig]
+            e.g. SystemConfig = LLMAPIConfig | XXXConfig | ... | GenericSystemConfig
 
     """
 
-    systems: Dict[str, SystemConfig] = Field(
-        ..., description="Dictionary of system definitions."
-    )
+    systems: dict[str, SystemConfig] = Field(..., description="Dictionary of system definitions.")
 
 
 # ----------------------------------------------------------------------------
@@ -814,16 +760,16 @@ class DatasetLoaderParams(BaseModel):
     - Local mode: Load from local files using `builder_name` with `data_dir` or `data_files`
     """
 
-    hub_path: Optional[str] = Field(
+    hub_path: str | None = Field(
         default=None,
         description="HuggingFace Hub dataset path (e.g., 'detection-datasets/coco'). "
         "Mutually exclusive with builder_name.",
     )
-    name: Optional[str] = Field(
+    name: str | None = Field(
         default=None,
         description="Configuration name for multi-config Hub datasets (e.g., 'default', '2017').",
     )
-    split: Optional[str] = Field(
+    split: str | None = Field(
         default=None,
         description="Dataset split to load (e.g., 'train', 'validation', 'test'). "
         "Defaults to 'train' if not specified.",
@@ -833,33 +779,27 @@ class DatasetLoaderParams(BaseModel):
         description="Allow execution of remote code from HuggingFace Hub datasets. "
         "Only set to True for trusted datasets.",
     )
-    builder_name: Optional[
+    builder_name: (
         Literal[
-            "json",
-            "csv",
-            "parquet",
-            "arrow",
-            "text",
-            "xml",
-            "webdataset",
-            "imagefolder",
-            "audiofolder",
-            "videofolder",
+            "json", "csv", "parquet", "arrow", "text", "xml", "webdataset", "imagefolder", "audiofolder", "videofolder"
         ]
-    ] = Field(
+        | None
+    ) = Field(
         default=None,
-        description="The dataset builder name for local files. Gets passed to datasets.load_dataset() as the path argument. "
-        "Mutually exclusive with hub_path.",
+        description=(
+            "The dataset builder name for local files. Passed to datasets.load_dataset() as the "
+            "path argument. Mutually exclusive with hub_path."
+        ),
     )
-    data_dir: Optional[str] = Field(
+    data_dir: str | None = Field(
         default=None,
         description="Directory containing dataset files, relative to the input mount.",
     )
-    data_files: Optional[Union[str, list[str]]] = Field(
+    data_files: str | list[str] | None = Field(
         default=None,
         description="Single file path or list of file paths, relative to the input mount.",
     )
-    revision: Optional[str] = Field(
+    revision: str | None = Field(
         default=None,
         description="Git revision (commit hash, tag, or branch) for HuggingFace Hub datasets. "
         "Recommended for reproducibility when using hub_path.",
@@ -869,7 +809,7 @@ class DatasetLoaderParams(BaseModel):
         description="Enable streaming mode to avoid loading entire dataset into memory. "
         "Returns IterableDataset instead of Dataset. Recommended for large datasets.",
     )
-    token: Optional[str] = Field(
+    token: str | None = Field(
         default=None,
         description="HuggingFace token for accessing private datasets. "
         "If not provided, falls back to HF_TOKEN environment variable.",
@@ -886,22 +826,16 @@ class DatasetLoaderParams(BaseModel):
                 "Use 'hub_path' for HuggingFace Hub datasets or 'builder_name' for local files."
             )
         if not is_hub and not is_local:
-            raise ValueError(
-                "Must specify either 'hub_path' (for Hub datasets) or 'builder_name' (for local files)."
-            )
+            raise ValueError("Must specify either 'hub_path' (for Hub datasets) or 'builder_name' (for local files).")
         if is_hub and (self.data_dir or self.data_files):
             raise ValueError(
                 "'data_dir' and 'data_files' are not used with 'hub_path'. "
                 "These options are only for local file loading with 'builder_name'."
             )
         if is_local and not (self.data_dir or self.data_files):
-            raise ValueError(
-                "Local mode requires either 'data_dir' or 'data_files' to specify the data location."
-            )
+            raise ValueError("Local mode requires either 'data_dir' or 'data_files' to specify the data location.")
         if is_local and self.data_dir and self.data_files:
-            raise ValueError(
-                "Cannot specify both 'data_dir' and 'data_files'. Use one or the other."
-            )
+            raise ValueError("Cannot specify both 'data_dir' and 'data_files'. Use one or the other.")
         return self
 
 
@@ -912,7 +846,7 @@ class HFDatasetDefinition(BaseModel):
         ...,
         description="Dataset type identifier for HuggingFace datasets.",
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None,
         description="Human-readable description of the dataset's purpose and contents.",
     )
@@ -922,9 +856,12 @@ class HFDatasetDefinition(BaseModel):
     )
     mapping: dict[str, str] = Field(
         default_factory=dict,
-        description="Optional mapping from existing dataset column names to their required names in manifest i.e. current_name: manifest_name.",
+        description=(
+            "Optional mapping from existing dataset column names to their required names in the "
+            "manifest (current_name: manifest_name)."
+        ),
     )
-    label_map: Optional[dict[int, str]] = Field(
+    label_map: dict[int, str] | None = Field(
         default=None,
         description="Optional mapping from class IDs to class names for CV datasets (e.g., {0: 'person', 1: 'car'}). "
         "Used by detection and classification containers to match predictions with ground truth labels.",
@@ -938,13 +875,16 @@ class HFDatasetDefinition(BaseModel):
 class FileDatasetBase(BaseModel):
     """Base class for file-based dataset definitions."""
 
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None,
         description="Human-readable description of the dataset's purpose and contents.",
     )
     file_path: str = Field(
         ...,
-        description="Path to the input file, relative to the input mount. Can be a local path or remote URL depending on container support.",
+        description=(
+            "Path to the input file, relative to the input mount. Can be a local path or remote URL "
+            "depending on container support."
+        ),
     )
     tags: list[str] = Field(
         default_factory=list,
@@ -971,7 +911,7 @@ class TXTDatasetDefinition(FileDatasetBase):
 
 
 DatasetDefinition = Annotated[
-    Union[HFDatasetDefinition, PDFDatasetDefinition, TXTDatasetDefinition],
+    HFDatasetDefinition | PDFDatasetDefinition | TXTDatasetDefinition,
     Field(discriminator="type"),
 ]
 
@@ -986,9 +926,12 @@ class DatasetsConfig(BaseModel):
     - 'txt': Plain text file datasets with file_path
     """
 
-    datasets: Dict[str, DatasetDefinition] = Field(
+    datasets: dict[str, DatasetDefinition] = Field(
         ...,
-        description="Dictionary of dataset definitions, keyed by dataset name. Each definition can be HFDatasetDefinition, PDFDatasetDefinition, or TXTDatasetDefinition (discriminated by 'type' field).",
+        description=(
+            "Dataset definitions keyed by name. Each entry is HFDatasetDefinition, "
+            "PDFDatasetDefinition, or TXTDatasetDefinition (discriminated by 'type')."
+        ),
     )
 
 
@@ -1000,34 +943,38 @@ class DatasetsConfig(BaseModel):
 class TestDefinitionBase(BaseModel):
     """Base class for test configuration fields shared between TestDefinition and TestSuiteDefault."""
 
-    systems_under_test: Optional[List[str]] = Field(
+    systems_under_test: list[str] | None = Field(
         None,
-        description="A list of system names (from systems.yaml) to run this test against. Can be inherited from test_suite_default.",
+        description=(
+            "System names from systems.yaml to run this test against. Can be inherited from test_suite_default."
+        ),
     )
-    systems: Optional[Dict[str, str]] = Field(
+    systems: dict[str, str] | None = Field(
         None,
         description="Optional additional systems for the test (e.g., simulator_system, evaluator_system).",
     )
-    tags: Optional[List[str]] = Field(
-        None, description="Optional tags for filtering and reporting."
-    )
-    params: Optional[Dict[str, Any]] = Field(
+    tags: list[str] | None = Field(None, description="Optional tags for filtering and reporting.")
+    params: dict[str, Any] | None = Field(
         None, description="Parameters to be passed to the test container's entrypoint."
     )
-    input_datasets: Optional[Dict[str, str]] = Field(
+    input_datasets: dict[str, str] | None = Field(
         None,
-        description="Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
+        description=(
+            "Input dataset names mapped to registry references. Values must be names from the "
+            "datasets registry config (--datasets-config)."
+        ),
     )
-    volumes: Optional[Dict[str, Any]] = Field(
-        None, description="Optional input/output mounts."
-    )
-    env_file: Optional[str] = Field(
+    volumes: dict[str, Any] | None = Field(None, description="Optional input/output mounts.")
+    env_file: str | None = Field(
         None,
-        description="Path to .env file containing environment variables for this test's container execution (e.g., '.env', 'test.env').",
+        description=("Path to .env file with variables for this test's container (e.g. '.env', 'test.env')."),
     )
-    environment: Optional[Dict[str, str]] = Field(
+    environment: dict[str, str] | None = Field(
         None,
-        description="Dictionary of environment variables to pass to the test container. Supports interpolation syntax (e.g., {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
+        description=(
+            "Environment variables for the test container. Supports interpolation "
+            "(e.g. {'OPENAI_API_KEY': '${OPENAI_API_KEY}'})."
+        ),
     )
 
 
@@ -1036,13 +983,16 @@ class TestDefinition(TestDefinitionBase):
 
     id: IDsStringPattern = Field(
         ...,
-        description="A unique, human-readable ID (up to 32 characters) for this test instance. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+        description=(
+            "A unique, human-readable ID (up to 32 characters) for this test instance. Can "
+            "include lowercase letters (a-z), digits (0-9) and underscore (_)."
+        ),
     )
-    name: Optional[str] = Field(
+    name: str | None = Field(
         None,
         description="A descriptive, human-friendly name for this test instance.",
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None,
         description="A short summary of the purpose of the test and what it aims to validate.",
     )
@@ -1062,17 +1012,15 @@ class SuiteConfig(BaseModel):
     """Schema for the top-level Test Suite configuration file."""
 
     suite_name: str = Field(..., description="Name of this test suite.")
-    test_suite_default: Optional[TestSuiteDefault] = Field(
+    test_suite_default: TestSuiteDefault | None = Field(
         None,
         description="Default values that apply to all tests in the suite unless overridden",
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None,
         description="A short summary of the test suite and what it aims to evaluate.",
     )
-    test_suite: List[TestDefinition] = Field(
-        ..., description="List of individual focused tests."
-    )
+    test_suite: list[TestDefinition] = Field(..., description="List of individual focused tests.")
 
 
 # ----------------------------------------------------------------------------
@@ -1087,18 +1035,19 @@ class ScoreCardFilter(BaseModel):
         ...,
         description="Test id to filter by, e.g., 'run_mock_on_compatible_sut'",
     )
-    target_system_type: Optional[Union[str, List[str]]] = Field(
+    target_system_type: str | list[str] | None = Field(
         None,
-        description="Optional: Filter by system type(s). Can be a single type (e.g., 'llm_api') or a list of types (e.g., ['llm_api', 'vlm_api']). If omitted, applies to all system types.",
+        description=(
+            "Optional: filter by system type(s). Single type (e.g. 'llm_api') or list "
+            "(e.g. ['llm_api', 'vlm_api']). If omitted, applies to all system types."
+        ),
     )
 
 
 class AssessmentRule(BaseModel):
     """Individual assessment outcome with condition."""
 
-    outcome: str = Field(
-        ..., description="Assessment outcome, e.g., 'PASS', 'FAIL', 'A', 'F'"
-    )
+    outcome: str = Field(..., description="Assessment outcome, e.g., 'PASS', 'FAIL', 'A', 'F'")
     condition: Literal[
         "equal_to",
         "greater_than",
@@ -1109,12 +1058,8 @@ class AssessmentRule(BaseModel):
         "any_false",
         "count_equals",
     ] = Field(..., description="Condition to evaluate against the metric value")
-    threshold: Optional[Union[int, float, bool]] = Field(
-        None, description="Threshold value for comparison conditions"
-    )
-    description: Optional[str] = Field(
-        None, description="Human-readable description for this assessment outcome"
-    )
+    threshold: int | float | bool | None = Field(None, description="Threshold value for comparison conditions")
+    description: str | None = Field(None, description="Human-readable description for this assessment outcome")
 
 
 class MetricExpression(BaseModel):
@@ -1122,11 +1067,14 @@ class MetricExpression(BaseModel):
 
     expression: str = Field(
         ...,
-        description="Mathematical formula combining metrics. Variable names in the expression must match keys in the 'values' dict.",
+        description=("Mathematical formula combining metrics. Variable names must match keys in 'values'."),
     )
-    values: Dict[str, str] = Field(
+    values: dict[str, str] = Field(
         ...,
-        description="Mapping from expression variable names to metric paths. Keys are used in the expression, values are paths to extract from test results.",
+        description=(
+            "Maps expression variables to metric paths. Keys appear in the expression; values are "
+            "paths into test results."
+        ),
     )
 
 
@@ -1135,16 +1083,17 @@ class ScoreCardIndicator(BaseModel):
 
     id: IDsStringPattern = Field(
         ...,
-        description="A unique, human-readable ID (up to 32 characters) for this score card indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+        description=(
+            "A unique, human-readable ID (up to 32 characters) for this score card indicator. "
+            "Can include lowercase letters (a-z), digits (0-9) and underscore (_)."
+        ),
     )
-    name: Optional[str] = Field(
-        None, description="Human-readable name for this score card indicator"
-    )
+    name: str | None = Field(None, description="Human-readable name for this score card indicator")
     apply_to: ScoreCardFilter = Field(
         ...,
         description="Filter criteria for which test results this indicator applies to",
     )
-    metric: Union[str, MetricExpression] = Field(
+    metric: str | MetricExpression = Field(
         ...,
         description=(
             "Metric to evaluate. Can be either:\n"
@@ -1159,14 +1108,10 @@ class ScoreCardIndicator(BaseModel):
             "   Variable names in expression are mapped to metric paths via the 'values' dict."
         ),
     )
-    assessment: List[AssessmentRule] = Field(
-        ..., description="List of assessment rules to evaluate against the metric"
-    )
-    display_reports: List[str] = Field(
+    assessment: list[AssessmentRule] = Field(..., description="List of assessment rules to evaluate against the metric")
+    display_reports: list[str] = Field(
         default_factory=list,
-        description=(
-            "List of report names to include from the test container manifest."
-        ),
+        description=("List of report names to include from the test container manifest."),
     )
 
 
@@ -1178,10 +1123,8 @@ class ScoreCardIndicator(BaseModel):
 class AuditAssessmentRule(BaseModel):
     """Assessment outcome for audit indicators."""
 
-    outcome: str = Field(
-        ..., description="Assessment outcome, e.g., 'A', 'B', 'C', 'PASS', 'FAIL'."
-    )
-    description: Optional[str] = Field(
+    outcome: str = Field(..., description="Assessment outcome, e.g., 'A', 'B', 'C', 'PASS', 'FAIL'.")
+    description: str | None = Field(
         None,
         description="Human-readable description for this audit outcome",
     )
@@ -1197,20 +1140,20 @@ class AuditScoreCardIndicator(BaseModel):
         ...,
         description=(
             "A unique, human-readable ID (up to 32 characters) for this audit "
-            "indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_)."
+            "indicator. Can include lowercase letters (a-z), digits (0-9) and underscore (_)."
         ),
     )
     type: Literal["audit"] = Field(
         "audit",
         description="Indicator type. Must be 'audit' for manual audit indicators.",
     )
-    name: Optional[str] = Field(
+    name: str | None = Field(
         None,
         description="Human-readable name for this audit indicator",
     )
-    assessment: List[AuditAssessmentRule] = Field(
+    assessment: list[AuditAssessmentRule] = Field(
         ...,
-        description="List of possible audit outcomes (A–E, PASS/FAIL, etc.).",
+        description="List of possible audit outcomes (A-E, PASS/FAIL, etc.).",
     )
 
 
@@ -1218,7 +1161,7 @@ class ScoreCard(BaseModel):
     """Complete grading score card configuration."""
 
     score_card_name: str = Field(..., description="Name of the grading score card")
-    indicators: List[Union[ScoreCardIndicator, AuditScoreCardIndicator]] = Field(
+    indicators: list[ScoreCardIndicator | AuditScoreCardIndicator] = Field(
         ...,
         description="List of score card indicators to evaluate (non-audit and audit).",
     )
@@ -1229,18 +1172,16 @@ class ScoreCard(BaseModel):
 # ----------------------------------------------------------------------------
 class AuditResponse(BaseModel):
     indicator_id: str = Field(..., description="ID of the audit indicator")
-    sut_name: Optional[str] = Field(
+    sut_name: str | None = Field(
         None,
         description="Name of the system under test this response applies to. If omitted, applies globally.",
     )
-    selected_outcome: str = Field(
-        ..., description="Letter grade or label (A–E, PASS/FAIL, etc.)."
-    )
-    notes: Optional[str] = Field(None, description="Optional free text notes")
+    selected_outcome: str = Field(..., description="Letter grade or label (A-E, PASS/FAIL, etc.).")
+    notes: str | None = Field(None, description="Optional free text notes")
 
 
 class AuditResponses(BaseModel):
-    responses: List[AuditResponse]
+    responses: list[AuditResponse]
 
 
 # ----------------------------------------------------------------------------
@@ -1248,33 +1189,31 @@ class AuditResponses(BaseModel):
 # ----------------------------------------------------------------------------
 class GenerationJobConfig(BaseModel):
     id: str = Field(..., description="Unique identifier for the generation job")
-    systems: Optional[Dict[str, str]] = Field(
-        None, description="Mapping of system alias to system identifier"
-    )
+    systems: dict[str, str] | None = Field(None, description="Mapping of system alias to system identifier")
     name: str = Field(..., description="Human-readable data generation job name")
-    image: str = Field(
-        ..., description="Container image to run the data generation job"
-    )
-    tags: Optional[List[str]] = Field(
-        None, description="Optional tags for filtering and reporting."
-    )
-    input_datasets: Optional[Dict[str, str]] = Field(
+    image: str = Field(..., description="Container image to run the data generation job")
+    tags: list[str] | None = Field(None, description="Optional tags for filtering and reporting.")
+    input_datasets: dict[str, str] | None = Field(
         None,
-        description="Input dataset names mapped to dataset registry references. Values must be dataset names defined in the datasets registry config (--datasets-config).",
+        description=(
+            "Input dataset names mapped to registry references. Values must be names from the "
+            "datasets registry config (--datasets-config)."
+        ),
     )
-    params: Optional[Dict[str, Any]] = Field(
+    params: dict[str, Any] | None = Field(
         None, description="Parameters to be passed to the test container's entrypoint."
     )
-    volumes: Optional[Dict[str, Any]] = Field(
-        None, description="Optional input/output mounts."
-    )
-    env_file: Optional[str] = Field(
+    volumes: dict[str, Any] | None = Field(None, description="Optional input/output mounts.")
+    env_file: str | None = Field(
         None,
-        description="Path to .env file containing environment variables for this test's container execution (e.g., '.env', 'test.env').",
+        description=("Path to .env file with variables for this job's container (e.g. '.env', 'test.env')."),
     )
-    environment: Optional[Dict[str, str]] = Field(
+    environment: dict[str, str] | None = Field(
         None,
-        description="Dictionary of environment variables to pass to the test container. Supports interpolation syntax (e.g., {'OPENAI_API_KEY': '${OPENAI_API_KEY}'}).",
+        description=(
+            "Environment variables for the job container. Supports interpolation "
+            "(e.g. {'OPENAI_API_KEY': '${OPENAI_API_KEY}'})."
+        ),
     )
 
 
@@ -1282,9 +1221,7 @@ class DataGenerationConfig(BaseModel):
     """Schema for the data generation configuration manifest."""
 
     job_name: str = Field(..., description="Name of the data generation job")
-    generation_jobs: List[GenerationJobConfig] = Field(
-        ..., description="List of generation jobs to execute"
-    )
+    generation_jobs: list[GenerationJobConfig] = Field(..., description="List of generation jobs to execute")
 
 
 # ----------------------------------------------------------------------------
@@ -1297,9 +1234,7 @@ class ExecutionTags(BaseModel):
     Tags for workflow execution tracking.
     """
 
-    parent_id: str = Field(
-        ..., description="Parent workflow ID for tracking execution hierarchy"
-    )
+    parent_id: str = Field(..., description="Parent workflow ID for tracking execution hierarchy")
     job_type: str = Field(..., description="Type of job (e.g., 'test', 'generation')")
     job_id: str = Field(..., description="Unique identifier for this specific job")
     model_config = {"extra": "allow"}
@@ -1310,10 +1245,810 @@ class ExecutionMetadata(BaseModel):
     Metadata structure passed from workflow to test containers.
     """
 
-    tags: ExecutionTags = Field(
-        ..., description="Workflow tracking tags for LiteLLM attribution"
-    )
-    user_id: Optional[str] = Field(
-        None, description="Optional user identifier (maps to OpenAI 'user' parameter)"
-    )
+    tags: ExecutionTags = Field(..., description="Workflow tracking tags for LiteLLM attribution")
+    user_id: str | None = Field(None, description="Optional user identifier (maps to OpenAI 'user' parameter)")
     model_config = {"extra": "allow"}
+
+
+# ----------------------------------------------------------------------------
+# Test Case Schemas (One per SUT type)
+# ----------------------------------------------------------------------------
+#
+# Each TestCase class:
+#   - Stores data in human-readable, semantic fields (the dataset representation).
+#   - Computes API-native request / expected_response as @property accessors — never stored.
+#   - Uses lineage_id and scenario for cross-stage traceability.
+#   - Keeps SDG-generated or debug _metadata as a private attribute (not serialised).
+#   - Provides a from_api_data() factory to ingest from existing API-format data.
+#
+# Extension guide:
+#   1. Create a new XXXTestCase class following the pattern below.
+#   2. Add it to the TestCase union at the bottom of this section.
+#
+# Text / RAG / VLM test cases share a single inheritance tree:
+#   LLMTestCase (Q) → AnsweredLLMTestCase (QA)
+#   LLMTestCase → RAGTestCase (Qc) → AnsweredRAGTestCase (QAc)
+#   LLMTestCase → RAGTestCase → ContextualizedRAGTestCase (QCc)
+#   LLMTestCase → VLMTestCase (QI) → AnsweredVLMTestCase (QAI)
+#   ObjectDetectionTestCase → AnsweredObjectDetectionTestCase (GT boxes)
+#   ImageGenerationTestCase → AnsweredImageGenerationTestCase (reference image)
+#   ImageEditingTestCase → AnsweredImageEditingTestCase (reference edited image)
+
+
+# ---------------------------------------------------------------------------
+# LLM test cases
+# ---------------------------------------------------------------------------
+
+
+class LLMTestCase(BaseModel):
+    """Query-only base for text LLM API (`llm_api`) test cases (Q)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    # --- Identification & Lineage ---
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'instruction-following', 'summarisation'")
+
+    # --- Human-Readable Request Fields ---
+    query: str = Field(..., description="The user turn prompt")
+    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+
+    # --- Private Attributes (Internal/Debugging Only) ---
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+
+    # --- Extra Parameters of the System Request ---
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra body params, e.g. temperature, max_tokens",
+    )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = data.pop("metadata", {})
+        if data.get("lineage_id") is None:
+            data.pop("lineage_id", None)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        """Computes the OpenAI-compatible request for llm_api / rag_api."""
+        messages: list[dict[str, Any]] = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": self.query})
+        return {"messages": messages, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class UnansweredLLMTestCase(LLMTestCase):
+    """LLM test case without a ground-truth reference answer.
+
+    Use with metrics that do not require a reference output, e.g. judge-based
+    metrics for bias, toxicity, hallucination, policy compliance.
+    """
+
+
+class AnsweredLLMTestCase(LLMTestCase):
+    """LLM test case with a required ground-truth reference answer.
+
+    Use with reference-based metrics such as BLEU, ROUGE, BERTScore,
+    exact_match, and correctness.
+    """
+
+    # --- Human-Readable Response Fields (Ground Truth) ---
+    answer: str = Field(..., description="Reference answer or expected completion")
+
+    @property
+    def expected_response(self) -> dict[str, Any]:
+        """Computes the expected OpenAI response structure."""
+        return {"choices": [{"message": {"role": "assistant", "content": self.answer}}]}
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        response: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "AnsweredLLMTestCase":
+        messages = request.get("messages", [])
+        system_prompt = next((m["content"] for m in messages if m["role"] == "system"), None)
+        query = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+        answer = response["choices"][0]["message"]["content"]
+        extra_params = {k: v for k, v in request.items() if k != "messages"}
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            query=query,
+            system_prompt=system_prompt,
+            answer=answer,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+
+# ---------------------------------------------------------------------------
+# RAG test cases
+# ---------------------------------------------------------------------------
+
+
+class RAGTestCase(LLMTestCase):
+    """Query-only base for RAG API (`rag_api`) test cases (Qc).
+
+    Request shape matches text LLM messages; use this type (or subclasses) for
+    RAG-specific metrics and routing.
+    """
+
+    scenario: str | None = Field(None, description="e.g., 'accuracy', 'robustness'")
+
+
+class UnansweredRAGTestCase(RAGTestCase):
+    """RAG test case without ground-truth references.
+
+    Use with metrics that score without a reference answer or retrieved context,
+    e.g. faithfulness, groundedness, helpfulness, retrieval_relevance.
+    """
+
+
+class AnsweredRAGTestCase(RAGTestCase):
+    """RAG test case with a ground-truth reference answer.
+
+    Use with reference-based metrics that compare the model answer to
+    `answer` (e.g. answer correctness, Ragas context_recall when keyed
+    on the reference answer). For ground-truth retrieved document chunks, use
+    `ContextualizedRAGTestCase`.
+    """
+
+    # --- Human-Readable Response Fields (Ground Truth) ---
+    answer: str = Field(
+        ...,
+        description="The ground truth reference answer (use empty string when no reference text)",
+    )
+
+    @property
+    def expected_response(self) -> dict[str, Any] | None:
+        """Computes the expected RAG API response structure."""
+        if not self.answer:
+            return None
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": self.answer,
+                        "context": {"citations": []},
+                    }
+                }
+            ]
+        }
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        response: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "AnsweredRAGTestCase":
+        messages = request.get("messages", [])
+        system_prompt = next((m["content"] for m in messages if m["role"] == "system"), None)
+        query = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+        msg = response["choices"][0]["message"]
+        answer = msg.get("content") or ""
+        extra_params = {k: v for k, v in request.items() if k != "messages"}
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            query=query,
+            system_prompt=system_prompt,
+            answer=answer,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+
+class ContextualizedRAGTestCase(RAGTestCase):
+    """RAG test case with ground-truth retrieved document chunks.
+
+    Use with metrics that need reference contexts (e.g. context_precision,
+    retrieval correctness, hit@k) without requiring a reference answer on the
+    same object.
+    """
+
+    context: list[str] = Field(
+        ...,
+        description="Ground truth document chunks expected to be retrieved (empty list if none)",
+    )
+
+    @property
+    def expected_response(self) -> dict[str, Any] | None:
+        """Computes the expected RAG API response structure."""
+        if not self.context:
+            return None
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "context": {"citations": [{"retrieved_context": ctx} for ctx in self.context]},
+                    }
+                }
+            ]
+        }
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        response: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "ContextualizedRAGTestCase":
+        messages = request.get("messages", [])
+        system_prompt = next((m["content"] for m in messages if m["role"] == "system"), None)
+        query = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+        msg = response["choices"][0]["message"]
+        citations = msg.get("context", {}).get("citations", [])
+        context = [c["retrieved_context"] for c in citations]
+        extra_params = {k: v for k, v in request.items() if k != "messages"}
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            query=query,
+            system_prompt=system_prompt,
+            context=context,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+
+# ---------------------------------------------------------------------------
+# VLM test cases
+# ---------------------------------------------------------------------------
+
+
+class VLMTestCase(LLMTestCase):
+    """Query + image(s) base for VLM API (`vlm_api`) test cases (QI)."""
+
+    scenario: str | None = Field(None, description="e.g., 'scene-description', 'visual-qa'")
+
+    query: str = Field(..., description="The text question about the image(s)")
+    # Images stored as base64-encoded strings; the Image HF feature type is used in dataset storage.
+    images: list[str] = Field(
+        ...,
+        min_length=1,
+        description="List of images as base64-encoded data URIs (e.g. 'data:image/jpeg;base64,...')",
+    )
+
+    @property
+    def request(self) -> dict[str, Any]:
+        """Computes the OpenAI multi-modal request for vlm_api."""
+        content: list[dict[str, Any]] = [{"type": "text", "text": self.query}]
+        for image_uri in self.images:
+            content.append({"type": "image_url", "image_url": {"url": image_uri}})
+        messages: list[dict[str, Any]] = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": content})
+        return {"messages": messages, "supports_vision": True, **self.extra_params}
+
+
+class UnansweredVLMTestCase(VLMTestCase):
+    """VLM test case without a ground-truth reference answer.
+
+    Use with metrics that do not require a reference output, e.g. judge-based
+    metrics for hallucination and policy compliance.
+    """
+
+
+class AnsweredVLMTestCase(VLMTestCase):
+    """VLM test case with a required ground-truth reference answer.
+
+    Use with reference-based metrics such as correctness.
+    """
+
+    # --- Human-Readable Response Fields (Ground Truth) ---
+    answer: str = Field(..., description="Reference answer or description")
+
+    @property
+    def expected_response(self) -> dict[str, Any]:
+        """Computes the expected OpenAI response structure."""
+        return {"choices": [{"message": {"role": "assistant", "content": self.answer}}]}
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        response: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "AnsweredVLMTestCase":
+        messages = request.get("messages", [])
+        system_prompt = next((m["content"] for m in messages if m["role"] == "system"), None)
+        user_msg = next((m for m in reversed(messages) if m["role"] == "user"), {})
+        content = user_msg.get("content", [])
+        query = next((c["text"] for c in content if c.get("type") == "text"), "")
+        images = [c["image_url"]["url"] for c in content if c.get("type") == "image_url"]
+        answer = response["choices"][0]["message"]["content"]
+        extra_params = {k: v for k, v in request.items() if k not in ("messages", "supports_vision")}
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            query=query,
+            images=images,
+            system_prompt=system_prompt,
+            answer=answer,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Image generation test cases
+# ---------------------------------------------------------------------------
+
+
+class ImageGenerationTestCase(BaseModel):
+    """Request-only base for Image Generation API (`image_generation_api`) test cases.
+
+    Use this type (or `UnansweredImageGenerationTestCase`) when no reference output
+    image is provided. For a reference image for metrics (e.g. FID-style comparisons),
+    use `AnsweredImageGenerationTestCase`.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    # --- Identification & Lineage ---
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'text-to-image', 'style-transfer'")
+
+    # --- Human-Readable Request Fields ---
+    prompt: str = Field(..., description="The text description of the desired image")
+    size: str | None = Field(None, description="Image dimensions, e.g. '1024x1024'")
+    n: int = Field(default=1, description="Number of images to generate")
+
+    # --- Private Attributes (Internal/Debugging Only) ---
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+
+    # --- Extra Parameters of the System Request ---
+    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params, e.g. model, style")
+
+    def __init__(self, **data: Any) -> None:
+        metadata = data.pop("metadata", {})
+        if data.get("lineage_id") is None:
+            data.pop("lineage_id", None)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        """Computes the OpenAI Image Generation API request."""
+        req: dict[str, Any] = {"prompt": self.prompt, "n": self.n}
+        if self.size:
+            req["size"] = self.size
+        return {**req, **self.extra_params}
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "ImageGenerationTestCase":
+        extra_params = {k: v for k, v in request.items() if k not in ("prompt", "n", "size")}
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            prompt=request["prompt"],
+            size=request.get("size") or "",
+            n=request["n"] if "n" in request else 1,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class UnansweredImageGenerationTestCase(ImageGenerationTestCase):
+    """Image generation test case without a reference output image.
+
+    Use with metrics that do not require a reference image, e.g. judge-based or
+    policy checks on generated content.
+    """
+
+
+class AnsweredImageGenerationTestCase(ImageGenerationTestCase):
+    """Image generation test case with a reference / expected output image."""
+
+    generation: str = Field(
+        ...,
+        description=("Reference / expected output image as a base64-encoded data URI (for metrics vs model output)."),
+    )
+
+    @property
+    def expected_response(self) -> dict[str, Any]:
+        """Expected image output shape (reference image as data URI)."""
+        return {"image": self.generation}
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        generation: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> "AnsweredImageGenerationTestCase":
+        extra_params = {k: v for k, v in request.items() if k not in ("prompt", "n", "size")}
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            prompt=request["prompt"],
+            size=request.get("size") or "",
+            n=request["n"] if "n" in request else 1,
+            generation=generation,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Image editing test cases
+# ---------------------------------------------------------------------------
+
+
+class ImageEditingTestCase(BaseModel):
+    """Request-only base for Image Editing API (`image_editing_api`) test cases.
+
+    Use this type (or `UnansweredImageEditingTestCase`) when no reference edited
+    image is provided. For ground-truth edited output, use `AnsweredImageEditingTestCase`.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    # --- Identification & Lineage ---
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'inpainting', 'object-removal'")
+
+    # --- Human-Readable Request Fields ---
+    # Images stored as base64-encoded strings; multipart conversion happens in .request.
+    image: str = Field(..., description="The source image as a base64-encoded data URI")
+    edit_prompt: str = Field(..., description="Natural-language description of the desired edit")
+    mask: str | None = Field(
+        None,
+        description="Optional mask image as a base64-encoded data URI; transparent areas indicate edit regions",
+    )
+
+    # --- Private Attributes (Internal/Debugging Only) ---
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+
+    # --- Extra Parameters of the System Request ---
+    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params")
+
+    def __init__(self, **data: Any) -> None:
+        metadata = data.pop("metadata", {})
+        if data.get("lineage_id") is None:
+            data.pop("lineage_id", None)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        """
+        Computes the OpenAI Image Edit API request fields.
+        The image and mask are base64 data URIs here; the test container is responsible
+        for converting them to binary file objects when constructing the multipart/form-data call.
+        """
+        req: dict[str, Any] = {"image": self.image, "prompt": self.edit_prompt}
+        if self.mask:
+            req["mask"] = self.mask
+        return {**req, **self.extra_params}
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "ImageEditingTestCase":
+        extra_params = {k: v for k, v in request.items() if k not in ("image", "mask", "prompt")}
+        mask = request.get("mask")
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            image=request["image"],
+            edit_prompt=request["prompt"],
+            mask=mask if mask else None,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class UnansweredImageEditingTestCase(ImageEditingTestCase):
+    """Image editing test case without a reference edited output image.
+
+    Use with metrics that do not require a reference image, e.g. judge-based checks.
+    """
+
+
+class AnsweredImageEditingTestCase(ImageEditingTestCase):
+    """Image editing test case with a reference / expected edited output image."""
+
+    generation: str = Field(
+        ...,
+        description="Reference / expected edited output image as a base64-encoded data URI",
+    )
+
+    @property
+    def expected_response(self) -> dict[str, Any]:
+        """Expected edited image as data URI."""
+        return {"image": self.generation}
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        generation: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> "AnsweredImageEditingTestCase":
+        extra_params = {k: v for k, v in request.items() if k not in ("image", "mask", "prompt")}
+        mask = request.get("mask")
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            image=request["image"],
+            edit_prompt=request["prompt"],
+            mask=mask if mask else None,
+            generation=generation,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+
+class EmbeddingTestCase(BaseModel):
+    """Test case for Embedding API (`embedding_api`) systems."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    # --- Identification & Lineage ---
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'semantic-similarity', 'retrieval-quality'")
+
+    # --- Human-Readable Request Fields ---
+    text: str = Field(..., description="The input text to embed")
+
+    # --- Human-Readable Response Fields (Ground Truth) ---
+    # Raw embedding vectors are not specified as ground truth; evaluation uses similarity constraints.
+    expected_similar_texts: list[str] = Field(
+        default_factory=list,
+        description="Texts that should be semantically close to `text` (cosine similarity above threshold)",
+    )
+    expected_dissimilar_texts: list[str] = Field(
+        default_factory=list,
+        description="Texts that should be semantically distant from `text`",
+    )
+
+    # --- Private Attributes (Internal/Debugging Only) ---
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+
+    # --- Extra Parameters of the System Request ---
+    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params, e.g. model")
+
+    def __init__(self, **data: Any) -> None:
+        metadata = data.pop("metadata", {})
+        if data.get("lineage_id") is None:
+            data.pop("lineage_id", None)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        """Computes the OpenAI Embeddings API request."""
+        return {"input": self.text, **self.extra_params}
+
+    @property
+    def expected_response(self) -> None:
+        """
+        No structured expected response — expected_similar_texts / expected_dissimilar_texts
+        are evaluated by the metric after computing cosine similarity against returned vectors.
+        """
+        return None
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        expected_similar_texts: list[str] | None = None,
+        expected_dissimilar_texts: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "EmbeddingTestCase":
+        extra_params = {k: v for k, v in request.items() if k != "input"}
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            text=request["input"],
+            expected_similar_texts=expected_similar_texts or [],
+            expected_dissimilar_texts=expected_dissimilar_texts or [],
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class BoundingBox(BaseModel):
+    """Ground truth bounding box in xyxy format."""
+
+    xyxy: tuple[float, float, float, float] = Field(..., description="Box coordinates as (x_min, y_min, x_max, y_max)")
+    class_name: str = Field(..., description="Object class label, e.g. 'person', 'car'")
+    confidence: float | None = Field(None, description="Ground truth confidence (if sourced from a prior model run)")
+
+
+# ---------------------------------------------------------------------------
+# Object detection test cases
+# ---------------------------------------------------------------------------
+
+
+class ObjectDetectionTestCase(BaseModel):
+    """Image-only base for Object Detection API (`object_detection_api`) test cases.
+
+    Use this type (or `UnansweredObjectDetectionTestCase`) when no reference bounding
+    boxes are provided — e.g. judge-only or exploratory metrics. For ground-truth
+    boxes (including an empty list meaning zero objects expected), use
+    `AnsweredObjectDetectionTestCase`.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    # --- Identification & Lineage ---
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'crowded-scene', 'low-light'")
+
+    # --- Human-Readable Request Fields ---
+    # Image stored as a base64-encoded data URI; the test container converts to binary for multipart upload.
+    image: str = Field(..., description="The image as a base64-encoded data URI")
+
+    # --- Private Attributes (Internal/Debugging Only) ---
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+
+    # --- Extra Parameters of the System Request ---
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Provider overrides, e.g. {'model': 'facebook/detr-resnet-50', 'provider': 'huggingface'}",
+    )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = data.pop("metadata", {})
+        if data.get("lineage_id") is None:
+            data.pop("lineage_id", None)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        """
+        Computes the Object Detection API request fields.
+        `image` is a base64 data URI here; the test container converts it to a binary file
+        when constructing the multipart/form-data POST to /detect.
+        """
+        return {"image": self.image, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class UnansweredObjectDetectionTestCase(ObjectDetectionTestCase):
+    """Object detection test case without ground-truth bounding boxes.
+
+    Use with metrics that do not require reference boxes, e.g. judge-based checks.
+    """
+
+
+class AnsweredObjectDetectionTestCase(ObjectDetectionTestCase):
+    """Object detection test case with ground-truth bounding boxes.
+
+    `expected_detections` uses a nested list[BoundingBox] structure — an explicit
+    exception to the flat-field rule, agreed under PROG-32, because bounding-box ground
+    truth is inherently structured. An empty list means no objects are expected in the
+    image (distinct from omitting ground truth on the base / unanswered type).
+    """
+
+    # --- Human-Readable Response Fields (Ground Truth) ---
+    expected_detections: list[BoundingBox] = Field(
+        default_factory=list,
+        description="Ground truth detections; empty list means no objects expected",
+    )
+    confidence_threshold: float | None = Field(
+        None,
+        description="Minimum confidence for a predicted detection to be matched against ground truth",
+    )
+
+    @property
+    def expected_response(self) -> dict[str, Any]:
+        """Computes the expected /detect response structure."""
+        return {
+            "detections": [
+                {
+                    "xyxy": list(det.xyxy),
+                    "class_name": det.class_name,
+                    **({"confidence": det.confidence} if det.confidence is not None else {}),
+                }
+                for det in self.expected_detections
+            ]
+        }
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        response: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "AnsweredObjectDetectionTestCase":
+        detections = [
+            BoundingBox(
+                xyxy=tuple(d["xyxy"]),
+                class_name=d["class_name"],
+                confidence=d.get("confidence"),
+            )
+            for d in response.get("detections", [])
+        ]
+        extra_params = {k: v for k, v in request.items() if k != "image"}
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            image=request["image"],
+            expected_detections=detections,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+
+TestCase = (
+    LLMTestCase
+    | AnsweredLLMTestCase
+    | RAGTestCase
+    | AnsweredRAGTestCase
+    | ContextualizedRAGTestCase
+    | VLMTestCase
+    | AnsweredVLMTestCase
+    | ImageGenerationTestCase
+    | AnsweredImageGenerationTestCase
+    | ImageEditingTestCase
+    | AnsweredImageEditingTestCase
+    | EmbeddingTestCase
+    | ObjectDetectionTestCase
+    | AnsweredObjectDetectionTestCase
+)

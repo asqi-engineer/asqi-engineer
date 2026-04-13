@@ -108,7 +108,7 @@
             }
           ],
           "default": null,
-          "description": "Reasoning effort level for models supporting it (e.g., 'low', 'medium', 'high', 'none' etc. - the types vary depending on the model and provider )",
+          "description": "Reasoning effort level for models supporting it (e.g. 'low', 'medium', 'high', 'none'); allowed values depend on the model and provider.",
           "title": "Reasoning Effort"
         },
         "provider": {
@@ -162,7 +162,7 @@
         },
         "params": {
           "$ref": "#/$defs/LLMAPIParams",
-          "description": "Parameters specific to the Embedding API system (e.g., base url, model name, API key and env file)."
+          "description": "Parameters for the Embedding API system (base URL, model, API key, env file)."
         }
       },
       "required": [
@@ -257,7 +257,7 @@
         },
         "params": {
           "$ref": "#/$defs/LLMAPIParams",
-          "description": "Parameters specific to the Image Editing API system (e.g., base url, model name, API key and env file)."
+          "description": "Parameters for the Image Editing API system (base URL, model, API key, env file)."
         }
       },
       "required": [
@@ -304,7 +304,7 @@
         },
         "params": {
           "$ref": "#/$defs/LLMAPIParams",
-          "description": "Parameters specific to the Image Generation API system (e.g., base url, model name, API key and env file)."
+          "description": "Parameters for the Image Generation API system (base URL, model, API key, env file)."
         }
       },
       "required": [
@@ -351,7 +351,7 @@
         },
         "params": {
           "$ref": "#/$defs/LLMAPIParams",
-          "description": "Parameters specific to the LLM API system (e.g., base url, model name, API key and env file)."
+          "description": "Parameters for the LLM API system (base URL, model, API key, env file)."
         }
       },
       "required": [
@@ -422,7 +422,7 @@
             }
           ],
           "default": null,
-          "description": "Reasoning effort level for models supporting it (e.g., 'low', 'medium', 'high', 'none' etc. - the types vary depending on the model and provider )",
+          "description": "Reasoning effort level for models supporting it (e.g. 'low', 'medium', 'high', 'none'); allowed values depend on the model and provider.",
           "title": "Reasoning Effort"
         }
       },
@@ -470,7 +470,7 @@
         },
         "params": {
           "$ref": "#/$defs/LLMAPIParams",
-          "description": "Parameters specific to the RAG API system (e.g., base url, model name, API key and env file)."
+          "description": "Parameters for the RAG API system (base URL, model, API key, env file)."
         }
       },
       "required": [
@@ -485,7 +485,7 @@
       "description": "Extended reasoning configuration for models that support it (e.g., Claude Opus 4.6 etc.).",
       "properties": {
         "type": {
-          "description": "Thinking mode: 'enabled' activates extended reasoning (requires budget_tokens), 'adaptive' lets the model decide when to think.",
+          "description": "Thinking mode: 'enabled' activates extended reasoning (requires budget_tokens); 'adaptive' lets the model decide when to think.",
           "enum": [
             "enabled",
             "adaptive"
@@ -551,7 +551,7 @@
         },
         "params": {
           "$ref": "#/$defs/VLMAPIParams",
-          "description": "Parameters specific to the VLM API system (e.g., base url, model name, API key, env file, and vision support)."
+          "description": "Parameters for the VLM API system (base URL, model, API key, env file, vision support)."
         }
       },
       "required": [
@@ -622,7 +622,7 @@
             }
           ],
           "default": null,
-          "description": "Reasoning effort level for models supporting it (e.g., 'low', 'medium', 'high', 'none' etc. - the types vary depending on the model and provider )",
+          "description": "Reasoning effort level for models supporting it (e.g. 'low', 'medium', 'high', 'none'); allowed values depend on the model and provider.",
           "title": "Reasoning Effort"
         },
         "supports_vision": {
@@ -641,7 +641,7 @@
       "type": "object"
     }
   },
-  "description": "Schema for the top-level systems configuration file.\n\nExtension Guide:\n    1. Create a new XXXConfig class inheriting from SystemDefinition. e.g, RESTAPIConfig\n    2. Create a new XXXParam class for the parameters of the system. e.g. RESTAPIParams\n    2. Add the new system definition (XXXConfig) to the SystemConfig union type\n        e.g. SystemConfig = Union[LLMAPIConfig, XXXConfig, ..., GenericSystemConfig]",
+  "description": "Schema for the top-level systems configuration file.\n\nExtension Guide:\n    1. Create a new XXXConfig class inheriting from SystemDefinition. e.g, RESTAPIConfig\n    2. Create a new XXXParam class for the parameters of the system. e.g. RESTAPIParams\n    2. Add the new system definition (XXXConfig) to the SystemConfig union type\n        e.g. SystemConfig = LLMAPIConfig | XXXConfig | ... | GenericSystemConfig",
   "properties": {
     "systems": {
       "additionalProperties": {

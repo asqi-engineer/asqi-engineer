@@ -95,7 +95,7 @@
       "description": "Manual audit indicator.\n\nOutcome is provided via an external audit responses file.",
       "properties": {
         "id": {
-          "description": "A unique, human-readable ID (up to 32 characters) for this audit indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+          "description": "A unique, human-readable ID (up to 32 characters) for this audit indicator. Can include lowercase letters (a-z), digits (0-9) and underscore (_).",
           "pattern": "^[0-9a-z_]{1,32}$",
           "title": "Id",
           "type": "string"
@@ -121,7 +121,7 @@
           "title": "Name"
         },
         "assessment": {
-          "description": "List of possible audit outcomes (A–E, PASS/FAIL, etc.).",
+          "description": "List of possible audit outcomes (A-E, PASS/FAIL, etc.).",
           "items": {
             "$ref": "#/$defs/AuditAssessmentRule"
           },
@@ -140,7 +140,7 @@
       "description": "Expression-based metric evaluation with explicit value declarations.",
       "properties": {
         "expression": {
-          "description": "Mathematical formula combining metrics. Variable names in the expression must match keys in the 'values' dict.",
+          "description": "Mathematical formula combining metrics. Variable names must match keys in 'values'.",
           "title": "Expression",
           "type": "string"
         },
@@ -148,7 +148,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Mapping from expression variable names to metric paths. Keys are used in the expression, values are paths to extract from test results.",
+          "description": "Maps expression variables to metric paths. Keys appear in the expression; values are paths into test results.",
           "title": "Values",
           "type": "object"
         }
@@ -184,7 +184,7 @@
             }
           ],
           "default": null,
-          "description": "Optional: Filter by system type(s). Can be a single type (e.g., 'llm_api') or a list of types (e.g., ['llm_api', 'vlm_api']). If omitted, applies to all system types.",
+          "description": "Optional: filter by system type(s). Single type (e.g. 'llm_api') or list (e.g. ['llm_api', 'vlm_api']). If omitted, applies to all system types.",
           "title": "Target System Type"
         }
       },
@@ -198,7 +198,7 @@
       "description": "Individual score card indicator with filtering and assessment.",
       "properties": {
         "id": {
-          "description": "A unique, human-readable ID (up to 32 characters) for this score card indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+          "description": "A unique, human-readable ID (up to 32 characters) for this score card indicator. Can include lowercase letters (a-z), digits (0-9) and underscore (_).",
           "pattern": "^[0-9a-z_]{1,32}$",
           "title": "Id",
           "type": "string"
