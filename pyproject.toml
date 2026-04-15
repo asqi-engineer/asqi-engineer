@@ -28,7 +28,7 @@ dev = [
     "pip-audit>=2.9.0",
     "pre-commit>=4.3.0",
     "pyright>=1.1.408",
-    "pytest>=8.4.1",
+    "pytest>=9.0.3",
     "pytest-cov>=6.2.1",
     "ruff>=0.12.8",
     "shibuya>=2025.8.16",
@@ -80,4 +80,6 @@ testpaths = ["tests"]
 
 [tool.uv]
 package = true
- 
+constraint-dependencies = [
+    "pillow>=12.2.0",
+]

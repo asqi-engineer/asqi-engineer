@@ -15,6 +15,7 @@ from asqi.schemas import (
     ImageGenerationTestCase,
     LLMTestCase,
     ObjectDetectionTestCase,
+    ODImageEditingTestCase,
     RAGTestCase,
     TestCase,
     UnansweredImageEditingTestCase,
@@ -524,6 +525,24 @@ class TestImageEditingTestCase:
         uuid.UUID(tc.lineage_id)
 
 
+class TestODImageEditingTestCase:
+    def test_minimal_with_detections(self):
+        tc = ODImageEditingTestCase(
+            image=IMAGE_URI,
+            edit_prompt="add object",
+            expected_detections=[
+                BoundingBox(xyxy=(10.0, 20.0, 100.0, 200.0), class_name="person"),
+            ],
+        )
+        assert len(tc.expected_detections) == 1
+        assert tc.expected_detections[0].class_name == "person"
+        assert tc.edit_prompt == "add object"
+
+    def test_empty_detections_allowed(self):
+        tc = ODImageEditingTestCase(image=IMAGE_URI, edit_prompt="x", expected_detections=[])
+        assert tc.expected_detections == []
+
+
 class TestAnsweredImageEditingTestCase:
     def test_expected_response_with_generation(self):
         tc = AnsweredImageEditingTestCase(
@@ -779,6 +798,7 @@ class TestTestCaseUnion:
         assert AnsweredImageGenerationTestCase in union_types
         assert ImageEditingTestCase in union_types
         assert AnsweredImageEditingTestCase in union_types
+        assert ODImageEditingTestCase in union_types
         assert EmbeddingTestCase in union_types
         assert ObjectDetectionTestCase in union_types
         assert AnsweredObjectDetectionTestCase in union_types
@@ -799,6 +819,7 @@ class TestTestCaseUnion:
         assert issubclass(AnsweredImageGenerationTestCase, ImageGenerationTestCase)
         assert issubclass(UnansweredImageEditingTestCase, ImageEditingTestCase)
         assert issubclass(AnsweredImageEditingTestCase, ImageEditingTestCase)
+        assert issubclass(ODImageEditingTestCase, ImageEditingTestCase)
 
     def test_each_concrete_type_satisfies_union(self):
         instances: list[TestCase] = [  # type: ignore[assignment]
@@ -813,11 +834,16 @@ class TestTestCaseUnion:
             AnsweredImageGenerationTestCase(prompt="x", size="", n=1, generation=IMAGE_URI_2),
             UnansweredImageEditingTestCase(image=IMAGE_URI, edit_prompt="x"),
             AnsweredImageEditingTestCase(image=IMAGE_URI, edit_prompt="x", generation=IMAGE_URI_2),
+            ODImageEditingTestCase(
+                image=IMAGE_URI,
+                edit_prompt="x",
+                expected_detections=[BoundingBox(xyxy=(0.0, 0.0, 1.0, 1.0), class_name="thing")],
+            ),
             EmbeddingTestCase(text="x", expected_similar_texts=[], expected_dissimilar_texts=[]),
             UnansweredObjectDetectionTestCase(image=IMAGE_URI),
             AnsweredObjectDetectionTestCase(image=IMAGE_URI, expected_detections=[]),
         ]
-        assert len(instances) == 14
+        assert len(instances) == 15
 
 
 # ---------------------------------------------------------------------------
@@ -841,11 +867,16 @@ class TestLineagePropagation:
             AnsweredImageGenerationTestCase(prompt="x", size="", n=1, generation=IMAGE_URI_2).lineage_id,
             UnansweredImageEditingTestCase(image=IMAGE_URI, edit_prompt="x").lineage_id,
             AnsweredImageEditingTestCase(image=IMAGE_URI, edit_prompt="x", generation=IMAGE_URI_2).lineage_id,
+            ODImageEditingTestCase(
+                image=IMAGE_URI,
+                edit_prompt="x",
+                expected_detections=[BoundingBox(xyxy=(0.0, 0.0, 1.0, 1.0), class_name="thing")],
+            ).lineage_id,
             EmbeddingTestCase(text="x", expected_similar_texts=[], expected_dissimilar_texts=[]).lineage_id,
             UnansweredObjectDetectionTestCase(image=IMAGE_URI).lineage_id,
             AnsweredObjectDetectionTestCase(image=IMAGE_URI, expected_detections=[]).lineage_id,
         }
-        assert len(ids) == 14  # all distinct
+        assert len(ids) == 15  # all distinct
 
     def test_explicit_lineage_id_preserved_across_types(self):
         shared_id = str(uuid.uuid4())

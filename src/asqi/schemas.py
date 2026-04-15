@@ -1912,6 +1912,20 @@ class BoundingBox(BaseModel):
     confidence: float | None = Field(None, description="Ground truth confidence (if sourced from a prior model run)")
 
 
+class ODImageEditingTestCase(ImageEditingTestCase):
+    """Image editing test case with reference object locations on the seed image (SDG / detection-aware metrics).
+
+    The synthetic or edited result still comes from the system response; ``expected_detections`` supplies
+    the same structured box list as legacy ``detected_objects['bbox']`` rows in SDG datasets.
+    An empty list means no boxes (many per-object metrics degenerate or error — see metric docs).
+    """
+
+    expected_detections: list[BoundingBox] = Field(
+        default_factory=list,
+        description="Reference boxes on the seed image (xyxy), aligned to synthetic crops by index order",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Object detection test cases
 # ---------------------------------------------------------------------------
@@ -2048,6 +2062,7 @@ TestCase = (
     | AnsweredImageGenerationTestCase
     | ImageEditingTestCase
     | AnsweredImageEditingTestCase
+    | ODImageEditingTestCase
     | EmbeddingTestCase
     | ObjectDetectionTestCase
     | AnsweredObjectDetectionTestCase
