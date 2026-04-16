@@ -1261,18 +1261,23 @@ class ExecutionMetadata(BaseModel):
 #   - Keeps SDG-generated or debug _metadata as a private attribute (not serialised).
 #   - Provides a from_api_data() factory to ingest from existing API-format data.
 #
-# Extension guide:
-#   1. Create a new XXXTestCase class following the pattern below.
-#   2. Add it to the TestCase union at the bottom of this section.
+# Models are standalone (no subclassing between test case types). Semantic families:
+#   - LLM / UnansweredLLM / AnsweredLLM — text llm_api (Q / Q+metrics / QA).
+#   - RAG / UnansweredRAG / AnsweredRAG / ContextualizedRAG — rag_api message shape.
+#   - VLM / UnansweredVLM / AnsweredVLM — vlm_api multimodal messages.
+#   - Image generation / editing / OD-aware editing; embedding; object detection (+ answered).
 #
-# Text / RAG / VLM test cases share a single inheritance tree:
-#   LLMTestCase (Q) → AnsweredLLMTestCase (QA)
-#   LLMTestCase → RAGTestCase (Qc) → AnsweredRAGTestCase (QAc)
-#   LLMTestCase → RAGTestCase → ContextualizedRAGTestCase (QCc)
-#   LLMTestCase → VLMTestCase (QI) → AnsweredVLMTestCase (QAI)
-#   ObjectDetectionTestCase → AnsweredObjectDetectionTestCase (GT boxes)
-#   ImageGenerationTestCase → AnsweredImageGenerationTestCase (reference image)
-#   ImageEditingTestCase → AnsweredImageEditingTestCase (reference edited image)
+# Extension guide:
+#   1. Create a new XXXTestCase BaseModel following the pattern below.
+#   2. Add it to the TestCase union at the bottom of this section.
+
+
+def _test_case_pop_metadata_and_lineage(data: dict[str, Any]) -> dict[str, Any]:
+    """Strip ``metadata`` and drop explicit ``lineage_id`` when None (so default_factory runs)."""
+    metadata = data.pop("metadata", {})
+    if data.get("lineage_id") is None:
+        data.pop("lineage_id", None)
+    return metadata
 
 
 # ---------------------------------------------------------------------------
@@ -1306,9 +1311,7 @@ class LLMTestCase(BaseModel):
     )
 
     def __init__(self, **data: Any) -> None:
-        metadata = data.pop("metadata", {})
-        if data.get("lineage_id") is None:
-            data.pop("lineage_id", None)
+        metadata = _test_case_pop_metadata_and_lineage(data)
         super().__init__(**data)
         self._metadata = metadata
 
@@ -1325,23 +1328,83 @@ class LLMTestCase(BaseModel):
         return self._metadata
 
 
-class UnansweredLLMTestCase(LLMTestCase):
+class UnansweredLLMTestCase(BaseModel):
     """LLM test case without a ground-truth reference answer.
 
     Use with metrics that do not require a reference output, e.g. judge-based
     metrics for bias, toxicity, hallucination, policy compliance.
     """
 
+    model_config = ConfigDict(extra="ignore")
 
-class AnsweredLLMTestCase(LLMTestCase):
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'instruction-following', 'summarisation'")
+    query: str = Field(..., description="The user turn prompt")
+    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra body params, e.g. temperature, max_tokens",
+    )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        messages: list[dict[str, Any]] = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": self.query})
+        return {"messages": messages, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class AnsweredLLMTestCase(BaseModel):
     """LLM test case with a required ground-truth reference answer.
 
     Use with reference-based metrics such as BLEU, ROUGE, BERTScore,
     exact_match, and correctness.
     """
 
-    # --- Human-Readable Response Fields (Ground Truth) ---
+    model_config = ConfigDict(extra="ignore")
+
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'instruction-following', 'summarisation'")
+    query: str = Field(..., description="The user turn prompt")
+    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra body params, e.g. temperature, max_tokens",
+    )
     answer: str = Field(..., description="Reference answer or expected completion")
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        messages: list[dict[str, Any]] = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": self.query})
+        return {"messages": messages, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
 
     @property
     def expected_response(self) -> dict[str, Any]:
@@ -1378,25 +1441,85 @@ class AnsweredLLMTestCase(LLMTestCase):
 # ---------------------------------------------------------------------------
 
 
-class RAGTestCase(LLMTestCase):
+class RAGTestCase(BaseModel):
     """Query-only base for RAG API (`rag_api`) test cases (Qc).
 
-    Request shape matches text LLM messages; use this type (or subclasses) for
-    RAG-specific metrics and routing.
+    Request shape matches text LLM messages; use this type (or semantic variants)
+    for RAG-specific metrics and routing.
     """
 
+    model_config = ConfigDict(extra="ignore")
+
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
     scenario: str | None = Field(None, description="e.g., 'accuracy', 'robustness'")
+    query: str = Field(..., description="The user turn prompt")
+    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra body params, e.g. temperature, max_tokens",
+    )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        messages: list[dict[str, Any]] = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": self.query})
+        return {"messages": messages, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
 
 
-class UnansweredRAGTestCase(RAGTestCase):
+class UnansweredRAGTestCase(BaseModel):
     """RAG test case without ground-truth references.
 
     Use with metrics that score without a reference answer or retrieved context,
     e.g. faithfulness, groundedness, helpfulness, retrieval_relevance.
     """
 
+    model_config = ConfigDict(extra="ignore")
 
-class AnsweredRAGTestCase(RAGTestCase):
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'accuracy', 'robustness'")
+    query: str = Field(..., description="The user turn prompt")
+    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra body params, e.g. temperature, max_tokens",
+    )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        messages: list[dict[str, Any]] = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": self.query})
+        return {"messages": messages, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class AnsweredRAGTestCase(BaseModel):
     """RAG test case with a ground-truth reference answer.
 
     Use with reference-based metrics that compare the model answer to
@@ -1405,11 +1528,40 @@ class AnsweredRAGTestCase(RAGTestCase):
     `ContextualizedRAGTestCase`.
     """
 
-    # --- Human-Readable Response Fields (Ground Truth) ---
+    model_config = ConfigDict(extra="ignore")
+
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'accuracy', 'robustness'")
+    query: str = Field(..., description="The user turn prompt")
+    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra body params, e.g. temperature, max_tokens",
+    )
     answer: str = Field(
         ...,
         description="The ground truth reference answer (use empty string when no reference text)",
     )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        messages: list[dict[str, Any]] = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": self.query})
+        return {"messages": messages, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
 
     @property
     def expected_response(self) -> dict[str, Any] | None:
@@ -1453,7 +1605,7 @@ class AnsweredRAGTestCase(RAGTestCase):
         )
 
 
-class ContextualizedRAGTestCase(RAGTestCase):
+class ContextualizedRAGTestCase(BaseModel):
     """RAG test case with ground-truth retrieved document chunks.
 
     Use with metrics that need reference contexts (e.g. context_precision,
@@ -1461,10 +1613,40 @@ class ContextualizedRAGTestCase(RAGTestCase):
     same object.
     """
 
+    model_config = ConfigDict(extra="ignore")
+
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'accuracy', 'robustness'")
+    query: str = Field(..., description="The user turn prompt")
+    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra body params, e.g. temperature, max_tokens",
+    )
     context: list[str] = Field(
         ...,
         description="Ground truth document chunks expected to be retrieved (empty list if none)",
     )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        messages: list[dict[str, Any]] = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": self.query})
+        return {"messages": messages, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
 
     @property
     def expected_response(self) -> dict[str, Any] | None:
@@ -1514,18 +1696,33 @@ class ContextualizedRAGTestCase(RAGTestCase):
 # ---------------------------------------------------------------------------
 
 
-class VLMTestCase(LLMTestCase):
+class VLMTestCase(BaseModel):
     """Query + image(s) base for VLM API (`vlm_api`) test cases (QI)."""
 
-    scenario: str | None = Field(None, description="e.g., 'scene-description', 'visual-qa'")
+    model_config = ConfigDict(extra="ignore")
 
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'scene-description', 'visual-qa'")
     query: str = Field(..., description="The text question about the image(s)")
-    # Images stored as base64-encoded strings; the Image HF feature type is used in dataset storage.
+    system_prompt: str | None = Field(None, description="The system instruction (if any)")
     images: list[str] = Field(
         ...,
         min_length=1,
         description="List of images as base64-encoded data URIs (e.g. 'data:image/jpeg;base64,...')",
     )
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra body params, e.g. temperature, max_tokens",
+    )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
 
     @property
     def request(self) -> dict[str, Any]:
@@ -1539,23 +1736,102 @@ class VLMTestCase(LLMTestCase):
         messages.append({"role": "user", "content": content})
         return {"messages": messages, "supports_vision": True, **self.extra_params}
 
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
 
-class UnansweredVLMTestCase(VLMTestCase):
+
+class UnansweredVLMTestCase(BaseModel):
     """VLM test case without a ground-truth reference answer.
 
     Use with metrics that do not require a reference output, e.g. judge-based
     metrics for hallucination and policy compliance.
     """
 
+    model_config = ConfigDict(extra="ignore")
 
-class AnsweredVLMTestCase(VLMTestCase):
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'scene-description', 'visual-qa'")
+    query: str = Field(..., description="The text question about the image(s)")
+    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    images: list[str] = Field(
+        ...,
+        min_length=1,
+        description="List of images as base64-encoded data URIs (e.g. 'data:image/jpeg;base64,...')",
+    )
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra body params, e.g. temperature, max_tokens",
+    )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        content: list[dict[str, Any]] = [{"type": "text", "text": self.query}]
+        for image_uri in self.images:
+            content.append({"type": "image_url", "image_url": {"url": image_uri}})
+        messages: list[dict[str, Any]] = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": content})
+        return {"messages": messages, "supports_vision": True, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class AnsweredVLMTestCase(BaseModel):
     """VLM test case with a required ground-truth reference answer.
 
     Use with reference-based metrics such as correctness.
     """
 
-    # --- Human-Readable Response Fields (Ground Truth) ---
+    model_config = ConfigDict(extra="ignore")
+
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'scene-description', 'visual-qa'")
+    query: str = Field(..., description="The text question about the image(s)")
+    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    images: list[str] = Field(
+        ...,
+        min_length=1,
+        description="List of images as base64-encoded data URIs (e.g. 'data:image/jpeg;base64,...')",
+    )
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra body params, e.g. temperature, max_tokens",
+    )
     answer: str = Field(..., description="Reference answer or description")
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        content: list[dict[str, Any]] = [{"type": "text", "text": self.query}]
+        for image_uri in self.images:
+            content.append({"type": "image_url", "image_url": {"url": image_uri}})
+        messages: list[dict[str, Any]] = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": content})
+        return {"messages": messages, "supports_vision": True, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
 
     @property
     def expected_response(self) -> dict[str, Any]:
@@ -1625,9 +1901,7 @@ class ImageGenerationTestCase(BaseModel):
     extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params, e.g. model, style")
 
     def __init__(self, **data: Any) -> None:
-        metadata = data.pop("metadata", {})
-        if data.get("lineage_id") is None:
-            data.pop("lineage_id", None)
+        metadata = _test_case_pop_metadata_and_lineage(data)
         super().__init__(**data)
         self._metadata = metadata
 
@@ -1662,21 +1936,95 @@ class ImageGenerationTestCase(BaseModel):
         return self._metadata
 
 
-class UnansweredImageGenerationTestCase(ImageGenerationTestCase):
+class UnansweredImageGenerationTestCase(BaseModel):
     """Image generation test case without a reference output image.
 
     Use with metrics that do not require a reference image, e.g. judge-based or
     policy checks on generated content.
     """
 
+    model_config = ConfigDict(extra="ignore")
 
-class AnsweredImageGenerationTestCase(ImageGenerationTestCase):
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'text-to-image', 'style-transfer'")
+    prompt: str = Field(..., description="The text description of the desired image")
+    size: str | None = Field(None, description="Image dimensions, e.g. '1024x1024'")
+    n: int = Field(default=1, description="Number of images to generate")
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params, e.g. model, style")
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        req: dict[str, Any] = {"prompt": self.prompt, "n": self.n}
+        if self.size:
+            req["size"] = self.size
+        return {**req, **self.extra_params}
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "UnansweredImageGenerationTestCase":
+        extra_params = {k: v for k, v in request.items() if k not in ("prompt", "n", "size")}
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            prompt=request["prompt"],
+            size=request.get("size") or "",
+            n=request["n"] if "n" in request else 1,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class AnsweredImageGenerationTestCase(BaseModel):
     """Image generation test case with a reference / expected output image."""
 
+    model_config = ConfigDict(extra="ignore")
+
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'text-to-image', 'style-transfer'")
+    prompt: str = Field(..., description="The text description of the desired image")
+    size: str | None = Field(None, description="Image dimensions, e.g. '1024x1024'")
+    n: int = Field(default=1, description="Number of images to generate")
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params, e.g. model, style")
     generation: str = Field(
         ...,
         description=("Reference / expected output image as a base64-encoded data URI (for metrics vs model output)."),
     )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        req: dict[str, Any] = {"prompt": self.prompt, "n": self.n}
+        if self.size:
+            req["size"] = self.size
+        return {**req, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
 
     @property
     def expected_response(self) -> dict[str, Any]:
@@ -1742,9 +2090,7 @@ class ImageEditingTestCase(BaseModel):
     extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params")
 
     def __init__(self, **data: Any) -> None:
-        metadata = data.pop("metadata", {})
-        if data.get("lineage_id") is None:
-            data.pop("lineage_id", None)
+        metadata = _test_case_pop_metadata_and_lineage(data)
         super().__init__(**data)
         self._metadata = metadata
 
@@ -1784,20 +2130,101 @@ class ImageEditingTestCase(BaseModel):
         return self._metadata
 
 
-class UnansweredImageEditingTestCase(ImageEditingTestCase):
+class UnansweredImageEditingTestCase(BaseModel):
     """Image editing test case without a reference edited output image.
 
     Use with metrics that do not require a reference image, e.g. judge-based checks.
     """
 
+    model_config = ConfigDict(extra="ignore")
 
-class AnsweredImageEditingTestCase(ImageEditingTestCase):
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'inpainting', 'object-removal'")
+    image: str = Field(..., description="The source image as a base64-encoded data URI")
+    edit_prompt: str = Field(..., description="Natural-language description of the desired edit")
+    mask: str | None = Field(
+        None,
+        description="Optional mask image as a base64-encoded data URI; transparent areas indicate edit regions",
+    )
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params")
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        req: dict[str, Any] = {"image": self.image, "prompt": self.edit_prompt}
+        if self.mask:
+            req["mask"] = self.mask
+        return {**req, **self.extra_params}
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "UnansweredImageEditingTestCase":
+        extra_params = {k: v for k, v in request.items() if k not in ("image", "mask", "prompt")}
+        mask = request.get("mask")
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            image=request["image"],
+            edit_prompt=request["prompt"],
+            mask=mask if mask else None,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class AnsweredImageEditingTestCase(BaseModel):
     """Image editing test case with a reference / expected edited output image."""
 
+    model_config = ConfigDict(extra="ignore")
+
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'inpainting', 'object-removal'")
+    image: str = Field(..., description="The source image as a base64-encoded data URI")
+    edit_prompt: str = Field(..., description="Natural-language description of the desired edit")
+    mask: str | None = Field(
+        None,
+        description="Optional mask image as a base64-encoded data URI; transparent areas indicate edit regions",
+    )
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params")
     generation: str = Field(
         ...,
         description="Reference / expected edited output image as a base64-encoded data URI",
     )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        req: dict[str, Any] = {"image": self.image, "prompt": self.edit_prompt}
+        if self.mask:
+            req["mask"] = self.mask
+        return {**req, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
 
     @property
     def expected_response(self) -> dict[str, Any]:
@@ -1860,9 +2287,7 @@ class EmbeddingTestCase(BaseModel):
     extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params, e.g. model")
 
     def __init__(self, **data: Any) -> None:
-        metadata = data.pop("metadata", {})
-        if data.get("lineage_id") is None:
-            data.pop("lineage_id", None)
+        metadata = _test_case_pop_metadata_and_lineage(data)
         super().__init__(**data)
         self._metadata = metadata
 
@@ -1912,7 +2337,7 @@ class BoundingBox(BaseModel):
     confidence: float | None = Field(None, description="Ground truth confidence (if sourced from a prior model run)")
 
 
-class ODImageEditingTestCase(ImageEditingTestCase):
+class ODImageEditingTestCase(BaseModel):
     """Image editing test case with reference object locations on the seed image (SDG / detection-aware metrics).
 
     The synthetic or edited result still comes from the system response; ``expected_detections`` supplies
@@ -1920,10 +2345,60 @@ class ODImageEditingTestCase(ImageEditingTestCase):
     An empty list means no boxes (many per-object metrics degenerate or error — see metric docs).
     """
 
+    model_config = ConfigDict(extra="ignore")
+
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'inpainting', 'object-removal'")
+    image: str = Field(..., description="The source image as a base64-encoded data URI")
+    edit_prompt: str = Field(..., description="Natural-language description of the desired edit")
+    mask: str | None = Field(
+        None,
+        description="Optional mask image as a base64-encoded data URI; transparent areas indicate edit regions",
+    )
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params")
     expected_detections: list[BoundingBox] = Field(
         default_factory=list,
         description="Reference boxes on the seed image (xyxy), aligned to synthetic crops by index order",
     )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        req: dict[str, Any] = {"image": self.image, "prompt": self.edit_prompt}
+        if self.mask:
+            req["mask"] = self.mask
+        return {**req, **self.extra_params}
+
+    @classmethod
+    def from_api_data(
+        cls,
+        request: dict[str, Any],
+        lineage_id: str | None = None,
+        scenario: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "ODImageEditingTestCase":
+        extra_params = {k: v for k, v in request.items() if k not in ("image", "mask", "prompt")}
+        mask = request.get("mask")
+        return cls(
+            lineage_id=lineage_id,
+            scenario=scenario,
+            image=request["image"],
+            edit_prompt=request["prompt"],
+            mask=mask if mask else None,
+            metadata=metadata or {},
+            extra_params=extra_params,
+        )
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
 
 
 # ---------------------------------------------------------------------------
@@ -1963,9 +2438,7 @@ class ObjectDetectionTestCase(BaseModel):
     )
 
     def __init__(self, **data: Any) -> None:
-        metadata = data.pop("metadata", {})
-        if data.get("lineage_id") is None:
-            data.pop("lineage_id", None)
+        metadata = _test_case_pop_metadata_and_lineage(data)
         super().__init__(**data)
         self._metadata = metadata
 
@@ -1982,14 +2455,40 @@ class ObjectDetectionTestCase(BaseModel):
         return self._metadata
 
 
-class UnansweredObjectDetectionTestCase(ObjectDetectionTestCase):
+class UnansweredObjectDetectionTestCase(BaseModel):
     """Object detection test case without ground-truth bounding boxes.
 
     Use with metrics that do not require reference boxes, e.g. judge-based checks.
     """
 
+    model_config = ConfigDict(extra="ignore")
 
-class AnsweredObjectDetectionTestCase(ObjectDetectionTestCase):
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'crowded-scene', 'low-light'")
+    image: str = Field(..., description="The image as a base64-encoded data URI")
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Provider overrides, e.g. {'model': 'facebook/detr-resnet-50', 'provider': 'huggingface'}",
+    )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        return {"image": self.image, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+
+class AnsweredObjectDetectionTestCase(BaseModel):
     """Object detection test case with ground-truth bounding boxes.
 
     `expected_detections` uses a nested list[BoundingBox] structure — an explicit
@@ -1998,7 +2497,19 @@ class AnsweredObjectDetectionTestCase(ObjectDetectionTestCase):
     image (distinct from omitting ground truth on the base / unanswered type).
     """
 
-    # --- Human-Readable Response Fields (Ground Truth) ---
+    model_config = ConfigDict(extra="ignore")
+
+    lineage_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Stable ID linking variants to their seed; auto-generated if not provided",
+    )
+    scenario: str | None = Field(None, description="e.g., 'crowded-scene', 'low-light'")
+    image: str = Field(..., description="The image as a base64-encoded data URI")
+    _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Provider overrides, e.g. {'model': 'facebook/detr-resnet-50', 'provider': 'huggingface'}",
+    )
     expected_detections: list[BoundingBox] = Field(
         default_factory=list,
         description="Ground truth detections; empty list means no objects expected",
@@ -2007,6 +2518,18 @@ class AnsweredObjectDetectionTestCase(ObjectDetectionTestCase):
         None,
         description="Minimum confidence for a predicted detection to be matched against ground truth",
     )
+
+    def __init__(self, **data: Any) -> None:
+        metadata = _test_case_pop_metadata_and_lineage(data)
+        super().__init__(**data)
+        self._metadata = metadata
+
+    @property
+    def request(self) -> dict[str, Any]:
+        return {"image": self.image, **self.extra_params}
+
+    def get_debug_metadata(self) -> dict[str, Any]:
+        return self._metadata
 
     @property
     def expected_response(self) -> dict[str, Any]:

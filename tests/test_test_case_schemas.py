@@ -803,23 +803,35 @@ class TestTestCaseUnion:
         assert ObjectDetectionTestCase in union_types
         assert AnsweredObjectDetectionTestCase in union_types
 
-    def test_inheritance_chain(self):
-        assert issubclass(UnansweredLLMTestCase, LLMTestCase)
-        assert issubclass(AnsweredLLMTestCase, LLMTestCase)
-        assert issubclass(RAGTestCase, LLMTestCase)
-        assert issubclass(UnansweredRAGTestCase, RAGTestCase)
-        assert issubclass(AnsweredRAGTestCase, RAGTestCase)
-        assert issubclass(ContextualizedRAGTestCase, RAGTestCase)
-        assert issubclass(VLMTestCase, LLMTestCase)
-        assert issubclass(UnansweredVLMTestCase, VLMTestCase)
-        assert issubclass(AnsweredVLMTestCase, VLMTestCase)
-        assert issubclass(UnansweredObjectDetectionTestCase, ObjectDetectionTestCase)
-        assert issubclass(AnsweredObjectDetectionTestCase, ObjectDetectionTestCase)
-        assert issubclass(UnansweredImageGenerationTestCase, ImageGenerationTestCase)
-        assert issubclass(AnsweredImageGenerationTestCase, ImageGenerationTestCase)
-        assert issubclass(UnansweredImageEditingTestCase, ImageEditingTestCase)
-        assert issubclass(AnsweredImageEditingTestCase, ImageEditingTestCase)
-        assert issubclass(ODImageEditingTestCase, ImageEditingTestCase)
+    def test_each_test_case_model_extends_base_model_only(self):
+        """Test case types are standalone Pydantic models (no subclassing between modalities)."""
+        from pydantic import BaseModel
+
+        standalone_cases = (
+            LLMTestCase,
+            UnansweredLLMTestCase,
+            AnsweredLLMTestCase,
+            RAGTestCase,
+            UnansweredRAGTestCase,
+            AnsweredRAGTestCase,
+            ContextualizedRAGTestCase,
+            VLMTestCase,
+            UnansweredVLMTestCase,
+            AnsweredVLMTestCase,
+            ImageGenerationTestCase,
+            UnansweredImageGenerationTestCase,
+            AnsweredImageGenerationTestCase,
+            ImageEditingTestCase,
+            UnansweredImageEditingTestCase,
+            AnsweredImageEditingTestCase,
+            ODImageEditingTestCase,
+            EmbeddingTestCase,
+            ObjectDetectionTestCase,
+            UnansweredObjectDetectionTestCase,
+            AnsweredObjectDetectionTestCase,
+        )
+        for cls in standalone_cases:
+            assert cls.__bases__ == (BaseModel,), f"{cls.__name__} should inherit only from BaseModel"
 
     def test_each_concrete_type_satisfies_union(self):
         instances: list[TestCase] = [  # type: ignore[assignment]
