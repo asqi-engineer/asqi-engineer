@@ -617,6 +617,40 @@ class EmbeddingAPIConfig(SystemDefinition):
     )
 
 
+# Custom system
+
+
+class CustomParams(BaseModel):
+    """Parameters for custom systems (e.g., SAP analytics, proprietary APIs)."""
+
+    base_url: str = Field(
+        ...,
+        description="Base URL of the custom system.",
+    )
+    api_key: str | None = Field(
+        default=None,
+        description="Optional API key for authentication.",
+    )
+    extra: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Domain-specific parameters for the custom system. "
+        "Test containers are responsible for validating and interpreting these fields.",
+    )
+
+
+class CustomConfig(SystemDefinition):
+    """Configuration for custom systems (e.g., SAP analytics, proprietary APIs)."""
+
+    type: Literal["custom"] = Field(
+        "custom",
+        description="Custom system type",
+    )
+    params: CustomParams = Field(
+        ...,
+        description="Parameters specific to the custom system (base_url, api_key, and domain-specific extras).",
+    )
+
+
 # RAG API system
 
 
@@ -729,6 +763,7 @@ SystemConfig = (
     | VLMAPIConfig
     | AgentCLIConfig
     | EmbeddingAPIConfig
+    | CustomConfig
     | GenericSystemConfig
 )
 
