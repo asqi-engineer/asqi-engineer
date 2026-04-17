@@ -125,6 +125,87 @@
       "title": "AgentCLIParams",
       "type": "object"
     },
+    "CustomConfig": {
+      "description": "Configuration for custom systems (e.g., SAP analytics, proprietary APIs).",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the system being evaluated.",
+          "title": "Description"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the provider of the system, either 'custom' for internal systems or 'openai, aws-bedrock...' for external systems.",
+          "title": "Provider"
+        },
+        "type": {
+          "const": "custom",
+          "default": "custom",
+          "description": "Custom system type",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/CustomParams",
+          "description": "Parameters specific to the custom system (base_url, api_key, and domain-specific extras)."
+        }
+      },
+      "required": [
+        "params"
+      ],
+      "title": "CustomConfig",
+      "type": "object"
+    },
+    "CustomParams": {
+      "description": "Parameters for custom systems (e.g., SAP analytics, proprietary APIs).",
+      "properties": {
+        "base_url": {
+          "description": "Base URL of the custom system.",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional API key for authentication.",
+          "title": "Api Key"
+        },
+        "extra": {
+          "additionalProperties": true,
+          "description": "Domain-specific parameters for the custom system. Test containers are responsible for validating and interpreting these fields.",
+          "title": "Extra",
+          "type": "object"
+        }
+      },
+      "required": [
+        "base_url"
+      ],
+      "title": "CustomParams",
+      "type": "object"
+    },
     "EmbeddingAPIConfig": {
       "description": "Configuration for Embedding API systems.",
       "properties": {
@@ -666,6 +747,9 @@
           },
           {
             "$ref": "#/$defs/EmbeddingAPIConfig"
+          },
+          {
+            "$ref": "#/$defs/CustomConfig"
           },
           {
             "$ref": "#/$defs/GenericSystemConfig"
