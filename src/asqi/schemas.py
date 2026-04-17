@@ -65,7 +65,9 @@ class ValueFeature(BaseModel):
     Represents a scalar value feature (string, int64, float32, bool, etc.)
     """
 
-    feature_type: Literal["Value"] = Field(default="Value", description="Feature type discriminator")
+    feature_type: Literal["Value"] = Field(
+        default="Value", description="Feature type discriminator"
+    )
     name: str = Field(..., description="The name of the feature")
     dtype: HFDtype = Field(
         ...,
@@ -78,15 +80,21 @@ class ValueFeature(BaseModel):
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: str | None = Field(default=None, description="Description of the feature - data type, purpose etc.")
+    description: str | None = Field(
+        default=None, description="Description of the feature - data type, purpose etc."
+    )
 
 
 class ListFeature(BaseModel):
     """Corresponds to HuggingFace's List/Sequence feature type."""
 
-    feature_type: Literal["List"] = Field(default="List", description="Feature type discriminator")
+    feature_type: Literal["List"] = Field(
+        default="List", description="Feature type discriminator"
+    )
     name: str = Field(..., description="The name of the feature")
-    feature: HFDtype | Literal["Image", "Audio", "Video", "ClassLabel", "Dict", "List"] = Field(
+    feature: (
+        HFDtype | Literal["Image", "Audio", "Video", "ClassLabel", "Dict", "List"]
+    ) = Field(
         ...,
         description=(
             "List element type. Can be: (1) scalar dtype string ('string', 'int32', etc.) for "
@@ -104,13 +112,17 @@ class ListFeature(BaseModel):
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: str | None = Field(default=None, description="Description of the list feature")
+    description: str | None = Field(
+        default=None, description="Description of the list feature"
+    )
 
     @model_validator(mode="after")
     def _validate_length(self) -> "ListFeature":
         """Ensure length is >= -1."""
         if self.length < -1:
-            raise ValueError(f"List length must be >= -1 (got {self.length}). Use -1 for variable-length lists.")
+            raise ValueError(
+                f"List length must be >= -1 (got {self.length}). Use -1 for variable-length lists."
+            )
         return self
 
 
@@ -132,13 +144,17 @@ class DictFeature(BaseModel):
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: str | None = Field(default=None, description="Description of the dict feature")
+    description: str | None = Field(
+        default=None, description="Description of the dict feature"
+    )
 
 
 class ClassLabelFeature(BaseModel):
     """Corresponds to HuggingFace's ClassLabel feature type. Represents categorical data with named categories."""
 
-    feature_type: Literal["ClassLabel"] = Field(default="ClassLabel", description="Feature type discriminator")
+    feature_type: Literal["ClassLabel"] = Field(
+        default="ClassLabel", description="Feature type discriminator"
+    )
     name: str = Field(..., description="The name of the feature")
     names: list[str] = Field(
         ...,
@@ -150,46 +166,60 @@ class ClassLabelFeature(BaseModel):
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: str | None = Field(default=None, description="Description of the classification categories")
+    description: str | None = Field(
+        default=None, description="Description of the classification categories"
+    )
 
 
 class ImageFeature(BaseModel):
     """Corresponds to HuggingFace's Image feature type."""
 
-    feature_type: Literal["Image"] = Field(default="Image", description="Feature type discriminator")
+    feature_type: Literal["Image"] = Field(
+        default="Image", description="Feature type discriminator"
+    )
     name: str = Field(..., description="The name of the feature")
     required: bool = Field(
         default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: str | None = Field(default=None, description="Description of the image feature")
+    description: str | None = Field(
+        default=None, description="Description of the image feature"
+    )
 
 
 class AudioFeature(BaseModel):
     """Corresponds to HuggingFace's Audio feature type."""
 
-    feature_type: Literal["Audio"] = Field(default="Audio", description="Feature type discriminator")
+    feature_type: Literal["Audio"] = Field(
+        default="Audio", description="Feature type discriminator"
+    )
     name: str = Field(..., description="The name of the feature")
     required: bool = Field(
         default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: str | None = Field(default=None, description="Description of the audio feature")
+    description: str | None = Field(
+        default=None, description="Description of the audio feature"
+    )
 
 
 class VideoFeature(BaseModel):
     """Corresponds to HuggingFace's Video feature type."""
 
-    feature_type: Literal["Video"] = Field(default="Video", description="Feature type discriminator")
+    feature_type: Literal["Video"] = Field(
+        default="Video", description="Feature type discriminator"
+    )
     name: str = Field(..., description="The name of the feature")
     required: bool = Field(
         default=False,
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: str | None = Field(default=None, description="Description of the video feature")
+    description: str | None = Field(
+        default=None, description="Description of the video feature"
+    )
 
 
 class DatasetFeature(BaseModel):
@@ -214,12 +244,20 @@ class DatasetFeature(BaseModel):
         description="Whether this feature is required in the dataset. "
         "If False, the feature may be absent or contain null values.",
     )
-    description: str | None = Field(default=None, description="Description of the feature - data type, purpose etc.")
+    description: str | None = Field(
+        default=None, description="Description of the feature - data type, purpose etc."
+    )
 
 
 # Union type for all HuggingFace feature types
 HFFeature = Annotated[
-    ValueFeature | ListFeature | DictFeature | ClassLabelFeature | ImageFeature | AudioFeature | VideoFeature,
+    ValueFeature
+    | ListFeature
+    | DictFeature
+    | ClassLabelFeature
+    | ImageFeature
+    | AudioFeature
+    | VideoFeature,
     Field(discriminator="feature_type"),
 ]
 
@@ -251,7 +289,9 @@ class SystemInput(BaseModel):
         ),
     )
     required: bool = Field(True, description="Whether this system input is required.")
-    description: str | None = Field(None, description="Description of the system's role in the test.")
+    description: str | None = Field(
+        None, description="Description of the system's role in the test."
+    )
 
 
 class InputParameter(BaseModel):
@@ -261,13 +301,23 @@ class InputParameter(BaseModel):
     """
 
     name: str = Field(..., description="Parameter name")
-    type: Literal["string", "integer", "float", "boolean", "list", "object", "enum"] = Field(
-        ..., description="Parameter type"
+    type: Literal["string", "integer", "float", "boolean", "list", "object", "enum"] = (
+        Field(..., description="Parameter type")
     )
-    required: bool = Field(default=False, description="Whether this parameter is required")
-    description: str | None = Field(default=None, description="Human-readable description of the parameter")
+    required: bool = Field(
+        default=False, description="Whether this parameter is required"
+    )
+    description: str | None = Field(
+        default=None, description="Human-readable description of the parameter"
+    )
 
-    items: Union[Literal["string", "integer", "float", "boolean", "object", "enum"], "InputParameter"] | None = Field(
+    items: (
+        Union[
+            Literal["string", "integer", "float", "boolean", "object", "enum"],
+            "InputParameter",
+        ]
+        | None
+    ) = Field(
         default=None,
         description="For type='list': defines the schema for list items. "
         "Can be a simple type name string (e.g., 'string', 'integer') for basic typed lists, "
@@ -300,24 +350,36 @@ class InputParameter(BaseModel):
         """Validate that rich-type fields are only used with appropriate types."""
 
         if self.items is not None and self.type != "list":
-            raise ValueError(f"'items' field can only be specified when type='list' (got type='{self.type}')")
+            raise ValueError(
+                f"'items' field can only be specified when type='list' (got type='{self.type}')"
+            )
 
         # properties only valid for type="object"
         if self.properties is not None and self.type != "object":
-            raise ValueError(f"'properties' field can only be specified when type='object' (got type='{self.type}')")
+            raise ValueError(
+                f"'properties' field can only be specified when type='object' (got type='{self.type}')"
+            )
 
         # choices only valid for type="enum"
         if self.choices is not None and self.type != "enum":
-            raise ValueError(f"'choices' field can only be specified when type='enum' (got type='{self.type}')")
+            raise ValueError(
+                f"'choices' field can only be specified when type='enum' (got type='{self.type}')"
+            )
 
         # type="enum" requires choices
         if self.type == "enum" and self.choices is None:
             raise ValueError("type='enum' requires 'choices' field to be specified")
 
         # Validate default value is in choices for enums
-        if self.type == "enum" and self.default is not None and self.choices is not None:
+        if (
+            self.type == "enum"
+            and self.default is not None
+            and self.choices is not None
+        ):
             if self.default not in self.choices:
-                raise ValueError(f"Default value '{self.default}' must be one of the allowed choices: {self.choices}")
+                raise ValueError(
+                    f"Default value '{self.default}' must be one of the allowed choices: {self.choices}"
+                )
 
         return self
 
@@ -353,7 +415,9 @@ class EnvironmentVariable(BaseModel):
         True,
         description="Whether this environment variable is mandatory for execution.",
     )
-    description: str | None = Field(None, description="Explanation of what this variable is used for.")
+    description: str | None = Field(
+        None, description="Explanation of what this variable is used for."
+    )
 
 
 class DatasetType(StrEnum):
@@ -382,13 +446,17 @@ class InputDataset(BaseModel):
         ...,
         description="The dataset name, e.g., 'evaluation_data', 'test_prompts'.",
     )
-    required: bool = Field(default=True, description="Whether this dataset is mandatory for execution.")
+    required: bool = Field(
+        default=True, description="Whether this dataset is mandatory for execution."
+    )
     type: DatasetType | list[DatasetType] = Field(
         default=...,
         description="The dataset type(s): single type or list of accepted types. "
         "Examples: 'huggingface', ['pdf', 'txt'], or ['huggingface', 'pdf', 'txt'].",
     )
-    description: str | None = Field(default=None, description="Description of the dataset's role in the test.")
+    description: str | None = Field(
+        default=None, description="Description of the dataset's role in the test."
+    )
     features: list[DatasetFeature | HFFeature] | None = Field(
         default=None,
         description="List of required features within a HuggingFace dataset. "
@@ -414,8 +482,12 @@ class OutputReports(BaseModel):
         ...,
         description="The name of the report ('detailed_report', 'summary_report', ...).",
     )
-    type: Literal["pdf", "html"] = Field(..., description="The report file format ('pdf' or 'html').")
-    description: str | None = Field(None, description="Short description of the report content.")
+    type: Literal["pdf", "html"] = Field(
+        ..., description="The report file format ('pdf' or 'html')."
+    )
+    description: str | None = Field(
+        None, description="Short description of the report content."
+    )
 
 
 # This is a slightly relaxed version of input dataset, if provided could be used for validation
@@ -426,7 +498,9 @@ class OutputDataset(BaseModel):
         ...,
         description="The name of this output dataset (e.g., 'augmented_rag_data')",
     )
-    type: DatasetType = Field(..., description="Type of dataset: huggingface, pdf, or txt")
+    type: DatasetType = Field(
+        ..., description="Type of dataset: huggingface, pdf, or txt"
+    )
     description: str | None = Field(
         default=None,
         description="Description of the output dataset's purpose and contents",
@@ -597,7 +671,9 @@ class LLMAPIConfig(SystemDefinition):
     )
     params: LLMAPIParams = Field(
         ...,
-        description=("Parameters for the LLM API system (base URL, model, API key, env file)."),
+        description=(
+            "Parameters for the LLM API system (base URL, model, API key, env file)."
+        ),
     )
 
 
@@ -613,7 +689,9 @@ class EmbeddingAPIConfig(SystemDefinition):
     )
     params: LLMAPIParams = Field(
         ...,
-        description=("Parameters for the Embedding API system (base URL, model, API key, env file)."),
+        description=(
+            "Parameters for the Embedding API system (base URL, model, API key, env file)."
+        ),
     )
 
 
@@ -663,7 +741,9 @@ class RAGAPIConfig(SystemDefinition):
     )
     params: LLMAPIParams = Field(
         ...,
-        description=("Parameters for the RAG API system (base URL, model, API key, env file)."),
+        description=(
+            "Parameters for the RAG API system (base URL, model, API key, env file)."
+        ),
     )
 
 
@@ -679,7 +759,9 @@ class ImageGenerationAPIConfig(SystemDefinition):
     )
     params: LLMAPIParams = Field(
         ...,
-        description=("Parameters for the Image Generation API system (base URL, model, API key, env file)."),
+        description=(
+            "Parameters for the Image Generation API system (base URL, model, API key, env file)."
+        ),
     )
 
 
@@ -695,7 +777,9 @@ class ImageEditingAPIConfig(SystemDefinition):
     )
     params: LLMAPIParams = Field(
         ...,
-        description=("Parameters for the Image Editing API system (base URL, model, API key, env file)."),
+        description=(
+            "Parameters for the Image Editing API system (base URL, model, API key, env file)."
+        ),
     )
 
 
@@ -711,7 +795,9 @@ class VLMAPIConfig(SystemDefinition):
     )
     params: VLMAPIParams = Field(
         ...,
-        description=("Parameters for the VLM API system (base URL, model, API key, env file, vision support)."),
+        description=(
+            "Parameters for the VLM API system (base URL, model, API key, env file, vision support)."
+        ),
     )
 
 
@@ -779,7 +865,9 @@ class SystemsConfig(BaseModel):
 
     """
 
-    systems: dict[str, SystemConfig] = Field(..., description="Dictionary of system definitions.")
+    systems: dict[str, SystemConfig] = Field(
+        ..., description="Dictionary of system definitions."
+    )
 
 
 # ----------------------------------------------------------------------------
@@ -816,7 +904,16 @@ class DatasetLoaderParams(BaseModel):
     )
     builder_name: (
         Literal[
-            "json", "csv", "parquet", "arrow", "text", "xml", "webdataset", "imagefolder", "audiofolder", "videofolder"
+            "json",
+            "csv",
+            "parquet",
+            "arrow",
+            "text",
+            "xml",
+            "webdataset",
+            "imagefolder",
+            "audiofolder",
+            "videofolder",
         ]
         | None
     ) = Field(
@@ -861,16 +958,22 @@ class DatasetLoaderParams(BaseModel):
                 "Use 'hub_path' for HuggingFace Hub datasets or 'builder_name' for local files."
             )
         if not is_hub and not is_local:
-            raise ValueError("Must specify either 'hub_path' (for Hub datasets) or 'builder_name' (for local files).")
+            raise ValueError(
+                "Must specify either 'hub_path' (for Hub datasets) or 'builder_name' (for local files)."
+            )
         if is_hub and (self.data_dir or self.data_files):
             raise ValueError(
                 "'data_dir' and 'data_files' are not used with 'hub_path'. "
                 "These options are only for local file loading with 'builder_name'."
             )
         if is_local and not (self.data_dir or self.data_files):
-            raise ValueError("Local mode requires either 'data_dir' or 'data_files' to specify the data location.")
+            raise ValueError(
+                "Local mode requires either 'data_dir' or 'data_files' to specify the data location."
+            )
         if is_local and self.data_dir and self.data_files:
-            raise ValueError("Cannot specify both 'data_dir' and 'data_files'. Use one or the other.")
+            raise ValueError(
+                "Cannot specify both 'data_dir' and 'data_files'. Use one or the other."
+            )
         return self
 
 
@@ -1002,7 +1105,9 @@ class TestDefinitionBase(BaseModel):
         None,
         description="Optional additional systems for the test (e.g., simulator_system, evaluator_system).",
     )
-    tags: list[str] | None = Field(None, description="Optional tags for filtering and reporting.")
+    tags: list[str] | None = Field(
+        None, description="Optional tags for filtering and reporting."
+    )
     params: dict[str, Any] | None = Field(
         None, description="Parameters to be passed to the test container's entrypoint."
     )
@@ -1013,10 +1118,14 @@ class TestDefinitionBase(BaseModel):
             "datasets registry config (--datasets-config)."
         ),
     )
-    volumes: dict[str, Any] | None = Field(None, description="Optional input/output mounts.")
+    volumes: dict[str, Any] | None = Field(
+        None, description="Optional input/output mounts."
+    )
     env_file: str | None = Field(
         None,
-        description=("Path to .env file with variables for this test's container (e.g. '.env', 'test.env')."),
+        description=(
+            "Path to .env file with variables for this test's container (e.g. '.env', 'test.env')."
+        ),
     )
     environment: dict[str, str] | None = Field(
         None,
@@ -1069,7 +1178,9 @@ class SuiteConfig(BaseModel):
         None,
         description="A short summary of the test suite and what it aims to evaluate.",
     )
-    test_suite: list[TestDefinition] = Field(..., description="List of individual focused tests.")
+    test_suite: list[TestDefinition] = Field(
+        ..., description="List of individual focused tests."
+    )
 
 
 # ----------------------------------------------------------------------------
@@ -1096,7 +1207,9 @@ class ScoreCardFilter(BaseModel):
 class AssessmentRule(BaseModel):
     """Individual assessment outcome with condition."""
 
-    outcome: str = Field(..., description="Assessment outcome, e.g., 'PASS', 'FAIL', 'A', 'F'")
+    outcome: str = Field(
+        ..., description="Assessment outcome, e.g., 'PASS', 'FAIL', 'A', 'F'"
+    )
     condition: Literal[
         "equal_to",
         "greater_than",
@@ -1107,8 +1220,12 @@ class AssessmentRule(BaseModel):
         "any_false",
         "count_equals",
     ] = Field(..., description="Condition to evaluate against the metric value")
-    threshold: int | float | bool | None = Field(None, description="Threshold value for comparison conditions")
-    description: str | None = Field(None, description="Human-readable description for this assessment outcome")
+    threshold: int | float | bool | None = Field(
+        None, description="Threshold value for comparison conditions"
+    )
+    description: str | None = Field(
+        None, description="Human-readable description for this assessment outcome"
+    )
 
 
 class MetricExpression(BaseModel):
@@ -1116,7 +1233,9 @@ class MetricExpression(BaseModel):
 
     expression: str = Field(
         ...,
-        description=("Mathematical formula combining metrics. Variable names must match keys in 'values'."),
+        description=(
+            "Mathematical formula combining metrics. Variable names must match keys in 'values'."
+        ),
     )
     values: dict[str, str] = Field(
         ...,
@@ -1137,7 +1256,9 @@ class ScoreCardIndicator(BaseModel):
             "Can include lowercase letters (a-z), digits (0-9) and underscore (_)."
         ),
     )
-    name: str | None = Field(None, description="Human-readable name for this score card indicator")
+    name: str | None = Field(
+        None, description="Human-readable name for this score card indicator"
+    )
     apply_to: ScoreCardFilter = Field(
         ...,
         description="Filter criteria for which test results this indicator applies to",
@@ -1157,10 +1278,14 @@ class ScoreCardIndicator(BaseModel):
             "   Variable names in expression are mapped to metric paths via the 'values' dict."
         ),
     )
-    assessment: list[AssessmentRule] = Field(..., description="List of assessment rules to evaluate against the metric")
+    assessment: list[AssessmentRule] = Field(
+        ..., description="List of assessment rules to evaluate against the metric"
+    )
     display_reports: list[str] = Field(
         default_factory=list,
-        description=("List of report names to include from the test container manifest."),
+        description=(
+            "List of report names to include from the test container manifest."
+        ),
     )
 
 
@@ -1172,7 +1297,9 @@ class ScoreCardIndicator(BaseModel):
 class AuditAssessmentRule(BaseModel):
     """Assessment outcome for audit indicators."""
 
-    outcome: str = Field(..., description="Assessment outcome, e.g., 'A', 'B', 'C', 'PASS', 'FAIL'.")
+    outcome: str = Field(
+        ..., description="Assessment outcome, e.g., 'A', 'B', 'C', 'PASS', 'FAIL'."
+    )
     description: str | None = Field(
         None,
         description="Human-readable description for this audit outcome",
@@ -1225,7 +1352,9 @@ class AuditResponse(BaseModel):
         None,
         description="Name of the system under test this response applies to. If omitted, applies globally.",
     )
-    selected_outcome: str = Field(..., description="Letter grade or label (A-E, PASS/FAIL, etc.).")
+    selected_outcome: str = Field(
+        ..., description="Letter grade or label (A-E, PASS/FAIL, etc.)."
+    )
     notes: str | None = Field(None, description="Optional free text notes")
 
 
@@ -1238,10 +1367,16 @@ class AuditResponses(BaseModel):
 # ----------------------------------------------------------------------------
 class GenerationJobConfig(BaseModel):
     id: str = Field(..., description="Unique identifier for the generation job")
-    systems: dict[str, str] | None = Field(None, description="Mapping of system alias to system identifier")
+    systems: dict[str, str] | None = Field(
+        None, description="Mapping of system alias to system identifier"
+    )
     name: str = Field(..., description="Human-readable data generation job name")
-    image: str = Field(..., description="Container image to run the data generation job")
-    tags: list[str] | None = Field(None, description="Optional tags for filtering and reporting.")
+    image: str = Field(
+        ..., description="Container image to run the data generation job"
+    )
+    tags: list[str] | None = Field(
+        None, description="Optional tags for filtering and reporting."
+    )
     input_datasets: dict[str, str] | None = Field(
         None,
         description=(
@@ -1252,10 +1387,14 @@ class GenerationJobConfig(BaseModel):
     params: dict[str, Any] | None = Field(
         None, description="Parameters to be passed to the test container's entrypoint."
     )
-    volumes: dict[str, Any] | None = Field(None, description="Optional input/output mounts.")
+    volumes: dict[str, Any] | None = Field(
+        None, description="Optional input/output mounts."
+    )
     env_file: str | None = Field(
         None,
-        description=("Path to .env file with variables for this job's container (e.g. '.env', 'test.env')."),
+        description=(
+            "Path to .env file with variables for this job's container (e.g. '.env', 'test.env')."
+        ),
     )
     environment: dict[str, str] | None = Field(
         None,
@@ -1270,7 +1409,9 @@ class DataGenerationConfig(BaseModel):
     """Schema for the data generation configuration manifest."""
 
     job_name: str = Field(..., description="Name of the data generation job")
-    generation_jobs: list[GenerationJobConfig] = Field(..., description="List of generation jobs to execute")
+    generation_jobs: list[GenerationJobConfig] = Field(
+        ..., description="List of generation jobs to execute"
+    )
 
 
 # ----------------------------------------------------------------------------
@@ -1283,7 +1424,9 @@ class ExecutionTags(BaseModel):
     Tags for workflow execution tracking.
     """
 
-    parent_id: str = Field(..., description="Parent workflow ID for tracking execution hierarchy")
+    parent_id: str = Field(
+        ..., description="Parent workflow ID for tracking execution hierarchy"
+    )
     job_type: str = Field(..., description="Type of job (e.g., 'test', 'generation')")
     job_id: str = Field(..., description="Unique identifier for this specific job")
     model_config = {"extra": "allow"}
@@ -1294,8 +1437,12 @@ class ExecutionMetadata(BaseModel):
     Metadata structure passed from workflow to test containers.
     """
 
-    tags: ExecutionTags = Field(..., description="Workflow tracking tags for LiteLLM attribution")
-    user_id: str | None = Field(None, description="Optional user identifier (maps to OpenAI 'user' parameter)")
+    tags: ExecutionTags = Field(
+        ..., description="Workflow tracking tags for LiteLLM attribution"
+    )
+    user_id: str | None = Field(
+        None, description="Optional user identifier (maps to OpenAI 'user' parameter)"
+    )
     model_config = {"extra": "allow"}
 
 
@@ -1344,11 +1491,15 @@ class LLMTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'instruction-following', 'summarisation'")
+    scenario: str | None = Field(
+        None, description="e.g., 'instruction-following', 'summarisation'"
+    )
 
     # --- Human-Readable Request Fields ---
     query: str = Field(..., description="The user turn prompt")
-    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    system_prompt: str | None = Field(
+        None, description="The system instruction (if any)"
+    )
 
     # --- Private Attributes (Internal/Debugging Only) ---
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
@@ -1390,9 +1541,13 @@ class UnansweredLLMTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'instruction-following', 'summarisation'")
+    scenario: str | None = Field(
+        None, description="e.g., 'instruction-following', 'summarisation'"
+    )
     query: str = Field(..., description="The user turn prompt")
-    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    system_prompt: str | None = Field(
+        None, description="The system instruction (if any)"
+    )
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
     extra_params: dict[str, Any] = Field(
         default_factory=dict,
@@ -1429,9 +1584,13 @@ class AnsweredLLMTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'instruction-following', 'summarisation'")
+    scenario: str | None = Field(
+        None, description="e.g., 'instruction-following', 'summarisation'"
+    )
     query: str = Field(..., description="The user turn prompt")
-    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    system_prompt: str | None = Field(
+        None, description="The system instruction (if any)"
+    )
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
     extra_params: dict[str, Any] = Field(
         default_factory=dict,
@@ -1470,8 +1629,12 @@ class AnsweredLLMTestCase(BaseModel):
         metadata: dict[str, Any] | None = None,
     ) -> "AnsweredLLMTestCase":
         messages = request.get("messages", [])
-        system_prompt = next((m["content"] for m in messages if m["role"] == "system"), None)
-        query = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+        system_prompt = next(
+            (m["content"] for m in messages if m["role"] == "system"), None
+        )
+        query = next(
+            (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
+        )
         answer = response["choices"][0]["message"]["content"]
         extra_params = {k: v for k, v in request.items() if k != "messages"}
         return cls(
@@ -1505,7 +1668,9 @@ class RAGTestCase(BaseModel):
     )
     scenario: str | None = Field(None, description="e.g., 'accuracy', 'robustness'")
     query: str = Field(..., description="The user turn prompt")
-    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    system_prompt: str | None = Field(
+        None, description="The system instruction (if any)"
+    )
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
     extra_params: dict[str, Any] = Field(
         default_factory=dict,
@@ -1544,7 +1709,9 @@ class UnansweredRAGTestCase(BaseModel):
     )
     scenario: str | None = Field(None, description="e.g., 'accuracy', 'robustness'")
     query: str = Field(..., description="The user turn prompt")
-    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    system_prompt: str | None = Field(
+        None, description="The system instruction (if any)"
+    )
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
     extra_params: dict[str, Any] = Field(
         default_factory=dict,
@@ -1585,7 +1752,9 @@ class AnsweredRAGTestCase(BaseModel):
     )
     scenario: str | None = Field(None, description="e.g., 'accuracy', 'robustness'")
     query: str = Field(..., description="The user turn prompt")
-    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    system_prompt: str | None = Field(
+        None, description="The system instruction (if any)"
+    )
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
     extra_params: dict[str, Any] = Field(
         default_factory=dict,
@@ -1638,8 +1807,12 @@ class AnsweredRAGTestCase(BaseModel):
         metadata: dict[str, Any] | None = None,
     ) -> "AnsweredRAGTestCase":
         messages = request.get("messages", [])
-        system_prompt = next((m["content"] for m in messages if m["role"] == "system"), None)
-        query = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+        system_prompt = next(
+            (m["content"] for m in messages if m["role"] == "system"), None
+        )
+        query = next(
+            (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
+        )
         msg = response["choices"][0]["message"]
         answer = msg.get("content") or ""
         extra_params = {k: v for k, v in request.items() if k != "messages"}
@@ -1670,7 +1843,9 @@ class ContextualizedRAGTestCase(BaseModel):
     )
     scenario: str | None = Field(None, description="e.g., 'accuracy', 'robustness'")
     query: str = Field(..., description="The user turn prompt")
-    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    system_prompt: str | None = Field(
+        None, description="The system instruction (if any)"
+    )
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
     extra_params: dict[str, Any] = Field(
         default_factory=dict,
@@ -1707,7 +1882,11 @@ class ContextualizedRAGTestCase(BaseModel):
                 {
                     "message": {
                         "content": None,
-                        "context": {"citations": [{"retrieved_context": ctx} for ctx in self.context]},
+                        "context": {
+                            "citations": [
+                                {"retrieved_context": ctx} for ctx in self.context
+                            ]
+                        },
                     }
                 }
             ]
@@ -1723,8 +1902,12 @@ class ContextualizedRAGTestCase(BaseModel):
         metadata: dict[str, Any] | None = None,
     ) -> "ContextualizedRAGTestCase":
         messages = request.get("messages", [])
-        system_prompt = next((m["content"] for m in messages if m["role"] == "system"), None)
-        query = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+        system_prompt = next(
+            (m["content"] for m in messages if m["role"] == "system"), None
+        )
+        query = next(
+            (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
+        )
         msg = response["choices"][0]["message"]
         citations = msg.get("context", {}).get("citations", [])
         context = [c["retrieved_context"] for c in citations]
@@ -1754,9 +1937,13 @@ class VLMTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'scene-description', 'visual-qa'")
+    scenario: str | None = Field(
+        None, description="e.g., 'scene-description', 'visual-qa'"
+    )
     query: str = Field(..., description="The text question about the image(s)")
-    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    system_prompt: str | None = Field(
+        None, description="The system instruction (if any)"
+    )
     images: list[str] = Field(
         ...,
         min_length=1,
@@ -1802,9 +1989,13 @@ class UnansweredVLMTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'scene-description', 'visual-qa'")
+    scenario: str | None = Field(
+        None, description="e.g., 'scene-description', 'visual-qa'"
+    )
     query: str = Field(..., description="The text question about the image(s)")
-    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    system_prompt: str | None = Field(
+        None, description="The system instruction (if any)"
+    )
     images: list[str] = Field(
         ...,
         min_length=1,
@@ -1848,9 +2039,13 @@ class AnsweredVLMTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'scene-description', 'visual-qa'")
+    scenario: str | None = Field(
+        None, description="e.g., 'scene-description', 'visual-qa'"
+    )
     query: str = Field(..., description="The text question about the image(s)")
-    system_prompt: str | None = Field(None, description="The system instruction (if any)")
+    system_prompt: str | None = Field(
+        None, description="The system instruction (if any)"
+    )
     images: list[str] = Field(
         ...,
         min_length=1,
@@ -1897,13 +2092,19 @@ class AnsweredVLMTestCase(BaseModel):
         metadata: dict[str, Any] | None = None,
     ) -> "AnsweredVLMTestCase":
         messages = request.get("messages", [])
-        system_prompt = next((m["content"] for m in messages if m["role"] == "system"), None)
+        system_prompt = next(
+            (m["content"] for m in messages if m["role"] == "system"), None
+        )
         user_msg = next((m for m in reversed(messages) if m["role"] == "user"), {})
         content = user_msg.get("content", [])
         query = next((c["text"] for c in content if c.get("type") == "text"), "")
-        images = [c["image_url"]["url"] for c in content if c.get("type") == "image_url"]
+        images = [
+            c["image_url"]["url"] for c in content if c.get("type") == "image_url"
+        ]
         answer = response["choices"][0]["message"]["content"]
-        extra_params = {k: v for k, v in request.items() if k not in ("messages", "supports_vision")}
+        extra_params = {
+            k: v for k, v in request.items() if k not in ("messages", "supports_vision")
+        }
         return cls(
             lineage_id=lineage_id,
             scenario=scenario,
@@ -1936,7 +2137,9 @@ class ImageGenerationTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'text-to-image', 'style-transfer'")
+    scenario: str | None = Field(
+        None, description="e.g., 'text-to-image', 'style-transfer'"
+    )
 
     # --- Human-Readable Request Fields ---
     prompt: str = Field(..., description="The text description of the desired image")
@@ -1947,7 +2150,9 @@ class ImageGenerationTestCase(BaseModel):
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
 
     # --- Extra Parameters of the System Request ---
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params, e.g. model, style")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="Extra body params, e.g. model, style"
+    )
 
     def __init__(self, **data: Any) -> None:
         metadata = _test_case_pop_metadata_and_lineage(data)
@@ -1970,7 +2175,9 @@ class ImageGenerationTestCase(BaseModel):
         scenario: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> "ImageGenerationTestCase":
-        extra_params = {k: v for k, v in request.items() if k not in ("prompt", "n", "size")}
+        extra_params = {
+            k: v for k, v in request.items() if k not in ("prompt", "n", "size")
+        }
         return cls(
             lineage_id=lineage_id,
             scenario=scenario,
@@ -1998,12 +2205,16 @@ class UnansweredImageGenerationTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'text-to-image', 'style-transfer'")
+    scenario: str | None = Field(
+        None, description="e.g., 'text-to-image', 'style-transfer'"
+    )
     prompt: str = Field(..., description="The text description of the desired image")
     size: str | None = Field(None, description="Image dimensions, e.g. '1024x1024'")
     n: int = Field(default=1, description="Number of images to generate")
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params, e.g. model, style")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="Extra body params, e.g. model, style"
+    )
 
     def __init__(self, **data: Any) -> None:
         metadata = _test_case_pop_metadata_and_lineage(data)
@@ -2025,7 +2236,9 @@ class UnansweredImageGenerationTestCase(BaseModel):
         scenario: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> "UnansweredImageGenerationTestCase":
-        extra_params = {k: v for k, v in request.items() if k not in ("prompt", "n", "size")}
+        extra_params = {
+            k: v for k, v in request.items() if k not in ("prompt", "n", "size")
+        }
         return cls(
             lineage_id=lineage_id,
             scenario=scenario,
@@ -2049,15 +2262,21 @@ class AnsweredImageGenerationTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'text-to-image', 'style-transfer'")
+    scenario: str | None = Field(
+        None, description="e.g., 'text-to-image', 'style-transfer'"
+    )
     prompt: str = Field(..., description="The text description of the desired image")
     size: str | None = Field(None, description="Image dimensions, e.g. '1024x1024'")
     n: int = Field(default=1, description="Number of images to generate")
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params, e.g. model, style")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="Extra body params, e.g. model, style"
+    )
     generation: str = Field(
         ...,
-        description=("Reference / expected output image as a base64-encoded data URI (for metrics vs model output)."),
+        description=(
+            "Reference / expected output image as a base64-encoded data URI (for metrics vs model output)."
+        ),
     )
 
     def __init__(self, **data: Any) -> None:
@@ -2089,7 +2308,9 @@ class AnsweredImageGenerationTestCase(BaseModel):
         generation: str = "",
         metadata: dict[str, Any] | None = None,
     ) -> "AnsweredImageGenerationTestCase":
-        extra_params = {k: v for k, v in request.items() if k not in ("prompt", "n", "size")}
+        extra_params = {
+            k: v for k, v in request.items() if k not in ("prompt", "n", "size")
+        }
         return cls(
             lineage_id=lineage_id,
             scenario=scenario,
@@ -2121,12 +2342,16 @@ class ImageEditingTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'inpainting', 'object-removal'")
+    scenario: str | None = Field(
+        None, description="e.g., 'inpainting', 'object-removal'"
+    )
 
     # --- Human-Readable Request Fields ---
     # Images stored as base64-encoded strings; multipart conversion happens in .request.
     image: str = Field(..., description="The source image as a base64-encoded data URI")
-    edit_prompt: str = Field(..., description="Natural-language description of the desired edit")
+    edit_prompt: str = Field(
+        ..., description="Natural-language description of the desired edit"
+    )
     mask: str | None = Field(
         None,
         description="Optional mask image as a base64-encoded data URI; transparent areas indicate edit regions",
@@ -2136,7 +2361,9 @@ class ImageEditingTestCase(BaseModel):
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
 
     # --- Extra Parameters of the System Request ---
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="Extra body params"
+    )
 
     def __init__(self, **data: Any) -> None:
         metadata = _test_case_pop_metadata_and_lineage(data)
@@ -2163,7 +2390,9 @@ class ImageEditingTestCase(BaseModel):
         scenario: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> "ImageEditingTestCase":
-        extra_params = {k: v for k, v in request.items() if k not in ("image", "mask", "prompt")}
+        extra_params = {
+            k: v for k, v in request.items() if k not in ("image", "mask", "prompt")
+        }
         mask = request.get("mask")
         return cls(
             lineage_id=lineage_id,
@@ -2191,15 +2420,21 @@ class UnansweredImageEditingTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'inpainting', 'object-removal'")
+    scenario: str | None = Field(
+        None, description="e.g., 'inpainting', 'object-removal'"
+    )
     image: str = Field(..., description="The source image as a base64-encoded data URI")
-    edit_prompt: str = Field(..., description="Natural-language description of the desired edit")
+    edit_prompt: str = Field(
+        ..., description="Natural-language description of the desired edit"
+    )
     mask: str | None = Field(
         None,
         description="Optional mask image as a base64-encoded data URI; transparent areas indicate edit regions",
     )
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="Extra body params"
+    )
 
     def __init__(self, **data: Any) -> None:
         metadata = _test_case_pop_metadata_and_lineage(data)
@@ -2221,7 +2456,9 @@ class UnansweredImageEditingTestCase(BaseModel):
         scenario: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> "UnansweredImageEditingTestCase":
-        extra_params = {k: v for k, v in request.items() if k not in ("image", "mask", "prompt")}
+        extra_params = {
+            k: v for k, v in request.items() if k not in ("image", "mask", "prompt")
+        }
         mask = request.get("mask")
         return cls(
             lineage_id=lineage_id,
@@ -2246,15 +2483,21 @@ class AnsweredImageEditingTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'inpainting', 'object-removal'")
+    scenario: str | None = Field(
+        None, description="e.g., 'inpainting', 'object-removal'"
+    )
     image: str = Field(..., description="The source image as a base64-encoded data URI")
-    edit_prompt: str = Field(..., description="Natural-language description of the desired edit")
+    edit_prompt: str = Field(
+        ..., description="Natural-language description of the desired edit"
+    )
     mask: str | None = Field(
         None,
         description="Optional mask image as a base64-encoded data URI; transparent areas indicate edit regions",
     )
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="Extra body params"
+    )
     generation: str = Field(
         ...,
         description="Reference / expected edited output image as a base64-encoded data URI",
@@ -2289,7 +2532,9 @@ class AnsweredImageEditingTestCase(BaseModel):
         generation: str = "",
         metadata: dict[str, Any] | None = None,
     ) -> "AnsweredImageEditingTestCase":
-        extra_params = {k: v for k, v in request.items() if k not in ("image", "mask", "prompt")}
+        extra_params = {
+            k: v for k, v in request.items() if k not in ("image", "mask", "prompt")
+        }
         mask = request.get("mask")
         return cls(
             lineage_id=lineage_id,
@@ -2313,7 +2558,9 @@ class EmbeddingTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'semantic-similarity', 'retrieval-quality'")
+    scenario: str | None = Field(
+        None, description="e.g., 'semantic-similarity', 'retrieval-quality'"
+    )
 
     # --- Human-Readable Request Fields ---
     text: str = Field(..., description="The input text to embed")
@@ -2333,7 +2580,9 @@ class EmbeddingTestCase(BaseModel):
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
 
     # --- Extra Parameters of the System Request ---
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params, e.g. model")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="Extra body params, e.g. model"
+    )
 
     def __init__(self, **data: Any) -> None:
         metadata = _test_case_pop_metadata_and_lineage(data)
@@ -2381,9 +2630,13 @@ class EmbeddingTestCase(BaseModel):
 class BoundingBox(BaseModel):
     """Ground truth bounding box in xyxy format."""
 
-    xyxy: tuple[float, float, float, float] = Field(..., description="Box coordinates as (x_min, y_min, x_max, y_max)")
+    xyxy: tuple[float, float, float, float] = Field(
+        ..., description="Box coordinates as (x_min, y_min, x_max, y_max)"
+    )
     class_name: str = Field(..., description="Object class label, e.g. 'person', 'car'")
-    confidence: float | None = Field(None, description="Ground truth confidence (if sourced from a prior model run)")
+    confidence: float | None = Field(
+        None, description="Ground truth confidence (if sourced from a prior model run)"
+    )
 
 
 class ODImageEditingTestCase(BaseModel):
@@ -2400,15 +2653,21 @@ class ODImageEditingTestCase(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Stable ID linking variants to their seed; auto-generated if not provided",
     )
-    scenario: str | None = Field(None, description="e.g., 'inpainting', 'object-removal'")
+    scenario: str | None = Field(
+        None, description="e.g., 'inpainting', 'object-removal'"
+    )
     image: str = Field(..., description="The source image as a base64-encoded data URI")
-    edit_prompt: str = Field(..., description="Natural-language description of the desired edit")
+    edit_prompt: str = Field(
+        ..., description="Natural-language description of the desired edit"
+    )
     mask: str | None = Field(
         None,
         description="Optional mask image as a base64-encoded data URI; transparent areas indicate edit regions",
     )
     _metadata: dict[str, Any] = PrivateAttr(default_factory=dict)
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra body params")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="Extra body params"
+    )
     expected_detections: list[BoundingBox] = Field(
         default_factory=list,
         description="Reference boxes on the seed image (xyxy), aligned to synthetic crops by index order",
@@ -2434,7 +2693,9 @@ class ODImageEditingTestCase(BaseModel):
         scenario: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> "ODImageEditingTestCase":
-        extra_params = {k: v for k, v in request.items() if k not in ("image", "mask", "prompt")}
+        extra_params = {
+            k: v for k, v in request.items() if k not in ("image", "mask", "prompt")
+        }
         mask = request.get("mask")
         return cls(
             lineage_id=lineage_id,
@@ -2588,7 +2849,11 @@ class AnsweredObjectDetectionTestCase(BaseModel):
                 {
                     "xyxy": list(det.xyxy),
                     "class_name": det.class_name,
-                    **({"confidence": det.confidence} if det.confidence is not None else {}),
+                    **(
+                        {"confidence": det.confidence}
+                        if det.confidence is not None
+                        else {}
+                    ),
                 }
                 for det in self.expected_detections
             ]
