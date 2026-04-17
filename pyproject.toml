@@ -82,4 +82,5 @@ testpaths = ["tests"]
 package = true
 constraint-dependencies = [
     "pillow>=12.2.0",
+    "pygments>=2.20.0",
 ]

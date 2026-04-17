@@ -218,9 +218,15 @@ class TestExtractManifestFromImage:
             "name": "test_container",
             "version": "1.0",
             "description": "Test container",
-            "input_systems": [{"name": "system_under_test", "type": "llm_api", "required": True}],
-            "input_schema": [{"name": "test_param", "type": "string", "required": False}],
-            "output_metrics": [{"name": "success", "type": "boolean", "description": "Test success"}],
+            "input_systems": [
+                {"name": "system_under_test", "type": "llm_api", "required": True}
+            ],
+            "input_schema": [
+                {"name": "test_param", "type": "string", "required": False}
+            ],
+            "output_metrics": [
+                {"name": "success", "type": "boolean", "description": "Test success"}
+            ],
         }
 
     @pytest.fixture
@@ -257,7 +263,9 @@ class TestExtractManifestFromImage:
         mock_container.get_archive.assert_called_once_with("/app/manifest.yaml")
         mock_container.remove.assert_called_once()
 
-    def test_extract_manifest_custom_path(self, mock_docker_setup, sample_manifest_data):
+    def test_extract_manifest_custom_path(
+        self, mock_docker_setup, sample_manifest_data
+    ):
         """Test manifest extraction with custom manifest path."""
         _mock_client, mock_container = mock_docker_setup
         tar_data = self.create_tar_archive(yaml.dump(sample_manifest_data))
@@ -341,7 +349,9 @@ class TestExtractManifestFromImage:
                 extract_manifest_from_image("test:latest")
             assert exc_info.value.error_type == "TAR_IO_ERROR"
 
-    def test_extract_manifest_file_processing_errors(self, mock_docker_setup, sample_manifest_data):
+    def test_extract_manifest_file_processing_errors(
+        self, mock_docker_setup, sample_manifest_data
+    ):
         """Test file processing errors."""
         _mock_client, mock_container = mock_docker_setup
 
@@ -399,7 +409,9 @@ class TestExtractManifestFromImage:
 
         assert exc_info.value.error_type == "SCHEMA_VALIDATION_ERROR"
 
-    def test_extract_manifest_cleanup_error(self, mock_docker_setup, sample_manifest_data):
+    def test_extract_manifest_cleanup_error(
+        self, mock_docker_setup, sample_manifest_data
+    ):
         """Test that cleanup errors are handled gracefully."""
         _mock_client, mock_container = mock_docker_setup
 
@@ -422,7 +434,9 @@ class TestRunContainerWithArgs:
         """Reusable Docker client and container mock setup."""
         with (
             patch("asqi.container_manager.docker_client") as mock_docker_client,
-            patch("asqi.container_manager._extract_mounts_from_args") as mock_extract_mounts,
+            patch(
+                "asqi.container_manager._extract_mounts_from_args"
+            ) as mock_extract_mounts,
             patch("asqi.container_manager.create_container_logger"),
         ):
             mock_client = MagicMock()
@@ -438,10 +452,14 @@ class TestRunContainerWithArgs:
     def test_run_container_success(self, mock_container_setup):
         """Test successful container execution."""
         mock_client, mock_container, _ = mock_container_setup
-        container_config = ContainerConfig.from_run_params(mem_limit="1g", cpu_quota=100000, network_mode="bridge")
+        container_config = ContainerConfig.from_run_params(
+            mem_limit="1g", cpu_quota=100000, network_mode="bridge"
+        )
 
         # Basic success
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is True
         assert result["exit_code"] == 0
         assert result["container_id"] == "test_container_123"
@@ -476,7 +494,9 @@ class TestRunContainerWithArgs:
         log_lines = [b"Line 1\n", b"Line 2\n"]
         mock_container.logs.return_value = iter(log_lines)
         container_config = ContainerConfig.with_streaming(True)
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         mock_container.logs.assert_called_with(stream=True, follow=True)
         assert "Line 1" in result["output"] and "Line 2" in result["output"]
 
@@ -485,7 +505,9 @@ class TestRunContainerWithArgs:
         mock_client, _, mock_extract_mounts = mock_container_setup
         from docker.types import Mount
 
-        test_mounts = [Mount(target="/input", source="/host/input", type="bind", read_only=True)]
+        test_mounts = [
+            Mount(target="/input", source="/host/input", type="bind", read_only=True)
+        ]
         mock_extract_mounts.return_value = (["--test"], test_mounts)
         container_config: ContainerConfig = ContainerConfig()
         run_container_with_args(
@@ -520,7 +542,9 @@ class TestRunContainerWithArgs:
         mock_client, _, mock_extract_mounts = mock_container_setup
 
         container_config: ContainerConfig = ContainerConfig()
-        run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         mock_extract_mounts.assert_called_once()
         call_kwargs = mock_client.containers.run.call_args[1]
         assert call_kwargs["labels"] == {"workflow_id": "", "service": "asqi_engineer"}
@@ -537,12 +561,16 @@ class TestRunContainerWithArgs:
             (TimeoutError("Timeout"), "timed out"),
         ],
     )
-    def test_run_container_exception_handling(self, mock_container_setup, exception, expected_error_message):
+    def test_run_container_exception_handling(
+        self, mock_container_setup, exception, expected_error_message
+    ):
         """Test container run exception handling."""
         mock_client, _, _ = mock_container_setup
         mock_client.containers.run.side_effect = exception
         container_config: ContainerConfig = ContainerConfig()
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is False
         assert expected_error_message in result["error"]
 
@@ -559,7 +587,9 @@ class TestRunContainerWithArgs:
         mock_client, _, _ = mock_container_setup
         mock_client.containers.run.side_effect = exception
         container_config: ContainerConfig = ContainerConfig()
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is False
         assert result["exit_code"] == 137
         assert "timed out" in result["error"]
@@ -571,7 +601,9 @@ class TestRunContainerWithArgs:
         mock_client.containers.run.side_effect = ConnectionError("Connection failed")
         container_config: ContainerConfig = ContainerConfig()
         with pytest.raises(ConnectionError, match="Failed to connect to Docker daemon"):
-            run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+            run_container_with_args(
+                image="test:latest", args=["--test"], container_config=container_config
+            )
 
     def test_run_container_wait_timeout_exceptions(self, mock_container_setup):
         """Test handling of timeout exceptions during container.wait() until max_execution_time."""
@@ -583,7 +615,9 @@ class TestRunContainerWithArgs:
         # Use very short timeout to avoid test hanging (default is 300s)
         container_config = ContainerConfig(timeout_seconds=3)  # 3 second max
 
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is False
         assert result["exit_code"] == 137
         assert "timed out" in result["error"]
@@ -596,7 +630,9 @@ class TestRunContainerWithArgs:
         mock_container.wait.return_value = {"StatusCode": 0}
         mock_container.logs.side_effect = requests_exceptions.Timeout("Log timeout")
         container_config: ContainerConfig = ContainerConfig()
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is True  # Success despite log retrieval failure
         assert result["exit_code"] == 0
         assert result["output"] == ""  # Fallback to empty output
@@ -609,14 +645,18 @@ class TestRunContainerWithArgs:
         mock_container.wait.return_value = {"StatusCode": 1}
         mock_container.logs.return_value = b"error output"
         container_config: ContainerConfig = ContainerConfig()
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is False
         assert result["exit_code"] == 1
 
         # Wait API error with successful kill
         mock_container.wait.side_effect = docker_errors.APIError("Wait error")
         container_config: ContainerConfig = ContainerConfig()
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         mock_container.kill.assert_called_once()
         assert result["success"] is False
         assert "Container execution failed with API error" in result["error"]
@@ -624,7 +664,9 @@ class TestRunContainerWithArgs:
         # Wait API error with kill failure
         mock_container.kill.side_effect = docker_errors.APIError("Kill failed")
         container_config: ContainerConfig = ContainerConfig()
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is False
 
         # Log retrieval error
@@ -632,7 +674,9 @@ class TestRunContainerWithArgs:
         mock_container.wait.return_value = {"StatusCode": 0}
         mock_container.logs.side_effect = docker_errors.APIError("Log error")
         container_config: ContainerConfig = ContainerConfig()
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["output"] == ""
 
         # Cleanup failure
@@ -640,7 +684,9 @@ class TestRunContainerWithArgs:
         mock_container.logs.return_value = b"output"
         mock_container.remove.side_effect = docker_errors.APIError("Remove failed")
         container_config: ContainerConfig = ContainerConfig()
-        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        result = run_container_with_args(
+            image="test:latest", args=["--test"], container_config=container_config
+        )
         assert result["success"] is True  # Should succeed despite cleanup failure
 
     @patch("asqi.container_manager.logger")
@@ -699,7 +745,9 @@ class TestDecommissionContainer:
 
     @patch("asqi.container_manager._active_lock")
     @patch("asqi.container_manager._active_containers", new_callable=set)
-    def test_decommission_container_success(self, mock_active_containers, mock_active_lock):
+    def test_decommission_container_success(
+        self, mock_active_containers, mock_active_lock
+    ):
         """Test successful decommissioning of a container."""
         mock_container = Mock()
         mock_container.id = "test_container"
@@ -715,7 +763,9 @@ class TestDecommissionContainer:
     @patch("asqi.container_manager.logger")
     @patch("asqi.container_manager._active_lock")
     @patch("asqi.container_manager._active_containers", new_callable=set)
-    def test_decommission_container_api_error(self, mock_active_containers, mock_active_lock, mock_logger):
+    def test_decommission_container_api_error(
+        self, mock_active_containers, mock_active_lock, mock_logger
+    ):
         """Test decommissioning when container removal raises APIError."""
         mock_container = Mock()
         mock_container.id = "test_container"
@@ -727,13 +777,17 @@ class TestDecommissionContainer:
 
         mock_container.stop.assert_called_once_with(timeout=1)
         mock_container.remove.assert_called_once_with(force=True)
-        mock_logger.warning.assert_called_once_with("Failed to remove container during cleanup: API Error")
+        mock_logger.warning.assert_called_once_with(
+            "Failed to remove container during cleanup: API Error"
+        )
         assert mock_container.id not in mock_active_containers
 
     @patch("asqi.container_manager.logger")
     @patch("asqi.container_manager._active_lock")
     @patch("asqi.container_manager._active_containers", new_callable=set)
-    def test_decommission_container_not_found_error(self, mock_active_containers, mock_active_lock, mock_logger):
+    def test_decommission_container_not_found_error(
+        self, mock_active_containers, mock_active_lock, mock_logger
+    ):
         """Test decommissioning when container removal raises NotFound error."""
         mock_container = Mock()
         mock_container.id = "test_container"
@@ -745,13 +799,17 @@ class TestDecommissionContainer:
 
         mock_container.stop.assert_called_once_with(timeout=1)
         mock_container.remove.assert_called_once_with(force=True)
-        mock_logger.warning.assert_called_once_with("Failed to remove container during cleanup: Not Found")
+        mock_logger.warning.assert_called_once_with(
+            "Failed to remove container during cleanup: Not Found"
+        )
         assert mock_container.id not in mock_active_containers
 
     @patch("asqi.container_manager.logger")
     @patch("asqi.container_manager._active_lock")
     @patch("asqi.container_manager._active_containers", new_callable=set)
-    def test_decommission_container_stop_exception(self, mock_active_containers, mock_active_lock, mock_logger):
+    def test_decommission_container_stop_exception(
+        self, mock_active_containers, mock_active_lock, mock_logger
+    ):
         """Test decommissioning when container stop raises a general exception."""
         mock_container = Mock()
         mock_container.id = "test_container"
@@ -763,7 +821,9 @@ class TestDecommissionContainer:
 
         mock_container.stop.assert_called_once_with(timeout=1)
         mock_container.remove.assert_called_once_with(force=True)
-        mock_logger.debug.assert_called_once_with("Failed to gracefully stop container: Stop failed")
+        mock_logger.debug.assert_called_once_with(
+            "Failed to gracefully stop container: Stop failed"
+        )
         mock_logger.warning.assert_not_called()  # Ensure no log generated for stop failure
         assert mock_container.id not in mock_active_containers
 
@@ -815,12 +875,16 @@ class TestPullImages:
 
     @patch("asqi.container_manager.logger")
     @patch("asqi.container_manager.docker_client")
-    def test_pull_missing_failure_raises_with_suggestion(self, mock_docker_client, mock_logger):
+    def test_pull_missing_failure_raises_with_suggestion(
+        self, mock_docker_client, mock_logger
+    ):
         mock_client_first = MagicMock()
         mock_client_second = MagicMock()
 
         # First pass: both missing
-        mock_client_first.images.get.side_effect = docker_errors.ImageNotFound("missing")
+        mock_client_first.images.get.side_effect = docker_errors.ImageNotFound(
+            "missing"
+        )
 
         # Second pass: pull fails via APIError
         mock_client_second.images.pull.side_effect = docker_errors.APIError("denied")
@@ -833,7 +897,9 @@ class TestPullImages:
         mock_cm.__enter__.side_effect = [mock_client_first, mock_client_second]
 
         with pytest.raises(MissingImageError) as exc:
-            pull_images(["repo/tool:1.0"])  # will fail to pull, suggestion should pick "repo/tool:latest"
+            pull_images(
+                ["repo/tool:1.0"]
+            )  # will fail to pull, suggestion should pick "repo/tool:latest"
 
         msg = str(exc.value)
         assert "Container not found: repo/tool:1.0" in msg
@@ -895,7 +961,9 @@ class TestDevcontainerHostPath:
         """Test that container ID is correctly extracted from /proc/self/mountinfo."""
         mock_client = MagicMock()
         # Container ID must be 64 hex characters
-        container_id = "abc123def456abc123def456abc123def456abc123def456abc123def456abcd"
+        container_id = (
+            "abc123def456abc123def456abc123def456abc123def456abc123def456abcd"
+        )
 
         # Mock /.dockerenv exists
         mock_dockerenv = MagicMock()
@@ -903,9 +971,7 @@ class TestDevcontainerHostPath:
 
         # Mock /proc/self/mountinfo with docker container ID
         mock_mountinfo = MagicMock()
-        mock_mountinfo.read_text.return_value = (
-            f"918 917 0:30 /docker/{container_id} /sys/fs/cgroup/systemd ro,nosuid - cgroup cgroup rw\n"
-        )
+        mock_mountinfo.read_text.return_value = f"918 917 0:30 /docker/{container_id} /sys/fs/cgroup/systemd ro,nosuid - cgroup cgroup rw\n"
 
         def path_side_effect(path_str):
             if path_str == "/.dockerenv":
@@ -926,7 +992,9 @@ class TestDevcontainerHostPath:
             ]
         }
 
-        result = _devcontainer_host_path(mock_client, "/workspaces/myproject/src/main.py")
+        result = _devcontainer_host_path(
+            mock_client, "/workspaces/myproject/src/main.py"
+        )
 
         mock_client.api.inspect_container.assert_called_once_with(container_id)
         assert result == "/host/path/to/project/src/main.py"
@@ -943,7 +1011,9 @@ class TestDevcontainerHostPath:
 
         # Mock /proc/self/mountinfo without docker container ID
         mock_mountinfo = MagicMock()
-        mock_mountinfo.read_text.return_value = "100 99 0:50 / / rw - overlay overlay rw\n"
+        mock_mountinfo.read_text.return_value = (
+            "100 99 0:50 / / rw - overlay overlay rw\n"
+        )
 
         # Mock /etc/hostname
         mock_hostname = MagicMock()
@@ -979,15 +1049,15 @@ class TestDevcontainerHostPath:
         """Test that 'Target' key is also supported in mount info."""
         mock_client = MagicMock()
         # Container ID must be 64 lowercase hex characters (see mountinfo regex in implementation)
-        container_id = "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+        container_id = (
+            "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+        )
 
         mock_dockerenv = MagicMock()
         mock_dockerenv.exists.return_value = True
 
         mock_mountinfo = MagicMock()
-        mock_mountinfo.read_text.return_value = (
-            f"918 917 0:30 /docker/{container_id} /sys/fs/cgroup ro - cgroup cgroup rw\n"
-        )
+        mock_mountinfo.read_text.return_value = f"918 917 0:30 /docker/{container_id} /sys/fs/cgroup ro - cgroup cgroup rw\n"
 
         def path_side_effect(path_str):
             if path_str == "/.dockerenv":
@@ -1010,7 +1080,9 @@ class TestDevcontainerHostPath:
 
         result = _devcontainer_host_path(mock_client, "/workspaces/app/src/index.ts")
 
-        assert result == _normalized_host_path("/var/lib/docker/volumes/app/src/index.ts")
+        assert result == _normalized_host_path(
+            "/var/lib/docker/volumes/app/src/index.ts"
+        )
 
     @patch("asqi.container_manager.Path")
     def test_fallback_to_hostname_when_mountinfo_read_fails(self, mock_path_class):
@@ -1023,7 +1095,9 @@ class TestDevcontainerHostPath:
 
         # Mock /proc/self/mountinfo to raise an exception
         mock_mountinfo = MagicMock()
-        mock_mountinfo.read_text.side_effect = FileNotFoundError("/proc/self/mountinfo not found")
+        mock_mountinfo.read_text.side_effect = FileNotFoundError(
+            "/proc/self/mountinfo not found"
+        )
 
         # Mock /etc/hostname
         mock_hostname = MagicMock()
@@ -1057,7 +1131,9 @@ class TestDevcontainerHostPath:
 
     @patch("asqi.container_manager.logger")
     @patch("asqi.container_manager.Path")
-    def test_exception_in_container_inspect_returns_fallback(self, mock_path_class, mock_logger):
+    def test_exception_in_container_inspect_returns_fallback(
+        self, mock_path_class, mock_logger
+    ):
         """Test that exceptions in container inspection are caught and fallback returned."""
         mock_client = MagicMock()
         hostname_id = "some-container"
