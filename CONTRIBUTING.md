@@ -51,8 +51,33 @@ Prefer conventional-style prefixes such as `feat:`, `fix:`, `docs:`.
 
 ## CI, Releases, and Packaging
 
-- The CI workflow lives in `.github/workflows/` and runs tests and packaging.
-- To create releases follow the repo's tagging and CI release process explained in the workflows.
+The CI workflow lives in `.github/workflows/` and runs lint, tests, security scanning, and packaging on every PR and push to `main`.
+
+### Creating a release
+
+Releases are triggered automatically when a version bump merges to `main`. Use the release script to prepare:
+
+```bash
+# Bump version and prepend changelog (git-cliff suggests version from commits)
+./scripts/release.sh
+```
+
+The script will:
+
+1. Bump `version` in `pyproject.toml`
+2. Prepend a new section to `CHANGELOG.md` generated from conventional commits
+
+After running the script:
+
+1. Review and edit `CHANGELOG.md` as needed
+2. Commit: `git add pyproject.toml CHANGELOG.md && git commit -m "chore(release): asqi-engineer <version>"`
+3. Open a PR and merge to `main`
+
+Once merged, the CI pipeline automatically:
+
+- Builds the wheel and sdist
+- Publishes to PyPI via OIDC
+- Creates a `v<version>` git tag and a GitHub Release with the changelog notes attached
 
 ## Help & Contact
 

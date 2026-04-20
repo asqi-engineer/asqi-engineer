@@ -79,9 +79,6 @@ jobs:
     steps:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: main
 
       - name: 📦 Install uv
         run: |
@@ -96,12 +93,6 @@ jobs:
       - name: 🛠️ Install build dependencies
         run: |
           uv sync --locked --python ${{ matrix.python-version }} --group dev
-
-      - name: 📝 Generate changelog
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --unreleased --tag v${{ env.VERSION }} --prepend CHANGELOG.md
 
       - name: 🔨 Build package
         run: uv build --wheel --sdist
@@ -134,19 +125,6 @@ jobs:
       - name: 🚀 Publish to PyPI
         # This action uses OIDC to securely authenticate with PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-
-      - name: 📤 Commit changelog back to main
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
-          if git diff --cached --quiet; then
-            echo "No changelog changes to commit"
-          else
-            git commit -m "chore(release): asqi-engineer ${VERSION} [skip ci]"
-            git push origin main
-          fi
 
       - name: 🏷️ Create git tag
         run: |
