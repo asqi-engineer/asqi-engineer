@@ -15,7 +15,7 @@ jobs:
   determine-changed:
     name: Determine changed containers
     if: startsWith(github.ref, 'refs/heads/') || github.event_name == 'pull_request'
-    runs-on: self-hosted
+    runs-on: codebuild-oss-runner-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       unique_matrix: ${{ steps.set-matrix.outputs.unique_matrix }}
@@ -115,7 +115,10 @@ jobs:
     name: Build and test changed containers
     needs: determine-changed
     if: startsWith(github.ref, 'refs/heads/') || github.event_name == 'pull_request'
-    runs-on: self-hosted
+    runs-on:
+      - codebuild-oss-runner-${{ github.run_id }}-${{ github.run_attempt }}
+        image:${{ matrix.platform == 'linux/arm64' && 'arm-3.0' || 'linux-5.0' }}
+        instance-size:large
     environment:
       name: publish-docker-registry
     permissions:
@@ -187,7 +190,7 @@ jobs:
     name: Publish changed containers
     needs: [determine-changed, build-and-test-changed]
     if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
-    runs-on: self-hosted
+    runs-on: codebuild-oss-runner-${{ github.run_id }}-${{ github.run_attempt }}
     environment:
       name: publish-docker-registry
     permissions:
@@ -257,7 +260,10 @@ jobs:
   build-and-test-tag:
     name: Build and test tagged container
     if: startsWith(github.ref, 'refs/tags/test_containers/') || startsWith(github.ref, 'refs/tags/sdg_containers/')
-    runs-on: self-hosted
+    runs-on:
+      - codebuild-oss-runner-${{ github.run_id }}-${{ github.run_attempt }}
+        image:${{ matrix.platform == 'linux/arm64' && 'arm-3.0' || 'linux-5.0' }}
+        instance-size:large
     environment:
       name: publish-docker-registry
     permissions:
@@ -363,7 +369,7 @@ jobs:
     name: Publish tagged container
     needs: build-and-test-tag
     if: startsWith(github.ref, 'refs/tags/test_containers/') || startsWith(github.ref, 'refs/tags/sdg_containers/')
-    runs-on: self-hosted
+    runs-on: codebuild-oss-runner-${{ github.run_id }}-${{ github.run_attempt }}
     environment:
       name: publish-docker-registry
     permissions:

@@ -9,7 +9,7 @@ on:
 jobs:
   determine-changed:
     name: Determine changed containers
-    runs-on: ubuntu-latest
+    runs-on: codebuild-oss-runner-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -61,7 +61,7 @@ jobs:
   run-tests:
     name: Test / ${{ matrix.name }}
     needs: determine-changed
-    runs-on: ubuntu-latest
+    runs-on: codebuild-oss-runner-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.determine-changed.outputs.matrix) }}
