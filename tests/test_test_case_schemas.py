@@ -130,7 +130,9 @@ class TestAnsweredLLMTestCase:
             ],
             "temperature": 0.5,
         }
-        response = {"choices": [{"message": {"role": "assistant", "content": "Hello!"}}]}
+        response = {
+            "choices": [{"message": {"role": "assistant", "content": "Hello!"}}]
+        }
         tc = AnsweredLLMTestCase.from_api_data(request, response, scenario="greeting")
         assert tc.query == "Hi"
         assert tc.system_prompt == "Be helpful"
@@ -280,7 +282,9 @@ class TestUnansweredVLMTestCase:
         assert getattr(tc, "answer", None) is None
 
     def test_multiple_images(self):
-        tc = UnansweredVLMTestCase(query="Compare these images", images=[IMAGE_URI, IMAGE_URI_2])
+        tc = UnansweredVLMTestCase(
+            query="Compare these images", images=[IMAGE_URI, IMAGE_URI_2]
+        )
         assert len(tc.images) == 2
 
     def test_images_required_non_empty(self):
@@ -371,7 +375,9 @@ class TestImageGenerationTestCase:
         assert tc.prompt == "x"
 
     def test_full_construction(self):
-        tc = ImageGenerationTestCase(prompt="A cat", size="1024x1024", n=2, scenario="text-to-image")
+        tc = ImageGenerationTestCase(
+            prompt="A cat", size="1024x1024", n=2, scenario="text-to-image"
+        )
         assert tc.size == "1024x1024"
         assert tc.n == 2
 
@@ -419,12 +425,16 @@ class TestImageGenerationTestCase:
 
 class TestAnsweredImageGenerationTestCase:
     def test_expected_response_includes_generation_image(self):
-        tc = AnsweredImageGenerationTestCase(prompt="A cat", size="", n=1, generation=IMAGE_URI_2)
+        tc = AnsweredImageGenerationTestCase(
+            prompt="A cat", size="", n=1, generation=IMAGE_URI_2
+        )
         assert tc.expected_response == {"image": IMAGE_URI_2}
 
     def test_from_api_data(self):
         request = {"prompt": "A cat", "n": 2, "size": "512x512", "style": "natural"}
-        tc = AnsweredImageGenerationTestCase.from_api_data(request, generation=IMAGE_URI_2)
+        tc = AnsweredImageGenerationTestCase.from_api_data(
+            request, generation=IMAGE_URI_2
+        )
         assert tc.prompt == "A cat"
         assert tc.n == 2
         assert tc.size == "512x512"
@@ -432,7 +442,9 @@ class TestAnsweredImageGenerationTestCase:
         assert tc.extra_params == {"style": "natural"}
 
     def test_metadata_not_serialised(self):
-        tc = AnsweredImageGenerationTestCase(prompt="x", size="", n=1, generation=IMAGE_URI_2, metadata={"gen": "sdg"})
+        tc = AnsweredImageGenerationTestCase(
+            prompt="x", size="", n=1, generation=IMAGE_URI_2, metadata={"gen": "sdg"}
+        )
         assert tc.get_debug_metadata() == {"gen": "sdg"}
         assert "metadata" not in tc.model_dump()
 
@@ -539,7 +551,9 @@ class TestODImageEditingTestCase:
         assert tc.edit_prompt == "add object"
 
     def test_empty_detections_allowed(self):
-        tc = ODImageEditingTestCase(image=IMAGE_URI, edit_prompt="x", expected_detections=[])
+        tc = ODImageEditingTestCase(
+            image=IMAGE_URI, edit_prompt="x", expected_detections=[]
+        )
         assert tc.expected_detections == []
 
 
@@ -647,7 +661,9 @@ class TestEmbeddingTestCase:
         assert not hasattr(tc, "unknown_field")
 
     def test_lineage_id_auto_generated(self):
-        tc = EmbeddingTestCase(text="x", expected_similar_texts=[], expected_dissimilar_texts=[])
+        tc = EmbeddingTestCase(
+            text="x", expected_similar_texts=[], expected_dissimilar_texts=[]
+        )
         uuid.UUID(tc.lineage_id)
 
 
@@ -739,10 +755,16 @@ class TestAnsweredObjectDetectionTestCase:
     def test_expected_response_with_detections(self):
         bb1 = BoundingBox(xyxy=(0.0, 0.0, 10.0, 10.0), class_name="cat", confidence=0.9)
         bb2 = BoundingBox(xyxy=(20.0, 20.0, 50.0, 50.0), class_name="dog")
-        tc = AnsweredObjectDetectionTestCase(image=IMAGE_URI, expected_detections=[bb1, bb2])
+        tc = AnsweredObjectDetectionTestCase(
+            image=IMAGE_URI, expected_detections=[bb1, bb2]
+        )
         resp = tc.expected_response
         dets = resp["detections"]
-        assert dets[0] == {"xyxy": [0.0, 0.0, 10.0, 10.0], "class_name": "cat", "confidence": 0.9}
+        assert dets[0] == {
+            "xyxy": [0.0, 0.0, 10.0, 10.0],
+            "class_name": "cat",
+            "confidence": 0.9,
+        }
         assert dets[1] == {"xyxy": [20.0, 20.0, 50.0, 50.0], "class_name": "dog"}
         assert "confidence" not in dets[1]
 
@@ -750,11 +772,17 @@ class TestAnsweredObjectDetectionTestCase:
         request = {"image": IMAGE_URI, "provider": "huggingface"}
         response = {
             "detections": [
-                {"xyxy": [0.0, 0.0, 10.0, 10.0], "class_name": "cat", "confidence": 0.9},
+                {
+                    "xyxy": [0.0, 0.0, 10.0, 10.0],
+                    "class_name": "cat",
+                    "confidence": 0.9,
+                },
                 {"xyxy": [20.0, 20.0, 50.0, 50.0], "class_name": "dog"},
             ]
         }
-        tc = AnsweredObjectDetectionTestCase.from_api_data(request, response, scenario="low-light")
+        tc = AnsweredObjectDetectionTestCase.from_api_data(
+            request, response, scenario="low-light"
+        )
         assert tc.image == IMAGE_URI
         assert tc.scenario == "low-light"
         assert len(tc.expected_detections) == 2
@@ -764,12 +792,16 @@ class TestAnsweredObjectDetectionTestCase:
         assert tc.extra_params == {"provider": "huggingface"}
 
     def test_metadata_not_serialised(self):
-        tc = AnsweredObjectDetectionTestCase(image=IMAGE_URI, expected_detections=[], metadata={"k": "v"})
+        tc = AnsweredObjectDetectionTestCase(
+            image=IMAGE_URI, expected_detections=[], metadata={"k": "v"}
+        )
         assert tc.get_debug_metadata() == {"k": "v"}
         assert "metadata" not in tc.model_dump()
 
     def test_extra_fields_ignored(self):
-        tc = AnsweredObjectDetectionTestCase(image=IMAGE_URI, expected_detections=[], unknown_field="ignored")
+        tc = AnsweredObjectDetectionTestCase(
+            image=IMAGE_URI, expected_detections=[], unknown_field="ignored"
+        )
         assert not hasattr(tc, "unknown_field")
 
     def test_lineage_id_auto_generated(self):
@@ -831,7 +863,9 @@ class TestTestCaseUnion:
             AnsweredObjectDetectionTestCase,
         )
         for cls in standalone_cases:
-            assert cls.__bases__ == (BaseModel,), f"{cls.__name__} should inherit only from BaseModel"
+            assert cls.__bases__ == (BaseModel,), (
+                f"{cls.__name__} should inherit only from BaseModel"
+            )
 
     def test_each_concrete_type_satisfies_union(self):
         instances: list[TestCase] = [  # type: ignore[assignment]
@@ -843,15 +877,23 @@ class TestTestCaseUnion:
             UnansweredVLMTestCase(query="x", images=[IMAGE_URI]),
             AnsweredVLMTestCase(query="x", images=[IMAGE_URI], answer="y"),
             UnansweredImageGenerationTestCase(prompt="x", size="", n=1),
-            AnsweredImageGenerationTestCase(prompt="x", size="", n=1, generation=IMAGE_URI_2),
+            AnsweredImageGenerationTestCase(
+                prompt="x", size="", n=1, generation=IMAGE_URI_2
+            ),
             UnansweredImageEditingTestCase(image=IMAGE_URI, edit_prompt="x"),
-            AnsweredImageEditingTestCase(image=IMAGE_URI, edit_prompt="x", generation=IMAGE_URI_2),
+            AnsweredImageEditingTestCase(
+                image=IMAGE_URI, edit_prompt="x", generation=IMAGE_URI_2
+            ),
             ODImageEditingTestCase(
                 image=IMAGE_URI,
                 edit_prompt="x",
-                expected_detections=[BoundingBox(xyxy=(0.0, 0.0, 1.0, 1.0), class_name="thing")],
+                expected_detections=[
+                    BoundingBox(xyxy=(0.0, 0.0, 1.0, 1.0), class_name="thing")
+                ],
             ),
-            EmbeddingTestCase(text="x", expected_similar_texts=[], expected_dissimilar_texts=[]),
+            EmbeddingTestCase(
+                text="x", expected_similar_texts=[], expected_dissimilar_texts=[]
+            ),
             UnansweredObjectDetectionTestCase(image=IMAGE_URI),
             AnsweredObjectDetectionTestCase(image=IMAGE_URI, expected_detections=[]),
         ]
@@ -876,17 +918,27 @@ class TestLineagePropagation:
             UnansweredVLMTestCase(query="x", images=[IMAGE_URI]).lineage_id,
             AnsweredVLMTestCase(query="x", images=[IMAGE_URI], answer="y").lineage_id,
             UnansweredImageGenerationTestCase(prompt="x", size="", n=1).lineage_id,
-            AnsweredImageGenerationTestCase(prompt="x", size="", n=1, generation=IMAGE_URI_2).lineage_id,
+            AnsweredImageGenerationTestCase(
+                prompt="x", size="", n=1, generation=IMAGE_URI_2
+            ).lineage_id,
             UnansweredImageEditingTestCase(image=IMAGE_URI, edit_prompt="x").lineage_id,
-            AnsweredImageEditingTestCase(image=IMAGE_URI, edit_prompt="x", generation=IMAGE_URI_2).lineage_id,
+            AnsweredImageEditingTestCase(
+                image=IMAGE_URI, edit_prompt="x", generation=IMAGE_URI_2
+            ).lineage_id,
             ODImageEditingTestCase(
                 image=IMAGE_URI,
                 edit_prompt="x",
-                expected_detections=[BoundingBox(xyxy=(0.0, 0.0, 1.0, 1.0), class_name="thing")],
+                expected_detections=[
+                    BoundingBox(xyxy=(0.0, 0.0, 1.0, 1.0), class_name="thing")
+                ],
             ).lineage_id,
-            EmbeddingTestCase(text="x", expected_similar_texts=[], expected_dissimilar_texts=[]).lineage_id,
+            EmbeddingTestCase(
+                text="x", expected_similar_texts=[], expected_dissimilar_texts=[]
+            ).lineage_id,
             UnansweredObjectDetectionTestCase(image=IMAGE_URI).lineage_id,
-            AnsweredObjectDetectionTestCase(image=IMAGE_URI, expected_detections=[]).lineage_id,
+            AnsweredObjectDetectionTestCase(
+                image=IMAGE_URI, expected_detections=[]
+            ).lineage_id,
         }
         assert len(ids) == 15  # all distinct
 

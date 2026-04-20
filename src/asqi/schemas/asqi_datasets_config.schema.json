@@ -184,11 +184,24 @@
               "type": "object"
             },
             {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/LabelFieldDefinition"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Optional mapping from class IDs to class names for CV datasets (e.g., {0: 'person', 1: 'car'}). Used by detection and classification containers to match predictions with ground truth labels.",
+          "description": "Optional label mapping for datasets. Supports simple ID-to-name mappings (e.g., {0: 'person', 1: 'car'}) and rich field definitions using LabelFieldDefinition for classification tasks (e.g., {'sentiment': LabelFieldDefinition(field_description='...', field_data_type='string', field_enum_values=['positive', 'negative'])}).",
           "title": "Label Map"
         },
         "tags": {
@@ -205,6 +218,45 @@
         "loader_params"
       ],
       "title": "HFDatasetDefinition",
+      "type": "object"
+    },
+    "LabelFieldDefinition": {
+      "description": "Defines a rich field definition for classification tasks within a label map.",
+      "properties": {
+        "field_description": {
+          "title": "Field Description",
+          "type": "string"
+        },
+        "field_data_type": {
+          "title": "Field Data Type",
+          "type": "string"
+        },
+        "field_enum_values": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field Enum Values"
+        },
+        "field_multi_label": {
+          "default": false,
+          "title": "Field Multi Label",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "field_description",
+        "field_data_type"
+      ],
+      "title": "LabelFieldDefinition",
       "type": "object"
     },
     "PDFDatasetDefinition": {
