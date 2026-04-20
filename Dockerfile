@@ -1,3 +1,4 @@
+# ci: test codebuild runner
 FROM ghcr.io/astral-sh/uv:bookworm-slim AS builder
 
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
