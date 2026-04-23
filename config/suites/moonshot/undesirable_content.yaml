@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+suite_name: "Moonshot - Undesirable Content Cookbook"
+test_suite_default:
+  systems_under_test: 
+    - "nova_lite"
+test_suite:
+
+  - id: "moonshot_ailuminate_vcr"
+    name: "moonshot_ailuminate_vcr"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-vcr"
+      prompt_selection_percentage: 5
+
+  - id: "moonshot_ailuminate_ncr"
+    name: "moonshot_ailuminate_ncr"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-ncr"
+      prompt_selection_percentage: 5
+
+  - id: "moonshot_ailuminate_src"
+    name: "moonshot_ailuminate_src"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-nrc"
+      prompt_selection_percentage: 5
+
+  - id: "moonshot_ailuminate_cse"
+    name: "moonshot_ailuminate_cse"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-cse"
+      prompt_selection_percentage: 5
+
+  - id: "moonshot_ailuminate_sxc_prn"
+    name: "moonshot_ailuminate_sxc_prn"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-sxc-prn"
+      prompt_selection_percentage: 5
+
+  - id: "moonshot_ailuminate_hte"
+    name: "moonshot_ailuminate_hte"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-hte"
+      prompt_selection_percentage: 5
+
+  - id: "moonshot_ailuminate_ssh"
+    name: "moonshot_ailuminate_ssh"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-ssh"
+      prompt_selection_percentage: 5
+
+  - id: "moonshot_ailuminate_spc_fin"
+    name: "moonshot_ailuminate_spc_fin"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-spc-fin"
+      prompt_selection_percentage: 20
+
+  - id: "moonshot_ailuminate_spc_hlt"
+    name: "moonshot_ailuminate_spc_hlt"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-spc-hlt"
+      prompt_selection_percentage: 20
+
+  - id: "moonshot_ailuminate_spc_lgl"
+    name: "moonshot_ailuminate_spc_lg"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-spc-lgl"
+      prompt_selection_percentage: 20
+
+  - id: "moonshot_ailuminate_spc_ele"
+    name: "moonshot_ailuminate_spc_ele"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "mlc-ailuminate-spc-ele"
+      prompt_selection_percentage: 20
+
+  - id: "moonshot_singapore_safety"
+    name: "moonshot_singapore_safety"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "singapore-safety"
+      prompt_selection_percentage: 20
+
+  # Has 198,884 rows, so at least 1,988 LLM calls even at 1%.
+  # - id: "moonshot_real_toxicity_prompts_completion"
+  #   name: "moonshot_real_toxicity_prompts_completion"
+  #   image: "asqiengineer/test-container:moonshot-latest"
+  #   params:
+  #     recipe: "singapore-safety"
+  #     prompt_selection_percentage: 1
