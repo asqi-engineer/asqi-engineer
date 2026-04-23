@@ -1,12 +1,82 @@
 import pytest
-from pydantic import ValidationError
-
 from asqi.response_schemas import (
+    ColumnMetadata,
     ContainerOutput,
+    DatasetMetadata,
     GeneratedDataset,
     GeneratedReport,
     validate_container_output,
 )
+from pydantic import ValidationError
+
+
+class TestColumnMetadata:
+    """Tests for ColumnMetadata schema."""
+
+    def test_required_fields(self):
+        col = ColumnMetadata(name="question", dtype="string")
+        assert col.name == "question"
+        assert col.dtype == "string"
+        assert col.description is None
+
+    def test_with_description(self):
+        col = ColumnMetadata(name="score", dtype="float", description="Relevance score")
+        assert col.description == "Relevance score"
+
+    def test_missing_name_raises(self):
+        with pytest.raises(ValidationError):
+            ColumnMetadata(dtype="string")
+
+    def test_missing_dtype_raises(self):
+        with pytest.raises(ValidationError):
+            ColumnMetadata(name="col")
+
+
+class TestDatasetMetadata:
+    """Tests for DatasetMetadata schema."""
+
+    def test_valid_metadata(self):
+        meta = DatasetMetadata(
+            columns=[ColumnMetadata(name="q", dtype="string")],
+            row_count=100,
+        )
+        assert meta.row_count == 100
+        assert len(meta.columns) == 1
+        assert meta.size_bytes is None
+
+    def test_with_size_bytes(self):
+        meta = DatasetMetadata(
+            columns=[ColumnMetadata(name="q", dtype="string")],
+            row_count=50,
+            size_bytes=2048,
+        )
+        assert meta.size_bytes == 2048
+
+    def test_missing_row_count_raises(self):
+        with pytest.raises(ValidationError):
+            DatasetMetadata(columns=[ColumnMetadata(name="q", dtype="string")])
+
+    def test_negative_row_count_raises(self):
+        with pytest.raises(ValidationError):
+            DatasetMetadata(
+                columns=[ColumnMetadata(name="q", dtype="string")],
+                row_count=-1,
+            )
+
+    def test_empty_columns_list(self):
+        meta = DatasetMetadata(columns=[], row_count=0)
+        assert meta.columns == []
+
+    def test_model_dump_is_dict(self):
+        meta = DatasetMetadata(
+            columns=[ColumnMetadata(name="q", dtype="string", description="A question")],
+            row_count=10,
+            size_bytes=512,
+        )
+        dumped = meta.model_dump()
+        assert dumped["row_count"] == 10
+        assert dumped["columns"][0]["name"] == "q"
+        assert dumped["size_bytes"] == 512
 
 
 class TestGeneratedDataset:
@@ -77,6 +147,48 @@ class TestGeneratedDataset:
                 dataset_path="   ",  # Whitespace only
             )
         assert "cannot be empty or whitespace-only" in str(exc_info.value)
+
+    def test_typed_dataset_metadata(self):
+        """Test that DatasetMetadata is accepted and stored as a typed model."""
+        meta = DatasetMetadata(
+            columns=[ColumnMetadata(name="question", dtype="string")],
+            row_count=42,
+        )
+        dataset = GeneratedDataset(
+            dataset_name="typed",
+            dataset_type="huggingface",
+            dataset_path="/output/typed.parquet",
+            metadata=meta,
+        )
+        assert isinstance(dataset.metadata, DatasetMetadata)
+        assert dataset.metadata.row_count == 42
+
+    def test_legacy_dict_metadata_still_accepted(self):
+        """Plain dict metadata continues to work for backward compatibility."""
+        dataset = GeneratedDataset(
+            dataset_name="legacy",
+            dataset_type="huggingface",
+            dataset_path="/output/legacy.parquet",
+            metadata={"version": "1.0", "num_rows": 100},
+        )
+        assert dataset.metadata == {"version": "1.0", "num_rows": 100}
+
+    def test_typed_metadata_serialises_as_dict(self):
+        """DatasetMetadata serialises to dict via model_dump, keeping runner compatibility."""
+        meta = DatasetMetadata(
+            columns=[ColumnMetadata(name="q", dtype="string")],
+            row_count=5,
+        )
+        dataset = GeneratedDataset(
+            dataset_name="ds",
+            dataset_type="huggingface",
+            dataset_path="/output/ds.parquet",
+            metadata=meta,
+        )
+        dumped = dataset.model_dump()
+        assert isinstance(dumped["metadata"], dict)
+        assert dumped["metadata"]["row_count"] == 5
+        assert dumped["metadata"]["columns"][0]["name"] == "q"
 
 
 class TestGeneratedReport:
@@ -204,9 +316,7 @@ class TestContainerOutput:
 
     def test_backward_compatibility_extra_fields(self):
         """Extra fields are allowed for backward compatibility."""
-        output = ContainerOutput(
-            results={"success": True}, custom_field="value", another_field=123
-        )
+        output = ContainerOutput(results={"success": True}, custom_field="value", another_field=123)
         # Access via model_dump to see extra fields
         dumped = output.model_dump()
         assert dumped["custom_field"] == "value"

@@ -1,6 +1,22 @@
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+
+class ColumnMetadata(BaseModel):
+    """Describes a single column in a dataset."""
+
+    name: str
+    dtype: str
+    description: str | None = None
+
+
+class DatasetMetadata(BaseModel):
+    """Structured metadata for a generated dataset."""
+
+    columns: list[ColumnMetadata]
+    row_count: int = Field(..., ge=0)
+    size_bytes: int | None = Field(None, ge=0)
 
 
 class GeneratedDataset(BaseModel):
@@ -13,15 +29,14 @@ class GeneratedDataset(BaseModel):
     dataset_type: Literal["huggingface", "pdf", "txt"] = Field(
         ..., description="Type of dataset: 'huggingface', 'pdf', or 'txt'"
     )
-    dataset_path: str = Field(
-        ..., min_length=1, description="Path to the dataset file inside container"
-    )
-    format: Optional[str] = Field(
-        None, description="File format (e.g., 'parquet', 'json', 'csv')"
-    )
-    metadata: Optional[Dict[str, Any]] = Field(
+    dataset_path: str = Field(..., min_length=1, description="Path to the dataset file inside container")
+    format: str | None = Field(None, description="File format (e.g., 'parquet', 'json', 'csv')")
+    metadata: DatasetMetadata | dict[str, Any] | None = Field(
         None,
-        description="Additional metadata about the dataset (e.g., num_rows, size, etc.)",
+        description=(
+            "Dataset metadata. Prefer DatasetMetadata for structured output; "
+            "plain dicts are accepted for backward compatibility."
+        ),
     )
 
     @field_validator("dataset_path")
@@ -50,13 +65,9 @@ class GeneratedReport(BaseModel):
     """
 
     report_name: str = Field(..., min_length=1, description="Name of the report")
-    report_type: Literal["html", "pdf", "json"] = Field(
-        ..., description="Type of report: 'html', 'pdf', or 'json'"
-    )
-    report_path: str = Field(
-        ..., min_length=1, description="Path to the report file inside container"
-    )
-    metadata: Optional[Dict[str, Any]] = Field(
+    report_type: Literal["html", "pdf", "json"] = Field(..., description="Type of report: 'html', 'pdf', or 'json'")
+    report_path: str = Field(..., min_length=1, description="Path to the report file inside container")
+    metadata: dict[str, Any] | None = Field(
         None,
         description="Additional metadata about the report (e.g., file_size_bytes, checksum, etc.)",
     )
@@ -86,19 +97,17 @@ class ContainerOutput(BaseModel):
     """
 
     # Accept both field names for backward compatibility
-    results: Optional[Dict[str, Any]] = Field(
-        None, description="Test/generation results (recommended field name)"
-    )
-    test_results: Optional[Dict[str, Any]] = Field(
+    results: dict[str, Any] | None = Field(None, description="Test/generation results (recommended field name)")
+    test_results: dict[str, Any] | None = Field(
         None,
         description="Legacy field name for results (deprecated but still supported)",
     )
 
-    generated_reports: List[GeneratedReport] = Field(
+    generated_reports: list[GeneratedReport] = Field(
         default_factory=list,
         description="List of generated reports from container execution",
     )
-    generated_datasets: List[GeneratedDataset] = Field(
+    generated_datasets: list[GeneratedDataset] = Field(
         default_factory=list,
         description="List of generated datasets from container execution",
     )
@@ -107,20 +116,16 @@ class ContainerOutput(BaseModel):
 
     @field_validator("test_results", "results")
     @classmethod
-    def validate_results_not_empty_if_present(
-        cls, v: Optional[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+    def validate_results_not_empty_if_present(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
         """Ensure results field is not empty if present.
 
         At least one results field must contain the 'success' key.
         """
         if v is not None and not v:
-            raise ValueError(
-                "Results cannot be empty dictionary - must contain at least 'success' field"
-            )
+            raise ValueError("Results cannot be empty dictionary - must contain at least 'success' field")
         return v
 
-    def get_results(self) -> Dict[str, Any]:
+    def get_results(self) -> dict[str, Any]:
         """Get results, preferring 'results' over 'test_results'.
 
         Returns:
@@ -130,7 +135,7 @@ class ContainerOutput(BaseModel):
         return self.results or self.test_results or {}
 
 
-def validate_container_output(output_dict: Dict[str, Any]) -> ContainerOutput:
+def validate_container_output(output_dict: dict[str, Any]) -> ContainerOutput:
     """
     Validate container output against the schema.
 
@@ -149,9 +154,6 @@ def validate_container_output(output_dict: Dict[str, Any]) -> ContainerOutput:
     """
     validated = ContainerOutput(**output_dict)
     if validated.results is None and validated.test_results is None:
-        raise ValueError(
-            "Container output must contain 'results' or 'test_results' field. "
-            "Both fields are missing."
-        )
+        raise ValueError("Container output must contain 'results' or 'test_results' field. Both fields are missing.")
 
     return validated
