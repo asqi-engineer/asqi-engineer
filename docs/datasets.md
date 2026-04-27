@@ -765,9 +765,9 @@ validate_dataset_features(
 
 ### `load_test_cases()`
 
-Load a dataset and validate every row against a typed [TestCase schema](https://github.com/asqi-engineer/asqi-engineer/blob/main/src/asqi/schemas.py) before yielding it sample by sample.  This is the validated, schema-safe counterpart to `load_hf_dataset`.
+Load a dataset and validate every row against a typed Pydantic schema before yielding it sample by sample. Define your own schema class that matches the columns in your dataset — any class that inherits from `pydantic.BaseModel` works.
 
-Accepts either a **plain file path** or an **`HFDatasetDefinition` config dict** — the same format produced by `rag_datasets.yaml`.  Dataset configs require no changes when switching from `load_hf_dataset`.
+Accepts either a **plain file path** or an **`HFDatasetDefinition` config dict** — the same format produced by a datasets registry YAML. Dataset configs require no changes when switching from `load_hf_dataset`.
 
 **Function Signature:**
 
@@ -784,85 +784,145 @@ def load_test_cases[T: BaseModel](
 
 - `path`: One of:
   - `str | Path` — direct path to a local dataset file (`.jsonl`, `.json`, `.csv`, `.parquet`).
-  - `dict | HFDatasetDefinition` — dataset config from `rag_datasets.yaml` (same object passed to `load_hf_dataset`). Column `mapping` and Hub/local loading are handled automatically.
-- `test_case_class`: Pydantic model from `asqi.schemas` to validate each row against, e.g. `AnsweredRAGTestCase` or `LLMTestCase`.
+  - `dict | HFDatasetDefinition` — dataset config from a datasets registry YAML (same object passed to `load_hf_dataset`). Column `mapping` and Hub/local loading are handled automatically.
+- `test_case_class`: Any Pydantic `BaseModel` subclass to validate each row against. You define this class yourself to match your dataset columns.
 - `input_mount_path`: Optional base directory prepended to relative paths — mirrors the same parameter on `load_hf_dataset`.
 
 **Returns:** A generator that yields validated `test_case_class` instances, one per dataset row.
 
 **Supported file formats:** `.jsonl`, `.json`, `.csv`, `.parquet` (format detection is delegated to HuggingFace `datasets`)
 
+#### Defining your own test case schema
+
+Create a Pydantic `BaseModel` whose field names match the column names in your dataset. Fields without a default are required — a row missing them raises `ValueError` immediately. Pydantic v2 silently ignores extra fields by default, so columns not declared in your schema are dropped automatically.
+
+```python
+from pydantic import BaseModel
+
+class MyTestCase(BaseModel):
+    query: str                     # required — must be present in every row
+    answer: str | None = None      # optional — may be absent
+```
+
+**Rules:**
+- Field names must match dataset column names exactly (or use `mapping` in the dataset config to rename columns first).
+- Fields without a default are required — a missing value raises `ValueError` with the row index and field name.
+- Extra columns are ignored by default. Use `ConfigDict(extra="forbid")` if you want an error when unexpected columns are present.
+
+#### Example schemas for common use cases
+
+**LLM / RAG — query only:**
+
+```python
+from pydantic import BaseModel
+
+class QueryTestCase(BaseModel):
+    query: str
+```
+
+**LLM / RAG — query with reference answer:**
+
+```python
+from pydantic import BaseModel
+
+class AnsweredQueryTestCase(BaseModel):
+    query: str
+    answer: str
+```
+
+**RAG — query with reference retrieved context:**
+
+```python
+from pydantic import BaseModel
+
+class ContextualizedTestCase(BaseModel):
+    query: str
+    context: list[str]  # list of retrieved document chunks
+```
+
+**Object detection — image with ground-truth bounding boxes:**
+
+```python
+from pydantic import BaseModel
+
+class BoundingBox(BaseModel):
+    xyxy: tuple[float, float, float, float]
+    class_name: str
+
+class DetectionTestCase(BaseModel):
+    image: str                              # base64-encoded data URI
+    expected_detections: list[BoundingBox] = []
+```
+
 #### Basic usage — iterate sample by sample
 
 ```python
+from pydantic import BaseModel
 from asqi.loaders import load_test_cases
-from asqi.schemas import AnsweredRAGTestCase
 
-for test_case in load_test_cases("dataset.jsonl", AnsweredRAGTestCase):
+class MyTestCase(BaseModel):
+    query: str
+    answer: str
+
+for test_case in load_test_cases("dataset.jsonl", MyTestCase):
     print(test_case.query, test_case.answer)
 ```
 
-#### From a dataset config dict — `rag_datasets.yaml` stays unchanged
+#### From a dataset config dict — datasets registry YAML stays unchanged
 
 ```python
 from pathlib import Path
+from pydantic import BaseModel
 from asqi.loaders import load_test_cases
-from asqi.schemas import AnsweredRAGTestCase
 
-# dataset_config["accuracy_dataset"] is the HFDatasetDefinition dict from rag_datasets.yaml
-# — passed directly, identical to how load_hf_dataset is called today
+class MyTestCase(BaseModel):
+    query: str
+    answer: str
+
+# dataset_config["accuracy_dataset"] is the HFDatasetDefinition dict from your datasets registry
 accuracy_rows = list(load_test_cases(
     dataset_config["accuracy_dataset"],
-    AnsweredRAGTestCase,
+    MyTestCase,
     input_mount_path=Path("/input"),
 ))
 ```
 
 #### Multiple schemas from the same dataset
 
-A single dataset row can be valid for more than one TestCase schema. For example, a RAG dataset
-with `query`, `answer`, and `context` columns can validate against both `AnsweredRAGTestCase`
-(needs answer only) and `ContextualizedRAGTestCase` (needs context only). Call `load_test_cases`
-once per schema — each call validates only the fields its schema requires:
+A single dataset row can be valid for more than one schema. For example, a dataset with `query`, `answer`, and `context` columns can be loaded twice — once per schema — each validating only the fields it requires:
 
 ```python
 from pathlib import Path
+from pydantic import BaseModel
 from asqi.loaders import load_test_cases
-from asqi.schemas import AnsweredRAGTestCase, ContextualizedRAGTestCase
 
-config = dataset_config["rag_accuracy_dataset"]  # from rag_datasets.yaml
+class AnsweredTestCase(BaseModel):
+    query: str
+    answer: str
+
+class ContextualizedTestCase(BaseModel):
+    query: str
+    context: list[str]
+
+# dataset_config["rag_dataset"] is the HFDatasetDefinition dict from your datasets registry
+config = dataset_config["rag_dataset"]
 p = Path("/input")
 
-# For accuracy metrics (needs answer only)
-answered = list(load_test_cases(config, AnsweredRAGTestCase, input_mount_path=p))
+# For metrics that need a reference answer
+answered = list(load_test_cases(config, AnsweredTestCase, input_mount_path=p))
 
-# For retrieval metrics (needs context only)
-contextual = list(load_test_cases(config, ContextualizedRAGTestCase, input_mount_path=p))
+# For metrics that need retrieved context
+contextual = list(load_test_cases(config, ContextualizedTestCase, input_mount_path=p))
 ```
 
-If a row is missing a field required by the schema you requested, validation fails for that row
-and a `ValueError` is raised immediately with the row index and the failing field name. A dataset
-that is valid for `ContextualizedRAGTestCase` will fail for `AnsweredRAGTestCase` if `answer` is
-absent — each schema is independent.
-
-#### Choosing a TestCase class
-
-| SUT type | Dataset columns | Use |
-|---|---|---|
-| `llm_api` | `query` | `LLMTestCase` |
-| `llm_api` | `query` + `answer` | `AnsweredLLMTestCase` |
-| `rag_api` | `query` | `RAGTestCase` |
-| `rag_api` | `query` + `answer` | `AnsweredRAGTestCase` |
-| `rag_api` | `query` + `context` | `ContextualizedRAGTestCase` |
-| `object_detection_api` | `image` | `ObjectDetectionTestCase` |
-| `object_detection_api` | `image` + `expected_detections` | `AnsweredObjectDetectionTestCase` |
+If a row is missing a required field for the schema you requested, a `ValueError` is raised immediately with the row index and the failing field name. Each schema is validated independently.
 
 #### Validation errors
 
 When a row fails schema validation the error message includes the **row index** and the **failing field names**:
 
 ```
-ValueError: Row 42 failed validation against AnsweredRAGTestCase: field 'query': Field required
+ValueError: Row 42 failed validation against AnsweredTestCase: field 'query': Field required
 ```
 
 #### Comparison with `load_hf_dataset`
@@ -871,10 +931,10 @@ ValueError: Row 42 failed validation against AnsweredRAGTestCase: field 'query':
 |---|---|---|
 | **Input** | `HFDatasetDefinition` config dict | File path **or** `HFDatasetDefinition` config dict |
 | **Source** | HuggingFace Hub or local file | HuggingFace Hub or local file |
-| **Validation** | HF feature types (column presence/dtype) | Pydantic TestCase schema (field presence, types, constraints) |
-| **Return** | `Dataset \| IterableDataset` (HF object) | `Generator[TestCase, ...]` (typed Pydantic instances) |
+| **Validation** | HF feature types (column presence/dtype) | Pydantic schema (field presence, types, constraints) |
+| **Return** | `Dataset \| IterableDataset` (HF object) | `Generator[T, None, None]` (typed Pydantic instances) |
 | **Iteration** | `.to_pandas()`, column slicing, etc. | `for tc in load_test_cases(...)` — sample by sample |
-| **Use when** | You need the raw HF Dataset API | You need typed, validated TestCase objects |
+| **Use when** | You need the raw HF Dataset API | You need typed, validated objects |
 
 ### File Validation Functions
 
