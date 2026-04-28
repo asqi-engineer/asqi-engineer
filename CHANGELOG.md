@@ -5,8 +5,6 @@
 
 - Enable support for rich schema definition for label map (f58a91e)
 - Add docs for labelmaps (f58a91e)
-- Add Metrics Registry for metric discovery across LLM, RAG, VLM, Object Detection, and Image Editing SUT types (e594009)
-- Add `list_metrics_by_data` to metric registries for finding compatible metrics per dataset/test case type (e594009)
 - Add `load_test_cases()` for schema-safe typed dataset loading with Pydantic TestCase validation (0ceb6d4)
 
 ### 🐛 Bug Fixes
@@ -17,12 +15,10 @@
 - Update the schema definitions (f58a91e)
 - Security issue by upgrading pygments to >=2.20.0 (f58a91e)
 - Fix lint and test issues (190001c)
-- Update import paths to use `asqi_metrics.schemas` across all metrics modules (e594009)
 
 ### 📚 Documentation
 
 - Add `datasets.md` with full API reference, usage examples, and schema selection guide for `load_test_cases()` (0ceb6d4)
-- Enhance metrics README with detailed usage examples for direct import and dynamic metric discovery (e594009)
 
 ### 🧪 Testing
 
