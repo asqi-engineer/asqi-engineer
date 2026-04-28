@@ -69,7 +69,9 @@ class TestDatasetMetadata:
 
     def test_model_dump_is_dict(self):
         meta = DatasetMetadata(
-            columns=[ColumnMetadata(name="q", dtype="string", description="A question")],
+            columns=[
+                ColumnMetadata(name="q", dtype="string", description="A question")
+            ],
             row_count=10,
             size_bytes=512,
         )
@@ -316,7 +318,9 @@ class TestContainerOutput:
 
     def test_backward_compatibility_extra_fields(self):
         """Extra fields are allowed for backward compatibility."""
-        output = ContainerOutput(results={"success": True}, custom_field="value", another_field=123)
+        output = ContainerOutput(
+            results={"success": True}, custom_field="value", another_field=123
+        )
         # Access via model_dump to see extra fields
         dumped = output.model_dump()
         assert dumped["custom_field"] == "value"
