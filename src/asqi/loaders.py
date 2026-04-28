@@ -128,7 +128,7 @@ def load_test_cases[T: BaseModel](
             resolved.suffix.lower(), resolved.suffix.lower().lstrip(".")
         )
 
-        dataset = load_dataset(path=builder, data_files=str(resolved), split="train")
+        dataset = load_dataset(path=builder, data_files=str(resolved), split="train")  # nosec B615
 
     for row_idx, row in enumerate(dataset):
         try:
