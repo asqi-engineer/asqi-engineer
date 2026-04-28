@@ -15,14 +15,18 @@ def _resolve_path(path: str | Path, input_mount_path: Path | None) -> Path:
     return resolved
 
 
-def _format_validation_error(exc: ValidationError, row_idx: int, class_name: str) -> str:
+def _format_validation_error(
+    exc: ValidationError, row_idx: int, class_name: str
+) -> str:
     errors = exc.errors()
     field_msgs = []
     for error in errors:
         loc_parts = [str(loc) for loc in error["loc"]] if error["loc"] else []
         field = " -> ".join(loc_parts) if loc_parts else "root"
         field_msgs.append(f"field '{field}': {error['msg']}")
-    return f"Row {row_idx} failed validation against {class_name}: " + "; ".join(field_msgs)
+    return f"Row {row_idx} failed validation against {class_name}: " + "; ".join(
+        field_msgs
+    )
 
 
 def load_test_cases[T: BaseModel](
@@ -120,7 +124,9 @@ def load_test_cases[T: BaseModel](
             raise FileNotFoundError(f"Dataset file not found: {resolved}")
 
         _ext_to_builder = {".jsonl": "json", ".json": "json"}
-        builder = _ext_to_builder.get(resolved.suffix.lower(), resolved.suffix.lower().lstrip("."))
+        builder = _ext_to_builder.get(
+            resolved.suffix.lower(), resolved.suffix.lower().lstrip(".")
+        )
 
         dataset = load_dataset(path=builder, data_files=str(resolved), split="train")
 
@@ -128,4 +134,6 @@ def load_test_cases[T: BaseModel](
         try:
             yield test_case_class(**row)
         except ValidationError as exc:
-            raise ValueError(_format_validation_error(exc, row_idx, test_case_class.__name__)) from exc
+            raise ValueError(
+                _format_validation_error(exc, row_idx, test_case_class.__name__)
+            ) from exc
