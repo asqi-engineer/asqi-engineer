@@ -330,24 +330,32 @@ class TestLoadTestCasesFromConfig:
         return path
 
     def test_config_dict_loads_parquet(self, tmp_path: Path):
-        self._write_parquet(tmp_path, {"query": ["Q1", "Q2"], "answer": ["A1", "A2"]}, "data.parquet")
+        self._write_parquet(
+            tmp_path, {"query": ["Q1", "Q2"], "answer": ["A1", "A2"]}, "data.parquet"
+        )
         config = self._parquet_config(tmp_path, "data.parquet")
 
-        cases = list(load_test_cases(config, AnsweredLLMTestCase, input_mount_path=tmp_path))
+        cases = list(
+            load_test_cases(config, AnsweredLLMTestCase, input_mount_path=tmp_path)
+        )
         assert len(cases) == 2
         assert cases[0].query == "Q1"
         assert cases[1].answer == "A2"
 
     def test_config_dict_applies_column_mapping(self, tmp_path: Path):
         # Dataset has 'question' column; schema expects 'query'
-        self._write_parquet(tmp_path, {"question": ["What is RAG?"], "answer": ["RAG"]}, "data.parquet")
+        self._write_parquet(
+            tmp_path, {"question": ["What is RAG?"], "answer": ["RAG"]}, "data.parquet"
+        )
         config = {
             "type": "huggingface",
             "loader_params": {"builder_name": "parquet", "data_files": "data.parquet"},
             "mapping": {"question": "query"},  # rename question → query
         }
 
-        cases = list(load_test_cases(config, AnsweredLLMTestCase, input_mount_path=tmp_path))
+        cases = list(
+            load_test_cases(config, AnsweredLLMTestCase, input_mount_path=tmp_path)
+        )
         assert cases[0].query == "What is RAG?"
         assert cases[0].answer == "RAG"
 
@@ -357,7 +365,9 @@ class TestLoadTestCasesFromConfig:
         config = self._parquet_config(tmp_path, "data.parquet")
 
         with pytest.raises(ValueError, match="Row 0"):
-            list(load_test_cases(config, AnsweredLLMTestCase, input_mount_path=tmp_path))
+            list(
+                load_test_cases(config, AnsweredLLMTestCase, input_mount_path=tmp_path)
+            )
 
     def test_config_dict_rag_with_context(self, tmp_path: Path):
         self._write_parquet(
@@ -367,7 +377,11 @@ class TestLoadTestCasesFromConfig:
         )
         config = self._parquet_config(tmp_path, "data.parquet")
 
-        cases = list(load_test_cases(config, ContextualizedRAGTestCase, input_mount_path=tmp_path))
+        cases = list(
+            load_test_cases(
+                config, ContextualizedRAGTestCase, input_mount_path=tmp_path
+            )
+        )
         assert cases[0].context == ["ctx1", "ctx2"]
 
     def test_hfdatasetdefinition_object_accepted(self, tmp_path: Path):
@@ -376,10 +390,14 @@ class TestLoadTestCasesFromConfig:
         self._write_parquet(tmp_path, {"query": ["Q"], "answer": ["A"]}, "data.parquet")
         config = HFDatasetDefinition(
             type="huggingface",
-            loader_params=DatasetLoaderParams(builder_name="parquet", data_files="data.parquet"),
+            loader_params=DatasetLoaderParams(
+                builder_name="parquet", data_files="data.parquet"
+            ),
         )
 
-        cases = list(load_test_cases(config, AnsweredLLMTestCase, input_mount_path=tmp_path))
+        cases = list(
+            load_test_cases(config, AnsweredLLMTestCase, input_mount_path=tmp_path)
+        )
         assert len(cases) == 1
         assert cases[0].query == "Q"
 

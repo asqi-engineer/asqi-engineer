@@ -29,8 +29,12 @@ class GeneratedDataset(BaseModel):
     dataset_type: Literal["huggingface", "pdf", "txt"] = Field(
         ..., description="Type of dataset: 'huggingface', 'pdf', or 'txt'"
     )
-    dataset_path: str = Field(..., min_length=1, description="Path to the dataset file inside container")
-    format: str | None = Field(None, description="File format (e.g., 'parquet', 'json', 'csv')")
+    dataset_path: str = Field(
+        ..., min_length=1, description="Path to the dataset file inside container"
+    )
+    format: str | None = Field(
+        None, description="File format (e.g., 'parquet', 'json', 'csv')"
+    )
     metadata: DatasetMetadata | dict[str, Any] | None = Field(
         None,
         description=(
@@ -65,8 +69,12 @@ class GeneratedReport(BaseModel):
     """
 
     report_name: str = Field(..., min_length=1, description="Name of the report")
-    report_type: Literal["html", "pdf", "json"] = Field(..., description="Type of report: 'html', 'pdf', or 'json'")
-    report_path: str = Field(..., min_length=1, description="Path to the report file inside container")
+    report_type: Literal["html", "pdf", "json"] = Field(
+        ..., description="Type of report: 'html', 'pdf', or 'json'"
+    )
+    report_path: str = Field(
+        ..., min_length=1, description="Path to the report file inside container"
+    )
     metadata: dict[str, Any] | None = Field(
         None,
         description="Additional metadata about the report (e.g., file_size_bytes, checksum, etc.)",
@@ -97,7 +105,9 @@ class ContainerOutput(BaseModel):
     """
 
     # Accept both field names for backward compatibility
-    results: dict[str, Any] | None = Field(None, description="Test/generation results (recommended field name)")
+    results: dict[str, Any] | None = Field(
+        None, description="Test/generation results (recommended field name)"
+    )
     test_results: dict[str, Any] | None = Field(
         None,
         description="Legacy field name for results (deprecated but still supported)",
@@ -116,13 +126,17 @@ class ContainerOutput(BaseModel):
 
     @field_validator("test_results", "results")
     @classmethod
-    def validate_results_not_empty_if_present(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+    def validate_results_not_empty_if_present(
+        cls, v: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
         """Ensure results field is not empty if present.
 
         At least one results field must contain the 'success' key.
         """
         if v is not None and not v:
-            raise ValueError("Results cannot be empty dictionary - must contain at least 'success' field")
+            raise ValueError(
+                "Results cannot be empty dictionary - must contain at least 'success' field"
+            )
         return v
 
     def get_results(self) -> dict[str, Any]:
@@ -154,6 +168,8 @@ def validate_container_output(output_dict: dict[str, Any]) -> ContainerOutput:
     """
     validated = ContainerOutput(**output_dict)
     if validated.results is None and validated.test_results is None:
-        raise ValueError("Container output must contain 'results' or 'test_results' field. Both fields are missing.")
+        raise ValueError(
+            "Container output must contain 'results' or 'test_results' field. Both fields are missing."
+        )
 
     return validated
