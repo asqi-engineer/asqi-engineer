@@ -51,15 +51,15 @@ jobs:
           MONOREPO_URL: ${{ vars.PRIVATE_MONOREPO_URL }}
         run: |
           set -euo pipefail
-          
+
           # Extract owner/repo from URL (e.g., https://github.com/resaro-ai/resaro-ai-monorepo.git -> resaro-ai/resaro-ai-monorepo)
           REPO_PATH=$(echo "$MONOREPO_URL" | sed -E 's|https://github.com/([^/]+/[^/.]+)(\.git)?|\1|')
-          
+
           # The filename of the workflow you want to trigger in the monorepo
-          WORKFLOW_FILENAME="sync-to-private.yml"
-          
+          WORKFLOW_FILENAME="asqi-engineer.sync-to-private.yaml"
+
           echo "Sending 'workflow_dispatch' for $WORKFLOW_FILENAME to $REPO_PATH..."
-          
+
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
@@ -68,5 +68,5 @@ jobs:
             -f "ref=main" \
             -f "inputs[ref]=${{ github.ref }}" \
             -f "inputs[sha]=${{ github.sha }}"
-          
+
           echo "Workflow dispatch sent successfully."
