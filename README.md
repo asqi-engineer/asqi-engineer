@@ -130,7 +130,7 @@ If a link is missing or the page content is unclear, please open an issue: https
 
 ## Contributing & development
 
-We keep contributor-facing documentation split into two focused documents so each file stays concise and actionable.
+We keep contributor-facing documentation split into two dedicated documents so each file stays concise and actionable.
 
 Quick actions:
 
