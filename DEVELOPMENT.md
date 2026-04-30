@@ -136,6 +136,110 @@ Build a wheel locally:
 uv build --wheel
 ```
 
+### Writing tests for a test container
+
+Every container in `test_containers/` has a `tests/` directory for pytest-based tests.
+The shared `asqi.pytest_plugin` (in `src/asqi/pytest_plugin.py`) provides fixtures and
+marks that remove boilerplate. The plugin is registered via the `pytest11` entry point
+in `asqi-engineer`'s `pyproject.toml`; when the package is installed it is auto-discovered
+by pytest.
+
+Because container lockfiles currently pin a PyPI release of `asqi-engineer` that
+predates the plugin, each container's rootdir `conftest.py` also contains a sys.path
+bootstrap that makes the local source importable. This bootstrap will be removed once
+containers upgrade to the version that ships the plugin.
+
+#### Available fixtures
+
+| Fixture | What it does |
+|---------|-------------|
+| `container_root` | `Path` to the container's root directory (parent of `tests/`). Derived automatically from the test file's location. |
+| `asqi_execute` | High-level runner. Accepts the same config file arguments as `asqi execute` CLI, resolves YAML → param dicts, sets up mount dirs, imports `entrypoint.main` in-process, and returns `(ContainerOutput, exit_code)`. |
+
+#### Available marks
+
+| Mark | When to use |
+|------|-------------|
+| `@pytest.mark.requires_hf_token` | Test needs a HuggingFace dataset. Skips when `HF_TOKEN` is not set. |
+| `@pytest.mark.requires_llm_api` | Test calls a real LLM endpoint. Skips when no API key env var is present. |
+
+#### Container conftest pattern
+
+Each container has a `conftest.py` at its **root** (next to `entrypoint.py`). The
+lazy import of `entrypoint` inside `run_container` is required — importing it at
+module level would pull in `asqi.*` before the sys.path bootstrap runs:
+
+```python
+# <container_root>/conftest.py
+
+import sys
+from pathlib import Path
+
+_asqi_src = Path(__file__).resolve().parent.parent.parent / "src"
+if str(_asqi_src) not in sys.path:
+    sys.path.insert(0, str(_asqi_src))
+
+pytest_plugins = ["asqi.pytest_plugin"]
+
+
+@pytest.fixture
+def run_container(mocker, valid_systems_params, valid_test_params):
+    from entrypoint import main  # lazy — must be inside fixture body
+    ...
+```
+
+#### Using `asqi_execute` (config-based tests)
+
+`asqi_execute` resolves YAML configs the same way the `asqi execute` CLI does.
+Container-specific API mocks are still applied via `mocker.patch` before calling it.
+Decorate with `@pytest.mark.requires_hf_token` if the suite references a private dataset.
+
+```python
+@pytest.mark.requires_hf_token
+def test_scores_within_range(mock_full_run, api_success, asqi_execute):
+    mock_full_run(dataset_rows=[...], api_side_effect=api_success())
+    results = asqi_execute(
+        test_suite_config="config/suite.yaml",
+        systems_config="config/systems.yaml",
+        datasets_config="config/datasets.yaml",  # optional
+    )
+    output, exit_code = results[0]
+    assert exit_code == 0
+    assert output.results is not None
+```
+
+#### Path conventions
+
+```
+my_container/
+├── conftest.py            # rootdir: sys.path bootstrap + pytest_plugins + container fixtures
+├── entrypoint.py
+├── pyproject.toml         # must include: [tool.pytest.ini_options] pythonpath = ["."]
+├── config/                # optional — needed for asqi_execute tests
+│   ├── suite.yaml
+│   ├── systems.yaml
+│   ├── datasets.yaml
+│   └── score_card.yaml
+└── tests/
+    └── test_e2e.py
+```
+
+#### Running container tests locally
+
+```bash
+cd test_containers/my_container
+uv sync --locked
+uv run pytest tests/ -v
+```
+
+The `-v` flag prints each test name and result as the suite runs.
+
+To skip tests that require credentials:
+
+```bash
+uv run pytest tests/ -v -m "not requires_hf_token and not requires_llm_api"
+```
+
 ### Troubleshooting
 
 - If the devcontainer fails to start, check `.devcontainer/docker-compose.yml` for port conflicts.

@@ -21,6 +21,9 @@ dependencies = [
 [project.scripts]
 asqi = "asqi.main:app"
 
+[project.entry-points."pytest11"]
+asqi = "asqi.pytest_plugin"
+
 [dependency-groups]
 dev = [
     "bandit>=1.8.6",
@@ -42,6 +45,7 @@ dev = [
     "virtualenv>=20.36.1",
 ]
 containers = ["deepteam==1.0.4", "litellm>=1.76.0", "openevals>=0.1.0"]
+test = ["pytest>=9.0.0", "pytest-mock>=3.14.0"]
 
 [tool.bandit]
 exclude_dirs = [
