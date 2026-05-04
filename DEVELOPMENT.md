@@ -2,6 +2,10 @@
 
 This document is the canonical developer setup reference: devcontainer, environment variables, how to install dev deps, run tests, and build test containers. For contribution workflow (PRs, issue templates), see [CONTRIBUTING.md]. For a high-level project overview and quickstart, see [README.md].
 
+### Interface specification
+
+For the frozen contract surface — every library symbol asqi-runner imports and every `asqi` CLI command, including arguments, flags, exit codes, env vars, and side effects — see [docs/interface-spec.md](./docs/interface-spec.md). This is the document to consult before refactoring `asqi/workflow.py`, `asqi/config.py`, `asqi/schemas.py`, or `asqi/main.py`, and the basis for contract tests.
+
 ### Prerequisites
 
 - Docker Desktop or Docker Engine
