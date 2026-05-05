@@ -149,7 +149,12 @@ On configuration / validation failure, the returned `test_results` has the same 
 - `NO_TESTS` — config parsed, validated, and produced an empty execution plan (no tests to run).
 - `COMPLETED` — workflow ran tests to completion (regardless of per-test success/failure; aggregate counts are in `successful_tests` / `failed_tests`).
 
-**Exceptions raised (uncaught):** During config parsing the function catches `ValidationError`, `TypeError`, `ValueError`, and `AttributeError` and re-shapes them into a `CONFIG_ERROR` summary. Anything outside that set — and any exception from the inner execution layers (Docker, container manager, score-card validation) — propagates to the caller.
+**Exceptions raised (uncaught):** Two distinct try/except blocks at the top of the workflow swallow the classes documented above:
+
+- Config parsing catches `ValidationError` and `(TypeError, AttributeError)` and re-shapes them into a `CONFIG_ERROR` summary.
+- Volume validation (`validate_test_volumes`) catches `ValueError` and re-shapes it into a `VALIDATION_FAILED` summary — *not* `CONFIG_ERROR`.
+
+Anything outside those sets — and any exception from the inner execution layers (Docker, container manager, score-card validation) — propagates to the caller.
 
 **Pre-conditions:**
 - `DBOS.launch()` already called.
