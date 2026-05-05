@@ -92,7 +92,9 @@ def extract_container_output(container_json_output: dict[str, Any]) -> Container
     try:
         return validate_container_output(container_json_output)
     except (ValidationError, ValueError):
-        results = container_json_output.get("results") or container_json_output.get("test_results")
+        results = container_json_output.get("results") or container_json_output.get(
+            "test_results"
+        )
         if results == {}:
             results = None
 
@@ -197,7 +199,9 @@ def asqi_execute(
 
         # ── Mark all images as available (no Docker needed in-process) ────────
         image_availability: dict[str, bool] = {
-            test.image: True for test in suite.test_suite if getattr(test, "image", None)
+            test.image: True
+            for test in suite.test_suite
+            if getattr(test, "image", None)
         }
 
         # ── Resolve YAML → (systems_params, test_params) ─────────────────────
