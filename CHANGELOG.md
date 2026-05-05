@@ -1,4 +1,20 @@
 # Changelog
+## [0.5.1] - 2026-05-05
+
+### 🚀 Features
+- Add logic for building extra_body.metadata in `get_openai_tracking_kwargs()` (6edbe7d)
+
+### 🐛 Bug Fixes
+- Update changelog's features and documentation lists for metrics registry and imports (d8af922)
+- Refactor code for improved readability and maintainability by applying consistent formatting across multiple files in `src/` (e2ed70f)
+- Add security annotation to dataset loading to address linting issue (8170e64)
+- Update greenlet package URLs and bump pip version to 26.1 (fb2004b)
+- Update sync-to-private-dispatch.yml (6a5b97f)
+- Fix type checking in `get_openai_tracking_kwargs()` (6edbe7d)
+
+### 🧪 Testing
+- Add tests for `src/utils.py` (eabd6ba)
+
 ## [0.5.0] - 2026-04-28
 
 ### 🚀 Features
