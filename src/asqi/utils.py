@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 from asqi.schemas import ExecutionMetadata
 
 
 def get_openai_tracking_kwargs(
-    metadata: Optional[Union[Dict[str, Any], ExecutionMetadata]] = None,
-) -> Dict[str, Any]:
+    metadata: dict[str, Any] | ExecutionMetadata | None = None,
+) -> dict[str, Any]:
     """
     Convert ASQI metadata into kwargs that can be splatted into OpenAI/LiteLLM calls.
 
@@ -51,14 +51,10 @@ def get_openai_tracking_kwargs(
         >>> metadata = {
         ...     "user_id": "user123",
         ...     "custom_field": "experiment_A",
-        ...     "tags": {"job_id": "test-001", "job_type": "test"}
+        ...     "tags": {"job_id": "test-001", "job_type": "test"},
         ... }
         >>> kwargs = get_openai_tracking_kwargs(metadata)
-        >>> client.chat.completions.create(
-        ...     model="gpt-4",
-        ...     messages=[...],
-        ...     **kwargs
-        ... )
+        >>> client.chat.completions.create(model="gpt-4", messages=[...], **kwargs)
     """
     # Convert Pydantic model to dict if needed
     if isinstance(metadata, ExecutionMetadata):
@@ -85,8 +81,13 @@ def get_openai_tracking_kwargs(
             v_str = str(v)
         tags_list.append(f"{k}:{v_str}")
 
-    # Build extra_body.metadata with tags and any other metadata fields
-    extra_metadata = {"tags": tags_list}
+    # Build extra_body.metadata with tags and any other metadata fields.
+    # OpenAI's API rejects an empty list for metadata.tags (it expects a string),
+    # so we only emit `tags` when non-empty. LiteLLM-backed deployments still see
+    # the original list shape when tags are present.
+    extra_metadata: dict[str, Any] = {}
+    if tags_list:
+        extra_metadata["tags"] = tags_list
 
     # Add other top-level metadata fields to extra_body.metadata
     reserved_keys = {"user_id", "tags"}
@@ -94,11 +95,9 @@ def get_openai_tracking_kwargs(
         if key not in reserved_keys:
             extra_metadata[key] = value
 
-    kwargs: Dict[str, Any] = {
-        "extra_body": {
-            "metadata": extra_metadata,
-        }
-    }
+    kwargs: dict[str, Any] = {}
+    if extra_metadata:
+        kwargs["extra_body"] = {"metadata": extra_metadata}
     if user_id:
         kwargs["user"] = user_id
 
