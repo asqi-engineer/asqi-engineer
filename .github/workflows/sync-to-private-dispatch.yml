@@ -37,7 +37,7 @@ jobs:
       - name: Generate Token
         if: steps.check_secrets.outputs.secrets_available == 'true'
         id: get_workflow_token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
