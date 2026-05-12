@@ -3,14 +3,10 @@ import glob
 import os
 import signal
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any
 
 import typer
 import yaml
-from dotenv import load_dotenv
-from pydantic import ValidationError
-from rich.console import Console
-
 from asqi.config import (
     ContainerConfig,
     ExecutionMode,
@@ -18,7 +14,6 @@ from asqi.config import (
     interpolate_env_vars,
     merge_defaults_into_suite,
 )
-from asqi.container_manager import shutdown_containers
 from asqi.errors import (
     AuditResponsesRequiredError,
     DuplicateIDError,
@@ -33,13 +28,17 @@ from asqi.schemas import (
     SystemsConfig,
 )
 from asqi.validation import validate_ids, validate_test_plan
+from asqi.workflow import _get_container_backend
+from dotenv import load_dotenv
+from pydantic import ValidationError
+from rich.console import Console
 
 load_dotenv()
 configure_logging()
 console = Console()
 
 
-def load_yaml_file(file_path: str) -> Dict[str, Any]:
+def load_yaml_file(file_path: str) -> dict[str, Any]:
     """Loads a YAML file with environment variable interpolation.
 
     Args:
@@ -54,7 +53,7 @@ def load_yaml_file(file_path: str) -> Dict[str, Any]:
         PermissionError: If the file cannot be read due to permissions
     """
     try:
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             data = yaml.safe_load(f)
 
         # Apply environment variable interpolation
@@ -62,16 +61,12 @@ def load_yaml_file(file_path: str) -> Dict[str, Any]:
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Configuration file not found: '{file_path}'") from e
     except yaml.YAMLError as e:
-        raise ValueError(
-            f"Invalid YAML syntax in configuration file '{file_path}': {e}"
-        ) from e
+        raise ValueError(f"Invalid YAML syntax in configuration file '{file_path}': {e}") from e
     except PermissionError as e:
-        raise PermissionError(
-            f"Permission denied accessing configuration file '{file_path}'"
-        ) from e
+        raise PermissionError(f"Permission denied accessing configuration file '{file_path}'") from e
 
 
-def load_score_card_file(score_card_path: str) -> Dict[str, Any]:
+def load_score_card_file(score_card_path: str) -> dict[str, Any]:
     """Load and validate grading score card configuration.
 
     Args:
@@ -91,12 +86,10 @@ def load_score_card_file(score_card_path: str) -> Dict[str, Any]:
         ScoreCard(**score_card_data)
         return score_card_data
     except ValidationError as e:
-        raise ValueError(
-            f"Invalid score card configuration in '{score_card_path}': {e}"
-        ) from e
+        raise ValueError(f"Invalid score card configuration in '{score_card_path}': {e}") from e
 
 
-def load_audit_responses_file(audit_responses_path: str) -> Dict[str, Any]:
+def load_audit_responses_file(audit_responses_path: str) -> dict[str, Any]:
     """Load and validate audit responses YAML file."""
     try:
         audit_data = load_yaml_file(audit_responses_path)
@@ -104,16 +97,14 @@ def load_audit_responses_file(audit_responses_path: str) -> Dict[str, Any]:
         AuditResponses(**audit_data)
         return audit_data
     except ValidationError as e:
-        raise ValueError(
-            f"Invalid audit responses configuration in '{audit_responses_path}': {e}"
-        ) from e
+        raise ValueError(f"Invalid audit responses configuration in '{audit_responses_path}': {e}") from e
 
 
 def resolve_audit_options(
-    score_card_data: Dict[str, Any],
-    audit_responses_path: Optional[str],
+    score_card_data: dict[str, Any],
+    audit_responses_path: str | None,
     skip_audit_flag: bool,
-) -> tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """
     Handles all validation and preparation for audit indicators.
 
@@ -142,9 +133,7 @@ def resolve_audit_options(
 
     # Validate conflicting flags
     if audit_responses_path and skip_audit_flag:
-        console.print(
-            "[red]❌ Cannot use --audit-responses and --skip-audit together.[/red]"
-        )
+        console.print("[red]❌ Cannot use --audit-responses and --skip-audit together.[/red]")
         raise typer.Exit(1)
 
     # Require at least one override method
@@ -161,22 +150,18 @@ def resolve_audit_options(
             audit_responses_data = load_audit_responses_file(audit_responses_path)
         except (FileNotFoundError, ValueError, PermissionError) as e:
             console.print(f"[red]❌ audit responses configuration error: {e}[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
     # If skipping audit → remove them from score card
     if skip_audit_flag:
         cleaned_card = dict(score_card_data)
-        cleaned_card["indicators"] = [
-            ind for ind in indicators if ind.get("type") != "audit"
-        ]
+        cleaned_card["indicators"] = [ind for ind in indicators if ind.get("type") != "audit"]
         return cleaned_card, None
 
     return score_card_data, audit_responses_data
 
 
-def load_and_validate_plan(
-    suite_path: str, systems_path: str, manifests_path: str
-) -> Dict[str, Any]:
+def load_and_validate_plan(suite_path: str, systems_path: str, manifests_path: str) -> dict[str, Any]:
     """
     Performs all validation and returns a structured result.
     This function is pure and does not print or exit.
@@ -185,7 +170,7 @@ def load_and_validate_plan(
         A dictionary, e.g., {"status": "success", "errors": []} or
         {"status": "failure", "errors": ["error message"]}.
     """
-    errors: List[str] = []
+    errors: list[str] = []
     try:
         systems_data = load_yaml_file(systems_path)
         systems_config = SystemsConfig(**systems_data)
@@ -195,17 +180,13 @@ def load_and_validate_plan(
         suite_config = SuiteConfig(**suite_data)
 
         # Load manifests - currently just loads locally. TODO: obtain from registry
-        manifests: Dict[str, Manifest] = {}
-        manifest_files = sorted(
-            glob.glob(os.path.join(manifests_path, "**/manifest.yaml"), recursive=True)
-        )
+        manifests: dict[str, Manifest] = {}
+        manifest_files = sorted(glob.glob(os.path.join(manifests_path, "**/manifest.yaml"), recursive=True))
 
         for manifest_path in manifest_files:
             manifest_data = load_yaml_file(manifest_path)
             if not manifest_data:
-                errors.append(
-                    f"Warning: Manifest file at '{manifest_path}' is empty or invalid. Skipping."
-                )
+                errors.append(f"Warning: Manifest file at '{manifest_path}' is empty or invalid. Skipping.")
                 continue
 
             manifest = Manifest(**manifest_data)
@@ -257,14 +238,10 @@ def version_callback(value: bool):
 
 @app.callback()
 def _cli_startup_callback(
-    version: bool = typer.Option(
-        None,
-        "--version",
-        "-V",
-        help="Show version and exit.",
-        callback=version_callback,
-        is_eager=True,
-    ),
+    version: Annotated[
+        bool | None,
+        typer.Option("--version", "-V", help="Show version and exit.", callback=version_callback, is_eager=True),
+    ] = None,
 ):
     """Global CLI callback invoked before any subcommand.
 
@@ -316,27 +293,19 @@ def _handle_shutdown(signum=None, frame=None):
     if not signame:
         return
 
-    console.print(
-        f"[yellow] Shutdown signal received ({signame}). Cleaning up ...[/yellow]"
-    )
-    shutdown_containers()
+    console.print(f"[yellow] Shutdown signal received ({signame}). Cleaning up ...[/yellow]")
+    _get_container_backend().shutdown()
 
-    console.print(
-        "[yellow] Containers stopped. Waiting for workflows to complete...[/yellow]"
-    )
+    console.print("[yellow] Containers stopped. Waiting for workflows to complete...[/yellow]")
 
 
 @app.command("validate", help="Validate test plan configuration without execution.")
 def validate(
-    test_suite_config: str = typer.Option(
-        ..., "--test-suite-config", "-t", help="Path to the test suite YAML file."
-    ),
-    systems_config: str = typer.Option(
-        ..., "--systems-config", "-s", help="Path to the systems YAML file."
-    ),
-    manifests_dir: str = typer.Option(
-        ..., help="Path to dir with test container manifests."
-    ),
+    test_suite_config: Annotated[
+        str, typer.Option("--test-suite-config", "-t", help="Path to the test suite YAML file.")
+    ],
+    systems_config: Annotated[str, typer.Option("--systems-config", "-s", help="Path to the systems YAML file.")],
+    manifests_dir: Annotated[str, typer.Option(help="Path to dir with test container manifests.")],
 ):
     """Validate test plan configuration without execution."""
     console.print("[blue]--- Running Verification ---[/blue]")
@@ -357,74 +326,75 @@ def validate(
         raise typer.Exit(1)
 
     console.print("\n[green]✨ Success! The test plan is valid.[/green]")
-    console.print(
-        "[blue]💡 Use 'execute' or 'execute-tests' commands to run tests.[/blue]"
-    )
+    console.print("[blue]💡 Use 'execute' or 'execute-tests' commands to run tests.[/blue]")
 
 
 @app.command()
 def execute(
-    test_suite_config: str = typer.Option(
-        ..., "--test-suite-config", "-t", help="Path to the test suite YAML file."
-    ),
-    systems_config: str = typer.Option(
-        ..., "--systems-config", "-s", help="Path to the systems YAML file."
-    ),
-    score_card_config: str = typer.Option(
-        ..., "--score-card-config", "-r", help="Path to grading score card YAML file."
-    ),
-    output_file: Optional[str] = typer.Option(
-        "output_scorecard.json",
-        "--output-file",
-        "-o",
-        help="Path to save execution results JSON file.",
-    ),
-    audit_responses: Optional[str] = typer.Option(
-        None,
-        "--audit-responses",
-        "-a",
-        help="Path to YAML file with manual audit indicator responses.",
-    ),
-    skip_audit: bool = typer.Option(
-        False,
-        "--skip-audit",
-        help="Skip 'audit' type indicators if no audit responses are provided.",
-    ),
-    concurrent_tests: int = typer.Option(
-        ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
-        "--concurrent-tests",
-        "-c",
-        min=1,
-        max=20,
-        help=f"Number of tests to run concurrently (must be between 1 and 20, default: {ExecutorConfig.DEFAULT_CONCURRENT_TESTS})",
-    ),
-    max_failures: int = typer.Option(
-        ExecutorConfig.MAX_FAILURES_DISPLAYED,
-        "--max-failures",
-        "-m",
-        min=1,
-        max=10,
-        help=f"Maximum number of failures to display (must be between 1 and 10, default: {ExecutorConfig.MAX_FAILURES_DISPLAYED}).",
-    ),
-    progress_interval: int = typer.Option(
-        ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
-        "--progress-interval",
-        "-p",
-        min=1,
-        max=10,
-        help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
-    ),
-    container_config_file: Optional[str] = typer.Option(
-        None,
-        "--container-config",
-        help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
-    ),
-    datasets_config: Optional[str] = typer.Option(
-        None,
-        "--datasets-config",
-        "-d",
-        help="Path to the datasets registry YAML file containing reusable dataset definitions.",
-    ),
+    test_suite_config: Annotated[
+        str, typer.Option("--test-suite-config", "-t", help="Path to the test suite YAML file.")
+    ],
+    systems_config: Annotated[str, typer.Option("--systems-config", "-s", help="Path to the systems YAML file.")],
+    score_card_config: Annotated[
+        str, typer.Option("--score-card-config", "-r", help="Path to grading score card YAML file.")
+    ],
+    output_file: Annotated[
+        str | None,
+        typer.Option("--output-file", "-o", help="Path to save execution results JSON file."),
+    ] = "output_scorecard.json",
+    audit_responses: Annotated[
+        str | None,
+        typer.Option("--audit-responses", "-a", help="Path to YAML file with manual audit indicator responses."),
+    ] = None,
+    skip_audit: Annotated[
+        bool,
+        typer.Option("--skip-audit", help="Skip 'audit' type indicators if no audit responses are provided."),
+    ] = False,
+    concurrent_tests: Annotated[
+        int,
+        typer.Option(
+            "--concurrent-tests",
+            "-c",
+            min=1,
+            max=20,
+            help=f"Number of tests to run concurrently (default: {ExecutorConfig.DEFAULT_CONCURRENT_TESTS}).",
+        ),
+    ] = ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+    max_failures: Annotated[
+        int,
+        typer.Option(
+            "--max-failures",
+            "-m",
+            min=1,
+            max=10,
+            help=f"Maximum number of failures to display (default: {ExecutorConfig.MAX_FAILURES_DISPLAYED}).",
+        ),
+    ] = ExecutorConfig.MAX_FAILURES_DISPLAYED,
+    progress_interval: Annotated[
+        int,
+        typer.Option(
+            "--progress-interval",
+            "-p",
+            min=1,
+            max=10,
+            help=f"Progress update interval (default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
+        ),
+    ] = ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+    container_config_file: Annotated[
+        str | None,
+        typer.Option(
+            "--container-config",
+            help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
+        ),
+    ] = None,
+    datasets_config: Annotated[
+        str | None,
+        typer.Option(
+            "--datasets-config",
+            "-d",
+            help="Path to the datasets registry YAML file containing reusable dataset definitions.",
+        ),
+    ] = None,
 ):
     """Execute the complete end-to-end workflow: tests + score cards (requires Docker)."""
     console.print("[blue]--- 🚀 Executing End-to-End Workflow ---[/blue]")
@@ -460,7 +430,7 @@ def execute(
             )
         except (FileNotFoundError, ValueError, PermissionError) as e:
             console.print(f"[red]❌ score card configuration error: {e}[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
         # Handle audit logic
         try:
@@ -471,7 +441,7 @@ def execute(
             )
         except AuditResponsesRequiredError as e:
             console.print(f"[red]❌ {e}[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
         score_card_configs = [score_card_data]
 
@@ -487,74 +457,76 @@ def execute(
             audit_responses_data=audit_responses_data,
         )
 
-        console.print(
-            f"\n[green]✨ Execution completed! Workflow ID: {workflow_id}[/green]"
-        )
+        console.print(f"\n[green]✨ Execution completed! Workflow ID: {workflow_id}[/green]")
 
     except ImportError:
         console.print("[red]❌ Error: DBOS workflow dependencies not available.[/red]")
         console.print("[yellow]Install with: pip install dbos[/yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as e:
         console.print(f"[red]❌ Execution failed: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command(name="execute-tests")
 def execute_tests(
-    test_suite_config: str = typer.Option(
-        ..., "--test-suite-config", "-t", help="Path to the test suite YAML file."
-    ),
-    systems_config: str = typer.Option(
-        ..., "--systems-config", "-s", help="Path to the systems YAML file."
-    ),
-    output_file: Optional[str] = typer.Option(
-        "output.json",
-        "--output-file",
-        "-o",
-        help="Path to save execution results JSON file.",
-    ),
-    test_ids: Optional[List[str]] = typer.Option(
-        None,
-        "--test-ids",
-        "-tids",
-        help="Comma-separated list of test ids to run (matches suite test ids).",
-    ),
-    concurrent_tests: int = typer.Option(
-        ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
-        "--concurrent-tests",
-        "-c",
-        min=1,
-        max=20,
-        help=f"Number of tests to run concurrently (must be between 1 and 20, default: {ExecutorConfig.DEFAULT_CONCURRENT_TESTS})",
-    ),
-    max_failures: int = typer.Option(
-        ExecutorConfig.MAX_FAILURES_DISPLAYED,
-        "--max-failures",
-        "-m",
-        min=1,
-        max=10,
-        help=f"Maximum number of failures to display (must be between 1 and 10, default: {ExecutorConfig.MAX_FAILURES_DISPLAYED}).",
-    ),
-    progress_interval: int = typer.Option(
-        ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
-        "--progress-interval",
-        "-p",
-        min=1,
-        max=10,
-        help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
-    ),
-    container_config_file: Optional[str] = typer.Option(
-        None,
-        "--container-config",
-        help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
-    ),
-    datasets_config: Optional[str] = typer.Option(
-        None,
-        "--datasets-config",
-        "-d",
-        help="Path to the datasets registry YAML file containing reusable dataset definitions.",
-    ),
+    test_suite_config: Annotated[
+        str, typer.Option("--test-suite-config", "-t", help="Path to the test suite YAML file.")
+    ],
+    systems_config: Annotated[str, typer.Option("--systems-config", "-s", help="Path to the systems YAML file.")],
+    output_file: Annotated[
+        str | None,
+        typer.Option("--output-file", "-o", help="Path to save execution results JSON file."),
+    ] = "output.json",
+    test_ids: Annotated[
+        list[str] | None,
+        typer.Option("--test-ids", "-tids", help="Comma-separated list of test ids to run (matches suite test ids)."),
+    ] = None,
+    concurrent_tests: Annotated[
+        int,
+        typer.Option(
+            "--concurrent-tests",
+            "-c",
+            min=1,
+            max=20,
+            help=f"Number of tests to run concurrently (default: {ExecutorConfig.DEFAULT_CONCURRENT_TESTS}).",
+        ),
+    ] = ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+    max_failures: Annotated[
+        int,
+        typer.Option(
+            "--max-failures",
+            "-m",
+            min=1,
+            max=10,
+            help=f"Maximum number of failures to display (default: {ExecutorConfig.MAX_FAILURES_DISPLAYED}).",
+        ),
+    ] = ExecutorConfig.MAX_FAILURES_DISPLAYED,
+    progress_interval: Annotated[
+        int,
+        typer.Option(
+            "--progress-interval",
+            "-p",
+            min=1,
+            max=10,
+            help=f"Progress update interval (default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
+        ),
+    ] = ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+    container_config_file: Annotated[
+        str | None,
+        typer.Option(
+            "--container-config",
+            help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
+        ),
+    ] = None,
+    datasets_config: Annotated[
+        str | None,
+        typer.Option(
+            "--datasets-config",
+            "-d",
+            help="Path to the datasets registry YAML file containing reusable dataset definitions.",
+        ),
+    ] = None,
 ):
     """Execute only the test suite, skip score card evaluation (requires Docker)."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
@@ -595,68 +567,74 @@ def execute_tests(
             container_config=container_config,
         )
 
-        console.print(
-            f"\n[green]✨ Test execution completed! Workflow ID: {workflow_id}[/green]"
-        )
+        console.print(f"\n[green]✨ Test execution completed! Workflow ID: {workflow_id}[/green]")
 
     except ImportError:
         console.print("[red]❌ Error: DBOS workflow dependencies not available.[/red]")
         console.print("[yellow]Install with: pip install dbos[/yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as e:
         console.print(f"[red]❌ Test execution failed: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command(name="generate-dataset")
 def generate_dataset(
-    generation_config: str = typer.Option(
-        ..., "--generation-config", "-t", help="Path to the Generation YAML file."
-    ),
-    systems_config: Optional[str] = typer.Option(
-        None, "--systems-config", "-s", help="Path to the systems YAML file."
-    ),
-    output_file: Optional[str] = typer.Option(
-        "output.json",
-        "--output-file",
-        "-o",
-        help="Path to save execution results JSON file.",
-    ),
-    concurrent_tests: int = typer.Option(
-        ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
-        "--concurrent-tests",
-        "-c",
-        min=1,
-        max=20,
-        help=f"Number of tests to run concurrently (must be between 1 and 20, default: {ExecutorConfig.DEFAULT_CONCURRENT_TESTS})",
-    ),
-    max_failures: int = typer.Option(
-        ExecutorConfig.MAX_FAILURES_DISPLAYED,
-        "--max-failures",
-        "-m",
-        min=1,
-        max=10,
-        help=f"Maximum number of failures to display (must be between 1 and 10, default: {ExecutorConfig.MAX_FAILURES_DISPLAYED}).",
-    ),
-    progress_interval: int = typer.Option(
-        ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
-        "--progress-interval",
-        "-p",
-        min=1,
-        max=10,
-        help=f"Progress update interval (must be between 1 and 10, default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
-    ),
-    container_config_file: Optional[str] = typer.Option(
-        None,
-        "--container-config",
-        help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
-    ),
-    datasets_config: Optional[str] = typer.Option(
-        None,
-        "--datasets-config",
-        "-d",
-        help="Path to the datasets registry YAML file containing reusable dataset definitions.",
-    ),
+    generation_config: Annotated[
+        str, typer.Option("--generation-config", "-t", help="Path to the Generation YAML file.")
+    ],
+    systems_config: Annotated[
+        str | None, typer.Option("--systems-config", "-s", help="Path to the systems YAML file.")
+    ] = None,
+    output_file: Annotated[
+        str | None,
+        typer.Option("--output-file", "-o", help="Path to save execution results JSON file."),
+    ] = "output.json",
+    concurrent_tests: Annotated[
+        int,
+        typer.Option(
+            "--concurrent-tests",
+            "-c",
+            min=1,
+            max=20,
+            help=f"Number of tests to run concurrently (default: {ExecutorConfig.DEFAULT_CONCURRENT_TESTS}).",
+        ),
+    ] = ExecutorConfig.DEFAULT_CONCURRENT_TESTS,
+    max_failures: Annotated[
+        int,
+        typer.Option(
+            "--max-failures",
+            "-m",
+            min=1,
+            max=10,
+            help=f"Maximum number of failures to display (default: {ExecutorConfig.MAX_FAILURES_DISPLAYED}).",
+        ),
+    ] = ExecutorConfig.MAX_FAILURES_DISPLAYED,
+    progress_interval: Annotated[
+        int,
+        typer.Option(
+            "--progress-interval",
+            "-p",
+            min=1,
+            max=10,
+            help=f"Progress update interval (default: {ExecutorConfig.PROGRESS_UPDATE_INTERVAL}).",
+        ),
+    ] = ExecutorConfig.PROGRESS_UPDATE_INTERVAL,
+    container_config_file: Annotated[
+        str | None,
+        typer.Option(
+            "--container-config",
+            help="Optional path to container configuration YAML. If not provided, built-in defaults are used.",
+        ),
+    ] = None,
+    datasets_config: Annotated[
+        str | None,
+        typer.Option(
+            "--datasets-config",
+            "-d",
+            help="Path to the datasets registry YAML file containing reusable dataset definitions.",
+        ),
+    ] = None,
 ):
     """Generate synthetic data using data generation containers."""
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
@@ -692,44 +670,35 @@ def generate_dataset(
             output_path=output_file,
         )
 
-        console.print(
-            f"\n[green]✨ Data Generation Completed! Workflow ID: {workflow_id}[/green]"
-        )
+        console.print(f"\n[green]✨ Data Generation Completed! Workflow ID: {workflow_id}[/green]")
 
     except ImportError:
         console.print("[red]❌ Error: DBOS workflow dependencies not available.[/red]")
         console.print("[yellow]Install with: pip install dbos[/yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as e:
         console.print(f"[red]❌ Test execution failed: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command(name="evaluate-score-cards")
 def evaluate_score_cards(
-    input_file: str = typer.Option(
-        ..., help="Path to JSON file with existing test results."
-    ),
-    score_card_config: str = typer.Option(
-        ..., "--score-card-config", "-r", help="Path to grading score card YAML file."
-    ),
-    output_file: Optional[str] = typer.Option(
-        "output_scorecard.json",
-        "--output-file",
-        "-o",
-        help="Path to save evaluation results JSON file.",
-    ),
-    audit_responses: Optional[str] = typer.Option(
-        None,
-        "--audit-responses",
-        "-a",
-        help="Path to YAML file with manual audit indicator responses.",
-    ),
-    skip_audit: bool = typer.Option(
-        False,
-        "--skip-audit",
-        help="Skip 'audit' type indicators if no audit responses are provided.",
-    ),
+    input_file: Annotated[str, typer.Option(help="Path to JSON file with existing test results.")],
+    score_card_config: Annotated[
+        str, typer.Option("--score-card-config", "-r", help="Path to grading score card YAML file.")
+    ],
+    output_file: Annotated[
+        str | None,
+        typer.Option("--output-file", "-o", help="Path to save evaluation results JSON file."),
+    ] = "output_scorecard.json",
+    audit_responses: Annotated[
+        str | None,
+        typer.Option("--audit-responses", "-a", help="Path to YAML file with manual audit indicator responses."),
+    ] = None,
+    skip_audit: Annotated[
+        bool,
+        typer.Option("--skip-audit", help="Skip 'audit' type indicators if no audit responses are provided."),
+    ] = False,
 ):
     """Evaluate score cards against existing test results from JSON file."""
     console.print("[blue]--- 📊 Evaluating Score Cards ---[/blue]")
@@ -753,7 +722,7 @@ def evaluate_score_cards(
             )
         except (FileNotFoundError, ValueError, PermissionError) as e:
             console.print(f"[red]❌ score card configuration error: {e}[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
         # Handle audit logic
         try:
@@ -764,7 +733,7 @@ def evaluate_score_cards(
             )
         except AuditResponsesRequiredError as e:
             console.print(f"[red]❌ {e}[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
         score_card_configs = [score_card_data]
 
@@ -775,17 +744,15 @@ def evaluate_score_cards(
             output_path=output_file,
         )
 
-        console.print(
-            f"\n[green]✨ Score card evaluation completed! Workflow ID: {workflow_id}[/green]"
-        )
+        console.print(f"\n[green]✨ Score card evaluation completed! Workflow ID: {workflow_id}[/green]")
 
     except ImportError:
         console.print("[red]❌ Error: DBOS workflow dependencies not available.[/red]")
         console.print("[yellow]Install with: pip install dbos[/yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as e:
         console.print(f"[red]❌ Score card evaluation failed: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 # Expose the Click object for sphinx_click documentation

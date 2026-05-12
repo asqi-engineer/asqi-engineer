@@ -5,13 +5,10 @@ import threading
 from contextlib import contextmanager
 from difflib import get_close_matches
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
-import yaml
-from docker.types import Mount
-from requests import exceptions as requests_exceptions
+from typing import Any
 
 import docker
+import yaml
 from asqi.config import ContainerConfig
 from asqi.errors import (
     ManifestExtractionError,
@@ -21,6 +18,8 @@ from asqi.errors import (
 from asqi.logging_config import create_container_logger
 from asqi.schemas import Manifest
 from docker import errors as docker_errors
+from docker.types import Mount
+from requests import exceptions as requests_exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ def docker_client():
         client.close()
 
 
-def check_images_availability(images: List[str]) -> Dict[str, bool]:
+def check_images_availability(images: list[str]) -> dict[str, bool]:
     """
     Check if Docker images are available locally.
     - Tries to fetch each image by exact name:tag.
@@ -58,7 +57,7 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
         Dict mapping image -> True/False indicating availability
 
     """
-    availability: Dict[str, bool] = {}
+    availability: dict[str, bool] = {}
 
     # First pass: check availability
     with docker_client() as client:
@@ -72,12 +71,12 @@ def check_images_availability(images: List[str]) -> Dict[str, bool]:
                 logger.warning(f"Docker API error checking {image}: {e}")
                 availability[image] = False
             except ConnectionError as e:
-                raise ConnectionError(f"Failed to connect to Docker daemon: {e}")
+                raise ConnectionError(f"Failed to connect to Docker daemon: {e}") from e
 
     return availability
 
 
-def pull_images(images: List[str]):
+def pull_images(images: list[str]):
     """
     Pull Docker images from registry if not available locally.
 
@@ -153,9 +152,7 @@ def pull_images(images: List[str]):
     raise MissingImageError("\n\n".join(msgs))
 
 
-def extract_manifest_from_image(
-    image: str, manifest_path: str = "/app/manifest.yaml"
-) -> Optional[Manifest]:
+def extract_manifest_from_image(image: str, manifest_path: str = "/app/manifest.yaml") -> Manifest | None:
     """
     Extract and parse manifest.yaml from a Docker image.
 
@@ -174,19 +171,15 @@ def extract_manifest_from_image(
         try:
             # Create container without starting it
             try:
-                container = client.containers.create(
-                    image, command="echo 'manifest extraction'", detach=True
-                )
+                container = client.containers.create(image, command="echo 'manifest extraction'", detach=True)
             except docker_errors.ImageNotFound as e:
-                raise ManifestExtractionError(
-                    f"Docker image '{image}' not found", "IMAGE_NOT_FOUND", e
-                )
+                raise ManifestExtractionError(f"Docker image '{image}' not found", "IMAGE_NOT_FOUND", e) from e
             except docker_errors.APIError as e:
                 raise ManifestExtractionError(
                     f"Docker API error while creating container for image '{image}': {e}",
                     "DOCKER_API_ERROR",
                     e,
-                )
+                ) from e
 
             # Create temporary directory for extraction
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -201,13 +194,13 @@ def extract_manifest_from_image(
                         f"Manifest file '{manifest_path}' not found in image '{image}'",
                         "MANIFEST_FILE_NOT_FOUND",
                         e,
-                    )
+                    ) from e
                 except docker_errors.APIError as e:
                     raise ManifestExtractionError(
                         f"Docker API error while extracting manifest from image '{image}': {e}",
                         "DOCKER_API_ERROR",
                         e,
-                    )
+                    ) from e
 
                 # Extract tar data
                 import io
@@ -222,24 +215,20 @@ def extract_manifest_from_image(
                     # Note: avoid tarfile.extractall used without any validation. Extract only the manifest file
                     with tarfile.open(fileobj=tar_stream, mode="r") as tar:
                         for member in tar.getmembers():
-                            if (
-                                member.isfile()
-                                and not member.name.startswith("/")
-                                and ".." not in member.name
-                            ):
+                            if member.isfile() and not member.name.startswith("/") and ".." not in member.name:
                                 tar.extract(member, temp_path)
                 except tarfile.TarError as e:
                     raise ManifestExtractionError(
                         f"Invalid tar archive from image '{image}': {e}",
                         "TAR_EXTRACTION_ERROR",
                         e,
-                    )
-                except IOError as e:
+                    ) from e
+                except OSError as e:
                     raise ManifestExtractionError(
                         f"I/O error extracting tar archive from image '{image}': {e}",
                         "TAR_IO_ERROR",
                         e,
-                    )
+                    ) from e
 
                 # Read and parse manifest
                 if not local_manifest_path.exists():
@@ -249,20 +238,20 @@ def extract_manifest_from_image(
                     )
 
                 try:
-                    with open(local_manifest_path, "r") as f:
+                    with open(local_manifest_path) as f:
                         manifest_data = yaml.safe_load(f)
                 except yaml.YAMLError as e:
                     raise ManifestExtractionError(
                         f"Failed to parse YAML in manifest file from image '{image}': {e}",
                         "YAML_PARSING_ERROR",
                         e,
-                    )
-                except (IOError, OSError) as e:
+                    ) from e
+                except OSError as e:
                     raise ManifestExtractionError(
                         f"Failed to read manifest file from image '{image}': {e}",
                         "FILE_READ_ERROR",
                         e,
-                    )
+                    ) from e
 
                 if manifest_data is None:
                     raise ManifestExtractionError(
@@ -277,7 +266,7 @@ def extract_manifest_from_image(
                         f"Failed to validate manifest schema from image '{image}': {e}",
                         "SCHEMA_VALIDATION_ERROR",
                         e,
-                    )
+                    ) from e
 
         except ManifestExtractionError:
             # Re-raise our custom exceptions
@@ -287,7 +276,7 @@ def extract_manifest_from_image(
                 f"Unexpected error while extracting manifest from image '{image}': {e}",
                 "UNEXPECTED_ERROR",
                 e,
-            )
+            ) from e
         finally:
             # Clean up container
             if container:
@@ -304,7 +293,7 @@ def _resolve_abs(p: str) -> str:
     - Expands '~' (user home) if present.
     - Converts relative paths to absolute.
     - Ensures normalization (resolves '..' and symlinks).
-    - Unlike realpath, it doesn’t require the path to exist.
+    - Unlike realpath, it doesn't require the path to exist.
 
     Args:
         p: Input path string.
@@ -320,7 +309,7 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
     Translate a devcontainer path to its corresponding host path if possible.
 
     - If the path starts with `/workspaces/...`, attempts to resolve it
-      to the host machine’s mount path using Docker inspection.
+      to the host machine's mount path using Docker inspection.
     - Otherwise, assumes it's already a host path and just normalizes it.
 
     Args:
@@ -353,7 +342,7 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
             match = re.search(r"/docker/([a-f0-9]{64})", mountinfo)
             if match:
                 cid = match.group(1)
-        except Exception:  # nosec B110 fallback to hostname
+        except Exception:  # nosec B110 fallback to hostname  # noqa: S110
             pass
 
         if not cid:
@@ -371,9 +360,7 @@ def _devcontainer_host_path(client, maybe_dev_path: str) -> str:
     return _resolve_abs(maybe_dev_path)
 
 
-def _extract_mounts_from_args(
-    client, args: List[str]
-) -> Tuple[List[str], Optional[List[Mount]]]:
+def _extract_mounts_from_args(client, args: list[str]) -> tuple[list[str], list[Mount] | None]:
     """
     Extract and validate volume mount definitions from the '--test-params' CLI argument.
 
@@ -405,7 +392,7 @@ def _extract_mounts_from_args(
         return args, None
 
     new_args = list(args)
-    mounts: List[Mount] = []
+    mounts: list[Mount] = []
 
     try:
         PARAM_FLAGS = ("--test-params", "--generation-params")
@@ -453,13 +440,13 @@ def _extract_mounts_from_args(
 
 def run_container_with_args(
     image: str,
-    args: List[str],
+    args: list[str],
     container_config: ContainerConfig,
-    environment: Optional[Dict[str, str]] = None,
-    name: Optional[str] = None,
+    environment: dict[str, str] | None = None,
+    name: str | None = None,
     workflow_id: str = "",
-    manifest: Optional[Manifest] = None,
-) -> Dict[str, Any]:
+    manifest: Manifest | None = None,
+) -> dict[str, Any]:
     """
     Run a Docker container with specified arguments and return results.
 
@@ -488,9 +475,7 @@ def run_container_with_args(
 
     with _active_lock:
         if _shutdown_in_progress:
-            logger.warning(
-                f"Attempting to run container '{image}' during shutdown, skipping..."
-            )
+            logger.warning(f"Attempting to run container '{image}' during shutdown, skipping...")
             return result
     with docker_client() as client:
         container = None
@@ -510,9 +495,7 @@ def run_container_with_args(
                 for mount in mounts:
                     if mount["Target"] == str(OUTPUT_MOUNT_PATH):
                         env["HOST_OUTPUT_PATH"] = mount["Source"]
-                        logger.info(
-                            f"Set HOST_OUTPUT_PATH to {mount['Source']} for Docker-in-Docker support"
-                        )
+                        logger.info(f"Set HOST_OUTPUT_PATH to {mount['Source']} for Docker-in-Docker support")
 
             # Prepare run parameters
             run_kwargs = {
@@ -559,9 +542,7 @@ def run_container_with_args(
                     # Wait on shutdown event - wakes immediately if shutdown signaled
                     # Otherwise timeout after check_interval to poll container status
                     if _shutdown_event.wait(timeout=check_interval):
-                        logger.info(
-                            f"Shutdown detected, stopping container {container.id}"
-                        )
+                        logger.info(f"Shutdown detected, stopping container {container.id}")
                         try:
                             container.kill()
                         except (docker_errors.APIError, docker_errors.NotFound):
@@ -585,9 +566,7 @@ def run_container_with_args(
                         container.kill()
                     except (docker_errors.APIError, docker_errors.NotFound) as e:
                         logger.warning(f"Failed to kill container {container.id}: {e}")
-                    raise TimeoutError(
-                        f"Container exceeded timeout of {max_execution_time}s"
-                    )
+                    raise TimeoutError(f"Container exceeded timeout of {max_execution_time}s")
 
             except docker_errors.APIError as api_error:
                 # Docker API error during wait; attempt to kill and report
@@ -595,9 +574,7 @@ def run_container_with_args(
                     container.kill()
                 except (docker_errors.APIError, docker_errors.NotFound) as e:
                     logger.warning(f"Failed to kill container {container.id}: {e}")
-                result["error"] = (
-                    f"Container execution failed with API error: {api_error}"
-                )
+                result["error"] = f"Container execution failed with API error: {api_error}"
                 return result
 
             # Get output (use streamed output if available, otherwise get all logs)
@@ -606,9 +583,7 @@ def run_container_with_args(
                     result["output"] = "\n".join(output_lines)
                 else:
                     logger.debug(f"container.logs() : {container.logs()}")
-                    result["output"] = container.logs().decode(
-                        "utf-8", errors="replace"
-                    )
+                    result["output"] = container.logs().decode("utf-8", errors="replace")
             except (
                 UnicodeDecodeError,
                 docker_errors.APIError,
@@ -639,9 +614,7 @@ def run_container_with_args(
                 f"Container execution timed out after {container_config.timeout_seconds}s for image '{image}': {e}"
             )
         except ConnectionError as e:
-            raise ConnectionError(
-                f"Failed to connect to Docker daemon while running image '{image}': {e}"
-            )
+            raise ConnectionError(f"Failed to connect to Docker daemon while running image '{image}': {e}") from e
         finally:
             _decommission_container(container, container_config)
     return result
@@ -673,7 +646,7 @@ def shutdown_containers() -> None:
 
 def _decommission_container(
     container,
-    container_config: Optional[ContainerConfig] = None,
+    container_config: ContainerConfig | None = None,
 ) -> None:
     if not container:
         return
@@ -702,3 +675,53 @@ def _decommission_container(
     # Remove from active set
     with _active_lock:
         _active_containers.discard(container.id)
+
+
+class DockerBackend:
+    def run(
+        self,
+        image: str,
+        args: list[str],
+        container_config: ContainerConfig,
+        environment: dict[str, str] | None = None,
+        name: str | None = None,
+        workflow_id: str = "",
+        manifest: Manifest | None = None,
+    ) -> dict[str, Any]:
+        return run_container_with_args(
+            image=image,
+            args=args,
+            container_config=container_config,
+            environment=environment,
+            name=name,
+            workflow_id=workflow_id,
+            manifest=manifest,
+        )
+
+    def shutdown(self, workflow_ids: list[str] | None = None) -> None:
+        if workflow_ids is None:
+            shutdown_containers()
+            return
+
+        workflow_id_set = set(workflow_ids)
+        with docker_client() as client:
+            try:
+                containers = client.containers.list(all=True)
+            except Exception as e:
+                logger.error(f"Docker cleanup skipped: could not list containers: {e}")
+                return
+
+            for container in containers:
+                labels = getattr(container, "labels", {}) or {}
+                workflow_id = labels.get("workflow_id", "")
+                if workflow_id in workflow_id_set or workflow_id[:36] in workflow_id_set:
+                    _decommission_container(container)
+
+    def check_images(self, images: list[str]) -> dict[str, bool]:
+        return check_images_availability(images)
+
+    def pull_images(self, images: list[str]) -> None:
+        pull_images(images)
+
+    def extract_manifest(self, image: str, manifest_path: str = ContainerConfig.MANIFEST_PATH) -> Manifest | None:
+        return extract_manifest_from_image(image, manifest_path)

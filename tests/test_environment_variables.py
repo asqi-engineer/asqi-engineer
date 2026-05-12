@@ -1,7 +1,6 @@
 from unittest.mock import patch
 
 import pytest
-
 from asqi.config import ContainerConfig
 from asqi.schemas import (
     EmbeddingAPIConfig,
@@ -331,7 +330,7 @@ class TestEnvironmentVariables:
         # Ensure config is not nested
         assert "config" not in system_params
 
-    @patch("asqi.workflow.run_container_with_args")
+    @patch("asqi.workflow._get_container_backend")
     def test_execute_single_test_passes_environment_variable_from_dotenv(
         self, mock_run_container, tmp_path, monkeypatch
     ):
@@ -352,7 +351,7 @@ class TestEnvironmentVariables:
         }
 
         # Mock the container result
-        mock_run_container.return_value = {
+        mock_run_container.return_value.run.return_value = {
             "success": True,
             "exit_code": 0,
             "output": '{"success": true, "score": 0.8}',
@@ -374,16 +373,14 @@ class TestEnvironmentVariables:
         )
 
         # Verify run_container_with_args was called with environment variables from custom.env
-        mock_run_container.assert_called_once()
-        call_kwargs = mock_run_container.call_args[1]
+        mock_run_container.return_value.run.assert_called_once()
+        call_kwargs = mock_run_container.return_value.run.call_args[1]
 
         assert "environment" in call_kwargs
         assert call_kwargs["environment"]["TEST_API_KEY"] == "test_secret_key_12345"
 
-    @patch("asqi.workflow.run_container_with_args")
-    def test_execute_single_test_explicit_api_key_only(
-        self, mock_run_container, tmp_path, monkeypatch
-    ):
+    @patch("asqi.workflow._get_container_backend")
+    def test_execute_single_test_explicit_api_key_only(self, mock_run_container, tmp_path, monkeypatch):
         """Test that only explicit api_key is passed to container."""
         # Create .env file that should NOT be automatically loaded
         dotenv_content = "API_KEY=test_secret_key_12345\n"
@@ -401,7 +398,7 @@ class TestEnvironmentVariables:
         }
 
         # Mock the container result
-        mock_run_container.return_value = {
+        mock_run_container.return_value.run.return_value = {
             "success": True,
             "exit_code": 0,
             "output": '{"success": true, "score": 0.9}',
@@ -423,15 +420,15 @@ class TestEnvironmentVariables:
         )
 
         # Verify only the explicit API key is passed (no automatic .env loading)
-        mock_run_container.assert_called_once()
-        call_kwargs = mock_run_container.call_args[1]
+        mock_run_container.return_value.run.assert_called_once()
+        call_kwargs = mock_run_container.return_value.run.call_args[1]
 
         assert "environment" in call_kwargs
         assert call_kwargs["environment"]["API_KEY"] == "sk-123"
         # Verify .env file variables are NOT automatically loaded
         assert "TEST_SECRET_KEY" not in call_kwargs["environment"]
 
-    @patch("asqi.workflow.run_container_with_args")
+    @patch("asqi.workflow._get_container_backend")
     def test_test_level_env_file(self, mock_run_container, tmp_path, monkeypatch):
         """Test that test-level env_file loads environment variables."""
         test_env_content = "TEST_VAR=test_value\nANOTHER_VAR=another_value\n"
@@ -445,7 +442,7 @@ class TestEnvironmentVariables:
             "model": "gpt-4o-mini",
         }
 
-        mock_run_container.return_value = {
+        mock_run_container.return_value.run.return_value = {
             "success": True,
             "exit_code": 0,
             "output": '{"success": true}',
@@ -467,14 +464,12 @@ class TestEnvironmentVariables:
             environment=None,
         )
 
-        call_kwargs = mock_run_container.call_args[1]
+        call_kwargs = mock_run_container.return_value.run.call_args[1]
         assert call_kwargs["environment"]["TEST_VAR"] == "test_value"
         assert call_kwargs["environment"]["ANOTHER_VAR"] == "another_value"
 
-    @patch("asqi.workflow.run_container_with_args")
-    def test_test_level_environment_dict(
-        self, mock_run_container, tmp_path, monkeypatch
-    ):
+    @patch("asqi.workflow._get_container_backend")
+    def test_test_level_environment_dict(self, mock_run_container, tmp_path, monkeypatch):
         """Test that test-level environment dict sets env vars."""
         monkeypatch.chdir(tmp_path)
 
@@ -484,7 +479,7 @@ class TestEnvironmentVariables:
             "model": "gpt-4o-mini",
         }
 
-        mock_run_container.return_value = {
+        mock_run_container.return_value.run.return_value = {
             "success": True,
             "exit_code": 0,
             "output": '{"success": true}',
@@ -506,11 +501,11 @@ class TestEnvironmentVariables:
             environment={"CUSTOM_VAR": "custom_value", "ANOTHER": "value2"},
         )
 
-        call_kwargs = mock_run_container.call_args[1]
+        call_kwargs = mock_run_container.return_value.run.call_args[1]
         assert call_kwargs["environment"]["CUSTOM_VAR"] == "custom_value"
         assert call_kwargs["environment"]["ANOTHER"] == "value2"
 
-    @patch("asqi.workflow.run_container_with_args")
+    @patch("asqi.workflow._get_container_backend")
     def test_environment_interpolation(self, mock_run_container, tmp_path, monkeypatch):
         """Test that environment dict supports ${VAR} interpolation."""
         monkeypatch.chdir(tmp_path)
@@ -522,7 +517,7 @@ class TestEnvironmentVariables:
             "model": "gpt-4o-mini",
         }
 
-        mock_run_container.return_value = {
+        mock_run_container.return_value.run.return_value = {
             "success": True,
             "exit_code": 0,
             "output": '{"success": true}',
@@ -544,13 +539,11 @@ class TestEnvironmentVariables:
             environment={"OPENAI_API_KEY": "${MY_SECRET_KEY}"},
         )
 
-        call_kwargs = mock_run_container.call_args[1]
+        call_kwargs = mock_run_container.return_value.run.call_args[1]
         assert call_kwargs["environment"]["OPENAI_API_KEY"] == "interpolated_secret"
 
-    @patch("asqi.workflow.run_container_with_args")
-    def test_merge_priority_test_over_system(
-        self, mock_run_container, tmp_path, monkeypatch
-    ):
+    @patch("asqi.workflow._get_container_backend")
+    def test_merge_priority_test_over_system(self, mock_run_container, tmp_path, monkeypatch):
         """Test that test-level env vars override system-level ones."""
         # Create system-level .env
         system_env_content = "SHARED_VAR=system_value\nSYSTEM_ONLY=sys_value\n"
@@ -571,7 +564,7 @@ class TestEnvironmentVariables:
             "env_file": "system.env",
         }
 
-        mock_run_container.return_value = {
+        mock_run_container.return_value.run.return_value = {
             "success": True,
             "exit_code": 0,
             "output": '{"success": true}',
@@ -594,7 +587,7 @@ class TestEnvironmentVariables:
         )
 
         # Verify merge priority: test-level overrides system-level
-        call_kwargs = mock_run_container.call_args[1]
+        call_kwargs = mock_run_container.return_value.run.call_args[1]
         assert call_kwargs["environment"]["SHARED_VAR"] == "test_value"  # Overridden
         assert call_kwargs["environment"]["SYSTEM_ONLY"] == "sys_value"  # From system
         assert call_kwargs["environment"]["TEST_ONLY"] == "test_value"  # From test

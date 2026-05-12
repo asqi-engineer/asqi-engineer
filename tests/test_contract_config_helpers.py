@@ -17,13 +17,13 @@ from typing import Any, ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
+from asqi.backends.docker_backend import extract_manifest_from_image
 from asqi.config import (
     ContainerConfig,
     ExecutionMode,
     ExecutorConfig,
     merge_defaults_into_suite,
 )
-from asqi.container_manager import extract_manifest_from_image
 from asqi.errors import (
     AuditResponsesRequiredError,
     ManifestExtractionError,
@@ -249,7 +249,7 @@ class TestExtractManifestFromImageContract:
         """Maps docker.errors.ImageNotFound to error_type='IMAGE_NOT_FOUND'."""
         from docker import errors as docker_errors
 
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             client = MagicMock()
             client.containers.create.side_effect = docker_errors.ImageNotFound("no such image")
             mock_client_ctx.return_value.__enter__.return_value = client
@@ -267,7 +267,7 @@ class TestExtractManifestFromImageContract:
         container.get_archive.side_effect = docker_errors.NotFound("manifest.yaml absent")
         client = MagicMock()
         client.containers.create.return_value = container
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("img:latest")
@@ -285,7 +285,7 @@ class TestExtractManifestFromImageContract:
     def test_docker_api_error_on_create_maps_to_docker_api_error(self):
         from docker import errors as docker_errors
 
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             client = MagicMock()
             client.containers.create.side_effect = docker_errors.APIError("daemon unhappy")
             mock_client_ctx.return_value.__enter__.return_value = client
@@ -300,7 +300,7 @@ class TestExtractManifestFromImageContract:
         container.get_archive.side_effect = docker_errors.APIError("api boom")
         client = MagicMock()
         client.containers.create.return_value = container
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("img:latest")
@@ -313,7 +313,7 @@ class TestExtractManifestFromImageContract:
         container.get_archive.return_value = (iter([b"not a tar archive"]), None)
         client = MagicMock()
         client.containers.create.return_value = container
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("img:latest")
@@ -362,7 +362,7 @@ class TestExtractManifestFromImageContract:
             b"    type: llm_api\n"
         )
         client, _ = self._stub_docker_with_manifest_bytes(manifest_yaml)
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             manifest = extract_manifest_from_image("img:latest")
 
@@ -381,7 +381,7 @@ class TestExtractManifestFromImageContract:
         client, _ = self._stub_docker_with_manifest_bytes(
             b"this: is: : not valid: yaml: ["  # malformed
         )
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("img:latest")
@@ -390,7 +390,7 @@ class TestExtractManifestFromImageContract:
     def test_empty_manifest_file_maps_to_empty_manifest_file(self):
         """yaml.safe_load returning None → EMPTY_MANIFEST_FILE."""
         client, _ = self._stub_docker_with_manifest_bytes(b"")
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("img:latest")
@@ -401,7 +401,7 @@ class TestExtractManifestFromImageContract:
     ):
         """Manifest dict missing required ``name``/``version`` → SCHEMA_VALIDATION_ERROR."""
         client, _ = self._stub_docker_with_manifest_bytes(b"description: missing name and version\n")
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("img:latest")
@@ -414,7 +414,7 @@ class TestExtractManifestFromImageContract:
         container.get_archive.side_effect = RuntimeError("totally unexpected")
         client = MagicMock()
         client.containers.create.return_value = container
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("img:latest")
@@ -434,7 +434,7 @@ class TestExtractManifestFromImageContract:
         container.get_archive.return_value = (raising_iter(), None)
         client = MagicMock()
         client.containers.create.return_value = container
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("img:latest")
@@ -460,7 +460,7 @@ class TestExtractManifestFromImageContract:
         container.get_archive.return_value = (iter([tar_bytes]), None)
         client = MagicMock()
         client.containers.create.return_value = container
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("img:latest")
@@ -469,7 +469,7 @@ class TestExtractManifestFromImageContract:
     def test_file_read_error_maps_to_file_read_error(self):
         """When the file-read step around ``open()`` / ``yaml.safe_load`` raises
         ``OSError``, the implementation tags it ``FILE_READ_ERROR``
-        (container_manager.py:260-265).
+        (docker_backend.py:260-265).
 
         We trigger this by letting the tar extract a real ``manifest.yaml``
         but patching ``yaml.safe_load`` to raise ``OSError``. The wrapping
@@ -478,9 +478,9 @@ class TestExtractManifestFromImageContract:
         documented contract."""
         client, _ = self._stub_docker_with_manifest_bytes(b"name: x\nversion: '1'\n")
         with (
-            patch("asqi.container_manager.docker_client") as mock_client_ctx,
+            patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx,
             patch(
-                "asqi.container_manager.yaml.safe_load",
+                "asqi.backends.docker_backend.yaml.safe_load",
                 side_effect=PermissionError("simulated read failure"),
             ),
         ):

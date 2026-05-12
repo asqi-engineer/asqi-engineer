@@ -1,8 +1,8 @@
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-
+from asqi.backends import ContainerBackend, DockerBackend
 from asqi.config import ContainerConfig, ExecutionMode, ExecutorConfig
 from asqi.schemas import Manifest, OutputReports, ScoreCard, SystemInput
 from asqi.workflow import (
@@ -15,6 +15,7 @@ from asqi.workflow import (
     run_end_to_end_workflow,
     save_container_results_to_file_step,
     save_results_to_file_step,
+    set_container_backend,
     start_score_card_evaluation,
     start_test_execution,
     validate_test_container_reports,
@@ -45,6 +46,14 @@ def _call_inner_workflow(
         score_card_configs,
         metadata_config,
     )
+
+
+@pytest.fixture
+def mock_container_backend():
+    backend = MagicMock(spec=ContainerBackend)
+    set_container_backend(backend)
+    yield backend
+    set_container_backend(DockerBackend())
 
 
 class DummyHandle:
@@ -101,17 +110,13 @@ def test_run_test_suite_workflow_success():
         name="mock",
         version="1",
         description="",
-        input_systems=[
-            SystemInput(name="system_under_test", type="llm_api", required=True)
-        ],
+        input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
         input_schema=[],
         output_metrics=[],
         output_artifacts=None,
     )
 
-    success_result = TestExecutionResult(
-        "t1_systemA", "t1_systemA", "systemA", "test/image:latest"
-    )
+    success_result = TestExecutionResult("t1_systemA", "t1_systemA", "systemA", "test/image:latest")
     success_result.start_time = 1.0
     success_result.end_time = 2.0
     success_result.exit_code = 0
@@ -134,18 +139,14 @@ def test_run_test_suite_workflow_success():
                 "test_name": "t1_systemA",
                 "image": "test/image:latest",
                 "sut_name": "sutA",
-                "systems_params": {
-                    "system_under_test": {"type": "llm_api", "endpoint": "http://x"}
-                },
+                "systems_params": {"system_under_test": {"type": "llm_api", "endpoint": "http://x"}},
                 "test_params": {"p": "v"},
             }
         ]
 
         # Enqueue returns a handle with get_result -> success_result
         mock_queue = mock_queue_class.return_value
-        mock_queue.enqueue.side_effect = lambda *args, **kwargs: DummyHandle(
-            success_result
-        )
+        mock_queue.enqueue.side_effect = lambda *args, **kwargs: DummyHandle(success_result)
         results, container_results = _call_inner_workflow(
             suite_config,
             systems_config,
@@ -199,9 +200,7 @@ def test_run_test_suite_workflow_validation_failure():
     ):
         mock_avail.return_value = {"missing/image:latest": True}
         mock_extract.return_value = None  # no manifest extracted
-        mock_validate.return_value = [
-            "Test 'bad_test': No manifest available for image 'missing/image:latest'"
-        ]
+        mock_validate.return_value = ["Test 'bad_test': No manifest available for image 'missing/image:latest'"]
 
         results, container_results = _call_inner_workflow(
             suite_config,
@@ -223,28 +222,27 @@ def test_run_test_suite_workflow_validation_failure():
     assert len(container_results) == 0
 
 
-def test_execute_single_test_success():
+def test_execute_single_test_success(mock_container_backend):
     fake_container_output = '{"success": true, "metric": 1}'
-    with patch("asqi.workflow.run_container_with_args") as run_mock:
-        run_mock.return_value = {
-            "success": True,
-            "exit_code": 0,
-            "output": fake_container_output,
-            "error": "",
-            "container_id": "abc123",
-        }
+    mock_container_backend.run.return_value = {
+        "success": True,
+        "exit_code": 0,
+        "output": fake_container_output,
+        "error": "",
+        "container_id": "abc123",
+    }
 
-        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
-        result = inner_step(
-            test_id="t1 systemA",
-            test_name="t1_systemA",
-            image="test/image:latest",
-            sut_name="systemA",
-            systems_params={"system_under_test": {"type": "llm_api"}},
-            test_params={"p": "v"},
-            container_config=ContainerConfig(),
-            metadata_config=None,
-        )
+    inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+    result = inner_step(
+        test_id="t1 systemA",
+        test_name="t1_systemA",
+        image="test/image:latest",
+        sut_name="systemA",
+        systems_params={"system_under_test": {"type": "llm_api"}},
+        test_params={"p": "v"},
+        container_config=ContainerConfig(),
+        metadata_config=None,
+    )
 
     assert result.success is True
     assert result.exit_code == 0
@@ -256,9 +254,7 @@ def test_save_results_to_file_step_calls_impl(tmp_path):
     data = {"summary": {"status": "COMPLETED"}}
     out = tmp_path / "res.json"
     with patch("asqi.workflow.save_results_to_file") as save_mock:
-        inner_step = getattr(
-            save_results_to_file_step, "__wrapped__", save_results_to_file_step
-        )
+        inner_step = getattr(save_results_to_file_step, "__wrapped__", save_results_to_file_step)
         inner_step(data, str(out))
         save_mock.assert_called_once_with(data, str(out))
 
@@ -277,62 +273,60 @@ def test_save_container_results_to_file(tmp_path):
         save_mock.assert_called_once_with(data, logsFolder, logsFile)
 
 
-def test_execute_single_test_container_failure():
+def test_execute_single_test_container_failure(mock_container_backend):
     """Test handling of container execution failures."""
-    with patch("asqi.workflow.run_container_with_args") as run_mock:
-        run_mock.return_value = {
-            "success": False,
-            "exit_code": 1,
-            "output": "",
-            "error": "Container failed to start",
-            "container_id": "abc123",
-        }
+    mock_container_backend.run.return_value = {
+        "success": False,
+        "exit_code": 1,
+        "output": "",
+        "error": "Container failed to start",
+        "container_id": "abc123",
+    }
 
-        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
-        result = inner_step(
-            test_id="failing_test",
-            test_name="failing test",
-            image="test/image:latest",
-            sut_name="systemA",
-            systems_params={"system_under_test": {"type": "llm_api"}},
-            test_params={},
-            container_config=ContainerConfig(),
-            metadata_config=None,
-        )
+    inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+    result = inner_step(
+        test_id="failing_test",
+        test_name="failing test",
+        image="test/image:latest",
+        sut_name="systemA",
+        systems_params={"system_under_test": {"type": "llm_api"}},
+        test_params={},
+        container_config=ContainerConfig(),
+        metadata_config=None,
+    )
 
     assert result.success is False
     assert result.exit_code == 1
     assert "Container failed to start" in result.error_message
 
 
-def test_execute_single_test_invalid_json():
+def test_execute_single_test_invalid_json(mock_container_backend):
     """Test handling of invalid JSON output from container."""
-    with patch("asqi.workflow.run_container_with_args") as run_mock:
-        run_mock.return_value = {
-            "success": True,
-            "exit_code": 0,
-            "output": "invalid json output",
-            "error": "",
-            "container_id": "abc123",
-        }
+    mock_container_backend.run.return_value = {
+        "success": True,
+        "exit_code": 0,
+        "output": "invalid json output",
+        "error": "",
+        "container_id": "abc123",
+    }
 
-        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
-        result = inner_step(
-            test_id="json_test",
-            test_name="json test",
-            image="test/image:latest",
-            sut_name="systemA",
-            systems_params={"system_under_test": {"type": "llm_api"}},
-            test_params={},
-            container_config=ContainerConfig(),
-            metadata_config=None,
-        )
+    inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+    result = inner_step(
+        test_id="json_test",
+        test_name="json test",
+        image="test/image:latest",
+        sut_name="systemA",
+        systems_params={"system_under_test": {"type": "llm_api"}},
+        test_params={},
+        container_config=ContainerConfig(),
+        metadata_config=None,
+    )
 
     assert result.success is False
     assert "Failed to parse JSON output" in result.error_message
 
 
-def test_execute_single_test_container_error_in_json():
+def test_execute_single_test_container_error_in_json(mock_container_backend):
     """Test that errors in JSON output are extracted to error_message field."""
     # Simulate container that exits with code 1 and includes error in JSON
     container_json_output = json.dumps(
@@ -347,26 +341,25 @@ def test_execute_single_test_container_error_in_json():
         }
     )
 
-    with patch("asqi.workflow.run_container_with_args") as run_mock:
-        run_mock.return_value = {
-            "success": False,  # Exit code != 0
-            "exit_code": 1,
-            "output": container_json_output,
-            "error": "",  # No Docker-level error
-            "container_id": "abc123",
-        }
+    mock_container_backend.run.return_value = {
+        "success": False,
+        "exit_code": 1,
+        "output": container_json_output,
+        "error": "",
+        "container_id": "abc123",
+    }
 
-        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
-        result = inner_step(
-            test_id="validation_error_test",
-            test_name="validation error test",
-            image="test/image:latest",
-            sut_name="systemA",
-            systems_params={"system_under_test": {"type": "llm_api"}},
-            test_params={},
-            container_config=ContainerConfig(),
-            metadata_config=None,
-        )
+    inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+    result = inner_step(
+        test_id="validation_error_test",
+        test_name="validation error test",
+        image="test/image:latest",
+        sut_name="systemA",
+        systems_params={"system_under_test": {"type": "llm_api"}},
+        test_params={},
+        container_config=ContainerConfig(),
+        metadata_config=None,
+    )
 
     # Verify that error from JSON is extracted
     assert result.success is False
@@ -375,7 +368,7 @@ def test_execute_single_test_container_error_in_json():
     assert "missing required column 'label'" in result.error_message
 
 
-def test_execute_single_test_combined_docker_and_json_errors():
+def test_execute_single_test_combined_docker_and_json_errors(mock_container_backend):
     """Test that Docker errors and JSON errors are combined."""
     container_json_output = json.dumps(
         {
@@ -386,26 +379,25 @@ def test_execute_single_test_combined_docker_and_json_errors():
         }
     )
 
-    with patch("asqi.workflow.run_container_with_args") as run_mock:
-        run_mock.return_value = {
-            "success": False,
-            "exit_code": 137,  # OOM killed
-            "output": container_json_output,
-            "error": "Container exceeded memory limit",
-            "container_id": "abc123",
-        }
+    mock_container_backend.run.return_value = {
+        "success": False,
+        "exit_code": 137,
+        "output": container_json_output,
+        "error": "Container exceeded memory limit",
+        "container_id": "abc123",
+    }
 
-        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
-        result = inner_step(
-            test_id="combined_error_test",
-            test_name="combined error test",
-            image="test/image:latest",
-            sut_name="systemA",
-            systems_params={"system_under_test": {"type": "llm_api"}},
-            test_params={},
-            container_config=ContainerConfig(),
-            metadata_config=None,
-        )
+    inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+    result = inner_step(
+        test_id="combined_error_test",
+        test_name="combined error test",
+        image="test/image:latest",
+        sut_name="systemA",
+        systems_params={"system_under_test": {"type": "llm_api"}},
+        test_params={},
+        container_config=ContainerConfig(),
+        metadata_config=None,
+    )
 
     # Verify both errors are present
     assert result.success is False
@@ -413,31 +405,30 @@ def test_execute_single_test_combined_docker_and_json_errors():
     assert "Internal validation error" in result.error_message
 
 
-def test_execute_single_test_docker_error_with_json_parse_failure():
+def test_execute_single_test_docker_error_with_json_parse_failure(mock_container_backend):
     """Test that Docker errors and JSON parsing errors are combined."""
     # Container crashes with Docker error AND produces unparseable output
     unparseable_output = "Some log output\n{incomplete json..."
 
-    with patch("asqi.workflow.run_container_with_args") as run_mock:
-        run_mock.return_value = {
-            "success": False,
-            "exit_code": 137,  # OOM killed
-            "output": unparseable_output,
-            "error": "Container exceeded memory limit",
-            "container_id": "abc123",
-        }
+    mock_container_backend.run.return_value = {
+        "success": False,
+        "exit_code": 137,
+        "output": unparseable_output,
+        "error": "Container exceeded memory limit",
+        "container_id": "abc123",
+    }
 
-        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
-        result = inner_step(
-            test_id="crash_with_bad_output",
-            test_name="crash with bad output",
-            image="test/image:latest",
-            sut_name="systemA",
-            systems_params={"system_under_test": {"type": "llm_api"}},
-            test_params={},
-            container_config=ContainerConfig(),
-            metadata_config=None,
-        )
+    inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+    result = inner_step(
+        test_id="crash_with_bad_output",
+        test_name="crash with bad output",
+        image="test/image:latest",
+        sut_name="systemA",
+        systems_params={"system_under_test": {"type": "llm_api"}},
+        test_params={},
+        container_config=ContainerConfig(),
+        metadata_config=None,
+    )
 
     # Verify both Docker error and parsing error are present
     assert result.success is False
@@ -445,80 +436,79 @@ def test_execute_single_test_docker_error_with_json_parse_failure():
     assert "Failed to parse JSON output" in result.error_message
 
 
-def test_execute_single_test_env_file_falsy_values():
+def test_execute_single_test_env_file_falsy_values(mock_container_backend):
     """Test that env_file processing is skipped when env_file has falsy values."""
     fake_container_output = '{"success": true, "metric": 1}'
 
-    with patch("asqi.workflow.run_container_with_args") as run_mock:
-        run_mock.return_value = {
-            "success": True,
-            "exit_code": 0,
-            "output": fake_container_output,
-            "error": "",
-            "container_id": "abc123",
-        }
+    mock_container_backend.run.return_value = {
+        "success": True,
+        "exit_code": 0,
+        "output": fake_container_output,
+        "error": "",
+        "container_id": "abc123",
+    }
 
-        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+    inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
 
-        # Test with empty string env_file - should skip env_file processing
-        result = inner_step(
-            test_id="test_empty_env_file",
-            test_name="test empty env file",
-            image="test/image:latest",
-            sut_name="systemA",
-            systems_params={
-                "system_under_test": {
-                    "type": "llm_api",
-                    "env_file": "",  # Empty string - should be treated as falsy
-                }
-            },
-            test_params={},
-            container_config=ContainerConfig(),
-            metadata_config=None,
-        )
+    # Test with empty string env_file - should skip env_file processing
+    result = inner_step(
+        test_id="test_empty_env_file",
+        test_name="test empty env file",
+        image="test/image:latest",
+        sut_name="systemA",
+        systems_params={
+            "system_under_test": {
+                "type": "llm_api",
+                "env_file": "",  # Empty string - should be treated as falsy
+            }
+        },
+        test_params={},
+        container_config=ContainerConfig(),
+        metadata_config=None,
+    )
 
-        assert result.success is True
-        # Should not have tried to load env file
+    assert result.success is True
+    # Should not have tried to load env file
 
-        # Test with None env_file - should skip env_file processing
-        result = inner_step(
-            test_id="test_none_env_file",
-            test_name="test none env file",
-            image="test/image:latest",
-            sut_name="systemA",
-            systems_params={
-                "system_under_test": {
-                    "type": "llm_api",
-                    "env_file": None,  # None value - should be treated as falsy
-                }
-            },
-            test_params={},
-            container_config=ContainerConfig(),
-            metadata_config=None,
-        )
+    # Test with None env_file - should skip env_file processing
+    result = inner_step(
+        test_id="test_none_env_file",
+        test_name="test none env file",
+        image="test/image:latest",
+        sut_name="systemA",
+        systems_params={
+            "system_under_test": {
+                "type": "llm_api",
+                "env_file": None,  # None value - should be treated as falsy
+            }
+        },
+        test_params={},
+        container_config=ContainerConfig(),
+        metadata_config=None,
+    )
 
-        assert result.success is True
-        # Should not have tried to load env file
+    assert result.success is True
+    # Should not have tried to load env file
 
-        # Test with missing env_file key - should skip env_file processing
-        result = inner_step(
-            test_id="test_missing_env_file",
-            test_name="test missing env file",
-            image="test/image:latest",
-            sut_name="systemA",
-            systems_params={
-                "system_under_test": {
-                    "type": "llm_api"
-                    # No env_file key - should skip env_file processing
-                }
-            },
-            test_params={},
-            container_config=ContainerConfig(),
-            metadata_config=None,
-        )
+    # Test with missing env_file key - should skip env_file processing
+    result = inner_step(
+        test_id="test_missing_env_file",
+        test_name="test missing env file",
+        image="test/image:latest",
+        sut_name="systemA",
+        systems_params={
+            "system_under_test": {
+                "type": "llm_api"
+                # No env_file key - should skip env_file processing
+            }
+        },
+        test_params={},
+        container_config=ContainerConfig(),
+        metadata_config=None,
+    )
 
-        assert result.success is True
-        # Should not have tried to load env file
+    assert result.success is True
+    # Should not have tried to load env file
 
 
 def test_convert_test_results_to_objects():
@@ -551,9 +541,7 @@ def test_convert_test_results_to_objects():
         }
     ]
 
-    inner_step = getattr(
-        convert_test_results_to_objects, "__wrapped__", convert_test_results_to_objects
-    )
+    inner_step = getattr(convert_test_results_to_objects, "__wrapped__", convert_test_results_to_objects)
     results = inner_step(test_results_data, test_container_data)
 
     assert len(results) == 1
@@ -588,9 +576,7 @@ def test_add_score_cards_to_results():
         }
     ]
 
-    inner_step = getattr(
-        add_score_cards_to_results, "__wrapped__", add_score_cards_to_results
-    )
+    inner_step = getattr(add_score_cards_to_results, "__wrapped__", add_score_cards_to_results)
     result = inner_step(test_results_data, score_card_evaluation)
 
     assert "score_card" in result
@@ -621,9 +607,7 @@ def test_add_score_cards_to_results_multiple_score_cards():
         },
     ]
 
-    inner_step = getattr(
-        add_score_cards_to_results, "__wrapped__", add_score_cards_to_results
-    )
+    inner_step = getattr(add_score_cards_to_results, "__wrapped__", add_score_cards_to_results)
     result = inner_step(test_results_data, score_card_evaluation)
 
     assert isinstance(result["score_card"], list)
@@ -675,12 +659,8 @@ def test_evaluate_score_cards_workflow():
         mock_evaluate.return_value = []
         mock_add.return_value = test_results_data
 
-        inner_workflow = getattr(
-            evaluate_score_cards_workflow, "__wrapped__", evaluate_score_cards_workflow
-        )
-        _result = inner_workflow(
-            test_results_data, test_container_data, score_card_configs
-        )
+        inner_workflow = getattr(evaluate_score_cards_workflow, "__wrapped__", evaluate_score_cards_workflow)
+        _result = inner_workflow(test_results_data, test_container_data, score_card_configs)
 
         mock_convert.assert_called_once_with(test_results_data, test_container_data)
         mock_evaluate.assert_called_once()
@@ -702,9 +682,7 @@ def test_evaluate_score_cards_workflow_with_audit_responses():
     score_card_configs = [MOCK_SCORE_CARD_CONFIG]
     audit_responses_data = MOCK_AUDIT_RESPONSES
 
-    inner_workflow = getattr(
-        evaluate_score_cards_workflow, "__wrapped__", evaluate_score_cards_workflow
-    )
+    inner_workflow = getattr(evaluate_score_cards_workflow, "__wrapped__", evaluate_score_cards_workflow)
 
     result = inner_workflow(
         test_results_data,
@@ -754,9 +732,7 @@ def test_run_end_to_end_workflow():
         mock_test_workflow.return_value = test_results, []
         mock_score_workflow.return_value = final_results
 
-        inner_workflow = getattr(
-            run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow
-        )
+        inner_workflow = getattr(run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow)
         result, _ = inner_workflow(
             suite_config,
             systems_config,
@@ -781,9 +757,7 @@ def test_run_end_to_end_workflow():
             None,  # datasets_config
             score_card_configs,
         )
-        mock_score_workflow.assert_called_once_with(
-            test_results, test_container, score_card_configs, None
-        )
+        mock_score_workflow.assert_called_once_with(test_results, test_container, score_card_configs, None)
         assert result == final_results
 
 
@@ -811,9 +785,7 @@ def test_run_end_to_end_workflow_with_audit_responses():
         mock_test_workflow.return_value = test_results, test_container
         mock_score_workflow.return_value = final_results
 
-        inner_workflow = getattr(
-            run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow
-        )
+        inner_workflow = getattr(run_end_to_end_workflow, "__wrapped__", run_end_to_end_workflow)
         result, _ = inner_workflow(
             suite_config,
             systems_config,
@@ -969,9 +941,7 @@ def test_start_score_card_evaluation(tmp_path):
     with patch("asqi.workflow.DBOS.start_workflow") as mock_start:
         mock_start.return_value = mock_handle
 
-        workflow_id = start_score_card_evaluation(
-            str(input_json), score_card_configs, None, str(output_json)
-        )
+        workflow_id = start_score_card_evaluation(str(input_json), score_card_configs, None, str(output_json))
 
         assert workflow_id == mock_handle.get_workflow_id()
         mock_start.assert_called_once()
@@ -1041,9 +1011,7 @@ def test_image_pulled_but_manifest_not_extracted_bug():
         name="test",
         version="1",
         description="",
-        input_systems=[
-            SystemInput(name="system_under_test", type="llm_api", required=True)
-        ],
+        input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
         input_schema=[],
         output_metrics=[],
         output_artifacts=None,
@@ -1064,9 +1032,7 @@ def test_image_pulled_but_manifest_not_extracted_bug():
         ]
 
         mock_extract.return_value = {"test/image:latest": manifest}
-        mock_validate.side_effect = lambda s, sys, manifests: (
-            [] if manifests else ["No manifest"]
-        )
+        mock_validate.side_effect = lambda s, sys, manifests: [] if manifests else ["No manifest"]
         mock_plan.return_value = [
             {
                 "test_id": "test1",
@@ -1078,9 +1044,7 @@ def test_image_pulled_but_manifest_not_extracted_bug():
             }
         ]
 
-        success_result = TestExecutionResult(
-            "test1", "test1", "sys1", "test/image:latest"
-        )
+        success_result = TestExecutionResult("test1", "test1", "sys1", "test/image:latest")
         success_result.success = True
         mock_queue.return_value.enqueue.return_value = DummyHandle(success_result)
 
@@ -1125,11 +1089,7 @@ def test_run_test_suite_workflow_handle_exception():
         name="mock",
         version="1",
         description="",
-        input_systems=[
-            SystemInput(
-                name="system_under_test", type="llm_api", required=True, description=""
-            )
-        ],
+        input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True, description="")],
         input_schema=[],
         output_metrics=[],
         output_artifacts=None,
@@ -1184,10 +1144,7 @@ def test_run_test_suite_workflow_handle_exception():
     assert results["summary"]["successful_tests"] == 0
     assert results["summary"]["failed_tests"] == 1
     assert len(results["results"]) == 1
-    assert (
-        "Test execution failed: Network timeout"
-        in container_results[0]["error_message"]
-    )
+    assert "Test execution failed: Network timeout" in container_results[0]["error_message"]
 
     result = results["results"][0]
     assert result["metadata"]["success"] is False
@@ -1206,9 +1163,7 @@ class TestContainerReports:
 
         manifests = {}
 
-        result = TestExecutionResult(
-            "test report file not exist", "test_not_exist", "sut", "report-image:latest"
-        )
+        result = TestExecutionResult("test report file not exist", "test_not_exist", "sut", "report-image:latest")
         result.success = True
         result.generated_reports = [
             GeneratedReport(
@@ -1232,9 +1187,7 @@ class TestContainerReports:
 
         manifests = {}
 
-        result = TestExecutionResult(
-            "test report file not exist", "test_not_exist", "sut", "report-image:latest"
-        )
+        result = TestExecutionResult("test report file not exist", "test_not_exist", "sut", "report-image:latest")
         result.success = True
         result.generated_reports = [
             GeneratedReport(
@@ -1278,9 +1231,7 @@ class TestContainerReports:
             )
         }
 
-        result = TestExecutionResult(
-            "test success", "test_success", "sut", "report-image:latest"
-        )
+        result = TestExecutionResult("test success", "test_success", "sut", "report-image:latest")
         result.success = True
         result.generated_reports = [
             GeneratedReport(
@@ -1370,9 +1321,7 @@ systems:
 
         # Mock DBOS workflow
         mock_result = {"summary": {"status": "COMPLETED"}, "results": []}
-        mock_handle = DummyHandle(
-            mock_result, workflow_id="test-gen-123", return_tuple=True
-        )
+        mock_handle = DummyHandle(mock_result, workflow_id="test-gen-123", return_tuple=True)
 
         with patch("asqi.workflow.DBOS") as mock_dbos:
             mock_dbos.start_workflow.return_value = mock_handle
@@ -1418,9 +1367,7 @@ generation_jobs:
 
         # Mock DBOS workflow
         mock_result = {"summary": {"status": "COMPLETED"}, "results": []}
-        mock_handle = DummyHandle(
-            mock_result, workflow_id="test-gen-456", return_tuple=True
-        )
+        mock_handle = DummyHandle(mock_result, workflow_id="test-gen-456", return_tuple=True)
 
         with patch("asqi.workflow.DBOS") as mock_dbos:
             mock_dbos.start_workflow.return_value = mock_handle
@@ -1616,7 +1563,7 @@ class TestHelperFunctions:
                 {img: True for img in images},
             ]
 
-            available, availability = _get_available_images(images)
+            available, _availability = _get_available_images(images)
 
             assert len(available) == 2
             mock_pull.assert_called_once_with(images)
@@ -1664,7 +1611,7 @@ class TestHelperFunctions:
 class TestEnvironmentVariablesAndSystems:
     """Tests for environment variable handling and multiple systems."""
 
-    def test_execute_single_test_env_var_merging(self, tmp_path):
+    def test_execute_single_test_env_var_merging(self, tmp_path, mock_container_backend):
         """Test that test-level env vars override system-level."""
         # Create test env files
         system_env_file = tmp_path / "system.env"
@@ -1674,153 +1621,141 @@ class TestEnvironmentVariablesAndSystems:
         test_env_file.write_text("SHARED_VAR=test_value\nTEST_ONLY=test_val")
 
         fake_output = '{"success": true}'
-        with patch("asqi.workflow.run_container_with_args") as run_mock:
-            run_mock.return_value = {
-                "success": True,
-                "exit_code": 0,
-                "output": fake_output,
-                "error": "",
-                "container_id": "abc",
-            }
+        mock_container_backend.run.return_value = {
+            "success": True,
+            "exit_code": 0,
+            "output": fake_output,
+            "error": "",
+            "container_id": "abc",
+        }
 
-            inner_step = getattr(
-                execute_single_test, "__wrapped__", execute_single_test
-            )
-            result = inner_step(
-                test_id="env_test",
-                test_name="env test",
-                image="test/image:latest",
-                sut_name="systemA",
-                systems_params={
-                    "system_under_test": {
-                        "type": "llm_api",
-                        "env_file": str(system_env_file),
-                    }
-                },
-                test_params={},
-                container_config=ContainerConfig(),
-                env_file=str(test_env_file),  # Test level (should override)
-                environment={"OVERRIDE_VAR": "explicit_value"},
-            )
-
-            assert result.success is True
-            # Verify container was called with merged env vars
-            call_args = run_mock.call_args
-            env_vars = call_args[1]["environment"]
-
-            # Test-level should override system-level
-            assert env_vars.get("SHARED_VAR") == "test_value"
-            # Both should be present
-            assert "SYSTEM_ONLY" in env_vars
-            assert "TEST_ONLY" in env_vars
-            # Explicit environment dict has highest priority
-            assert env_vars.get("OVERRIDE_VAR") == "explicit_value"
-
-    def test_execute_single_test_multiple_systems(self):
-        """Test execution with multiple system roles (system_under_test + additional systems)."""
-        fake_output = '{"success": true, "evaluation_score": 0.95}'
-        with patch("asqi.workflow.run_container_with_args") as run_mock:
-            run_mock.return_value = {
-                "success": True,
-                "exit_code": 0,
-                "output": fake_output,
-                "error": "",
-                "container_id": "multi_sys_123",
-            }
-
-            systems_params = {
+        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+        result = inner_step(
+            test_id="env_test",
+            test_name="env test",
+            image="test/image:latest",
+            sut_name="systemA",
+            systems_params={
                 "system_under_test": {
                     "type": "llm_api",
-                    "model": "my-chatbot",
-                    "base_url": "http://localhost:8000",
-                },
-                "simulator_system": {
-                    "type": "llm_api",
-                    "model": "gpt-4o",
-                    "base_url": "https://api.openai.com/v1",
-                },
-                "evaluator_system": {
-                    "type": "llm_api",
-                    "model": "claude-3-5-sonnet-20241022",
-                    "base_url": "https://api.anthropic.com/v1",
-                },
-            }
+                    "env_file": str(system_env_file),
+                }
+            },
+            test_params={},
+            container_config=ContainerConfig(),
+            env_file=str(test_env_file),  # Test level (should override)
+            environment={"OVERRIDE_VAR": "explicit_value"},
+        )
 
-            inner_step = getattr(
-                execute_single_test, "__wrapped__", execute_single_test
-            )
-            result = inner_step(
-                test_id="multi_sys_test",
-                test_name="multi system test",
-                image="test/chatbot_simulator:latest",
-                sut_name="my_chatbot",
-                systems_params=systems_params,
-                test_params={"num_conversations": 5},
-                container_config=ContainerConfig(),
-            )
+        assert result.success is True
+        # Verify container was called with merged env vars
+        call_args = mock_container_backend.run.call_args
+        env_vars = call_args.kwargs["environment"]
 
-            assert result.success is True
-            # Verify all systems were passed to container
-            call_kwargs = run_mock.call_args[1]
-            # Args are passed as a list with --systems-params flag
-            args_list = call_kwargs["args"]
+        # Test-level should override system-level
+        assert env_vars.get("SHARED_VAR") == "test_value"
+        # Both should be present
+        assert "SYSTEM_ONLY" in env_vars
+        assert "TEST_ONLY" in env_vars
+        # Explicit environment dict has highest priority
+        assert env_vars.get("OVERRIDE_VAR") == "explicit_value"
 
-            # Find the systems-params JSON in the args
-            systems_json_idx = args_list.index("--systems-params") + 1
-            systems_json = args_list[systems_json_idx]
-            systems_dict = json.loads(systems_json)
+    def test_execute_single_test_multiple_systems(self, mock_container_backend):
+        """Test execution with multiple system roles (system_under_test + additional systems)."""
+        fake_output = '{"success": true, "evaluation_score": 0.95}'
+        mock_container_backend.run.return_value = {
+            "success": True,
+            "exit_code": 0,
+            "output": fake_output,
+            "error": "",
+            "container_id": "multi_sys_123",
+        }
 
-            assert "system_under_test" in systems_dict
-            assert "simulator_system" in systems_dict
-            assert "evaluator_system" in systems_dict
-            assert systems_dict["system_under_test"]["model"] == "my-chatbot"
-            assert systems_dict["simulator_system"]["model"] == "gpt-4o"
-            assert (
-                systems_dict["evaluator_system"]["model"]
-                == "claude-3-5-sonnet-20241022"
-            )
+        systems_params = {
+            "system_under_test": {
+                "type": "llm_api",
+                "model": "my-chatbot",
+                "base_url": "http://localhost:8000",
+            },
+            "simulator_system": {
+                "type": "llm_api",
+                "model": "gpt-4o",
+                "base_url": "https://api.openai.com/v1",
+            },
+            "evaluator_system": {
+                "type": "llm_api",
+                "model": "claude-3-5-sonnet-20241022",
+                "base_url": "https://api.anthropic.com/v1",
+            },
+        }
 
-    def test_execute_single_test_env_interpolation(self, monkeypatch):
+        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+        result = inner_step(
+            test_id="multi_sys_test",
+            test_name="multi system test",
+            image="test/chatbot_simulator:latest",
+            sut_name="my_chatbot",
+            systems_params=systems_params,
+            test_params={"num_conversations": 5},
+            container_config=ContainerConfig(),
+        )
+
+        assert result.success is True
+        # Verify all systems were passed to container
+        call_kwargs = mock_container_backend.run.call_args[1]
+        # Args are passed as a list with --systems-params flag
+        args_list = call_kwargs["args"]
+
+        # Find the systems-params JSON in the args
+        systems_json_idx = args_list.index("--systems-params") + 1
+        systems_json = args_list[systems_json_idx]
+        systems_dict = json.loads(systems_json)
+
+        assert "system_under_test" in systems_dict
+        assert "simulator_system" in systems_dict
+        assert "evaluator_system" in systems_dict
+        assert systems_dict["system_under_test"]["model"] == "my-chatbot"
+        assert systems_dict["simulator_system"]["model"] == "gpt-4o"
+        assert systems_dict["evaluator_system"]["model"] == "claude-3-5-sonnet-20241022"
+
+    def test_execute_single_test_env_interpolation(self, monkeypatch, mock_container_backend):
         """Test environment variable interpolation with ${VAR} syntax."""
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-openai-key")
         monkeypatch.setenv("LOG_LEVEL", "DEBUG")
 
         fake_output = '{"success": true}'
-        with patch("asqi.workflow.run_container_with_args") as run_mock:
-            run_mock.return_value = {
-                "success": True,
-                "exit_code": 0,
-                "output": fake_output,
-                "error": "",
-                "container_id": "interp_123",
-            }
+        mock_container_backend.run.return_value = {
+            "success": True,
+            "exit_code": 0,
+            "output": fake_output,
+            "error": "",
+            "container_id": "interp_123",
+        }
 
-            inner_step = getattr(
-                execute_single_test, "__wrapped__", execute_single_test
-            )
-            result = inner_step(
-                test_id="interp_test",
-                test_name="interpolation test",
-                image="test/image:latest",
-                sut_name="systemA",
-                systems_params={"system_under_test": {"type": "llm_api"}},
-                test_params={},
-                container_config=ContainerConfig(),
-                environment={
-                    "API_KEY": "${OPENAI_API_KEY}",
-                    "LOG_LEVEL": "${LOG_LEVEL:-INFO}",  # Default value
-                    "MISSING_VAR": "${MISSING:-default_value}",
-                },
-            )
+        inner_step = getattr(execute_single_test, "__wrapped__", execute_single_test)
+        result = inner_step(
+            test_id="interp_test",
+            test_name="interpolation test",
+            image="test/image:latest",
+            sut_name="systemA",
+            systems_params={"system_under_test": {"type": "llm_api"}},
+            test_params={},
+            container_config=ContainerConfig(),
+            environment={
+                "API_KEY": "${OPENAI_API_KEY}",
+                "LOG_LEVEL": "${LOG_LEVEL:-INFO}",  # Default value
+                "MISSING_VAR": "${MISSING:-default_value}",
+            },
+        )
 
-            assert result.success is True
-            call_args = run_mock.call_args
-            env_vars = call_args[1]["environment"]
+        assert result.success is True
+        call_args = mock_container_backend.run.call_args
+        env_vars = call_args.kwargs["environment"]
 
-            # Check interpolation worked
-            assert env_vars.get("API_KEY") == "sk-test-openai-key"
-            assert env_vars.get("LOG_LEVEL") == "DEBUG"
-            assert env_vars.get("MISSING_VAR") == "default_value"
+        # Check interpolation worked
+        assert env_vars.get("API_KEY") == "sk-test-openai-key"
+        assert env_vars.get("LOG_LEVEL") == "DEBUG"
+        assert env_vars.get("MISSING_VAR") == "default_value"
 
     def test_execute_single_test_missing_required_env_vars(self, tmp_path):
         """Test handling of missing required environment variables."""
@@ -1831,9 +1766,7 @@ class TestEnvironmentVariablesAndSystems:
         manifest = Manifest(
             name="test-manifest",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
             environment_variables=[
                 EnvironmentVariable(
                     name="REQUIRED_API_KEY",
@@ -1847,9 +1780,7 @@ class TestEnvironmentVariablesAndSystems:
         from asqi.validation import build_env_var_error_message
 
         missing_vars = [manifest.environment_variables[0]]
-        error_msg = build_env_var_error_message(
-            missing_vars, "my_test", "test/image:latest"
-        )
+        error_msg = build_env_var_error_message(missing_vars, "my_test", "test/image:latest")
 
         assert "REQUIRED_API_KEY" in error_msg
         assert "Required API key for the service" in error_msg
@@ -1873,9 +1804,7 @@ class TestDisplayReportsValidation:
         test_result = TestExecutionResult("t1", "t1", "sys1", "test/image:v1")
         test_results = [test_result]
 
-        test_id_to_image, manifests = _resolve_display_reports_inputs(
-            test_results, ExecutionMode.END_TO_END
-        )
+        test_id_to_image, manifests = _resolve_display_reports_inputs(test_results, ExecutionMode.END_TO_END)
 
         assert test_id_to_image == {}
         assert manifests == {}
@@ -1889,9 +1818,7 @@ class TestDisplayReportsValidation:
         manifest = Manifest(
             name="test-manifest",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
         )
 
         test_result = TestExecutionResult("t1", "test_1", "sys1", "test/image:v1")
@@ -1904,9 +1831,7 @@ class TestDisplayReportsValidation:
             mock_get_images.return_value = (["test/image:v1"], {})
             mock_extract.return_value = {"test/image:v1": manifest}
 
-            test_id_to_image, manifests = _resolve_display_reports_inputs(
-                test_results, ExecutionMode.EVALUATE_ONLY
-            )
+            test_id_to_image, manifests = _resolve_display_reports_inputs(test_results, ExecutionMode.EVALUATE_ONLY)
 
             assert "test_1" in test_id_to_image
             assert test_id_to_image["test_1"] == "test/image:v1"
@@ -1922,9 +1847,7 @@ class TestDisplayReportsValidation:
         manifest = Manifest(
             name="shared-manifest",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
         )
 
         test_results = [
@@ -1940,9 +1863,7 @@ class TestDisplayReportsValidation:
             mock_get_images.return_value = (["shared/image:v1"], {})
             mock_extract.return_value = {"shared/image:v1": manifest}
 
-            test_id_to_image, manifests = _resolve_display_reports_inputs(
-                test_results, ExecutionMode.EVALUATE_ONLY
-            )
+            test_id_to_image, manifests = _resolve_display_reports_inputs(test_results, ExecutionMode.EVALUATE_ONLY)
 
             assert len(test_id_to_image) == 2
             assert len(manifests) == 1  # Only one unique image
@@ -1957,9 +1878,7 @@ class TestDisplayReportsValidation:
         manifest = Manifest(
             name="report-manifest",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
             output_reports=[
                 OutputReports(name="summary_report", type="html"),
                 OutputReports(name="detail_report", type="pdf"),
@@ -1995,9 +1914,7 @@ class TestDisplayReportsValidation:
         manifest = Manifest(
             name="report-manifest",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
             output_reports=[OutputReports(name="valid_report", type="html")],
         )
 
@@ -2030,9 +1947,7 @@ class TestDisplayReportsValidation:
         manifest = Manifest(
             name="report-manifest",
             version="1.0",
-            input_systems=[
-                SystemInput(name="system_under_test", type="llm_api", required=True)
-            ],
+            input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
         )
 
         manifests = {"test/image:v1": manifest}

@@ -61,10 +61,10 @@ class TestHostSideInventory:
             ],
         )
 
-    def test_asqi_container_manager_exports_extract_manifest_from_image(self):
+    def test_asqi_backends_exports_docker_backend(self):
         _assert_module_exports(
-            "asqi.container_manager",
-            ["extract_manifest_from_image"],
+            "asqi.backends",
+            ["ContainerBackend", "DockerBackend"],
         )
 
     def test_asqi_schemas_exports_public_models(self):

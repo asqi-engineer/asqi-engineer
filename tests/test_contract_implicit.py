@@ -506,19 +506,19 @@ class TestEnvironmentVariableSurface:
 class TestMountPathConstants:
     """Container input mount is ``/input`` (read-only); output mount is
     ``/output`` (read-write). These are pinned as module constants in
-    ``asqi.container_manager`` and must not drift."""
+    ``asqi.backends.docker_backend`` and must not drift."""
 
     def test_input_mount_path_is_slash_input(self):
         from pathlib import Path
 
-        from asqi.container_manager import INPUT_MOUNT_PATH
+        from asqi.backends.docker_backend import INPUT_MOUNT_PATH
 
         assert INPUT_MOUNT_PATH == Path("/input")
 
     def test_output_mount_path_is_slash_output(self):
         from pathlib import Path
 
-        from asqi.container_manager import OUTPUT_MOUNT_PATH
+        from asqi.backends.docker_backend import OUTPUT_MOUNT_PATH
 
         assert OUTPUT_MOUNT_PATH == Path("/output")
 
@@ -600,7 +600,7 @@ class TestContainerWorkflowIdLabel:
         We capture the kwargs at the ``client.containers.run`` boundary and
         short-circuit by raising — the function's outer ``except Exception``
         catches it and returns a normal result dict."""
-        from asqi.container_manager import run_container_with_args
+        from asqi.backends.docker_backend import run_container_with_args
         from docker import errors as docker_errors
 
         captured: dict = {}
@@ -613,7 +613,7 @@ class TestContainerWorkflowIdLabel:
 
         client = MagicMock()
         client.containers.run.side_effect = fake_run
-        with patch("asqi.container_manager.docker_client") as mock_client_ctx:
+        with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             run_container_with_args(
                 image="img:1",
