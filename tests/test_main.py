@@ -24,7 +24,9 @@ class TestMainCLI:
         assert "asqi-engineer version" in result.output
         # Check for either format: simple version or version with build info
         assert "asqi-engineer version" in result.output and (
-            "build" in result.output or "unknown" in result.output or result.output.count("asqi-engineer version") == 1
+            "build" in result.output
+            or "unknown" in result.output
+            or result.output.count("asqi-engineer version") == 1
         )
 
     def test_version_flag_short(self):
@@ -179,7 +181,9 @@ class TestMainCLI:
     @patch("asqi.main.load_audit_responses_file")
     @patch("asqi.main.load_score_card_file")
     @patch("asqi.workflow.DBOS")
-    def test_execute_with_audit_responses(self, mock_dbos, mock_load_score, mock_load_audit, mock_start):
+    def test_execute_with_audit_responses(
+        self, mock_dbos, mock_load_score, mock_load_audit, mock_start
+    ):
         """Test execute command with score card and audit responses."""
         mock_load_score.return_value = MOCK_SCORE_CARD_CONFIG
         mock_load_audit.return_value = MOCK_AUDIT_RESPONSES
@@ -261,10 +265,14 @@ class TestMainCLI:
         assert len(cleaned_configs) == 1
         cleaned_card = cleaned_configs[0]
         # All audit indicators should have been removed
-        assert all(ind.get("type") != "audit" for ind in cleaned_card.get("indicators", []))
+        assert all(
+            ind.get("type") != "audit" for ind in cleaned_card.get("indicators", [])
+        )
         assert kwargs["audit_responses_data"] is None
 
-        assert "✨ Execution completed! Workflow ID: workflow-audit-skip" in result.stdout
+        assert (
+            "✨ Execution completed! Workflow ID: workflow-audit-skip" in result.stdout
+        )
 
     @patch("asqi.main.load_score_card_file")
     @patch("asqi.workflow.DBOS")
@@ -295,7 +303,9 @@ class TestMainCLI:
     @patch("asqi.workflow.start_score_card_evaluation")
     @patch("asqi.main.load_score_card_file")
     @patch("asqi.workflow.DBOS")
-    def test_evaluate_score_cards_success(self, mock_dbos, mock_load_score, mock_start_eval):
+    def test_evaluate_score_cards_success(
+        self, mock_dbos, mock_load_score, mock_start_eval
+    ):
         """Test successful evaluate-score-cards command."""
         mock_load_score.return_value = {"score_card_name": "Test scorecard"}
         mock_start_eval.return_value = "workflow-789"
@@ -322,7 +332,10 @@ class TestMainCLI:
             audit_responses_data=None,
         )
         assert "✅ Loaded grading score card: Test scorecard" in result.stdout
-        assert "✨ Score card evaluation completed! Workflow ID: workflow-789" in result.stdout
+        assert (
+            "✨ Score card evaluation completed! Workflow ID: workflow-789"
+            in result.stdout
+        )
 
     @patch("asqi.workflow.start_score_card_evaluation")
     @patch("asqi.main.load_audit_responses_file")
@@ -364,12 +377,17 @@ class TestMainCLI:
         )
 
         assert "✅ Loaded grading score card: Mock Chatbot Scorecard" in result.stdout
-        assert "✨ Score card evaluation completed! Workflow ID: workflow-audit-eval-1" in result.stdout
+        assert (
+            "✨ Score card evaluation completed! Workflow ID: workflow-audit-eval-1"
+            in result.stdout
+        )
 
     @patch("asqi.workflow.start_score_card_evaluation")
     @patch("asqi.main.load_score_card_file")
     @patch("asqi.workflow.DBOS")
-    def test_evaluate_score_cards_with_skip_audit(self, mock_dbos, mock_load_score, mock_start_eval):
+    def test_evaluate_score_cards_with_skip_audit(
+        self, mock_dbos, mock_load_score, mock_start_eval
+    ):
         """Test evaluate-score-cards when audit indicators are skipped."""
         mock_load_score.return_value = MOCK_SCORE_CARD_CONFIG
         mock_start_eval.return_value = "workflow-audit-eval-skip"
@@ -397,14 +415,21 @@ class TestMainCLI:
         cleaned_configs = kwargs["score_card_configs"]
         assert len(cleaned_configs) == 1
         cleaned_card = cleaned_configs[0]
-        assert all(ind.get("type") != "audit" for ind in cleaned_card.get("indicators", []))
+        assert all(
+            ind.get("type") != "audit" for ind in cleaned_card.get("indicators", [])
+        )
         assert kwargs["audit_responses_data"] is None
 
-        assert "✨ Score card evaluation completed! Workflow ID: workflow-audit-eval-skip" in result.stdout
+        assert (
+            "✨ Score card evaluation completed! Workflow ID: workflow-audit-eval-skip"
+            in result.stdout
+        )
 
     @patch("asqi.main.load_score_card_file")
     @patch("asqi.workflow.DBOS")
-    def test_evaluate_score_cards_audit_required_but_missing(self, mock_dbos, mock_load_score):
+    def test_evaluate_score_cards_audit_required_but_missing(
+        self, mock_dbos, mock_load_score
+    ):
         """Test evaluate-score-cards errors when audit indicators exist but no responses or skip flag."""
         mock_load_score.return_value = MOCK_SCORE_CARD_CONFIG
 
@@ -451,7 +476,9 @@ class TestMainCLI:
             manifests_path="manifests/",
         )
         assert "✨ Success! The test plan is valid." in result.stdout
-        assert "Use 'execute' or 'execute-tests' commands to run tests." in result.stdout
+        assert (
+            "Use 'execute' or 'execute-tests' commands to run tests." in result.stdout
+        )
 
     @patch("asqi.main.load_and_validate_plan")
     def test_validate_failure(self, mock_validate):
@@ -485,7 +512,9 @@ class TestMainCLI:
         """Test that default output filenames are logical."""
         mock_start.return_value = "workflow-test"
 
-        result = self.runner.invoke(app, ["execute-tests", "-t", "suite.yaml", "-s", "systems.yaml"])
+        result = self.runner.invoke(
+            app, ["execute-tests", "-t", "suite.yaml", "-s", "systems.yaml"]
+        )
         assert result.exit_code == 0
         mock_start.assert_called_with(
             suite_path="suite.yaml",
@@ -506,7 +535,9 @@ class TestMainCLI:
     @patch("asqi.workflow.start_test_execution")
     @patch("asqi.main.load_score_card_file")
     @patch("asqi.workflow.DBOS")
-    def test_execute_default_scorecard_filename(self, mock_dbos, mock_load_score, mock_start):
+    def test_execute_default_scorecard_filename(
+        self, mock_dbos, mock_load_score, mock_start
+    ):
         """Test execute (with score cards) defaults to output_scorecard.json."""
         mock_load_score.return_value = {"score_card_name": "Test"}
         mock_start.return_value = "workflow-test"
@@ -552,7 +583,10 @@ class TestMainCLI:
         )
 
         assert result.exit_code == 1
-        assert "❌ score card configuration error: Invalid score card format" in result.stdout
+        assert (
+            "❌ score card configuration error: Invalid score card format"
+            in result.stdout
+        )
 
     @patch("asqi.workflow.start_test_execution")
     @patch("asqi.workflow.DBOS")
@@ -598,7 +632,9 @@ class TestMainCLI:
     @patch("asqi.workflow.DBOS")
     def test_execute_tests_with_test_ids_failure(self, mock_dbos, mock_start):
         """Test execute-tests fails when invalid test-names are passed."""
-        mock_start.side_effect = ValueError("❌ Test execution failed: ❌ Test not found: tes1\n   Did you mean: test1")
+        mock_start.side_effect = ValueError(
+            "❌ Test execution failed: ❌ Test not found: tes1\n   Did you mean: test1"
+        )
 
         result = self.runner.invoke(
             app,
@@ -707,7 +743,9 @@ class TestUtilityFunctions:
                     "name": "test indicator",
                     "apply_to": {"test_id": "test1"},
                     "metric": "success",
-                    "assessment": [{"outcome": "PASS", "condition": "equal_to", "threshold": True}],
+                    "assessment": [
+                        {"outcome": "PASS", "condition": "equal_to", "threshold": True}
+                    ],
                 }
             ],
         }
@@ -749,13 +787,17 @@ class TestPermissionErrors:
     @patch("builtins.open", side_effect=PermissionError("Permission denied"))
     def test_load_yaml_file_permission_error(self, mock_open):
         """Test YAML file loading with permission error."""
-        with pytest.raises(PermissionError, match="Permission denied accessing configuration file"):
+        with pytest.raises(
+            PermissionError, match="Permission denied accessing configuration file"
+        ):
             load_yaml_file("restricted_file.yaml")
 
     @patch("builtins.open", side_effect=PermissionError("Permission denied"))
     def test_load_score_card_file_permission_error(self, mock_open):
         """Test score card file loading with permission error."""
-        with pytest.raises(PermissionError, match="Permission denied accessing configuration file"):
+        with pytest.raises(
+            PermissionError, match="Permission denied accessing configuration file"
+        ):
             load_score_card_file("restricted_score_card.yaml")
 
 
@@ -841,7 +883,9 @@ class TestErrorScenarios:
             assert result.exit_code == 1
             assert "DBOS workflow dependencies not available" in result.stdout
 
-    @patch("asqi.workflow.start_test_execution", side_effect=Exception("Workflow error"))
+    @patch(
+        "asqi.workflow.start_test_execution", side_effect=Exception("Workflow error")
+    )
     @patch("asqi.workflow.DBOS")
     def test_execute_tests_workflow_error(self, mock_dbos, mock_start):
         """Test execute-tests with workflow execution error."""
@@ -859,7 +903,9 @@ class TestErrorScenarios:
         assert "Test execution failed: Workflow error" in result.stdout
 
     @patch("asqi.main.load_score_card_file")
-    @patch("asqi.workflow.start_test_execution", side_effect=Exception("Workflow error"))
+    @patch(
+        "asqi.workflow.start_test_execution", side_effect=Exception("Workflow error")
+    )
     @patch("asqi.workflow.DBOS")
     def test_execute_workflow_error(self, mock_dbos, mock_start, mock_load_score):
         """Test execute with workflow execution error."""
@@ -886,7 +932,9 @@ class TestErrorScenarios:
         side_effect=Exception("Evaluation error"),
     )
     @patch("asqi.workflow.DBOS")
-    def test_evaluate_score_cards_workflow_error(self, mock_dbos, mock_start_eval, mock_load_score):
+    def test_evaluate_score_cards_workflow_error(
+        self, mock_dbos, mock_start_eval, mock_load_score
+    ):
         """Test evaluate-score-cards with workflow execution error."""
         mock_load_score.return_value = {"score_card_name": "Test"}
 
@@ -918,7 +966,9 @@ class TestLoadAndValidatePlan:
             "/nonexistent/manifests/",
         )
         assert result["status"] == "failure"
-        assert any("Configuration file not found" in error for error in result["errors"])
+        assert any(
+            "Configuration file not found" in error for error in result["errors"]
+        )
 
     def test_load_and_validate_plan_success_empty_manifests(self):
         """Test load_and_validate_plan with no manifest files."""
@@ -1046,7 +1096,9 @@ class TestLoadDotenvFunctionality:
 
         # Mock the .env file content by setting environment variables when load_dotenv is called
         def mock_dotenv_side_effect(*args, **kwargs):
-            os.environ["DBOS_DATABASE_URL"] = "postgres://test:test@localhost:5432/test_db"
+            os.environ["DBOS_DATABASE_URL"] = (
+                "postgres://test:test@localhost:5432/test_db"
+            )
             return True
 
         mock_load_dotenv.side_effect = mock_dotenv_side_effect
@@ -1066,7 +1118,9 @@ class TestLoadDotenvFunctionality:
             dbos_url = os.environ.get("DBOS_DATABASE_URL")
 
             # This assertion will fail if load_dotenv() is commented out
-            assert dbos_url is not None, "DBOS_DATABASE_URL should be loaded from .env file"
+            assert dbos_url is not None, (
+                "DBOS_DATABASE_URL should be loaded from .env file"
+            )
             assert dbos_url == "postgres://test:test@localhost:5432/test_db"
 
         finally:
