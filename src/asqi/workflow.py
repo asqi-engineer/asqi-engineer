@@ -72,7 +72,9 @@ load_dotenv()
 oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
 system_database_url = os.environ.get("DBOS_DATABASE_URL")
 if not system_database_url:
-    raise ValueError("Database URL must be provided through DBOS_DATABASE_URL environment variable")
+    raise ValueError(
+        "Database URL must be provided through DBOS_DATABASE_URL environment variable"
+    )
 
 config: DBOSConfig = {
     "name": "asqi-test-executor",
@@ -127,10 +129,16 @@ def _get_available_images(
         image_availability = dbos_check_images_availability(unique_images)
 
     # Try to pull missing images from Docker Hub/registries
-    missing_images = [img for img, available in image_availability.items() if not available]
+    missing_images = [
+        img for img, available in image_availability.items() if not available
+    ]
     if missing_images:
-        console.print(f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally")
-        with console.status("[bold blue]Pulling missing images from registry...", spinner="dots"):
+        console.print(
+            f"[yellow]Warning:[/yellow] {len(missing_images)} images not available locally"
+        )
+        with console.status(
+            "[bold blue]Pulling missing images from registry...", spinner="dots"
+        ):
             dbos_pull_images(missing_images)
 
     # After pulling, we need to check availability again to include newly pulled images
@@ -139,7 +147,9 @@ def _get_available_images(
         image_availability.update(updated_image_availability)
 
     # Now get all available images including ones that were just pulled
-    available_images = [img for img, available in image_availability.items() if available]
+    available_images = [
+        img for img, available in image_availability.items() if available
+    ]
     return available_images, image_availability
 
 
@@ -161,7 +171,9 @@ def _get_docker_socket_path(env_vars: dict[str, str]) -> str:
     return "/var/run/docker.sock"
 
 
-def _load_env_file_into_dict(container_env: dict[str, str], env_file_path: str, level: str) -> None:
+def _load_env_file_into_dict(
+    container_env: dict[str, str], env_file_path: str, level: str
+) -> None:
     """
     Load an environment file and merge into container_env dict.
 
@@ -176,14 +188,22 @@ def _load_env_file_into_dict(container_env: dict[str, str], env_file_path: str, 
             # Filter out None values to ensure all env vars are strings
             filtered_env_vars = {k: v for k, v in env_vars.items() if v is not None}
             container_env.update(filtered_env_vars)
-            DBOS.logger.info(f"Loaded environment variables from {level} env_file: {env_file_path}")
+            DBOS.logger.info(
+                f"Loaded environment variables from {level} env_file: {env_file_path}"
+            )
         except Exception as e:
-            DBOS.logger.warning(f"Failed to load {level} environment file {env_file_path}: {e}")
+            DBOS.logger.warning(
+                f"Failed to load {level} environment file {env_file_path}: {e}"
+            )
     else:
-        DBOS.logger.warning(f"{level.capitalize()} environment file {env_file_path} not found")
+        DBOS.logger.warning(
+            f"{level.capitalize()} environment file {env_file_path} not found"
+        )
 
 
-def _merge_interpolated_env(container_env: dict[str, str], item_environment: dict[str, str]) -> None:
+def _merge_interpolated_env(
+    container_env: dict[str, str], item_environment: dict[str, str]
+) -> None:
     """
     Interpolate and merge item-level environment dict into container_env.
 
@@ -280,8 +300,14 @@ def _load_and_merge_environment_variables(
 
     # Load environment variables from all system-level env_file(s)
     for system_params in systems_params.values():
-        if isinstance(system_params, dict) and "env_file" in system_params and system_params["env_file"]:
-            _load_env_file_into_dict(container_env, system_params["env_file"], "system-level")
+        if (
+            isinstance(system_params, dict)
+            and "env_file" in system_params
+            and system_params["env_file"]
+        ):
+            _load_env_file_into_dict(
+                container_env, system_params["env_file"], "system-level"
+            )
 
     # Load environment variables from item-level env_file
     if item_env_file:
@@ -405,8 +431,12 @@ def _translate_container_output_paths(
     """
     host_output_volume = item_params.get("volumes", {}).get("output", "")
 
-    translated_reports = translate_report_paths(validated_output.generated_reports, host_output_volume)
-    translated_datasets = translate_dataset_paths(validated_output.generated_datasets, host_output_volume)
+    translated_reports = translate_report_paths(
+        validated_output.generated_reports, host_output_volume
+    )
+    translated_datasets = translate_dataset_paths(
+        validated_output.generated_datasets, host_output_volume
+    )
 
     return translated_reports, translated_datasets
 
@@ -533,25 +563,33 @@ def _execute_container_job(
         TestExecutionResult containing execution metadata and results
     """
 
-    container_env = _load_and_merge_environment_variables(systems_params, env_file, environment)
+    container_env = _load_and_merge_environment_variables(
+        systems_params, env_file, environment
+    )
 
     # Extract manifest to check for host access requirements and validate environment variables
     manifest = None
     try:
-        manifest = _get_manifest_backend().extract_manifest(image, ContainerConfig.MANIFEST_PATH)
+        manifest = _get_manifest_backend().extract_manifest(
+            image, ContainerConfig.MANIFEST_PATH
+        )
     except Exception as e:
         # Log warning but continue - manifest extraction failure shouldn't stop execution
         DBOS.logger.warning(f"Failed to extract manifest from {image}: {e}")
 
     # Validate environment variables against manifest requirements
-    error_msg = _validate_required_environment_variables(manifest, container_env, item_name, image)
+    error_msg = _validate_required_environment_variables(
+        manifest, container_env, item_name, image
+    )
     if error_msg:
         result.error_message = error_msg
         result.success = False
         return result
 
     # Configure Docker-in-Docker for containers that require host access
-    _configure_docker_in_docker(manifest, container_config, container_env, item_id, image)
+    _configure_docker_in_docker(
+        manifest, container_config, container_env, item_id, image
+    )
 
     # Execute container
     result.start_time = time.time()
@@ -578,12 +616,14 @@ def _execute_container_job(
     # Always parse JSON output to extract container errors
     try:
         parsed_container_results = parse_container_json_output(result.container_output)
-        validated_output = extract_container_json_output_fields(parsed_container_results)
+        validated_output = extract_container_json_output_fields(
+            parsed_container_results
+        )
         result.results = validated_output.get_results()
 
         # Translate container paths to host paths
-        result.generated_reports, result.generated_datasets = _translate_container_output_paths(
-            validated_output, item_params
+        result.generated_reports, result.generated_datasets = (
+            _translate_container_output_paths(validated_output, item_params)
         )
 
         # Validate generated datasets against manifest declarations
@@ -599,7 +639,9 @@ def _execute_container_job(
             json_error = result.results["error"]
             # Combine Docker error (if any) with JSON error
             if result.error_message:
-                result.error_message = f"{result.error_message} | Container error: {json_error}"
+                result.error_message = (
+                    f"{result.error_message} | Container error: {json_error}"
+                )
             else:
                 result.error_message = str(json_error)
 
@@ -612,7 +654,9 @@ def _execute_container_job(
         else:
             result.error_message = parsing_error
         result.success = False
-        DBOS.logger.error(f"JSON parsing failed for item id {item_id}: {result.container_output[:200]}...")
+        DBOS.logger.error(
+            f"JSON parsing failed for item id {item_id}: {result.container_output[:200]}..."
+        )
 
     if not container_result["success"]:
         result.success = False
@@ -651,7 +695,9 @@ def extract_manifests_step(images: list[str]) -> dict[str, Manifest]:
 
     with console.status("[bold blue]Extracting manifests...", spinner="dots"):
         for image in images:
-            manifest = _get_manifest_backend().extract_manifest(image, ContainerConfig.MANIFEST_PATH)
+            manifest = _get_manifest_backend().extract_manifest(
+                image, ContainerConfig.MANIFEST_PATH
+            )
             if manifest:
                 manifests[image] = manifest
             else:
@@ -661,7 +707,9 @@ def extract_manifests_step(images: list[str]) -> dict[str, Manifest]:
 
 
 @DBOS.step()
-def validate_test_plan(suite: SuiteConfig, systems: SystemsConfig, manifests: dict[str, Manifest]) -> list[str]:
+def validate_test_plan(
+    suite: SuiteConfig, systems: SystemsConfig, manifests: dict[str, Manifest]
+) -> list[str]:
     """
     DBOS step wrapper for comprehensive test plan validation.
 
@@ -749,7 +797,9 @@ def execute_single_test(
     result = TestExecutionResult(test_name, test_id, sut_name, image, system_type)
 
     try:
-        validate_test_execution_inputs(test_id, image, sut_name, sut_params, test_params)
+        validate_test_execution_inputs(
+            test_id, image, sut_name, sut_params, test_params
+        )
     except ValueError as e:
         result.error_message = str(e)
         result.success = False
@@ -771,7 +821,9 @@ def execute_single_test(
                     sut_params["api_key"] = env_vars["API_KEY"]
                 DBOS.logger.info(f"Loaded environment variables from {env_file_path}")
             except Exception as e:
-                DBOS.logger.warning(f"Failed to load environment file {env_file_path}: {e}")
+                DBOS.logger.warning(
+                    f"Failed to load environment file {env_file_path}: {e}"
+                )
         else:
             DBOS.logger.warning(f"Specified environment file {env_file_path} not found")
 
@@ -862,7 +914,9 @@ def evaluate_score_card(
     if not score_cards:
         return all_evaluations
 
-    test_id_to_image, manifests = _resolve_display_reports_inputs(test_results, execution_mode)
+    test_id_to_image, manifests = _resolve_display_reports_inputs(
+        test_results, execution_mode
+    )
 
     for score_card in score_cards:
         try:
@@ -871,7 +925,9 @@ def evaluate_score_card(
                 validate_display_reports(manifests, score_card, test_id_to_image)
 
             # Evaluate score card against test results
-            score_card_evaluations = score_card_engine.evaluate_scorecard(test_results, score_card, audit_responses)
+            score_card_evaluations = score_card_engine.evaluate_scorecard(
+                test_results, score_card, audit_responses
+            )
 
             # Add score card name to each evaluation
             for evaluation in score_card_evaluations:
@@ -959,7 +1015,9 @@ def run_test_suite_workflow(
             datasets = DatasetsConfig(**datasets_config)
             resolved = resolve_dataset_references(suite, datasets)
             if not isinstance(resolved, SuiteConfig):
-                raise TypeError(f"Expected SuiteConfig from resolve_dataset_references, got {type(resolved).__name__}")
+                raise TypeError(
+                    f"Expected SuiteConfig from resolve_dataset_references, got {type(resolved).__name__}"
+                )
             suite = resolved
         for score_card_config in score_card_configs or []:
             score_cards.append(ScoreCard(**score_card_config))
@@ -1030,8 +1088,12 @@ def run_test_suite_workflow(
         validation_errors = validate_test_plan(suite, systems, manifests)
 
     # Validate score cards reports
-    with console.status("[bold blue]Validating indicators display reports...", spinner="dots"):
-        validation_errors.extend(validate_indicator_display_reports_step(suite, manifests, score_cards))
+    with console.status(
+        "[bold blue]Validating indicators display reports...", spinner="dots"
+    ):
+        validation_errors.extend(
+            validate_indicator_display_reports_step(suite, manifests, score_cards)
+        )
 
     if validation_errors:
         console.print("[red]Validation failed:[/red]")
@@ -1130,7 +1192,9 @@ def run_test_suite_workflow(
 
     except (ImportError, AttributeError) as e:
         # Fallback to simple execution without progress bar if Rich components fail
-        DBOS.logger.warning(f"Progress bar unavailable, falling back to simple execution: {e}")
+        DBOS.logger.warning(
+            f"Progress bar unavailable, falling back to simple execution: {e}"
+        )
         console.print("[yellow]Running tests without progress bar...[/yellow]")
 
         # Enqueue all tests for concurrent execution
@@ -1212,11 +1276,15 @@ def run_test_suite_workflow(
         failed_results = [r for r in all_results if not r.success]
         format_failure_summary(failed_results, console, executor_config["max_failures"])
 
-    DBOS.logger.info(f"Workflow completed: {successful_tests}/{total_tests} tests passed")
+    DBOS.logger.info(
+        f"Workflow completed: {successful_tests}/{total_tests} tests passed"
+    )
 
     return {
         "summary": summary,
-        "results": [result.result_dict() for result in all_results],  # Test execution uses test_results
+        "results": [
+            result.result_dict() for result in all_results
+        ],  # Test execution uses test_results
     }, [result.container_dict() for result in all_results]
 
 
@@ -1254,10 +1322,16 @@ def convert_test_results_to_objects(
         result.exit_code = metadata["exit_code"]
 
         # Read from test_results (test execution pipeline) or results (data generation pipeline)
-        result.results = result_dict.get("test_results") or result_dict.get("results", {})
-        result.generated_reports = [GeneratedReport(**report) for report in result_dict.get("generated_reports", [])]
+        result.results = result_dict.get("test_results") or result_dict.get(
+            "results", {}
+        )
+        result.generated_reports = [
+            GeneratedReport(**report)
+            for report in result_dict.get("generated_reports", [])
+        ]
         result.generated_datasets = [
-            GeneratedDataset(**dataset) for dataset in result_dict.get("generated_datasets", [])
+            GeneratedDataset(**dataset)
+            for dataset in result_dict.get("generated_datasets", [])
         ]
 
         # case where the logs file was moved and test_container_data is empty
@@ -1336,11 +1410,15 @@ def evaluate_score_cards_workflow(
         Updated results with score card evaluation data
     """
     # 1. Convert test results back to TestExecutionResult objects
-    test_results = convert_test_results_to_objects(test_results_data, test_container_data)
+    test_results = convert_test_results_to_objects(
+        test_results_data, test_container_data
+    )
 
     # 2. Evaluate score cards using existing step
     console.print("\n[bold blue]Evaluating score cards...[/bold blue]")
-    score_card_evaluation = evaluate_score_card(test_results, score_card_configs, audit_responses_data, execution_mode)
+    score_card_evaluation = evaluate_score_card(
+        test_results, score_card_configs, audit_responses_data, execution_mode
+    )
 
     # 3. Add score card results to test data
     return add_score_cards_to_results(test_results_data, score_card_evaluation)
@@ -1413,9 +1491,13 @@ def validate_test_container_reports(
             try:
                 report_path = Path(report.report_path)
                 if not report_path.exists():
-                    result_errors.append(f"Report '{report.report_name}' does not exist at path '{report.report_path}'")
+                    result_errors.append(
+                        f"Report '{report.report_name}' does not exist at path '{report.report_path}'"
+                    )
             except (TypeError, ValueError, OSError) as error:
-                result_errors.append(f"Report '{report.report_name}' file validation error: {error}")
+                result_errors.append(
+                    f"Report '{report.report_name}' file validation error: {error}"
+                )
 
         # Validate against manifest if available
         if not result_errors:
@@ -1426,8 +1508,14 @@ def validate_test_container_reports(
                 )
             else:
                 manifest = manifests[result.image]
-                manifest_reports = {(report.name, report.type) for report in (manifest.output_reports or [])}
-                container_reports = {(report.report_name, report.report_type) for report in result.generated_reports}
+                manifest_reports = {
+                    (report.name, report.type)
+                    for report in (manifest.output_reports or [])
+                }
+                container_reports = {
+                    (report.report_name, report.report_type)
+                    for report in result.generated_reports
+                }
                 missing_reports = manifest_reports - container_reports
                 extra_reports = container_reports - manifest_reports
 
@@ -1440,7 +1528,9 @@ def validate_test_container_reports(
                     )
 
                     result.results["success"] = False
-                    result.results["error"] = "Test results invalidated due to 'generated_reports' mismatch"
+                    result.results["error"] = (
+                        "Test results invalidated due to 'generated_reports' mismatch"
+                    )
                     result.results["missing_reports"] = missing_reports
                     result.results["extra_reports"] = extra_reports
 
@@ -1509,8 +1599,12 @@ def validate_display_reports(
     Raises:
         ReportValidationError: If validation fails
     """
-    with console.status("[bold blue]Validating indicators display reports...", spinner="dots"):
-        validation_errors = validate_indicator_display_reports(manifests, [score_card], test_id_to_image)
+    with console.status(
+        "[bold blue]Validating indicators display reports...", spinner="dots"
+    ):
+        validation_errors = validate_indicator_display_reports(
+            manifests, [score_card], test_id_to_image
+        )
         if validation_errors:
             errors = ", ".join(validation_errors)
             raise ReportValidationError(errors)
@@ -1527,7 +1621,9 @@ def save_results_to_file_step(results: dict[str, Any], output_path: str) -> None
         console.print(f"[red]Invalid results data for saving:[/red] {e}")
 
 
-def save_container_results_to_file_step(container_results: list[dict[str, Any]], output_path: str) -> None:
+def save_container_results_to_file_step(
+    container_results: list[dict[str, Any]], output_path: str
+) -> None:
     """Save container results to a JSON file."""
     logs_dir = os.getenv("LOGS_PATH", "logs")
     try:
@@ -1537,7 +1633,9 @@ def save_container_results_to_file_step(container_results: list[dict[str, Any]],
 
         Path(logs_dir).mkdir(exist_ok=True)
 
-        logs_path = save_container_results_to_file(container_results, logs_dir, logs_filename)
+        logs_path = save_container_results_to_file(
+            container_results, logs_dir, logs_filename
+        )
         console.print(f"Container results saved to [bold]{logs_path}[/bold]")
     except (OSError, PermissionError) as e:
         console.print(f"[red]Failed to save container results:[/red] {e}")
@@ -1588,7 +1686,9 @@ def start_test_execution(
         FileNotFoundError: If configuration files don't exist
         PermissionError: If configuration files cannot be read
     """
-    validate_execution_inputs(suite_path, systems_path, execution_mode, audit_responses_data, output_path)
+    validate_execution_inputs(
+        suite_path, systems_path, execution_mode, audit_responses_data, output_path
+    )
 
     try:
         # Load configurations
@@ -1605,7 +1705,9 @@ def start_test_execution(
             # Parse test ids: handle both repeated flags and comma-separated values
             parsed_test_ids = []
             for item in test_ids:
-                parsed_test_ids.extend([name.strip() for name in item.split(",") if name.strip()])
+                parsed_test_ids.extend(
+                    [name.strip() for name in item.split(",") if name.strip()]
+                )
 
             original_tests = suite_config.get("test_suite", [])
             available_tests = [t.get("name") for t in original_tests]
@@ -1624,13 +1726,17 @@ def start_test_execution(
                     suggestions = get_close_matches(m, available_map.keys(), n=1)
                     if suggestions:
                         suggestion = available_map[suggestions[0]]
-                        msg_lines.append(f"❌ Test not found: {user_input}\n   Did you mean: {suggestion}")
+                        msg_lines.append(
+                            f"❌ Test not found: {user_input}\n   Did you mean: {suggestion}"
+                        )
                     else:
                         msg_lines.append(f"❌ Test not found: {user_input}")
                 raise ValueError("\n".join(msg_lines))
 
             # filter using lowercase
-            suite_config["test_suite"] = [t for t in original_tests if t.get("name").lower() in requested_set]
+            suite_config["test_suite"] = [
+                t for t in original_tests if t.get("name").lower() in requested_set
+            ]
 
         # Start appropriate workflow based on execution mode
         if execution_mode == ExecutionMode.TESTS_ONLY:
@@ -1711,7 +1817,9 @@ def start_score_card_evaluation(
         json.JSONDecodeError: If input file contains invalid JSON
         PermissionError: If input file cannot be read
     """
-    validate_score_card_inputs(input_path, score_card_configs, audit_responses_data, output_path)
+    validate_score_card_inputs(
+        input_path, score_card_configs, audit_responses_data, output_path
+    )
 
     try:
         with open(input_path) as f:
@@ -1868,7 +1976,9 @@ def execute_data_generation(
     result = TestExecutionResult(job_name, job_id, job_name, image)
 
     try:
-        validate_data_gen_execution_inputs(job_id, image, systems_params, generation_params)
+        validate_data_gen_execution_inputs(
+            job_id, image, systems_params, generation_params
+        )
     except ValueError as e:
         result.error_message = str(e)
         result.success = False
@@ -1882,7 +1992,9 @@ def execute_data_generation(
         default_job_type="generation",
     )
 
-    generation_params_with_metadata = generation_params.copy() if generation_params else {}
+    generation_params_with_metadata = (
+        generation_params.copy() if generation_params else {}
+    )
     generation_params_with_metadata["metadata"] = metadata.model_dump()
 
     try:
@@ -2020,7 +2132,9 @@ def run_data_generation_workflow(
             "results": [],
         }, []
 
-    console.print(f"\n[bold blue]Executing Test Suite:[/bold blue] {generation.job_name}")
+    console.print(
+        f"\n[bold blue]Executing Test Suite:[/bold blue] {generation.job_name}"
+    )
 
     """Get the list of available Docker images for the test suite."""
     unique_images = list(set(job.image for job in generation.generation_jobs))
@@ -2031,7 +2145,9 @@ def run_data_generation_workflow(
 
     # Validate test plan
     with console.status("[bold blue]Validating test plan...", spinner="dots"):
-        validation_errors = validate_data_generation_plan(generation, systems, manifests)
+        validation_errors = validate_data_generation_plan(
+            generation, systems, manifests
+        )
 
     if validation_errors:
         console.print("[red]Validation failed:[/red]")
@@ -2079,7 +2195,9 @@ def run_data_generation_workflow(
     console.print(f"\n[bold]Running {data_gen_count} Generations...[/bold]")
     try:
         with create_test_execution_progress(console) as progress:
-            task = progress.add_task("Executing Data Generation Workflows", total=data_gen_count)
+            task = progress.add_task(
+                "Executing Data Generation Workflows", total=data_gen_count
+            )
             # Enqueue all tests for concurrent execution
             generation_handles = []
             for plan in data_gen_plan:
@@ -2129,7 +2247,9 @@ def run_data_generation_workflow(
 
     except (ImportError, AttributeError) as e:
         # Fallback to simple execution without progress bar if Rich components fail
-        DBOS.logger.warning(f"Progress bar unavailable, falling back to simple execution: {e}")
+        DBOS.logger.warning(
+            f"Progress bar unavailable, falling back to simple execution: {e}"
+        )
         console.print("[yellow]Running tests without progress bar...[/yellow]")
 
         # Enqueue all tests for concurrent execution
@@ -2152,12 +2272,16 @@ def run_data_generation_workflow(
 
         # Collect results as they complete
         all_results = []
-        progress_interval = max(1, data_gen_count // executor_config["progress_interval"])
+        progress_interval = max(
+            1, data_gen_count // executor_config["progress_interval"]
+        )
         for i, (handle, plan) in enumerate(test_handles, 1):
             try:
                 result = handle.get_result()
             except Exception as e:
-                DBOS.logger.error(f"Test execution handle failed for {plan['job_id']} (image: {plan['image']}): {e}")
+                DBOS.logger.error(
+                    f"Test execution handle failed for {plan['job_id']} (image: {plan['image']}): {e}"
+                )
                 result = TestExecutionResult(
                     plan["job_name"],
                     plan["job_id"],
@@ -2208,10 +2332,14 @@ def run_data_generation_workflow(
         failed_results = [r for r in all_results if not r.success]
         format_failure_summary(failed_results, console, executor_config["max_failures"])
 
-    DBOS.logger.info(f"Workflow completed: {successful_tests}/{total_tests} jobs are succesful")
+    DBOS.logger.info(
+        f"Workflow completed: {successful_tests}/{total_tests} jobs are succesful"
+    )
     return {
         "summary": summary,
-        "results": [result.result_dict(use_results_field=True) for result in all_results],
+        "results": [
+            result.result_dict(use_results_field=True) for result in all_results
+        ],
     }, [result.container_dict() for result in all_results]
 
 

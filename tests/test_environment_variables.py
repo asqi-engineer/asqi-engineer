@@ -380,7 +380,9 @@ class TestEnvironmentVariables:
         assert call_kwargs["environment"]["TEST_API_KEY"] == "test_secret_key_12345"
 
     @patch("asqi.workflow._get_container_backend")
-    def test_execute_single_test_explicit_api_key_only(self, mock_run_container, tmp_path, monkeypatch):
+    def test_execute_single_test_explicit_api_key_only(
+        self, mock_run_container, tmp_path, monkeypatch
+    ):
         """Test that only explicit api_key is passed to container."""
         # Create .env file that should NOT be automatically loaded
         dotenv_content = "API_KEY=test_secret_key_12345\n"
@@ -469,7 +471,9 @@ class TestEnvironmentVariables:
         assert call_kwargs["environment"]["ANOTHER_VAR"] == "another_value"
 
     @patch("asqi.workflow._get_container_backend")
-    def test_test_level_environment_dict(self, mock_run_container, tmp_path, monkeypatch):
+    def test_test_level_environment_dict(
+        self, mock_run_container, tmp_path, monkeypatch
+    ):
         """Test that test-level environment dict sets env vars."""
         monkeypatch.chdir(tmp_path)
 
@@ -543,7 +547,9 @@ class TestEnvironmentVariables:
         assert call_kwargs["environment"]["OPENAI_API_KEY"] == "interpolated_secret"
 
     @patch("asqi.workflow._get_container_backend")
-    def test_merge_priority_test_over_system(self, mock_run_container, tmp_path, monkeypatch):
+    def test_merge_priority_test_over_system(
+        self, mock_run_container, tmp_path, monkeypatch
+    ):
         """Test that test-level env vars override system-level ones."""
         # Create system-level .env
         system_env_content = "SHARED_VAR=system_value\nSYSTEM_ONLY=sys_value\n"

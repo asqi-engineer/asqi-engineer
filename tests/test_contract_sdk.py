@@ -82,7 +82,9 @@ class TestValidateDatasetFeaturesContract:
         streaming.column_names = None
         streaming.features = None
         # Should not raise even with required features specified
-        validate_dataset_features(streaming, [DatasetFeature(name="q", dtype="string", required=True)])
+        validate_dataset_features(
+            streaming, [DatasetFeature(name="q", dtype="string", required=True)]
+        )
 
     def test_missing_required_feature_raises_value_error(self):
         from asqi.datasets import validate_dataset_features
@@ -239,7 +241,9 @@ class TestLoadHfDatasetContract:
             captured["called"] = True
 
         with (
-            _patch("asqi.datasets._load_from_hub", return_value=streaming_ds) as mock_hub,
+            _patch(
+                "asqi.datasets._load_from_hub", return_value=streaming_ds
+            ) as mock_hub,
             _patch(
                 "asqi.datasets.validate_dataset_features",
                 side_effect=fake_validate,
@@ -253,7 +257,9 @@ class TestLoadHfDatasetContract:
                         "streaming": True,
                     },
                 },
-                expected_features=[DatasetFeature(name="answer", dtype="string", required=True)],
+                expected_features=[
+                    DatasetFeature(name="answer", dtype="string", required=True)
+                ],
             )
 
         # Hub branch was used and the iterable flowed through unchanged.
@@ -282,7 +288,9 @@ class TestLoadHfDatasetContract:
                         "data_files": str(f),
                     },
                 },
-                expected_features=[DatasetFeature(name="answer", dtype="string", required=True)],
+                expected_features=[
+                    DatasetFeature(name="answer", dtype="string", required=True)
+                ],
             )
 
 
@@ -356,7 +364,9 @@ class TestContainerOutputContract:
 
 class TestGeneratedReportContract:
     def test_minimum_required_fields(self):
-        rep = GeneratedReport(report_name="r", report_type="html", report_path="/output/r.html")
+        rep = GeneratedReport(
+            report_name="r", report_type="html", report_path="/output/r.html"
+        )
         assert rep.metadata is None
 
     @pytest.mark.parametrize("report_type", ["html", "pdf", "json"])
@@ -374,7 +384,9 @@ class TestGeneratedReportContract:
     @pytest.mark.parametrize("blank", ["", "   ", "\t"])
     def test_blank_report_name_rejected(self, blank):
         with pytest.raises(ValidationError):
-            GeneratedReport(report_name=blank, report_type="html", report_path="/output/x")
+            GeneratedReport(
+                report_name=blank, report_type="html", report_path="/output/x"
+            )
 
     @pytest.mark.parametrize("blank", ["", "   ", "\t"])
     def test_blank_report_path_rejected(self, blank):
@@ -393,7 +405,9 @@ class TestGeneratedDatasetContract:
 
     def test_unknown_type_rejected(self):
         with pytest.raises(ValidationError):
-            GeneratedDataset(dataset_name="x", dataset_type="csv", dataset_path="/output/x")
+            GeneratedDataset(
+                dataset_name="x", dataset_type="csv", dataset_path="/output/x"
+            )
 
     def test_metadata_accepts_dataset_metadata_object(self):
         meta = DatasetMetadata(columns=[{"name": "a", "dtype": "string"}], row_count=10)
@@ -443,7 +457,9 @@ class TestDatasetMetadataConstraints:
     ``columns`` is a required list."""
 
     def test_minimum_required_fields(self):
-        meta = DatasetMetadata(columns=[ColumnMetadata(name="q", dtype="string")], row_count=0)
+        meta = DatasetMetadata(
+            columns=[ColumnMetadata(name="q", dtype="string")], row_count=0
+        )
         assert meta.row_count == 0
         assert meta.size_bytes is None
 
@@ -495,12 +511,16 @@ class TestGetOpenaiTrackingKwargsContract:
         assert "user" not in kwargs
 
     def test_tags_dict_converted_to_list_of_key_value_strings(self):
-        kwargs = get_openai_tracking_kwargs({"tags": {"job_id": "j-1", "experiment": "e-1"}})
+        kwargs = get_openai_tracking_kwargs(
+            {"tags": {"job_id": "j-1", "experiment": "e-1"}}
+        )
         tags = kwargs["extra_body"]["metadata"]["tags"]
         assert sorted(tags) == sorted(["job_id:j-1", "experiment:e-1"])
 
     def test_other_top_level_metadata_keys_preserved(self):
-        kwargs = get_openai_tracking_kwargs({"user_id": "u", "custom_field": "v", "tags": {}})
+        kwargs = get_openai_tracking_kwargs(
+            {"user_id": "u", "custom_field": "v", "tags": {}}
+        )
         meta = kwargs["extra_body"]["metadata"]
         assert meta["custom_field"] == "v"
         # user_id and tags are NOT under "metadata" — user_id is at top level,
@@ -532,7 +552,9 @@ class TestGetOpenaiTrackingKwargsContract:
         # Documented output shape: user at top level, tags as ["k:v", ...].
         assert kwargs["user"] == "user-99"
         tags = kwargs["extra_body"]["metadata"]["tags"]
-        assert sorted(tags) == sorted(["parent_id:parent-1", "job_type:test", "job_id:job-1"])
+        assert sorted(tags) == sorted(
+            ["parent_id:parent-1", "job_type:test", "job_id:job-1"]
+        )
 
     def test_execution_metadata_with_no_user_id_omits_user_key(self):
         """``user`` is only set when ``user_id`` is truthy.
@@ -671,7 +693,9 @@ class TestRagResponseSchemaContract:
             {"choices": [{"message": "string-not-dict"}]},
         ],
     )
-    def test_validate_rag_response_unifies_navigation_errors_into_key_error(self, broken_response):
+    def test_validate_rag_response_unifies_navigation_errors_into_key_error(
+        self, broken_response
+    ):
         with pytest.raises(KeyError):
             validate_rag_response(broken_response)
 
@@ -698,7 +722,11 @@ class TestRagResponseSchemaContract:
             validate_rag_response(response)
 
     def test_validate_rag_response_blank_retrieved_context_rejected(self):
-        response = {"choices": [{"message": {"context": {"citations": [{"retrieved_context": ""}]}}}]}
+        response = {
+            "choices": [
+                {"message": {"context": {"citations": [{"retrieved_context": ""}]}}}
+            ]
+        }
         with pytest.raises(ValidationError):
             validate_rag_response(response)
 
@@ -756,7 +784,10 @@ class TestLoadTestCasesContract:
 
         jsonl = tmp_path / "data.jsonl"
         jsonl.write_text(
-            json.dumps({"query": "q1", "answer": "a1"}) + "\n" + json.dumps({"query": "q2", "answer": "a2"}) + "\n"
+            json.dumps({"query": "q1", "answer": "a1"})
+            + "\n"
+            + json.dumps({"query": "q2", "answer": "a2"})
+            + "\n"
         )
 
         out = list(load_test_cases(str(jsonl), _RagCase))
@@ -798,7 +829,9 @@ class TestLoadTestCasesContract:
 
         mount = tmp_path / "input"
         mount.mkdir()
-        (mount / "data.jsonl").write_text(json.dumps({"query": "q1", "answer": "a1"}) + "\n")
+        (mount / "data.jsonl").write_text(
+            json.dumps({"query": "q1", "answer": "a1"}) + "\n"
+        )
 
         # Note: the file lives at <mount>/data.jsonl; we pass just "data.jsonl"
         out = list(load_test_cases("data.jsonl", _RagCase, input_mount_path=mount))
@@ -810,7 +843,11 @@ class TestLoadTestCasesContract:
         from asqi.loaders import load_test_cases
 
         f = tmp_path / "data.json"
-        f.write_text(json.dumps([{"query": "q1", "answer": "a1"}, {"query": "q2", "answer": "a2"}]))
+        f.write_text(
+            json.dumps(
+                [{"query": "q1", "answer": "a1"}, {"query": "q2", "answer": "a2"}]
+            )
+        )
         out = list(load_test_cases(str(f), _RagCase))
         assert len(out) == 2
         assert out[0].query == "q1"

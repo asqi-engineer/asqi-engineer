@@ -164,7 +164,9 @@ def _isolate_dbos_env_and_queue(monkeypatch):
     monkeypatch.delenv("DBOS_DATABASE_URL", raising=False)
     monkeypatch.setenv("TESTING_DATABASE_URL", "sqlite://:memory:")
     with patch("asqi.workflow.Queue") as mock_queue_cls:
-        mock_queue_cls.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(None)
+        mock_queue_cls.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(
+            None
+        )
         yield mock_queue_cls
 
 
@@ -217,7 +219,9 @@ def _make_manifest() -> Manifest:
         name="mock",
         version="1",
         description="",
-        input_systems=[SystemInput(name="system_under_test", type="llm_api", required=True)],
+        input_systems=[
+            SystemInput(name="system_under_test", type="llm_api", required=True)
+        ],
         input_schema=[],
         output_metrics=[],
         output_artifacts=None,
@@ -232,7 +236,9 @@ def _make_manifest() -> Manifest:
 class TestRunTestSuiteWorkflowContract:
     """``run_test_suite_workflow`` contract."""
 
-    def test_happy_path_returns_documented_tuple_shape(self, _isolate_dbos_env_and_queue):
+    def test_happy_path_returns_documented_tuple_shape(
+        self, _isolate_dbos_env_and_queue
+    ):
         """COMPLETED status, summary keys, per-test metadata, container_results."""
         success_result = ExecResult("t1", "t1", "systemA", "test/image:latest")
         success_result.start_time = 1.0
@@ -243,7 +249,9 @@ class TestRunTestSuiteWorkflowContract:
         success_result.test_results = {"success": True}
 
         # Override the autouse Queue mock to return our success result
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(success_result)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(success_result)
+        )
 
         with (
             patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -270,7 +278,9 @@ class TestRunTestSuiteWorkflowContract:
                 }
             ]
 
-            test_results, container_results = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            test_results, container_results = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
 
         # Top-level wrapper shape (§1.1, "test_results shape")
         assert set(test_results.keys()) == {"summary", "results"}
@@ -308,7 +318,9 @@ class TestRunTestSuiteWorkflowContract:
         success_result = ExecResult("t1", "t1", "systemA", "img")
         success_result.success = True
         success_result.test_results = {"success": True}
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(success_result)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(success_result)
+        )
 
         with (
             patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -329,7 +341,9 @@ class TestRunTestSuiteWorkflowContract:
                     "test_params": {},
                 }
             ]
-            results, _ = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            results, _ = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
 
         entry = results["results"][0]
         assert "test_results" in entry
@@ -344,7 +358,9 @@ class TestRunTestSuiteWorkflowContract:
     )
     def test_config_error_does_not_raise(self, bad_suite, expected_status):
         """ValidationError / TypeError / AttributeError reshape to CONFIG_ERROR."""
-        results, container_results = _call_test_suite(bad_suite, _valid_systems_config())
+        results, container_results = _call_test_suite(
+            bad_suite, _valid_systems_config()
+        )
         assert results["summary"]["status"] == expected_status
         assert results["results"] == []
         assert container_results == []
@@ -354,7 +370,9 @@ class TestRunTestSuiteWorkflowContract:
         """Volume validation errors surface as VALIDATION_FAILED (no raise)."""
         with patch("asqi.workflow.validate_test_volumes") as mock_vol:
             mock_vol.side_effect = ValueError("bad volume")
-            results, container_results = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            results, container_results = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
 
         assert results["summary"]["status"] == "VALIDATION_FAILED"
         assert results["results"] == []
@@ -370,7 +388,9 @@ class TestRunTestSuiteWorkflowContract:
             mock_avail.return_value = {"test/image:latest": True}
             mock_extract.return_value = {}
             mock_validate.return_value = ["plan-error"]
-            results, _ = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            results, _ = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
 
         assert results["summary"]["status"] == "VALIDATION_FAILED"
         assert results["summary"]["validation_errors"] == ["plan-error"]
@@ -386,7 +406,9 @@ class TestRunTestSuiteWorkflowContract:
             mock_extract.return_value = {"test/image:latest": _make_manifest()}
             mock_validate.return_value = []
             mock_plan.return_value = []
-            results, container_results = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            results, container_results = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
 
         assert results["summary"]["status"] == "NO_TESTS"
         assert results["results"] == []
@@ -412,7 +434,9 @@ class TestRunTestSuiteWorkflowContract:
         ],
         ids=["MissingImageError", "MountExtractionError"],
     )
-    def test_documented_docker_layer_exceptions_propagate_uncaught(self, exc_cls, exc_kwargs):
+    def test_documented_docker_layer_exceptions_propagate_uncaught(
+        self, exc_cls, exc_kwargs
+    ):
         """Per §1.5: ``MissingImageError`` and ``MountExtractionError`` are
         documented as propagating uncaught from the Docker layer through
         ``run_test_suite_workflow``. The catch-set in the workflow only covers
@@ -425,7 +449,10 @@ class TestRunTestSuiteWorkflowContract:
         ``CONFIG_ERROR``) is caught immediately."""
         from asqi.errors import MissingImageError, MountExtractionError
 
-        cls = {"MissingImageError": MissingImageError, "MountExtractionError": MountExtractionError}[exc_cls]
+        cls = {
+            "MissingImageError": MissingImageError,
+            "MountExtractionError": MountExtractionError,
+        }[exc_cls]
         with patch("asqi.workflow.dbos_check_images_availability") as mock_avail:
             mock_avail.side_effect = cls(*exc_kwargs["args"])
             with pytest.raises(cls):
@@ -463,7 +490,9 @@ class TestRunTestSuiteWorkflowContract:
             err = exc_type("triggered")
 
         with patch("asqi.workflow.SuiteConfig", side_effect=err):
-            results, container_results = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            results, container_results = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
 
         assert results["summary"]["status"] == "CONFIG_ERROR"
         assert results["results"] == []
@@ -477,7 +506,9 @@ class TestRunTestSuiteWorkflowContract:
         future refactor from collapsing both error types into one status."""
         with patch("asqi.workflow.validate_test_volumes") as mock_vol:
             mock_vol.side_effect = ValueError("bad volume")
-            results, _ = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            results, _ = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
         assert results["summary"]["status"] == "VALIDATION_FAILED"
 
     def test_default_optional_args_accepted(self):
@@ -495,7 +526,9 @@ class TestRunTestSuiteWorkflowContract:
         results, _ = _call_test_suite({"suite_name": "x"}, _valid_systems_config())
         assert results["summary"]["success_rate"] == 0.0
 
-    def test_success_rate_mid_range_with_mixed_pass_fail(self, _isolate_dbos_env_and_queue):
+    def test_success_rate_mid_range_with_mixed_pass_fail(
+        self, _isolate_dbos_env_and_queue
+    ):
         """§1.1 summary shape: ``success_rate = successful_tests / total_tests``.
 
         Currently 0.0 (zero total) and 1.0 (all pass) cases are covered. Pin a
@@ -508,8 +541,8 @@ class TestRunTestSuiteWorkflowContract:
                 _make_exec_result("t2", success=False),
             ]
         )
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(
-            next(results_per_call)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(next(results_per_call))
         )
 
         suite = {
@@ -595,10 +628,14 @@ class TestRunTestSuiteWorkflowContract:
             "executor_config",
             "container_config",
         ):
-            assert params[required].default is Parameter.empty, f"§1.1 documents `{required}` as required (no default)"
+            assert params[required].default is Parameter.empty, (
+                f"§1.1 documents `{required}` as required (no default)"
+            )
         # Optional with default ``None`` — last three parameters.
         for optional in ("datasets_config", "score_card_configs", "metadata_config"):
-            assert params[optional].default is None, f"§1.1 documents `{optional}` as Optional with default None"
+            assert params[optional].default is None, (
+                f"§1.1 documents `{optional}` as Optional with default None"
+            )
 
     @pytest.mark.parametrize(
         "scenario,patches",
@@ -612,7 +649,9 @@ class TestRunTestSuiteWorkflowContract:
             ("NO_TESTS", "empty_plan"),
         ],
     )
-    def test_images_checked_and_manifests_extracted_absent_on_non_completed(self, scenario, patches):
+    def test_images_checked_and_manifests_extracted_absent_on_non_completed(
+        self, scenario, patches
+    ):
         """§1.1 summary shape: ``images_checked`` and ``manifests_extracted``
         are documented as 'happy path (status=COMPLETED) only'. A regression
         that always emits them (or that drops them from COMPLETED) would slip
@@ -622,7 +661,9 @@ class TestRunTestSuiteWorkflowContract:
         elif scenario == "VALIDATION_FAILED_volume":
             with patch("asqi.workflow.validate_test_volumes") as mock_vol:
                 mock_vol.side_effect = patches["validate_test_volumes"]
-                results, _ = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+                results, _ = _call_test_suite(
+                    _valid_suite_config(), _valid_systems_config()
+                )
         elif scenario == "VALIDATION_FAILED_plan":
             with (
                 patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -632,7 +673,9 @@ class TestRunTestSuiteWorkflowContract:
                 mock_avail.return_value = {"test/image:latest": True}
                 mock_extract.return_value = {}
                 mock_validate.return_value = ["plan-error"]
-                results, _ = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+                results, _ = _call_test_suite(
+                    _valid_suite_config(), _valid_systems_config()
+                )
         else:  # NO_TESTS
             with (
                 patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -644,7 +687,9 @@ class TestRunTestSuiteWorkflowContract:
                 mock_extract.return_value = {"test/image:latest": _make_manifest()}
                 mock_validate.return_value = []
                 mock_plan.return_value = []
-                results, _ = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+                results, _ = _call_test_suite(
+                    _valid_suite_config(), _valid_systems_config()
+                )
 
         summary = results["summary"]
         assert summary["status"] != "COMPLETED"
@@ -666,7 +711,9 @@ class TestRunTestSuiteWorkflowContract:
             f"§1.1 documents container_config as ContainerConfig, got {ann!r}"
         )
 
-    def test_container_results_aligned_with_results_by_index_and_test_id(self, _isolate_dbos_env_and_queue):
+    def test_container_results_aligned_with_results_by_index_and_test_id(
+        self, _isolate_dbos_env_and_queue
+    ):
         """§1.1 ``container_results shape``: 'one entry per test, in the same
         order as test_results.results'. Pin the index-by-index alignment AND
         the per-entry ``test_id`` correspondence so a regression that re-orders
@@ -678,8 +725,8 @@ class TestRunTestSuiteWorkflowContract:
                 _make_exec_result("gamma", success=True),
             ]
         )
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(
-            next(results_per_call)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(next(results_per_call))
         )
 
         suite = {
@@ -716,14 +763,20 @@ class TestRunTestSuiteWorkflowContract:
                 }
                 for tid in ("alpha", "beta", "gamma")
             ]
-            test_results, container_results = _call_test_suite(suite, _valid_systems_config())
+            test_results, container_results = _call_test_suite(
+                suite, _valid_systems_config()
+            )
 
         results_list = test_results["results"]
         assert len(results_list) == len(container_results) == 3
-        for results_entry, container_entry in zip(results_list, container_results, strict=True):
+        for results_entry, container_entry in zip(
+            results_list, container_results, strict=True
+        ):
             assert results_entry["metadata"]["test_id"] == container_entry["test_id"]
 
-    def test_container_never_started_metadata_sentinels(self, _isolate_dbos_env_and_queue):
+    def test_container_never_started_metadata_sentinels(
+        self, _isolate_dbos_env_and_queue
+    ):
         """§1.1 metadata table: ``container_id`` is empty string and
         ``exit_code`` is -1 'when container never started'. Callers branch on
         these sentinels to distinguish a failed-to-launch container from a
@@ -740,7 +793,9 @@ class TestRunTestSuiteWorkflowContract:
         assert never_started.exit_code == -1
         assert never_started.success is False
 
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(never_started)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(never_started)
+        )
 
         with (
             patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -761,14 +816,18 @@ class TestRunTestSuiteWorkflowContract:
                     "test_params": {},
                 }
             ]
-            test_results, _ = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            test_results, _ = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
 
         metadata = test_results["results"][0]["metadata"]
         assert metadata["container_id"] == ""
         assert metadata["exit_code"] == -1
         assert metadata["success"] is False
 
-    def test_container_results_error_message_empty_when_success_true(self, _isolate_dbos_env_and_queue):
+    def test_container_results_error_message_empty_when_success_true(
+        self, _isolate_dbos_env_and_queue
+    ):
         """§1.1 container_results shape: ``error_message`` is empty string when
         success=true. Pin so a regression that emits ``None`` (or stringifies
         a stub object) on the success path is caught."""
@@ -776,7 +835,9 @@ class TestRunTestSuiteWorkflowContract:
         # Sanity: the default error_message is "" on a successful result.
         assert success.error_message == ""
 
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(success)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(success)
+        )
 
         with (
             patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -797,20 +858,26 @@ class TestRunTestSuiteWorkflowContract:
                     "test_params": {},
                 }
             ]
-            test_results, container_results = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            test_results, container_results = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
 
         # success path
         assert test_results["results"][0]["metadata"]["success"] is True
         assert container_results[0]["error_message"] == ""
 
-    def test_summary_and_metadata_timestamps_are_iso8601_strings(self, _isolate_dbos_env_and_queue):
+    def test_summary_and_metadata_timestamps_are_iso8601_strings(
+        self, _isolate_dbos_env_and_queue
+    ):
         """§1.1: ``summary.timestamp`` and ``metadata.timestamp`` are
         documented as ISO 8601 strings; ``metadata.start_time`` /
         ``metadata.end_time`` are documented as epoch seconds (floats)."""
         from datetime import datetime
 
         success = _make_exec_result("t1", success=True)
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(success)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(success)
+        )
 
         with (
             patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -831,7 +898,9 @@ class TestRunTestSuiteWorkflowContract:
                     "test_params": {},
                 }
             ]
-            test_results, _ = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            test_results, _ = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
 
         summary = test_results["summary"]
         metadata = test_results["results"][0]["metadata"]
@@ -848,7 +917,9 @@ class TestRunTestSuiteWorkflowContract:
         # Sanity: end >= start.
         assert metadata["end_time"] >= metadata["start_time"]
 
-    def test_generated_reports_and_datasets_round_trip_into_per_test_entry(self, _isolate_dbos_env_and_queue):
+    def test_generated_reports_and_datasets_round_trip_into_per_test_entry(
+        self, _isolate_dbos_env_and_queue
+    ):
         """§1.1: per-test ``generated_reports`` and ``generated_datasets`` are
         documented as 'list of GeneratedReport / GeneratedDataset dicts
         (model_dump)'. Currently only the empty-list case is exercised — pin
@@ -871,7 +942,9 @@ class TestRunTestSuiteWorkflowContract:
                 dataset_path="/output/rows",
             )
         ]
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(result)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(result)
+        )
 
         with (
             patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -892,7 +965,9 @@ class TestRunTestSuiteWorkflowContract:
                     "test_params": {},
                 }
             ]
-            test_results, _ = _call_test_suite(_valid_suite_config(), _valid_systems_config())
+            test_results, _ = _call_test_suite(
+                _valid_suite_config(), _valid_systems_config()
+            )
 
         entry = test_results["results"][0]
         # Reports/datasets are surfaced as dicts (model_dump output), not
@@ -929,7 +1004,9 @@ class TestEvaluateScoreCardsWorkflowContract:
         ):
             mock_convert.return_value = []
             mock_eval.return_value = [{"score_card_name": "Test"}]
-            result = _call_evaluate(test_results_data, [], [{"score_card_name": "Test"}])
+            result = _call_evaluate(
+                test_results_data, [], [{"score_card_name": "Test"}]
+            )
 
         assert "score_card" in result
         assert result["summary"]["status"] == "COMPLETED"
@@ -1041,7 +1118,9 @@ class TestEvaluateScoreCardsWorkflowContract:
             patch("asqi.workflow.evaluate_score_card") as mock_eval,
         ):
             mock_convert.return_value = []
-            mock_eval.return_value = [{"score_card_name": "Test", "indicator_id": "ind_1"}]
+            mock_eval.return_value = [
+                {"score_card_name": "Test", "indicator_id": "ind_1"}
+            ]
             result = _call_evaluate(original_input, [], [{"score_card_name": "Test"}])
 
         # Returned dict carries the new key.
@@ -1110,13 +1189,17 @@ class TestRunDataGenerationWorkflowContract:
             mock_extract.return_value = {"gen/image:latest": _make_manifest()}
             mock_validate.return_value = []
             mock_plan.return_value = []
-            results, container_results = _call_data_generation(self._gen_config(), systems_config=None)
+            results, container_results = _call_data_generation(
+                self._gen_config(), systems_config=None
+            )
         assert isinstance(results, dict)
         assert "summary" in results
         assert isinstance(container_results, list)
 
     def test_validation_error_returns_config_error(self):
-        results, container_results = _call_data_generation({"not-a-valid": "config"}, systems_config=None)
+        results, container_results = _call_data_generation(
+            {"not-a-valid": "config"}, systems_config=None
+        )
         assert results["summary"]["status"] == "CONFIG_ERROR"
         assert results["results"] == []
         assert container_results == []
@@ -1133,17 +1216,23 @@ class TestRunDataGenerationWorkflowContract:
             mock_extract.return_value = {"gen/image:latest": _make_manifest()}
             mock_validate.return_value = []
             mock_plan.return_value = []
-            results, container_results = _call_data_generation(self._gen_config(), systems_config=None)
+            results, container_results = _call_data_generation(
+                self._gen_config(), systems_config=None
+            )
         assert results["summary"]["status"] == "NO_TESTS"
         assert results["results"] == []
         assert container_results == []
 
-    def test_per_job_results_use_results_key_not_test_results_key(self, _isolate_dbos_env_and_queue):
+    def test_per_job_results_use_results_key_not_test_results_key(
+        self, _isolate_dbos_env_and_queue
+    ):
         """Differs from run_test_suite_workflow: data generation emits 'results'."""
         success_result = ExecResult("g1", "g1", None, "gen/image:latest")
         success_result.success = True
         success_result.results = {"success": True, "produced": 10}
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(success_result)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(success_result)
+        )
 
         with (
             patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -1208,9 +1297,13 @@ class TestRunDataGenerationWorkflowContract:
             "datasets_config",
             "metadata_config",
         ):
-            assert documented_param in params, f"§1.1 documents `{documented_param}` as a parameter"
+            assert documented_param in params, (
+                f"§1.1 documents `{documented_param}` as a parameter"
+            )
 
-    def test_metadata_config_forwarded_into_per_job_enqueue(self, _isolate_dbos_env_and_queue):
+    def test_metadata_config_forwarded_into_per_job_enqueue(
+        self, _isolate_dbos_env_and_queue
+    ):
         """Per §1.1: 'metadata_config accepts the same keys as in
         run_test_suite_workflow (parent_id, job_type, user_id).' Confirm the
         dict reaches the per-job enqueue call so it can be forwarded into
@@ -1218,7 +1311,9 @@ class TestRunDataGenerationWorkflowContract:
         success_result = ExecResult("g1", "g1", None, "gen/image:latest")
         success_result.success = True
         success_result.results = {"success": True}
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(success_result)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(success_result)
+        )
 
         meta = {"parent_id": "parent-gen-1", "job_type": "data_gen", "user_id": "u-9"}
 
@@ -1266,7 +1361,9 @@ class TestRunDataGenerationWorkflowContract:
         assert bound.arguments["metadata_config"] == meta
         assert bound.arguments["parent_id"] == "parent-gen-1"
 
-    def test_test_suite_queue_name_uses_test_execution_prefix(self, _isolate_dbos_env_and_queue):
+    def test_test_suite_queue_name_uses_test_execution_prefix(
+        self, _isolate_dbos_env_and_queue
+    ):
         """Symmetric check: run_test_suite_workflow uses ``test_execution_<id>``."""
         with (
             patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -1299,7 +1396,9 @@ class TestRunDataGenerationWorkflowContract:
             mock_avail.return_value = {"gen/image:latest": True}
             mock_extract.return_value = {"gen/image:latest": _make_manifest()}
             mock_validate.return_value = ["gen-plan-error-1", "gen-plan-error-2"]
-            results, container_results = _call_data_generation(self._gen_config(), systems_config=None)
+            results, container_results = _call_data_generation(
+                self._gen_config(), systems_config=None
+            )
 
         assert results["summary"]["status"] == "VALIDATION_FAILED"
         assert results["summary"]["validation_errors"] == [
@@ -1309,7 +1408,9 @@ class TestRunDataGenerationWorkflowContract:
         assert results["results"] == []
         assert container_results == []
 
-    def test_summary_suite_name_carries_generation_job_name(self, _isolate_dbos_env_and_queue):
+    def test_summary_suite_name_carries_generation_job_name(
+        self, _isolate_dbos_env_and_queue
+    ):
         """§1.1 data-gen return shape: ``summary.suite_name`` carries
         ``generation.job_name`` (the field name is reused from the test-suite
         wrapper for symmetry; the value is the data-generation job name).
@@ -1319,7 +1420,9 @@ class TestRunDataGenerationWorkflowContract:
         success_result = ExecResult("g1", "g1", None, "gen/image:latest")
         success_result.success = True
         success_result.results = {"success": True}
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(success_result)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(success_result)
+        )
 
         with (
             patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -1377,7 +1480,9 @@ class TestRunDataGenerationWorkflowContract:
             with pytest.raises(cls):
                 _call_data_generation(self._gen_config(), systems_config=None)
 
-    def test_container_results_aligned_with_results_by_index_and_test_id(self, _isolate_dbos_env_and_queue):
+    def test_container_results_aligned_with_results_by_index_and_test_id(
+        self, _isolate_dbos_env_and_queue
+    ):
         """§1.1 data-gen ``container_results`` shape: 'one entry per
         generation job, in the same order as generation_results.results'.
         Mirrors the test-suite ordering invariant on a different workflow
@@ -1385,11 +1490,15 @@ class TestRunDataGenerationWorkflowContract:
         other is caught."""
         gens = []
         for i in range(3):
-            r = _make_exec_result(f"g{i}", success=True, sut_name=None, image="gen/image:latest")
+            r = _make_exec_result(
+                f"g{i}", success=True, sut_name=None, image="gen/image:latest"
+            )
             r.results = {"success": True}
             gens.append(r)
         gens_iter = iter(gens)
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(next(gens_iter))
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(next(gens_iter))
+        )
 
         gen_config = {
             "job_name": "gen-job",
@@ -1423,11 +1532,15 @@ class TestRunDataGenerationWorkflowContract:
                 }
                 for i in range(3)
             ]
-            generation_results, container_results = _call_data_generation(gen_config, systems_config=None)
+            generation_results, container_results = _call_data_generation(
+                gen_config, systems_config=None
+            )
 
         results_list = generation_results["results"]
         assert len(results_list) == len(container_results) == 3
-        for results_entry, container_entry in zip(results_list, container_results, strict=True):
+        for results_entry, container_entry in zip(
+            results_list, container_results, strict=True
+        ):
             assert results_entry["metadata"]["test_id"] == container_entry["test_id"]
 
 
@@ -1467,7 +1580,9 @@ class TestMetadataConfigForwarding:
         success_result = ExecResult("t1", "t1", "systemA", "img:1")
         success_result.success = True
         success_result.test_results = {"success": True}
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(success_result)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(success_result)
+        )
 
         meta = {"parent_id": "parent-wf-1", "job_type": "test", "user_id": "u-1"}
 
@@ -1513,7 +1628,9 @@ class TestMetadataConfigForwarding:
         success_result = ExecResult("t1", "t1", "systemA", "img:1")
         success_result.success = True
         success_result.test_results = {"success": True}
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(success_result)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(success_result)
+        )
 
         with (
             patch("asqi.workflow.dbos_check_images_availability") as mock_avail,
@@ -1548,7 +1665,9 @@ class TestMetadataConfigForwarding:
             ("user_id", "user-42"),
         ],
     )
-    def test_each_documented_metadata_key_is_preserved(self, _isolate_dbos_env_and_queue, documented_key, value):
+    def test_each_documented_metadata_key_is_preserved(
+        self, _isolate_dbos_env_and_queue, documented_key, value
+    ):
         """§1.1 documents three common metadata_config keys: ``parent_id``,
         ``job_type``, ``user_id``. Each must round-trip through the workflow
         unchanged when supplied alone — a partial-forwarding regression that
@@ -1556,7 +1675,9 @@ class TestMetadataConfigForwarding:
         success_result = ExecResult("t1", "t1", "systemA", "img:1")
         success_result.success = True
         success_result.test_results = {"success": True}
-        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = lambda *a, **kw: _StubHandle(success_result)
+        _isolate_dbos_env_and_queue.return_value.enqueue.side_effect = (
+            lambda *a, **kw: _StubHandle(success_result)
+        )
 
         meta = {documented_key: value}
 
@@ -1613,7 +1734,11 @@ class TestAuditResponsesDataThreading:
             captured["mode"] = mode
             return []
 
-        audit_payload = {"responses": [{"indicator_id": "ind_1", "selected_outcome": "A", "notes": ""}]}
+        audit_payload = {
+            "responses": [
+                {"indicator_id": "ind_1", "selected_outcome": "A", "notes": ""}
+            ]
+        }
         with (
             patch("asqi.workflow.convert_test_results_to_objects") as mock_convert,
             patch("asqi.workflow.evaluate_score_card", side_effect=fake_eval),
@@ -1717,7 +1842,9 @@ class TestScoreCardKeyOutputShape:
         assert result["score_card"]["score_card_name"] == "Test"
         assert result["score_card"]["total_evaluations"] == 1
         # Per-evaluation entries strip the score_card_name key (it is hoisted)
-        assert result["score_card"]["assessments"] == [{"indicator_id": "ind_1", "outcome": "A"}]
+        assert result["score_card"]["assessments"] == [
+            {"indicator_id": "ind_1", "outcome": "A"}
+        ]
 
     def test_score_card_is_none_when_no_evaluations(self):
         """Per ``add_score_cards_to_results``: when ``score_card_evaluation``
@@ -1769,7 +1896,9 @@ class TestWorkflowIdUuidFormat:
         # Strip the documented prefix; the remainder is the UUID.
         assert len(queue_name[len("test_execution_") :]) == 36
 
-    def test_data_generation_queue_embeds_36_char_uuid(self, _isolate_dbos_env_and_queue):
+    def test_data_generation_queue_embeds_36_char_uuid(
+        self, _isolate_dbos_env_and_queue
+    ):
         import uuid
 
         wf_uuid = str(uuid.uuid4())
