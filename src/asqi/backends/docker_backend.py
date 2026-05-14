@@ -517,20 +517,33 @@ def run_container_with_args(
                 _active_containers.add(container.id)  # type: ignore
 
             result["container_id"] = container.id or ""
-            output_lines = []
+            # Accumulate the raw byte stream so the captured output is a
+            # byte-for-byte copy of container stdout. Docker's stream protocol
+            # chunks at ~16KB and can split a single logical line mid-content,
+            # so we must NOT use the chunks as line boundaries — we only split
+            # on actual "\n" for forwarding to container_logger. See AIP-2401.
+            output_buffer = bytearray()
             if container_config.stream_logs:
+                line_buffer = bytearray()
                 try:
-                    for log_line in container.logs(stream=True, follow=True):
-                        line = log_line.decode("utf-8", errors="replace").rstrip()
-                        if line:  # Only process non-empty lines
-                            output_lines.append(line)
-                            container_logger.info(line)
+                    for chunk in container.logs(stream=True, follow=True):
+                        output_buffer.extend(chunk)
+                        line_buffer.extend(chunk)
+                        while (nl := line_buffer.find(b"\n")) != -1:
+                            line = bytes(line_buffer[:nl]).decode("utf-8", errors="replace").rstrip()
+                            del line_buffer[: nl + 1]
+                            if line:
+                                container_logger.info(line)
                 except (
                     UnicodeDecodeError,
                     docker_errors.APIError,
                     *TIMEOUT_EXCEPTIONS,
                 ) as e:
                     logger.warning(f"Failed to stream container logs: {e}")
+                if line_buffer:
+                    tail = bytes(line_buffer).decode("utf-8", errors="replace").rstrip()
+                    if tail:
+                        container_logger.info(tail)
 
             # Wait for completion
             try:
@@ -577,20 +590,22 @@ def run_container_with_args(
                 result["error"] = f"Container execution failed with API error: {api_error}"
                 return result
 
-            # Get output (use streamed output if available, otherwise get all logs)
-            try:
-                if output_lines:
-                    result["output"] = "\n".join(output_lines)
-                else:
-                    logger.debug(f"container.logs() : {container.logs()}")
+            # Prefer the byte-accurate buffer accumulated from the streaming
+            # loop. Fall back to a non-streaming container.logs() read when
+            # streaming was disabled (or yielded nothing).
+            if output_buffer:
+                result["output"] = bytes(output_buffer).decode("utf-8", errors="replace")
+            else:
+                try:
                     result["output"] = container.logs().decode("utf-8", errors="replace")
-            except (
-                UnicodeDecodeError,
-                docker_errors.APIError,
-                *TIMEOUT_EXCEPTIONS,
-            ) as e:
-                result["output"] = "\n".join(output_lines) if output_lines else ""
-                logger.warning(f"Failed to retrieve container logs: {e}")
+                except (
+                    UnicodeDecodeError,
+                    docker_errors.APIError,
+                    docker_errors.NotFound,
+                    *TIMEOUT_EXCEPTIONS,
+                ) as e:
+                    result["output"] = ""
+                    logger.warning(f"Failed to retrieve container logs: {e}")
 
             result["success"] = result["exit_code"] == 0
 

@@ -480,11 +480,171 @@ class TestRunContainerWithArgs:
         """Test log streaming functionality and error handling."""
         _mock_client, mock_container, _mock_extract_mounts = mock_container_setup
         log_lines = [b"Line 1\n", b"Line 2\n"]
-        mock_container.logs.return_value = iter(log_lines)
+        full_output = b"Line 1\nLine 2\n"
+
+        def logs_side_effect(*args, **kwargs):
+            if kwargs.get("stream"):
+                return iter(log_lines)
+            return full_output
+
+        mock_container.logs.side_effect = logs_side_effect
         container_config = ContainerConfig.with_streaming(True)
         result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
-        mock_container.logs.assert_called_with(stream=True, follow=True)
+        # Streaming call is made for live log forwarding
+        mock_container.logs.assert_any_call(stream=True, follow=True)
+        # Output comes from the non-streaming container.logs() call so chunked
+        # stream frames cannot corrupt the captured stdout.
         assert "Line 1" in result["output"] and "Line 2" in result["output"]
+
+    def test_run_container_long_single_line_not_corrupted(self, mock_container_setup):
+        """Regression test for AIP-2401: a single JSON line exceeding Docker's
+        log stream chunk size (~16KB) must not be split with literal newlines
+        in the captured output, which would break json.loads."""
+        import json
+
+        _mock_client, mock_container, _ = mock_container_setup
+
+        long_value = "x" * 31866
+        payload = {"sut_answer": long_value}
+        # The full on-disk / final stdout is a single line, no embedded newlines.
+        full_output = (json.dumps(payload) + "\n").encode("utf-8")
+
+        # Simulate Docker's streaming protocol splitting that single line into
+        # ~16KB chunks (no trailing newline on intermediate chunks).
+        chunk_size = 16323
+        raw = full_output
+        stream_chunks = [raw[i : i + chunk_size] for i in range(0, len(raw), chunk_size)]
+        assert len(stream_chunks) > 1, "test setup should produce multiple chunks"
+
+        def logs_side_effect(*args, **kwargs):
+            if kwargs.get("stream"):
+                return iter(stream_chunks)
+            return full_output
+
+        mock_container.logs.side_effect = logs_side_effect
+        container_config = ContainerConfig.with_streaming(True)
+        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+
+        # Captured output must be parseable as JSON (no spurious "\n" injected
+        # inside the long string value).
+        parsed = json.loads(result["output"])
+        assert parsed == payload
+
+    def test_run_container_streaming_no_redundant_logs_call(self, mock_container_setup):
+        """When streaming is enabled, the captured output must come from the
+        streamed bytes — container.logs() should NOT be called a second time
+        (avoids redundant I/O and works under remove=True)."""
+        _mock_client, mock_container, _ = mock_container_setup
+
+        def logs_side_effect(*args, **kwargs):
+            if kwargs.get("stream"):
+                return iter([b"hello\n", b"world\n"])
+            raise AssertionError("non-streaming container.logs() must not be called when streaming yielded data")
+
+        mock_container.logs.side_effect = logs_side_effect
+        container_config = ContainerConfig.with_streaming(True)
+        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        assert result["output"] == "hello\nworld\n"
+
+    def test_run_container_streaming_exception_preserves_partial_output(self, mock_container_setup):
+        """If the stream raises mid-run, bytes received so far are kept
+        in the captured output rather than discarded."""
+        _mock_client, mock_container, _ = mock_container_setup
+
+        def failing_stream():
+            yield b"first chunk\n"
+            yield b"second chunk\n"
+            raise docker_errors.APIError("stream died")
+
+        def logs_side_effect(*args, **kwargs):
+            if kwargs.get("stream"):
+                return failing_stream()
+            return b""
+
+        mock_container.logs.side_effect = logs_side_effect
+        container_config = ContainerConfig.with_streaming(True)
+        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        assert "first chunk" in result["output"]
+        assert "second chunk" in result["output"]
+
+    def test_run_container_streaming_logger_flushes_lines_and_tail(self, mock_container_setup):
+        """The container_logger should receive complete logical lines split on
+        '\\n' (even when chunk boundaries don't align with newlines), should
+        skip empty lines, and should flush a trailing line that has no
+        terminating newline."""
+        _mock_client, mock_container, _ = mock_container_setup
+        # Chunks deliberately misaligned with newlines, with an empty line and
+        # a final line lacking a trailing newline.
+        stream_chunks = [b"alpha\nbe", b"ta\n\ngamm", b"a"]
+
+        def logs_side_effect(*args, **kwargs):
+            if kwargs.get("stream"):
+                return iter(stream_chunks)
+            return b""
+
+        mock_container.logs.side_effect = logs_side_effect
+        container_config = ContainerConfig.with_streaming(True)
+
+        with patch("asqi.backends.docker_backend.create_container_logger") as mock_make_logger:
+            mock_logger = MagicMock()
+            mock_make_logger.return_value = mock_logger
+            run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+
+        forwarded = [call.args[0] for call in mock_logger.info.call_args_list]
+        assert forwarded == ["alpha", "beta", "gamma"]
+
+    def test_run_container_streaming_carriage_return_progress_bar(self, mock_container_setup):
+        """TQDM/HuggingFace-style progress bars emit '\\r' updates with no
+        '\\n' until the bar completes. The logger should not flush mid-bar
+        (we split on '\\n' only), but the captured output must include the
+        full byte stream and the final newline-terminated line plus any
+        unterminated tail should still reach the logger."""
+        _mock_client, mock_container, _ = mock_container_setup
+        stream_chunks = [
+            b"start\n",
+            b"prog 10%\r",
+            b"prog 50%\r",
+            b"prog 100%\rdone\n",
+            b"trailing-no-newline",
+        ]
+
+        def logs_side_effect(*args, **kwargs):
+            if kwargs.get("stream"):
+                return iter(stream_chunks)
+            return b""
+
+        mock_container.logs.side_effect = logs_side_effect
+        container_config = ContainerConfig.with_streaming(True)
+
+        with patch("asqi.backends.docker_backend.create_container_logger") as mock_make_logger:
+            mock_logger = MagicMock()
+            mock_make_logger.return_value = mock_logger
+            result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+
+        # Captured output is byte-for-byte the full stream — nothing dropped.
+        assert result["output"] == b"".join(stream_chunks).decode("utf-8")
+
+        forwarded = [call.args[0] for call in mock_logger.info.call_args_list]
+        # Three lines reach the logger:
+        # 1. "start" (clean newline)
+        # 2. The accumulated \r-progress collapsed with the final "done" —
+        #    rstrip() leaves only the visible content after the last \r.
+        #    We don't assert exact formatting of the progress segment, only
+        #    that the completion marker landed and the bar wasn't lost.
+        # 3. The unterminated "trailing-no-newline" tail.
+        assert forwarded[0] == "start"
+        assert "done" in forwarded[1]
+        assert forwarded[-1] == "trailing-no-newline"
+
+    def test_run_container_non_streaming_falls_back_to_logs_call(self, mock_container_setup):
+        """When streaming is disabled, output is read from the non-streaming
+        container.logs() call."""
+        _mock_client, mock_container, _ = mock_container_setup
+        mock_container.logs.side_effect = None
+        mock_container.logs.return_value = b'{"ok": true}'
+        container_config = ContainerConfig.with_streaming(False)
+        result = run_container_with_args(image="test:latest", args=["--test"], container_config=container_config)
+        assert result["output"] == '{"ok": true}'
 
     def test_run_container_volume_mounting(self, mock_container_setup):
         """Test that volume mounts are correctly extracted and applied."""
