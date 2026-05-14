@@ -1,4 +1,12 @@
 # Changelog
+## [0.5.2] - 2026-05-14
+
+### 🐛 Bug Fixes
+- Fix container output parsing failures when a single JSON line exceeds Docker's stream chunk size (16KB) (6d55977)
+
+### 🧪 Testing
+- Add edge case tests for chunked log parser (6d55977)
+
 ## [0.5.1] - 2026-05-05
 
 ### 🚀 Features
