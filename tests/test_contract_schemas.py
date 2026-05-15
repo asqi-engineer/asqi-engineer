@@ -278,7 +278,9 @@ class TestInputParameterContract:
         assert outer.items.name == "inner"
 
     def test_ui_config_is_arbitrary_dict(self):
-        p = InputParameter(name="p", type="string", ui_config={"widget": "textarea", "rows": 4})
+        p = InputParameter(
+            name="p", type="string", ui_config={"widget": "textarea", "rows": 4}
+        )
         assert p.ui_config == {"widget": "textarea", "rows": 4}
 
 

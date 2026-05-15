@@ -1,11 +1,19 @@
 # Changelog
-## [0.5.2] - 2026-05-14
+## [0.5.3] - 2026-05-15
+
+### 🚜 Refactor
+- Extract `DockerBackend` behind a new `ContainerBackend` interface; convert `main.py` CLI args to the `Annotated` pattern (4f67496)
+- Defer DBOS singleton initialization into `init_dbos()` so `asqi --help` and other no-op CLI invocations don't require `DBOS_DATABASE_URL` to be set (9f7addd)
 
 ### 🐛 Bug Fixes
 - Fix container output parsing failures when a single JSON line exceeds Docker's stream chunk size (16KB) (6d55977)
 
+### 🛡️ Security
+- Upgrade urllib3 2.6.3 → 2.7.0 to fix HIGH CVEs (c4d265c)
+
 ### 🧪 Testing
 - Add edge case tests for chunked log parser (6d55977)
+- Add contract tests for asqi-engineer interfaces (CLI, SDK, schemas, implicit) covering happy and unhappy paths (3092796)
 
 ## [0.5.1] - 2026-05-05
 

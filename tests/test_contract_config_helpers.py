@@ -109,7 +109,9 @@ class TestContainerConfigContract:
 
     def test_load_from_yaml_merges_run_params_with_defaults(self, tmp_path):
         cfg_file = tmp_path / "cfg.yaml"
-        cfg_file.write_text("timeout_seconds: 999\nstream_logs: true\nrun_params:\n  network_mode: bridge\n")
+        cfg_file.write_text(
+            "timeout_seconds: 999\nstream_logs: true\nrun_params:\n  network_mode: bridge\n"
+        )
         cfg = ContainerConfig.load_from_yaml(str(cfg_file))
         assert cfg.timeout_seconds == 999
         assert cfg.stream_logs is True
@@ -143,7 +145,9 @@ class TestExecutorConfigContract:
             "progress_interval": 1,
         }
         # Sanity: all three keys present
-        assert {"concurrent_tests", "max_failures", "progress_interval"} == set(executor_dict.keys())
+        assert {"concurrent_tests", "max_failures", "progress_interval"} == set(
+            executor_dict.keys()
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +255,9 @@ class TestExtractManifestFromImageContract:
 
         with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             client = MagicMock()
-            client.containers.create.side_effect = docker_errors.ImageNotFound("no such image")
+            client.containers.create.side_effect = docker_errors.ImageNotFound(
+                "no such image"
+            )
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("ghcr.io/missing/image:latest")
@@ -260,11 +266,15 @@ class TestExtractManifestFromImageContract:
         # Documented as a stable tag in the error_type set
         assert excinfo.value.error_type in self.DOCUMENTED_ERROR_TYPES
 
-    def test_manifest_file_not_found_raises_with_manifest_file_not_found_error_type(self):
+    def test_manifest_file_not_found_raises_with_manifest_file_not_found_error_type(
+        self,
+    ):
         from docker import errors as docker_errors
 
         container = MagicMock()
-        container.get_archive.side_effect = docker_errors.NotFound("manifest.yaml absent")
+        container.get_archive.side_effect = docker_errors.NotFound(
+            "manifest.yaml absent"
+        )
         client = MagicMock()
         client.containers.create.return_value = container
         with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
@@ -287,7 +297,9 @@ class TestExtractManifestFromImageContract:
 
         with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             client = MagicMock()
-            client.containers.create.side_effect = docker_errors.APIError("daemon unhappy")
+            client.containers.create.side_effect = docker_errors.APIError(
+                "daemon unhappy"
+            )
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
                 extract_manifest_from_image("img:latest")
@@ -319,7 +331,9 @@ class TestExtractManifestFromImageContract:
                 extract_manifest_from_image("img:latest")
         assert excinfo.value.error_type == "TAR_EXTRACTION_ERROR"
 
-    def _stub_docker_with_manifest_bytes(self, manifest_bytes: bytes) -> tuple[MagicMock, MagicMock]:
+    def _stub_docker_with_manifest_bytes(
+        self, manifest_bytes: bytes
+    ) -> tuple[MagicMock, MagicMock]:
         """Build a docker client that yields a single-file tar containing
         ``manifest.yaml`` with ``manifest_bytes``.
 
@@ -400,7 +414,9 @@ class TestExtractManifestFromImageContract:
         self,
     ):
         """Manifest dict missing required ``name``/``version`` → SCHEMA_VALIDATION_ERROR."""
-        client, _ = self._stub_docker_with_manifest_bytes(b"description: missing name and version\n")
+        client, _ = self._stub_docker_with_manifest_bytes(
+            b"description: missing name and version\n"
+        )
         with patch("asqi.backends.docker_backend.docker_client") as mock_client_ctx:
             mock_client_ctx.return_value.__enter__.return_value = client
             with pytest.raises(ManifestExtractionError) as excinfo:
@@ -524,7 +540,9 @@ class TestErrorClassesContract:
                 ],
             }
         ]
-        err = AuditResponsesRequiredError(score_card_name="My Score Card", audit_indicators=indicators)
+        err = AuditResponsesRequiredError(
+            score_card_name="My Score Card", audit_indicators=indicators
+        )
         assert err.score_card_name == "My Score Card"
         assert err.audit_indicators == indicators
         # Rendered message includes a YAML template (documented)

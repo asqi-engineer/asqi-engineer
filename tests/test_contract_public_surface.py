@@ -216,7 +216,9 @@ class TestSecondaryExceptionInventory:
             "t_dup": {
                 "id": "dup",
                 "config_type": "test_suite",
-                "occurrences": [{"location": "x.yaml", "test_suite_name": "s", "test_name": "t"}],
+                "occurrences": [
+                    {"location": "x.yaml", "test_suite_name": "s", "test_name": "t"}
+                ],
             }
         }
         with pytest.raises(DuplicateIDError) as exc_info:
