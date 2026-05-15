@@ -3,6 +3,7 @@
 
 ### 🚜 Refactor
 - Extract `DockerBackend` behind a new `ContainerBackend` interface; convert `main.py` CLI args to the `Annotated` pattern (4f67496)
+- Defer DBOS singleton initialization into `init_dbos()` so `asqi --help` and other no-op CLI invocations don't require `DBOS_DATABASE_URL` to be set (9f7addd)
 
 ### 🐛 Bug Fixes
 - Fix container output parsing failures when a single JSON line exceeds Docker's stream chunk size (16KB) (6d55977)
