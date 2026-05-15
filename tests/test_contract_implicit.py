@@ -95,7 +95,9 @@ class TestIDRegexEnforcement:
                 id=bad_id,
                 apply_to=ScoreCardFilter(test_id="some_test"),
                 metric="m",
-                assessment=[{"outcome": "PASS", "condition": "greater_equal", "threshold": 0.5}],
+                assessment=[
+                    {"outcome": "PASS", "condition": "greater_equal", "threshold": 0.5}
+                ],
             )
 
     def test_score_card_indicator_id_accepts_valid_pattern(self):
@@ -103,7 +105,9 @@ class TestIDRegexEnforcement:
             id=VALID_ID,
             apply_to=ScoreCardFilter(test_id="some_test"),
             metric="m",
-            assessment=[{"outcome": "PASS", "condition": "greater_equal", "threshold": 0.5}],
+            assessment=[
+                {"outcome": "PASS", "condition": "greater_equal", "threshold": 0.5}
+            ],
         )
         assert ind.id == VALID_ID
 
@@ -236,7 +240,9 @@ class TestValidateIdsCommandCoverage:
         # not asserted here — some sub-mocks intentionally don't fully model
         # downstream paths — but the uniqueness check must be invoked before
         # any failure short-circuits.
-        assert mock_validate_ids.call_count >= 1, f"`{argv[0]}` is documented as invoking validate_ids"
+        assert mock_validate_ids.call_count >= 1, (
+            f"`{argv[0]}` is documented as invoking validate_ids"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -309,11 +315,15 @@ class TestYamlEnvVarInterpolation:
         out = load_config_file(str(cfg_file))
         assert out == {"base_url": "https://prod.example.com", "port": 443}
 
-    def test_container_config_load_from_yaml_applies_interpolation(self, monkeypatch, tmp_path):
+    def test_container_config_load_from_yaml_applies_interpolation(
+        self, monkeypatch, tmp_path
+    ):
         """``ContainerConfig.load_from_yaml`` must apply the same interpolation."""
         monkeypatch.setenv("MY_NETWORK", "bridge")
         cfg_file = tmp_path / "cfg.yaml"
-        cfg_file.write_text("timeout_seconds: 100\nrun_params:\n  network_mode: ${MY_NETWORK}\n")
+        cfg_file.write_text(
+            "timeout_seconds: 100\nrun_params:\n  network_mode: ${MY_NETWORK}\n"
+        )
         cfg = ContainerConfig.load_from_yaml(str(cfg_file))
         assert cfg.run_params["network_mode"] == "bridge"
 
@@ -364,7 +374,9 @@ class TestEnvironmentVariableSurface:
         # The asqi.* logger is the documented namespace ASQI_LOG_LEVEL controls.
         assert logging.getLogger("asqi").level == logging.INFO
 
-    def test_asqi_log_level_env_var_overrides_default(self, monkeypatch, _restore_logging_state):
+    def test_asqi_log_level_env_var_overrides_default(
+        self, monkeypatch, _restore_logging_state
+    ):
         """``ASQI_LOG_LEVEL`` controls the asqi.* namespace level."""
         import logging
 
@@ -404,9 +416,13 @@ class TestEnvironmentVariableSurface:
 
         env = {k: v for k, v in _os.environ.items() if k != "DBOS_DATABASE_URL"}
         env.pop("DBOS_DATABASE_URL", None)
-        asqi_parent = _os.path.dirname(_os.path.dirname(_os.path.abspath(asqi.__file__)))
+        asqi_parent = _os.path.dirname(
+            _os.path.dirname(_os.path.abspath(asqi.__file__))
+        )
         existing_pp = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = asqi_parent + (_os.pathsep + existing_pp if existing_pp else "")
+        env["PYTHONPATH"] = asqi_parent + (
+            _os.pathsep + existing_pp if existing_pp else ""
+        )
         probe = (
             "import sys\n"
             "import dotenv\n"
@@ -443,9 +459,13 @@ class TestEnvironmentVariableSurface:
 
         env = {k: v for k, v in _os.environ.items() if k != "DBOS_DATABASE_URL"}
         env.pop("DBOS_DATABASE_URL", None)
-        asqi_parent = _os.path.dirname(_os.path.dirname(_os.path.abspath(asqi.__file__)))
+        asqi_parent = _os.path.dirname(
+            _os.path.dirname(_os.path.abspath(asqi.__file__))
+        )
         existing_pp = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = asqi_parent + (_os.pathsep + existing_pp if existing_pp else "")
+        env["PYTHONPATH"] = asqi_parent + (
+            _os.pathsep + existing_pp if existing_pp else ""
+        )
         probe = (
             "import sys\n"
             "import dotenv\n"
@@ -740,7 +760,9 @@ class TestEvaluateScoreCardsSidecarPathMismatch:
         monkeypatch.setenv("LOGS_PATH", str(logs_dir))
 
         save_container_results_to_file_step(
-            container_results=[{"test_id": "t1", "error_message": "", "container_output": ""}],
+            container_results=[
+                {"test_id": "t1", "error_message": "", "container_output": ""}
+            ],
             output_path="some/nested/dir/output.json",
         )
         # Sidecar lands at $LOGS_PATH/output.json (basename only)
@@ -757,14 +779,18 @@ class TestEvaluateScoreCardsSidecarPathMismatch:
         monkeypatch.setenv("LOGS_PATH", str(logs_dir))
 
         save_container_results_to_file_step(
-            container_results=[{"test_id": "t1", "error_message": "", "container_output": ""}],
+            container_results=[
+                {"test_id": "t1", "error_message": "", "container_output": ""}
+            ],
             output_path="results.txt",
         )
         # File is created with the exact basename + extension.
         assert (logs_dir / "results.txt").exists()
         assert not (logs_dir / "results.txt.json").exists()
 
-    def test_reader_finds_sidecar_when_both_paths_are_bare_filenames(self, tmp_path, monkeypatch):
+    def test_reader_finds_sidecar_when_both_paths_are_bare_filenames(
+        self, tmp_path, monkeypatch
+    ):
         """They only line up when both flags are bare filenames.
 
         The mismatch case (with a directory prefix) is pinned below. Pin the
@@ -784,7 +810,9 @@ class TestEvaluateScoreCardsSidecarPathMismatch:
 
         # Both --input-file and the sidecar live as bare filenames in the cwd
         # / $LOGS_PATH respectively (matching the documented happy-path usage).
-        (tmp_path / "results.json").write_text(_json.dumps({"summary": {"status": "COMPLETED"}, "results": []}))
+        (tmp_path / "results.json").write_text(
+            _json.dumps({"summary": {"status": "COMPLETED"}, "results": []})
+        )
         documented_sidecar = [
             {
                 "test_id": "t1",
@@ -850,7 +878,9 @@ class TestEvaluateScoreCardsSidecarPathMismatch:
 
         # Place results JSON at "out/results.json" (relative — has dir prefix)
         (tmp_path / "out").mkdir()
-        (tmp_path / "out" / "results.json").write_text(_json.dumps({"summary": {"status": "COMPLETED"}, "results": []}))
+        (tmp_path / "out" / "results.json").write_text(
+            _json.dumps({"summary": {"status": "COMPLETED"}, "results": []})
+        )
         # Writer placed sidecar at $LOGS_PATH/<basename> = logs/results.json
         (logs_dir / "results.json").write_text(_json.dumps([{"test_id": "x"}]))
 
