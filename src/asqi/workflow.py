@@ -69,19 +69,28 @@ from pydantic import ValidationError
 from rich.console import Console
 
 load_dotenv()
-oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-system_database_url = os.environ.get("DBOS_DATABASE_URL")
-if not system_database_url:
-    raise ValueError("Database URL must be provided through DBOS_DATABASE_URL environment variable")
 
-config: DBOSConfig = {
-    "name": "asqi-test-executor",
-    "system_database_url": system_database_url,
-}
-if oltp_endpoint:
-    config["enable_otlp"] = True
-    config["otlp_traces_endpoints"] = [oltp_endpoint]
-DBOS(config=config)
+
+def init_dbos() -> None:
+    """Initialize the DBOS singleton from environment.
+
+    Must be called from a command entry point before ``DBOS.launch()`` or any
+    workflow execution. Kept out of module import so ``asqi --help`` and other
+    no-op CLI invocations don't require ``DBOS_DATABASE_URL`` to be set.
+    """
+    system_database_url = os.environ.get("DBOS_DATABASE_URL")
+    if not system_database_url:
+        raise ValueError("Database URL must be provided through DBOS_DATABASE_URL environment variable")
+    config: DBOSConfig = {
+        "name": "asqi-test-executor",
+        "system_database_url": system_database_url,
+    }
+    oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if oltp_endpoint:
+        config["enable_otlp"] = True
+        config["otlp_traces_endpoints"] = [oltp_endpoint]
+    DBOS(config=config)
+
 
 # Initialize Rich console and execution queue
 console = Console()

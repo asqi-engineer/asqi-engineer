@@ -402,7 +402,7 @@ def execute(
     _validate_unique_ids(test_suite_config, score_card_config)
 
     try:
-        from asqi.workflow import DBOS, start_test_execution
+        from asqi.workflow import DBOS, init_dbos, start_test_execution
 
         # Load container configuration
         if container_config_file is not None:
@@ -416,6 +416,7 @@ def execute(
             "progress_interval": progress_interval,
         }
 
+        init_dbos()
         # Launch DBOS if not already launched
         try:
             DBOS.launch()
@@ -534,7 +535,7 @@ def execute_tests(
     _validate_unique_ids(test_suite_config)
 
     try:
-        from asqi.workflow import DBOS, start_test_execution
+        from asqi.workflow import DBOS, init_dbos, start_test_execution
 
         # Load container configuration
         if container_config_file is not None:
@@ -549,6 +550,7 @@ def execute_tests(
             "progress_interval": progress_interval,
         }
 
+        init_dbos()
         # Launch DBOS if not already launched
         try:
             DBOS.launch()
@@ -640,7 +642,7 @@ def generate_dataset(
     console.print("[blue]--- 🚀 Executing Test Suite ---[/blue]")
 
     try:
-        from asqi.workflow import DBOS, start_data_generation
+        from asqi.workflow import DBOS, init_dbos, start_data_generation
 
         # Load container configuration
         if container_config_file is not None:
@@ -655,6 +657,7 @@ def generate_dataset(
             "progress_interval": progress_interval,
         }
 
+        init_dbos()
         # Launch DBOS if not already launched
         try:
             DBOS.launch()
@@ -706,8 +709,9 @@ def evaluate_score_cards(
     _validate_unique_ids(score_card_config)
 
     try:
-        from asqi.workflow import DBOS, start_score_card_evaluation
+        from asqi.workflow import DBOS, init_dbos, start_score_card_evaluation
 
+        init_dbos()
         # Launch DBOS if not already launched
         try:
             DBOS.launch()

@@ -390,32 +390,12 @@ class TestEnvironmentVariableSurface:
         kwargs = mock_load.call_args.kwargs
         assert kwargs["token"] == "hf_secret_xyz"  # noqa: S105
 
-    def test_dbos_database_url_captured_at_import_time(self):
-        """``DBOS_DATABASE_URL`` is consumed by ``asqi.workflow`` at import
-        time. The module reads ``os.environ["DBOS_DATABASE_URL"]`` and
-        stores it on a module-level constant, so the captured value should
-        reflect the env var's value at the moment the module was first
-        imported (which the test process did during pytest collection)."""
-        import os
-
-        import asqi.workflow as wf_module
-
-        # Module-level constant must exist (locks down the documented contract).
-        assert hasattr(wf_module, "system_database_url")
-        # And it equals the value the env held at import time.
-        assert wf_module.system_database_url == os.environ.get("DBOS_DATABASE_URL")
-
-    def test_dbos_database_url_unset_raises_at_module_import(self, tmp_path):
-        """``DBOS_DATABASE_URL`` is required when the workflow module is
-        imported. The module's import-time guard raises ``ValueError`` with
-        the documented message when it's missing.
-
-        We exercise this in a subprocess so we can clear the env without
-        breaking the pytest process's own DBOS state. The probe also
-        neutralises ``dotenv.load_dotenv`` before the ``asqi.workflow``
-        import so a ``.env`` anywhere on the filesystem (repo root, an
-        ancestor dir, the user's home) cannot silently repopulate
-        ``DBOS_DATABASE_URL`` and mask the guard we're asserting."""
+    def test_workflow_module_import_does_not_require_env(self, tmp_path):
+        """Importing ``asqi.workflow`` must NOT require ``DBOS_DATABASE_URL``
+        or any other runtime env var. The DBOS singleton is initialized
+        lazily via ``init_dbos()`` at command entry points so that
+        ``asqi --help`` and other no-op CLI invocations work in
+        unconfigured environments (e.g. CI smoke tests, fresh installs)."""
         import os as _os
         import subprocess
         import sys
@@ -424,29 +404,55 @@ class TestEnvironmentVariableSurface:
 
         env = {k: v for k, v in _os.environ.items() if k != "DBOS_DATABASE_URL"}
         env.pop("DBOS_DATABASE_URL", None)
-        # CI runs with a *relative* ``PYTHONPATH=src`` from
-        # ``libs/asqi-engineer`` and does not install the project
-        # (``--no-install-project``). Changing cwd to ``tmp_path`` below
-        # would make that relative path point nowhere, so the child would
-        # raise ``ModuleNotFoundError`` before reaching the import-time
-        # guard we're trying to exercise. Pin an absolute pointer to the
-        # ``asqi`` package's parent dir.
         asqi_parent = _os.path.dirname(_os.path.dirname(_os.path.abspath(asqi.__file__)))
         existing_pp = env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = asqi_parent + (_os.pathsep + existing_pp if existing_pp else "")
-        # Drive the child process to import asqi.workflow and report the
-        # exception class on stdout so we can assert the documented type
-        # (``ValueError``) — not just a substring match on stderr.
-        # Neutralise dotenv before the workflow import: ``load_dotenv()`` at
-        # ``workflow.py:75`` walks up from the module's own directory, so a
-        # cwd swap is not enough — a ``.env`` in any repo ancestor would
-        # still repopulate ``DBOS_DATABASE_URL`` and silently pass the test.
         probe = (
             "import sys\n"
             "import dotenv\n"
             "dotenv.load_dotenv = lambda *a, **kw: False\n"
+            "import asqi.workflow  # noqa: F401\n"
+            "assert hasattr(asqi.workflow, 'init_dbos')\n"
+            "sys.exit(0)\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            env=env,
+            cwd=str(tmp_path),
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            f"importing asqi.workflow without DBOS_DATABASE_URL must succeed. stderr: {result.stderr!r}"
+        )
+
+    def test_init_dbos_unset_database_url_raises(self, tmp_path):
+        """``init_dbos()`` raises ``ValueError`` with the documented message
+        when ``DBOS_DATABASE_URL`` is missing. The validation lives in the
+        lazy initializer (not at module import) so that ``--help`` works
+        without configuration, but ``execute`` (and other workflow-running
+        commands) still surface a clear error before any work begins.
+
+        Run in a subprocess so we can clear the env without disturbing the
+        pytest process's own DBOS state."""
+        import os as _os
+        import subprocess
+        import sys
+
+        import asqi
+
+        env = {k: v for k, v in _os.environ.items() if k != "DBOS_DATABASE_URL"}
+        env.pop("DBOS_DATABASE_URL", None)
+        asqi_parent = _os.path.dirname(_os.path.dirname(_os.path.abspath(asqi.__file__)))
+        existing_pp = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = asqi_parent + (_os.pathsep + existing_pp if existing_pp else "")
+        probe = (
+            "import sys\n"
+            "import dotenv\n"
+            "dotenv.load_dotenv = lambda *a, **kw: False\n"
+            "from asqi.workflow import init_dbos\n"
             "try:\n"
-            "    import asqi.workflow  # noqa: F401\n"
+            "    init_dbos()\n"
             "except BaseException as exc:\n"
             "    print(type(exc).__name__)\n"
             "    print(str(exc))\n"
@@ -460,30 +466,36 @@ class TestEnvironmentVariableSurface:
             capture_output=True,
             text=True,
         )
-        # The guard fired (non-zero exit), and the exception class is the
-        # documented ``ValueError`` (not e.g. ``RuntimeError`` or a DBOS
-        # internal type).
         assert result.returncode == 7, result.stderr
         out_lines = result.stdout.strip().splitlines()
         assert out_lines, f"no exception captured. stderr: {result.stderr!r}"
         assert out_lines[0] == "ValueError"
-        # Documented message snippet (workflow.py:79-81)
         assert "DBOS_DATABASE_URL" in result.stdout
 
-    def test_otel_exporter_endpoint_consumed_at_import_time(self):
-        """``OTEL_EXPORTER_OTLP_ENDPOINT`` is read by ``asqi.workflow`` at
-        import time; tracing is disabled if unset.
+    def test_otel_exporter_endpoint_consumed_by_init_dbos(self, monkeypatch):
+        """``OTEL_EXPORTER_OTLP_ENDPOINT`` is read inside ``init_dbos()``
+        when the singleton is constructed; tracing is disabled if unset.
 
-        The module exposes ``oltp_endpoint`` (sic) as the captured value, so
-        we can pin the read-from-env contract without a second import."""
-        import os
-
+        Patch the ``DBOS`` constructor in ``asqi.workflow`` so we can
+        inspect the config dict the workflow builds without actually
+        spinning up a DBOS instance."""
         import asqi.workflow as wf_module
 
-        assert hasattr(wf_module, "oltp_endpoint")
-        # The captured constant matches whatever the env held at import time;
-        # both ``None`` (unset) and a string value are valid contract states.
-        assert wf_module.oltp_endpoint == os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+        monkeypatch.setenv("DBOS_DATABASE_URL", "postgresql://test")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel.example:4317")
+
+        captured: dict[str, object] = {}
+
+        def fake_dbos(*, config):
+            captured["config"] = config
+
+        monkeypatch.setattr(wf_module, "DBOS", fake_dbos)
+        wf_module.init_dbos()
+
+        cfg = captured["config"]
+        assert cfg["system_database_url"] == "postgresql://test"
+        assert cfg.get("enable_otlp") is True
+        assert cfg.get("otlp_traces_endpoints") == ["http://otel.example:4317"]
 
     def test_hf_token_inline_overrides_env(self, monkeypatch):
         """Inline token on the loader params takes precedence over HF_TOKEN."""
