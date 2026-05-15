@@ -1,5 +1,5 @@
 # Changelog
-## [0.5.2] - 2026-05-14
+## [0.5.3] - 2026-05-15
 
 ### 🚜 Refactor
 - Extract `DockerBackend` behind a new `ContainerBackend` interface; convert `main.py` CLI args to the `Annotated` pattern (4f67496)
