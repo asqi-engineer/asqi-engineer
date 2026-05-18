@@ -1,0 +1,53 @@
+# RBAC manifests for KubernetesBackend
+#
+# Apply with:
+#   kubectl apply -f k8s/rbac.yaml -n <your-namespace>
+#
+# The ServiceAccount "asqi-engineer" is granted the minimum permissions
+# required by KubernetesBackend:
+#   - batch/v1 Jobs:  create, get, watch, delete, list
+#   - core/v1 Pods:   get, list  (for log collection and exit-code inspection)
+#
+# Update the `namespace` fields to match your deployment namespace.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: asqi-engineer
+  namespace: default
+  labels:
+    app: asqi-engineer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: asqi-engineer-job-manager
+  namespace: default
+  labels:
+    app: asqi-engineer
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "watch", "list", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: asqi-engineer-job-manager-binding
+  namespace: default
+  labels:
+    app: asqi-engineer
+subjects:
+  - kind: ServiceAccount
+    name: asqi-engineer
+    namespace: default
+roleRef:
+  kind: Role
+  name: asqi-engineer-job-manager
+  apiGroup: rbac.authorization.k8s.io

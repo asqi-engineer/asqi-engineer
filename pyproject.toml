@@ -18,6 +18,9 @@ dependencies = [
     "requests>=2.33.0",
 ]
 
+[project.optional-dependencies]
+k8s = ["kubernetes>=32.0.1"]
+
 [project.scripts]
 asqi = "asqi.main:app"
 
