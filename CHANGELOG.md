@@ -1,4 +1,10 @@
 # Changelog
+## [0.5.4] - 2026-05-20
+
+### 🐛 Bug Fixes
+
+- *(otel)* Normalise OTLP endpoint to /v1/traces before passing to DBOS (19698ef)
+- Lint (7aa1e38)
 ## [0.5.3] - 2026-05-15
 
 ### 🚜 Refactor
