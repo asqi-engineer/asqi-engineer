@@ -90,7 +90,11 @@ def init_dbos() -> None:
     oltp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if oltp_endpoint:
         config["enable_otlp"] = True
-        config["otlp_traces_endpoints"] = [oltp_endpoint]
+        normalized = oltp_endpoint.rstrip("/")
+        if not normalized.endswith("/v1/traces"):
+            normalized = f"{normalized}/v1/traces"
+        config["otlp_traces_endpoints"] = [normalized]
+
     DBOS(config=config)
 
 

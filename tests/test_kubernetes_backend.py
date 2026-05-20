@@ -9,7 +9,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-pytest.importorskip("kubernetes", reason="kubernetes package not installed — skipping K8s backend tests")
+pytest.importorskip(
+    "kubernetes", reason="kubernetes package not installed — skipping K8s backend tests"
+)
 
 import yaml
 from asqi.backends.base import ContainerBackend
@@ -122,7 +124,9 @@ class TestCheckNoVolumes:
     def test_detects_volumes_in_test_params(self) -> None:
         import json
 
-        params = json.dumps({"key": "val", "__volumes": {"input": "/in", "output": "/out"}})
+        params = json.dumps(
+            {"key": "val", "__volumes": {"input": "/in", "output": "/out"}}
+        )
         result = _check_no_volumes(["run", "--test-params", params])
         assert result is not None
         assert "__volumes" in result
@@ -149,7 +153,9 @@ class TestCheckNoVolumes:
 
         tp = json.dumps({"key": "val", "__volumes": {"a": "/a"}})
         gp = json.dumps({"gen": "ok", "__volumes": {"b": "/b"}})
-        result = _check_no_volumes(["run", "--test-params", tp, "--generation-params", gp])
+        result = _check_no_volumes(
+            ["run", "--test-params", tp, "--generation-params", gp]
+        )
         assert result is not None
 
 
@@ -161,51 +167,91 @@ class TestBuildJobBody:
         return ContainerConfig()
 
     def test_api_version(self) -> None:
-        body = _build_job_body("job-1", "img:1", [], None, self._default_config(), "wf1", "default")
+        body = _build_job_body(
+            "job-1", "img:1", [], None, self._default_config(), "wf1", "default"
+        )
         assert body["apiVersion"] == "batch/v1"
 
     def test_job_name_in_metadata(self) -> None:
-        body = _build_job_body("my-job", "img:1", [], None, self._default_config(), "wf1", "default")
+        body = _build_job_body(
+            "my-job", "img:1", [], None, self._default_config(), "wf1", "default"
+        )
         assert body["metadata"]["name"] == "my-job"
 
     def test_namespace_in_metadata(self) -> None:
-        body = _build_job_body("job-1", "img:1", [], None, self._default_config(), "wf1", "prod")
+        body = _build_job_body(
+            "job-1", "img:1", [], None, self._default_config(), "wf1", "prod"
+        )
         assert body["metadata"]["namespace"] == "prod"
 
     def test_workflow_id_label(self) -> None:
-        body = _build_job_body("job-1", "img:1", [], None, self._default_config(), "wf-abc", "default")
+        body = _build_job_body(
+            "job-1", "img:1", [], None, self._default_config(), "wf-abc", "default"
+        )
         assert body["metadata"]["labels"]["workflow_id"] == "wf-abc"
 
     def test_restart_policy_never(self) -> None:
-        body = _build_job_body("job-1", "img:1", [], None, self._default_config(), "wf1", "default")
+        body = _build_job_body(
+            "job-1", "img:1", [], None, self._default_config(), "wf1", "default"
+        )
         assert body["spec"]["template"]["spec"]["restartPolicy"] == "Never"
 
     def test_backoff_limit_zero(self) -> None:
-        body = _build_job_body("job-1", "img:1", [], None, self._default_config(), "wf1", "default")
+        body = _build_job_body(
+            "job-1", "img:1", [], None, self._default_config(), "wf1", "default"
+        )
         assert body["spec"]["backoffLimit"] == 0
 
     def test_image_in_container(self) -> None:
-        body = _build_job_body("job-1", "my-image:latest", [], None, self._default_config(), "wf1", "default")
+        body = _build_job_body(
+            "job-1",
+            "my-image:latest",
+            [],
+            None,
+            self._default_config(),
+            "wf1",
+            "default",
+        )
         container = body["spec"]["template"]["spec"]["containers"][0]
         assert container["image"] == "my-image:latest"
 
     def test_args_in_container(self) -> None:
-        body = _build_job_body("job-1", "img:1", ["--foo", "bar"], None, self._default_config(), "wf1", "default")
+        body = _build_job_body(
+            "job-1",
+            "img:1",
+            ["--foo", "bar"],
+            None,
+            self._default_config(),
+            "wf1",
+            "default",
+        )
         container = body["spec"]["template"]["spec"]["containers"][0]
         assert container["args"] == ["--foo", "bar"]
 
     def test_environment_injected(self) -> None:
-        body = _build_job_body("job-1", "img:1", [], {"KEY": "val"}, self._default_config(), "wf1", "default")
+        body = _build_job_body(
+            "job-1",
+            "img:1",
+            [],
+            {"KEY": "val"},
+            self._default_config(),
+            "wf1",
+            "default",
+        )
         container = body["spec"]["template"]["spec"]["containers"][0]
         assert {"name": "KEY", "value": "val"} in container["env"]
 
     def test_memory_limit_converted(self) -> None:
-        body = _build_job_body("job-1", "img:1", [], None, self._default_config(), "wf1", "default")
+        body = _build_job_body(
+            "job-1", "img:1", [], None, self._default_config(), "wf1", "default"
+        )
         resources = body["spec"]["template"]["spec"]["containers"][0]["resources"]
         assert resources["limits"]["memory"] == "2Gi"
 
     def test_cpu_limit_converted(self) -> None:
-        body = _build_job_body("job-1", "img:1", [], None, self._default_config(), "wf1", "default")
+        body = _build_job_body(
+            "job-1", "img:1", [], None, self._default_config(), "wf1", "default"
+        )
         resources = body["spec"]["template"]["spec"]["containers"][0]["resources"]
         assert resources["limits"]["cpu"] == "2"
 
@@ -268,7 +314,9 @@ class TestKubernetesBackendRun:
         mock_load.return_value = (batch_api, core_api)
 
         backend = KubernetesBackend(namespace="test-ns")
-        result = backend.run(image="img:1", args=["--foo"], container_config=ContainerConfig())
+        result = backend.run(
+            image="img:1", args=["--foo"], container_config=ContainerConfig()
+        )
 
         assert result["success"] is True
         assert result["exit_code"] == 0
@@ -300,7 +348,9 @@ class TestKubernetesBackendRun:
         batch_api, core_api = _make_mock_clients(succeeded=0, failed=1)
         pod = MagicMock()
         pod.metadata.name = "pod-1"
-        pod.status.container_statuses = [MagicMock(state=MagicMock(terminated=MagicMock(exit_code=1)))]
+        pod.status.container_statuses = [
+            MagicMock(state=MagicMock(terminated=MagicMock(exit_code=1)))
+        ]
         core_api.list_namespaced_pod.return_value = MagicMock(items=[pod])
         mock_load.return_value = (batch_api, core_api)
 
@@ -311,11 +361,15 @@ class TestKubernetesBackendRun:
         assert result["exit_code"] == 1
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
-    def test_create_job_api_error_returns_error_dict(self, mock_load: MagicMock) -> None:
+    def test_create_job_api_error_returns_error_dict(
+        self, mock_load: MagicMock
+    ) -> None:
         from kubernetes.client.rest import ApiException  # requires kubernetes test dep
 
         batch_api = MagicMock()
-        batch_api.create_namespaced_job.side_effect = ApiException(status=403, reason="Forbidden")
+        batch_api.create_namespaced_job.side_effect = ApiException(
+            status=403, reason="Forbidden"
+        )
         core_api = MagicMock()
         mock_load.return_value = (batch_api, core_api)
 
@@ -349,12 +403,18 @@ class TestKubernetesBackendRun:
         assert "timed out" in result["error"].lower()
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
-    def test_volumes_in_args_returns_failure_without_creating_job(self, mock_load: MagicMock) -> None:
+    def test_volumes_in_args_returns_failure_without_creating_job(
+        self, mock_load: MagicMock
+    ) -> None:
         import json
 
         params = json.dumps({"key": "val", "__volumes": {"input": "/in"}})
         backend = KubernetesBackend()
-        result = backend.run(image="img:1", args=["--test-params", params], container_config=ContainerConfig())
+        result = backend.run(
+            image="img:1",
+            args=["--test-params", params],
+            container_config=ContainerConfig(),
+        )
 
         assert result["success"] is False
         assert result["exit_code"] == -1
@@ -521,7 +581,9 @@ class TestKubernetesBackendExtractManifest:
         from kubernetes.client.rest import ApiException
 
         batch_api = MagicMock()
-        batch_api.create_namespaced_job.side_effect = ApiException(status=403, reason="Forbidden")
+        batch_api.create_namespaced_job.side_effect = ApiException(
+            status=403, reason="Forbidden"
+        )
         core_api = MagicMock()
         mock_load.return_value = (batch_api, core_api)
 
