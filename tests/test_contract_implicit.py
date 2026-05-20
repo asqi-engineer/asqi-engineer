@@ -515,7 +515,72 @@ class TestEnvironmentVariableSurface:
         cfg = captured["config"]
         assert cfg["system_database_url"] == "postgresql://test"
         assert cfg.get("enable_otlp") is True
-        assert cfg.get("otlp_traces_endpoints") == ["http://otel.example:4317"]
+        assert cfg.get("otlp_traces_endpoints") == ["http://otel.example:4317/v1/traces"]
+        
+    @pytest.mark.parametrize(
+        "env_value,expected_endpoint",
+        [
+            ("http://collector:4318",            "http://collector:4318/v1/traces"),
+            ("http://collector:4318/",           "http://collector:4318/v1/traces"),
+            ("http://collector:4318/v1/traces",  "http://collector:4318/v1/traces"),
+            ("http://collector:4318/v1/traces/", "http://collector:4318/v1/traces"),
+        ],
+    )
+    def test_init_dbos_normalises_otlp_endpoint(
+        self, monkeypatch, env_value, expected_endpoint
+    ):
+        """``OTEL_EXPORTER_OTLP_ENDPOINT`` is normalised so the value
+        forwarded to DBOS always ends with ``/v1/traces``, regardless of
+        whether the env var is given as a spec-compliant base URL or with
+        the signal path already baked in."""
+        import asqi.workflow as wf_module
+
+        monkeypatch.setenv("DBOS_DATABASE_URL", "postgresql://test")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", env_value)
+
+        captured: dict[str, object] = {}
+
+        def fake_dbos(*, config):
+            captured["config"] = config
+
+        monkeypatch.setattr(wf_module, "DBOS", fake_dbos)
+        wf_module.init_dbos()
+
+        cfg = captured["config"]
+        assert cfg.get("enable_otlp") is True
+        assert cfg.get("otlp_traces_endpoints") == [expected_endpoint]
+
+    def test_init_dbos_disables_otlp_when_endpoint_unset(self, monkeypatch):
+        """OTLP must stay disabled when ``OTEL_EXPORTER_OTLP_ENDPOINT`` is
+        not set — no accidental enable from the normalisation logic."""
+        import asqi.workflow as wf_module
+
+        monkeypatch.setenv("DBOS_DATABASE_URL", "postgresql://test")
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+
+        captured: dict[str, object] = {}
+
+        def fake_dbos(*, config):
+            captured["config"] = config
+
+        monkeypatch.setattr(wf_module, "DBOS", fake_dbos)
+        wf_module.init_dbos()
+
+        cfg = captured["config"]
+        assert "enable_otlp" not in cfg
+        assert "otlp_traces_endpoints" not in cfg
+
+    def test_init_dbos_raises_when_database_url_missing(self, monkeypatch):
+        """Pre-existing guarantee — kept here so the OTLP normalisation
+        block doesn't accidentally swallow the required-env-var error path."""
+        import asqi.workflow as wf_module
+
+        monkeypatch.delenv("DBOS_DATABASE_URL", raising=False)
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318")
+
+        with pytest.raises(ValueError, match="DBOS_DATABASE_URL"):
+            wf_module.init_dbos()
+
 
     def test_hf_token_inline_overrides_env(self, monkeypatch):
         """Inline token on the loader params takes precedence over HF_TOKEN."""
