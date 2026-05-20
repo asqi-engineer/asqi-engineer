@@ -515,14 +515,16 @@ class TestEnvironmentVariableSurface:
         cfg = captured["config"]
         assert cfg["system_database_url"] == "postgresql://test"
         assert cfg.get("enable_otlp") is True
-        assert cfg.get("otlp_traces_endpoints") == ["http://otel.example:4317/v1/traces"]
-        
+        assert cfg.get("otlp_traces_endpoints") == [
+            "http://otel.example:4317/v1/traces"
+        ]
+
     @pytest.mark.parametrize(
         "env_value,expected_endpoint",
         [
-            ("http://collector:4318",            "http://collector:4318/v1/traces"),
-            ("http://collector:4318/",           "http://collector:4318/v1/traces"),
-            ("http://collector:4318/v1/traces",  "http://collector:4318/v1/traces"),
+            ("http://collector:4318", "http://collector:4318/v1/traces"),
+            ("http://collector:4318/", "http://collector:4318/v1/traces"),
+            ("http://collector:4318/v1/traces", "http://collector:4318/v1/traces"),
             ("http://collector:4318/v1/traces/", "http://collector:4318/v1/traces"),
         ],
     )
@@ -580,7 +582,6 @@ class TestEnvironmentVariableSurface:
 
         with pytest.raises(ValueError, match="DBOS_DATABASE_URL"):
             wf_module.init_dbos()
-
 
     def test_hf_token_inline_overrides_env(self, monkeypatch):
         """Inline token on the loader params takes precedence over HF_TOKEN."""
