@@ -1,7 +1,8 @@
 # RBAC manifests for KubernetesBackend
 #
+# This file is packaged inside the asqi-engineer wheel at asqi/k8s/rbac.yaml.
 # Apply with:
-#   kubectl apply -f k8s/rbac.yaml -n <your-namespace>
+#   kubectl apply -f "$(python -c 'from importlib.resources import files; print(files("asqi").joinpath("k8s/rbac.yaml"))')" -n <your-namespace>
 #
 # The ServiceAccount "asqi-engineer" is granted the minimum permissions
 # required by KubernetesBackend:

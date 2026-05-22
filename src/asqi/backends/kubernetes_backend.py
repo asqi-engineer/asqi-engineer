@@ -3,7 +3,7 @@
 Dispatches ASQI containers as Kubernetes Jobs using the K8s Jobs API.
 Images are assumed to be available in the cluster -- no pull logic is performed.
 
-Required RBAC (see ``k8s/rbac.yaml`` in the asqi-engineer package):
+Required RBAC (see ``asqi/k8s/rbac.yaml`` in the installed package):
     A ServiceAccount with ``create / get / watch / delete`` permissions on
     ``batch/v1 Jobs`` (and ``get / list`` on ``core/v1 Pods``) in the target namespace.
 
@@ -92,9 +92,7 @@ def _cpu_quota_to_k8s(cpu_period: int, cpu_quota: int) -> str:
     """Convert Docker CPU quota / period to a K8s CPU string (e.g. ``200000 / 100000`` → ``'2'``)."""
     if cpu_period and cpu_quota:
         cores = cpu_quota / cpu_period
-        return (
-            str(int(cores)) if cores == int(cores) else str(max(0.001, round(cores, 3)))
-        )
+        return str(int(cores)) if cores == int(cores) else str(max(0.001, round(cores, 3)))
     return "2"
 
 
@@ -204,9 +202,7 @@ def _collect_pod_logs(core_api: Any, job_name: str, namespace: str) -> str:
             logger.warning("No pods found for job '%s'", job_name)
             return ""
         pod_name = pods.items[0].metadata.name
-        return (
-            core_api.read_namespaced_pod_log(name=pod_name, namespace=namespace) or ""
-        )
+        return core_api.read_namespaced_pod_log(name=pod_name, namespace=namespace) or ""
     except ApiException as e:
         logger.warning("Failed to collect logs for job '%s': %s", job_name, e)
         return ""
@@ -289,9 +285,7 @@ def _wait_for_job(
                         failure_msg = cond.message or ""
                         break
             result["exit_code"] = exit_code
-            result["error"] = (
-                failure_msg or f"Job '{job_name}' failed with exit code {exit_code}"
-            )
+            result["error"] = failure_msg or f"Job '{job_name}' failed with exit code {exit_code}"
             result["output"] = _collect_pod_logs(core_api, job_name, namespace)
             return result
 
@@ -340,7 +334,8 @@ class KubernetesBackend:
     RBAC requirement:
         The ServiceAccount must have ``create / get / watch / delete``
         permissions on ``batch/v1 Jobs`` and ``get / list`` on ``core/v1 Pods``
-        in *namespace*.  See ``k8s/rbac.yaml`` for a ready-to-apply manifest.
+        in *namespace*.  See ``asqi/k8s/rbac.yaml`` in the installed
+        package for a ready-to-apply manifest.
     """
 
     def __init__(self, namespace: str = _DEFAULT_NAMESPACE) -> None:
@@ -396,9 +391,7 @@ class KubernetesBackend:
         try:
             from kubernetes.client.rest import ApiException
         except ImportError as e:
-            raise ImportError(
-                "kubernetes package is required for KubernetesBackend"
-            ) from e
+            raise ImportError("kubernetes package is required for KubernetesBackend") from e
 
         try:
             batch_api.create_namespaced_job(namespace=self._namespace, body=job_body)
@@ -453,9 +446,7 @@ class KubernetesBackend:
                 for job in jobs.items:
                     _delete_job(batch_api, job.metadata.name, self._namespace)
             except Exception as e:
-                logger.error(
-                    "Failed to list/delete jobs for workflow '%s': %s", wf_id, e
-                )
+                logger.error("Failed to list/delete jobs for workflow '%s': %s", wf_id, e)
 
     def check_images(self, images: list[str]) -> dict[str, bool]:
         """Return ``True`` for every image -- K8s does not support pre-flight image checks.
@@ -475,9 +466,7 @@ class KubernetesBackend:
             len(images),
         )
 
-    def extract_manifest(
-        self, image: str, manifest_path: str = ContainerConfig.MANIFEST_PATH
-    ) -> Manifest | None:
+    def extract_manifest(self, image: str, manifest_path: str = ContainerConfig.MANIFEST_PATH) -> Manifest | None:
         """Extract ``manifest.yaml`` from an image by running a one-shot K8s Job.
 
         The Job runs ``cat <manifest_path>``; the pod stdout is parsed as YAML.
@@ -524,9 +513,7 @@ class KubernetesBackend:
         try:
             from kubernetes.client.rest import ApiException
         except ImportError as e:
-            raise ImportError(
-                "kubernetes package is required for KubernetesBackend"
-            ) from e
+            raise ImportError("kubernetes package is required for KubernetesBackend") from e
 
         try:
             batch_api.create_namespaced_job(namespace=self._namespace, body=job_body)

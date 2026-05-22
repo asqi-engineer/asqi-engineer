@@ -73,8 +73,25 @@ Get started with ASQI Engineer in 3 simple steps:
 ### Requirements
 
 - **Python 3.12+** is required
-- Docker for running test containers
+- Docker for running test containers (default), or a Kubernetes cluster (see [Container Backend](#container-backend) below)
     > **Note:** If you are facing issues detecting your Docker daemon, you might need to set the `DOCKER_HOST` environment variable in your `.env` file. See `.env` for details.
+
+### Container Backend
+
+ASQI Engineer supports two container backends, selected at startup via the `RUN_BACKEND` environment variable:
+
+| `RUN_BACKEND` | Backend | Requirements |
+|---|---|---|
+| `docker` *(default)* | `DockerBackend` — runs containers via the Docker socket | Docker daemon accessible |
+| `k8s` | `KubernetesBackend` — dispatches containers as Kubernetes Jobs | `pip install 'asqi-engineer[k8s]'`; cluster access via in-cluster config or kubeconfig |
+
+When using `RUN_BACKEND=k8s`, set `K8S_NAMESPACE` to the namespace where Jobs should be created (default: `default`). Apply the bundled RBAC manifest first:
+
+```bash
+kubectl apply -f "$(python -c 'from importlib.resources import files; print(files("asqi").joinpath("k8s/rbac.yaml"))')"
+```
+
+The backend is **transparent to workflows** — all five protocol methods (`run`, `shutdown`, `check_images`, `pull_images`, `extract_manifest`) behave identically from the caller's perspective regardless of which backend is active.
 
 **1. Install the package:**
 

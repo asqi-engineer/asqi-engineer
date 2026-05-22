@@ -61,10 +61,10 @@ class TestHostSideInventory:
             ],
         )
 
-    def test_asqi_backends_exports_docker_backend(self):
+    def test_asqi_backends_exports_documented_symbols(self):
         _assert_module_exports(
             "asqi.backends",
-            ["ContainerBackend", "DockerBackend"],
+            ["ContainerBackend", "DockerBackend", "KubernetesBackend", "create_backend"],
         )
 
     def test_asqi_schemas_exports_public_models(self):
@@ -216,9 +216,7 @@ class TestSecondaryExceptionInventory:
             "t_dup": {
                 "id": "dup",
                 "config_type": "test_suite",
-                "occurrences": [
-                    {"location": "x.yaml", "test_suite_name": "s", "test_name": "t"}
-                ],
+                "occurrences": [{"location": "x.yaml", "test_suite_name": "s", "test_name": "t"}],
             }
         }
         with pytest.raises(DuplicateIDError) as exc_info:
