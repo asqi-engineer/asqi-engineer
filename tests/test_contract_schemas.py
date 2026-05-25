@@ -16,16 +16,143 @@ file scope.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from asqi.schemas import (
     DatasetFeature,
     DatasetType,
     InputDataset,
     InputParameter,
+    InputRef,
     Manifest,
+    OutputDestination,
     SystemInput,
 )
 from pydantic import ValidationError
+
+# ---------------------------------------------------------------------------
+# Artifact refs
+# ---------------------------------------------------------------------------
+
+
+class TestArtifactRefContract:
+    def test_input_ref_serializes_to_json(self):
+        ref = InputRef(
+            bucket="asqi-artifacts",
+            key="runs/run-123/input/dataset.jsonl",
+            checksum="sha256:abc123",
+        )
+
+        payload = json.loads(ref.model_dump_json())
+
+        assert payload == {
+            "bucket": "asqi-artifacts",
+            "key": "runs/run-123/input/dataset.jsonl",
+            "checksum": "sha256:abc123",
+        }
+
+    def test_input_ref_deserializes_from_json(self):
+        ref = InputRef.model_validate_json(
+            json.dumps(
+                {
+                    "bucket": "asqi-artifacts",
+                    "key": "runs/run-123/input/dataset.jsonl",
+                    "checksum": "sha256:abc123",
+                }
+            )
+        )
+
+        assert ref.bucket == "asqi-artifacts"
+        assert ref.key == "runs/run-123/input/dataset.jsonl"
+        assert ref.checksum == "sha256:abc123"
+
+    def test_output_destination_serializes_to_json(self):
+        destination = OutputDestination(
+            bucket="asqi-artifacts",
+            key_prefix="runs/run-123/output",
+        )
+
+        payload = json.loads(destination.model_dump_json())
+
+        assert payload == {
+            "bucket": "asqi-artifacts",
+            "key_prefix": "runs/run-123/output",
+        }
+
+    def test_output_destination_deserializes_from_json(self):
+        destination = OutputDestination.model_validate_json(
+            json.dumps(
+                {
+                    "bucket": "asqi-artifacts",
+                    "key_prefix": "runs/run-123/output",
+                }
+            )
+        )
+
+        assert destination.bucket == "asqi-artifacts"
+        assert destination.key_prefix == "runs/run-123/output"
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "ASQI-Artifacts", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "192.168.0.1", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "my..bucket", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "my-.bucket", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "my.-bucket", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "xn--bucket", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "sthree-bucket", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "amzn-s3-demo-bucket", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "bucket-s3alias", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "bucket--ol-s3", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "bucket.mrap", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "bucket--x-s3", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "bucket--table-s3", "key": "runs/run-123/input/dataset.jsonl"},
+            {"bucket": "asqi-artifacts", "key": ""},
+            {"bucket": "asqi-artifacts", "key": "/runs/run-123/input/dataset.jsonl"},
+            {"bucket": "asqi-artifacts", "key": "runs//run-123/input/dataset.jsonl"},
+            {"bucket": "asqi-artifacts", "key": "runs/./input/dataset.jsonl"},
+            {"bucket": "asqi-artifacts", "key": "runs/../input/dataset.jsonl"},
+            {"bucket": "asqi-artifacts", "key": "runs/\x01/data.jsonl"},
+        ],
+    )
+    def test_invalid_input_ref_raises(self, payload):
+        with pytest.raises(ValidationError):
+            InputRef(**payload)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"key_prefix": "runs/run-123/output"},
+            {"bucket": "", "key_prefix": "runs/run-123/output"},
+            {"bucket": "ASQI-Artifacts", "key_prefix": "runs/run-123/output"},
+            {"bucket": "192.168.0.1", "key_prefix": "runs/run-123/output"},
+            {"bucket": "my..bucket", "key_prefix": "runs/run-123/output"},
+            {"bucket": "my-.bucket", "key_prefix": "runs/run-123/output"},
+            {"bucket": "my.-bucket", "key_prefix": "runs/run-123/output"},
+            {"bucket": "xn--bucket", "key_prefix": "runs/run-123/output"},
+            {"bucket": "sthree-bucket", "key_prefix": "runs/run-123/output"},
+            {"bucket": "amzn-s3-demo-bucket", "key_prefix": "runs/run-123/output"},
+            {"bucket": "bucket-s3alias", "key_prefix": "runs/run-123/output"},
+            {"bucket": "bucket--ol-s3", "key_prefix": "runs/run-123/output"},
+            {"bucket": "bucket.mrap", "key_prefix": "runs/run-123/output"},
+            {"bucket": "bucket--x-s3", "key_prefix": "runs/run-123/output"},
+            {"bucket": "bucket--table-s3", "key_prefix": "runs/run-123/output"},
+            {"bucket": "asqi-artifacts", "key_prefix": ""},
+            {"bucket": "asqi-artifacts", "key_prefix": "/runs/run-123/output"},
+            {"bucket": "asqi-artifacts", "key_prefix": "runs//run-123/output"},
+            {"bucket": "asqi-artifacts", "key_prefix": "runs/./output"},
+            {"bucket": "asqi-artifacts", "key_prefix": "runs/../output"},
+            {"bucket": "asqi-artifacts", "key_prefix": "runs/\x7f"},
+        ],
+    )
+    def test_invalid_output_destination_raises(self, payload):
+        with pytest.raises(ValidationError):
+            OutputDestination(**payload)
+
 
 # ---------------------------------------------------------------------------
 # Manifest
@@ -278,9 +405,7 @@ class TestInputParameterContract:
         assert outer.items.name == "inner"
 
     def test_ui_config_is_arbitrary_dict(self):
-        p = InputParameter(
-            name="p", type="string", ui_config={"widget": "textarea", "rows": 4}
-        )
+        p = InputParameter(name="p", type="string", ui_config={"widget": "textarea", "rows": 4})
         assert p.ui_config == {"widget": "textarea", "rows": 4}
 
 
