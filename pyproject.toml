@@ -68,7 +68,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/asqi"]
-force-include = { "src/asqi/k8s/rbac.yaml" = "asqi/k8s/rbac.yaml" }
+force-include = { "src/asqi/k8s/rbac.yaml" = "asqi/k8s/rbac.yaml", "src/asqi/py.typed" = "asqi/py.typed" }
 
 [tool.hatch.build.hooks.custom]
 path = "scripts/build_hooks.py"
