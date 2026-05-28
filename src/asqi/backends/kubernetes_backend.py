@@ -3,27 +3,41 @@
 Dispatches ASQI containers as Kubernetes Jobs using the K8s Jobs API.
 Images are assumed to be available in the cluster -- no pull logic is performed.
 
+Each Job runs the workload container alongside a native sidecar container
+(K8s >= 1.28 ``initContainers`` entry with ``restartPolicy: Always``) that
+mediates S3 I/O via the shared ``emptyDir`` volume and a per-Job ConfigMap
+carrying the workload's ``InputRef`` / ``OutputDestination`` (AIP-2207).
+
 Required RBAC (see ``asqi/k8s/rbac.yaml`` in the installed package):
     A ServiceAccount with ``create / get / watch / delete`` permissions on
-    ``batch/v1 Jobs`` (and ``get / list`` on ``core/v1 Pods``) in the target namespace.
+    ``batch/v1 Jobs``, ``get / list`` on ``core/v1 Pods``, and
+    ``create / delete`` on ``core/v1 ConfigMaps`` in the target namespace.
 
 Optional dependency:
     Install the Kubernetes Python client with::
 
         pip install 'asqi-engineer[k8s]'
+
+Unsupported Docker-semantics fields (fail-closed):
+    ``__volumes``   — the legacy Docker volume-passing key is rejected by
+                       ``_extract_io_refs`` (use ``__inputs`` / ``__output``
+                       with AIP-2207 ``InputRef`` / ``OutputDestination``).
 """
 
 import json
 import logging
+import os
 import re
 import time
 import uuid
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, cast
 
 import yaml
 from asqi.config import ContainerConfig
 from asqi.errors import ManifestExtractionError
-from asqi.schemas import Manifest
+from asqi.schemas import InputRef, Manifest, OutputDestination
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +47,41 @@ _JOB_NAME_PREFIX = "asqi-job-"
 _DEFAULT_NAMESPACE = "default"
 _POLL_INTERVAL_SECONDS = 2
 _MANIFEST_EXTRACT_TIMEOUT = 60
+
+# ── Sidecar / shared-volume constants ──────────────────────────────────────────
+# Default sidecar image is a greppable placeholder so misconfiguration is
+# obvious in logs. Helm (AIP-2475) sets AIP_SIDECAR_IMAGE; tests inject the
+# image explicitly via the KubernetesBackend constructor.
+_DEFAULT_SIDECAR_IMAGE = "aip-runtime-sidecar:placeholder"
+_SIDECAR_IMAGE_ENV = "AIP_SIDECAR_IMAGE"
+_SIDECAR_CONTAINER_NAME = "aip-runtime-sidecar"
+_WORKLOAD_CONTAINER_NAME = "asqi-container"
+_SHARED_VOLUME_NAME = "shared"
+_IO_REFS_VOLUME_NAME = "io-refs"
+_IO_REFS_CONFIGMAP_KEY = "io.json"
+_IO_REFS_CONFIGMAP_MOUNT = "/etc/aip"
+_SHARED_MOUNT_SIDECAR = "/shared"
+_WORKLOAD_INPUT_MOUNT = "/input"
+_WORKLOAD_OUTPUT_MOUNT = "/output"
+_SHARED_INPUT_SUBPATH = "input"
+_SHARED_OUTPUT_SUBPATH = "output"
+# Sidecar window to finish uploading /output to S3 after the workload
+# container exits and before the kubelet sends SIGKILL.
+_TERMINATION_GRACE_PERIOD_SECONDS = 60
+# Starter resource defaults for the sidecar container. Without these the
+# sidecar runs at BestEffort QoS and is the first thing the kubelet evicts
+# under memory pressure — bad for the post-workload upload window. Values
+# are intentionally conservative placeholders; AIP-2475 (Helm) will tune
+# them once the real sidecar binary (AIP-2208) has been profiled.
+_SIDECAR_CPU_REQUEST = "100m"
+_SIDECAR_CPU_LIMIT = "500m"
+_SIDECAR_MEMORY_REQUEST = "256Mi"
+_SIDECAR_MEMORY_LIMIT = "512Mi"
+# Reserved JSON keys carried inside --test-params / --generation-params.
+_PARAM_INPUTS_KEY = "__inputs"
+_PARAM_OUTPUT_KEY = "__output"
+_PARAM_LEGACY_VOLUMES_KEY = "__volumes"
+_PARAM_FLAGS = ("--test-params", "--generation-params")
 
 
 # ── K8s client helpers ─────────────────────────────────────────────────────────
@@ -96,34 +145,158 @@ def _cpu_quota_to_k8s(cpu_period: int, cpu_quota: int) -> str:
     return "2"
 
 
-# ── Args validation ────────────────────────────────────────────────────────────
+# ── Args validation / IO-ref extraction ────────────────────────────────────────
 
 
-def _check_no_volumes(args: list[str]) -> str | None:
-    """Return an error message if ``__volumes`` is present in any param flag, else ``None``.
+@dataclass(frozen=True)
+class IORefs:
+    """Result of extracting AIP-2207 InputRef / OutputDestination from container args.
 
-    Volume-based file passing (``__volumes``) is not yet supported by the K8s backend.
-    Callers should fail-closed when a non-``None`` value is returned rather than
-    silently stripping the key and producing a green run with no output artifacts.
+    Attributes:
+        args: ``args`` with ``__inputs`` / ``__output`` keys stripped from any
+            ``--test-params`` / ``--generation-params`` JSON payload. This is
+            what the workload container actually receives — the workload sees
+            local mount paths, never raw S3 refs.
+        inputs: Validated ``InputRef`` list (possibly empty) destined for the
+            sidecar's ``io.json`` ConfigMap.
+        output: Validated ``OutputDestination`` (single, optional) destined
+            for the same ConfigMap.
+        error: Non-``None`` when extraction fails (malformed refs, legacy
+            ``__volumes`` key, etc.). Callers MUST fail-closed and skip Job
+            creation when ``error`` is set — no silent strip.
+    """
+
+    args: list[str] = field(default_factory=list[str])
+    inputs: list[InputRef] = field(default_factory=list[InputRef])
+    output: OutputDestination | None = None
+    error: str | None = None
+
+
+def _extract_io_refs(args: list[str]) -> IORefs:
+    """Extract and validate ``__inputs`` / ``__output`` from container args.
+
+    Walks ``args`` looking for ``--test-params`` / ``--generation-params``
+    JSON payloads. For each payload:
+
+    1. If it carries the legacy ``__volumes`` key, fail-closed with a message
+       pointing at the AIP-2207 replacement.
+    2. If it carries ``__inputs`` or ``__output``, validate via the AIP-2207
+       Pydantic models and accumulate. Malformed refs fail-closed.
+    3. Strip the reserved keys from the JSON payload so the workload never
+       sees S3 refs — it gets local mount paths instead.
+
+    Returns:
+        :class:`IORefs` with ``error`` set iff validation failed. On success,
+        ``args`` is a new list (the original is not mutated).
     """
     if not args:
-        return None
+        return IORefs(args=list(args))
 
-    param_flags = ("--test-params", "--generation-params")
-    for i, arg in enumerate(args):
-        if arg in param_flags and i + 1 < len(args):
-            try:
-                tp = json.loads(args[i + 1])
-                if isinstance(tp, dict) and "__volumes" in tp:
-                    return (
-                        "KubernetesBackend does not yet support volume-based file passing "
-                        "(__volumes). Use RUN_BACKEND=docker for tests that require file I/O "
-                        "via __volumes, or wait for the shared-PVC implementation in a "
-                        "follow-up sprint."
+    inputs: list[InputRef] = []
+    output: OutputDestination | None = None
+    new_args: list[str] = list(args)
+
+    for i, arg in enumerate(new_args):
+        if arg not in _PARAM_FLAGS or i + 1 >= len(new_args):
+            continue
+        raw = new_args[i + 1]
+        try:
+            payload: Any = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        # json.loads gives Any; the isinstance check above narrows to dict but
+        # pyright still types pop()/items as Unknown. cast keeps subsequent
+        # access typed as Any (validated at runtime by the Pydantic models).
+        payload_dict = cast(dict[str, Any], payload)
+
+        if _PARAM_LEGACY_VOLUMES_KEY in payload_dict:
+            return IORefs(
+                args=list(args),
+                error=(
+                    "KubernetesBackend no longer supports volume-based file passing "
+                    f"({_PARAM_LEGACY_VOLUMES_KEY}). Use {_PARAM_INPUTS_KEY} / "
+                    f"{_PARAM_OUTPUT_KEY} with AIP-2207 InputRef / OutputDestination, "
+                    "or RUN_BACKEND=docker for tests that still require __volumes."
+                ),
+            )
+
+        raw_inputs: Any = payload_dict.pop(_PARAM_INPUTS_KEY, None)
+        raw_output: Any = payload_dict.pop(_PARAM_OUTPUT_KEY, None)
+        # Track whether we actually removed a reserved key so we only
+        # rewrite the arg when we changed something — leaves the original
+        # JSON string (whitespace, key order) untouched in the common
+        # workload-args-without-IO-refs case.
+        stripped = raw_inputs is not None or raw_output is not None
+
+        if raw_inputs is not None:
+            if not isinstance(raw_inputs, list):
+                return IORefs(
+                    args=list(args),
+                    error=(f"{_PARAM_INPUTS_KEY} must be a list of InputRef objects; got {type(raw_inputs).__name__}."),
+                )
+            raw_inputs_list = cast(list[Any], raw_inputs)
+            for j, item in enumerate(raw_inputs_list):
+                try:
+                    inputs.append(InputRef.model_validate(item))
+                except ValidationError as e:
+                    return IORefs(
+                        args=list(args),
+                        error=f"{_PARAM_INPUTS_KEY}[{j}] failed validation: {e}",
                     )
-            except (json.JSONDecodeError, TypeError):
-                continue
-    return None
+
+        if raw_output is not None:
+            if output is not None:
+                return IORefs(
+                    args=list(args),
+                    error=(
+                        f"{_PARAM_OUTPUT_KEY} specified more than once across "
+                        "--test-params / --generation-params; only one OutputDestination "
+                        "is allowed per workload."
+                    ),
+                )
+            try:
+                output = OutputDestination.model_validate(raw_output)
+            except ValidationError as e:
+                return IORefs(
+                    args=list(args),
+                    error=f"{_PARAM_OUTPUT_KEY} failed validation: {e}",
+                )
+
+        # Re-serialise the stripped payload so the workload never sees S3 refs.
+        if stripped:
+            new_args[i + 1] = json.dumps(payload_dict)
+
+    return IORefs(args=new_args, inputs=inputs, output=output)
+
+
+def _build_io_refs_configmap_body(
+    configmap_name: str,
+    namespace: str,
+    io_refs: IORefs,
+    workflow_id: str,
+) -> dict[str, Any]:
+    """Build the per-Job ConfigMap that carries InputRef / OutputDestination.
+
+    Single key ``io.json`` containing the validated refs serialised via the
+    AIP-2207 Pydantic models. The sidecar reads this at startup to know what
+    to download into ``/shared/input`` and where to publish ``/shared/output``.
+    """
+    payload: dict[str, Any] = {
+        "inputs": [ref.model_dump(mode="json") for ref in io_refs.inputs],
+        "output": io_refs.output.model_dump(mode="json") if io_refs.output is not None else None,
+    }
+    return {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+            "name": configmap_name,
+            "namespace": namespace,
+            "labels": {"workflow_id": workflow_id, "service": _K8S_SERVICE_LABEL},
+        },
+        "data": {_IO_REFS_CONFIGMAP_KEY: json.dumps(payload)},
+    }
 
 
 # ── Job manifest builder ───────────────────────────────────────────────────────
@@ -137,8 +310,22 @@ def _build_job_body(
     container_config: ContainerConfig,
     workflow_id: str,
     namespace: str,
+    sidecar_image: str,
+    io_refs_configmap_name: str,
 ) -> dict[str, Any]:
-    """Return a K8s Job manifest as a plain dict ready for the API client."""
+    """Return a K8s Job manifest as a plain dict ready for the API client.
+
+    The Pod spec includes:
+
+    - A workload container (``asqi-container``) running ``image`` with the
+      caller's ``args`` (already stripped of ``__inputs`` / ``__output`` by
+      :func:`_extract_io_refs`) and mounts of the shared ``emptyDir`` at
+      ``/input`` and ``/output`` via subPath.
+    - A native sidecar container (``aip-runtime-sidecar``, K8s >= 1.28
+      ``initContainers`` entry with ``restartPolicy: Always``) running
+      ``sidecar_image`` with mounts of the shared ``emptyDir`` at ``/shared``
+      and the per-Job ConfigMap at ``/etc/aip``.
+    """
     env_list = [{"name": k, "value": v} for k, v in (environment or {}).items()]
 
     run_params = container_config.run_params
@@ -149,6 +336,55 @@ def _build_job_body(
     )
 
     labels: dict[str, str] = {"workflow_id": workflow_id, "service": _K8S_SERVICE_LABEL}
+
+    workload_container: dict[str, Any] = {
+        "name": _WORKLOAD_CONTAINER_NAME,
+        "image": image,
+        "args": args,
+        "env": env_list,
+        "resources": {
+            "limits": {"memory": k8s_mem, "cpu": k8s_cpu},
+            "requests": {"memory": k8s_mem, "cpu": k8s_cpu},
+        },
+        "volumeMounts": [
+            {
+                "name": _SHARED_VOLUME_NAME,
+                "mountPath": _WORKLOAD_INPUT_MOUNT,
+                "subPath": _SHARED_INPUT_SUBPATH,
+            },
+            {
+                "name": _SHARED_VOLUME_NAME,
+                "mountPath": _WORKLOAD_OUTPUT_MOUNT,
+                "subPath": _SHARED_OUTPUT_SUBPATH,
+            },
+        ],
+    }
+
+    # Native sidecar pattern: an initContainers entry with restartPolicy=Always
+    # starts before the workload, runs alongside it, and is terminated after
+    # the workload exits (subject to terminationGracePeriodSeconds).
+    sidecar_container: dict[str, Any] = {
+        "name": _SIDECAR_CONTAINER_NAME,
+        "image": sidecar_image,
+        "restartPolicy": "Always",
+        "resources": {
+            "limits": {"memory": _SIDECAR_MEMORY_LIMIT, "cpu": _SIDECAR_CPU_LIMIT},
+            "requests": {"memory": _SIDECAR_MEMORY_REQUEST, "cpu": _SIDECAR_CPU_REQUEST},
+        },
+        "env": [
+            {"name": "AIP_JOB_HANDLE", "value": workflow_id},
+            {"name": "AIP_IO_REFS_PATH", "value": f"{_IO_REFS_CONFIGMAP_MOUNT}/{_IO_REFS_CONFIGMAP_KEY}"},
+            {"name": "AIP_SHARED_DIR", "value": _SHARED_MOUNT_SIDECAR},
+        ],
+        "volumeMounts": [
+            {"name": _SHARED_VOLUME_NAME, "mountPath": _SHARED_MOUNT_SIDECAR},
+            {
+                "name": _IO_REFS_VOLUME_NAME,
+                "mountPath": _IO_REFS_CONFIGMAP_MOUNT,
+                "readOnly": True,
+            },
+        ],
+    }
 
     return {
         "apiVersion": "batch/v1",
@@ -165,17 +401,15 @@ def _build_job_body(
                 "metadata": {"labels": labels},
                 "spec": {
                     "restartPolicy": "Never",
-                    "containers": [
+                    "terminationGracePeriodSeconds": _TERMINATION_GRACE_PERIOD_SECONDS,
+                    "initContainers": [sidecar_container],
+                    "containers": [workload_container],
+                    "volumes": [
+                        {"name": _SHARED_VOLUME_NAME, "emptyDir": {}},
                         {
-                            "name": "asqi-container",
-                            "image": image,
-                            "args": args,
-                            "env": env_list,
-                            "resources": {
-                                "limits": {"memory": k8s_mem, "cpu": k8s_cpu},
-                                "requests": {"memory": k8s_mem, "cpu": k8s_cpu},
-                            },
-                        }
+                            "name": _IO_REFS_VOLUME_NAME,
+                            "configMap": {"name": io_refs_configmap_name},
+                        },
                     ],
                 },
             },
@@ -317,6 +551,21 @@ def _delete_job(batch_api: Any, job_name: str, namespace: str) -> None:
             logger.warning("Failed to delete job '%s': %s", job_name, e)
 
 
+def _delete_configmap(core_api: Any, configmap_name: str, namespace: str) -> None:
+    """Delete a per-Job io-refs ConfigMap. 404s are swallowed (idempotent cleanup)."""
+    try:
+        from kubernetes.client.rest import ApiException
+    except ImportError:
+        return
+
+    try:
+        core_api.delete_namespaced_config_map(name=configmap_name, namespace=namespace)
+        logger.debug("Deleted io-refs ConfigMap '%s'", configmap_name)
+    except ApiException as e:
+        if e.status != 404:  # type: ignore[reportUnknownMemberType]
+            logger.warning("Failed to delete ConfigMap '%s': %s", configmap_name, e)
+
+
 # ── KubernetesBackend ──────────────────────────────────────────────────────────
 
 
@@ -338,8 +587,26 @@ class KubernetesBackend:
         package for a ready-to-apply manifest.
     """
 
-    def __init__(self, namespace: str = _DEFAULT_NAMESPACE) -> None:
+    def __init__(
+        self,
+        namespace: str = _DEFAULT_NAMESPACE,
+        *,
+        sidecar_image: str | None = None,
+    ) -> None:
+        """Initialise the backend.
+
+        Args:
+            namespace: Kubernetes namespace in which Jobs and per-Job
+                ConfigMaps are created. Defaults to ``"default"``.
+            sidecar_image: Image reference for the AIP Runtime sidecar
+                container. When ``None``, falls back to the
+                ``AIP_SIDECAR_IMAGE`` environment variable, then to a
+                greppable placeholder (``aip-runtime-sidecar:placeholder``).
+                Helm wires the production value via the env var; tests
+                inject an explicit string here.
+        """
         self._namespace = namespace
+        self._sidecar_image = sidecar_image or os.environ.get(_SIDECAR_IMAGE_ENV, _DEFAULT_SIDECAR_IMAGE)
 
     def run(
         self,
@@ -355,37 +622,51 @@ class KubernetesBackend:
 
         Args:
             image: Container image reference.
-            args: Command-line arguments passed to the container.
+            args: Command-line arguments passed to the container. May contain
+                ``__inputs`` / ``__output`` keys inside ``--test-params`` /
+                ``--generation-params`` JSON payloads; these are extracted
+                into the per-Job ConfigMap and stripped before reaching the
+                workload (see :func:`_extract_io_refs`).
             container_config: Execution configuration (timeout, resource limits, etc.).
-            environment: Optional environment variables injected into the container.
+            environment: Optional environment variables injected into the workload container.
             name: Optional human-readable hint used to build the Job name.
-            workflow_id: Workflow identifier attached as a Job label.
+            workflow_id: Workflow identifier attached as a Job label and as
+                the sidecar's ``AIP_JOB_HANDLE`` env var.
             manifest: Unused by the K8s backend (kept for interface compatibility).
 
         Returns:
             Dict with ``success``, ``exit_code``, ``output``, ``error``, ``container_id``.
         """
-        volumes_error = _check_no_volumes(args)
-        if volumes_error:
+        io_refs = _extract_io_refs(args)
+        if io_refs.error:
             return {
                 "success": False,
                 "exit_code": -1,
                 "output": "",
-                "error": volumes_error,
+                "error": io_refs.error,
                 "container_id": "",
             }
 
         batch_api, core_api = _load_k8s_clients()
         job_name = _make_job_name(name)
+        configmap_name = f"{job_name}-io-refs"
 
+        configmap_body = _build_io_refs_configmap_body(
+            configmap_name=configmap_name,
+            namespace=self._namespace,
+            io_refs=io_refs,
+            workflow_id=workflow_id,
+        )
         job_body = _build_job_body(
             job_name=job_name,
             image=image,
-            args=args,
+            args=io_refs.args,
             environment=environment,
             container_config=container_config,
             workflow_id=workflow_id,
             namespace=self._namespace,
+            sidecar_image=self._sidecar_image,
+            io_refs_configmap_name=configmap_name,
         )
 
         try:
@@ -394,9 +675,22 @@ class KubernetesBackend:
             raise ImportError("kubernetes package is required for KubernetesBackend") from e
 
         try:
+            core_api.create_namespaced_config_map(namespace=self._namespace, body=configmap_body)
+            logger.debug("Created io-refs ConfigMap '%s'", configmap_name)
+        except ApiException as e:
+            return {
+                "success": False,
+                "exit_code": -1,
+                "output": "",
+                "error": f"Failed to create io-refs ConfigMap for image '{image}': {e}",
+                "container_id": "",
+            }
+
+        try:
             batch_api.create_namespaced_job(namespace=self._namespace, body=job_body)
             logger.info("Created K8s Job '%s' for image '%s'", job_name, image)
         except ApiException as e:
+            _delete_configmap(core_api, configmap_name, self._namespace)
             return {
                 "success": False,
                 "exit_code": -1,
@@ -413,6 +707,7 @@ class KubernetesBackend:
             timeout_seconds=container_config.timeout_seconds,
         )
         _delete_job(batch_api, job_name, self._namespace)
+        _delete_configmap(core_api, configmap_name, self._namespace)
         return result
 
     def shutdown(self, workflow_ids: list[str] | None = None) -> None:

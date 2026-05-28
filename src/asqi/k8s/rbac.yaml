@@ -6,8 +6,11 @@
 #
 # The ServiceAccount "asqi-engineer" is granted the minimum permissions
 # required by KubernetesBackend:
-#   - batch/v1 Jobs:  create, get, watch, delete, list
-#   - core/v1 Pods:   get, list  (for log collection and exit-code inspection)
+#   - batch/v1 Jobs:        create, get, watch, delete, list
+#   - core/v1 Pods:         get, list  (for log collection and exit-code inspection)
+#   - core/v1 Pods/log:     get
+#   - core/v1 ConfigMaps:   create, delete  (per-Job io-refs ConfigMap for the
+#                                            AIP Runtime sidecar; AIP-2473)
 #
 # Update the `namespace` fields to match your deployment namespace.
 ---
@@ -36,6 +39,9 @@ rules:
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

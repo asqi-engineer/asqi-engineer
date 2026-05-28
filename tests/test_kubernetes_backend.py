@@ -9,23 +9,37 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-pytest.importorskip(
-    "kubernetes", reason="kubernetes package not installed — skipping K8s backend tests"
-)
+pytest.importorskip("kubernetes", reason="kubernetes package not installed — skipping K8s backend tests")
 
 import yaml
 from asqi.backends.base import ContainerBackend
 from asqi.backends.kubernetes_backend import (
+    _DEFAULT_SIDECAR_IMAGE,
+    _IO_REFS_CONFIGMAP_KEY,
+    _IO_REFS_CONFIGMAP_MOUNT,
+    _IO_REFS_VOLUME_NAME,
+    _SHARED_INPUT_SUBPATH,
+    _SHARED_MOUNT_SIDECAR,
+    _SHARED_OUTPUT_SUBPATH,
+    _SHARED_VOLUME_NAME,
+    _SIDECAR_CONTAINER_NAME,
+    _SIDECAR_IMAGE_ENV,
+    _TERMINATION_GRACE_PERIOD_SECONDS,
+    _WORKLOAD_CONTAINER_NAME,
+    _WORKLOAD_INPUT_MOUNT,
+    _WORKLOAD_OUTPUT_MOUNT,
+    IORefs,
     KubernetesBackend,
+    _build_io_refs_configmap_body,
     _build_job_body,
-    _check_no_volumes,
     _cpu_quota_to_k8s,
+    _extract_io_refs,
     _make_job_name,
     _mem_limit_to_k8s,
 )
 from asqi.config import ContainerConfig
 from asqi.errors import ManifestExtractionError
-from asqi.schemas import Manifest
+from asqi.schemas import InputRef, Manifest, OutputDestination
 from pytest import LogCaptureFixture
 
 # ── Protocol compliance ────────────────────────────────────────────────────────
@@ -114,146 +128,343 @@ class TestCpuQuotaToK8s:
 # ── Args validation ────────────────────────────────────────────────────────────
 
 
-class TestCheckNoVolumes:
+def _input_ref(key: str = "in/data.json") -> InputRef:
+    return InputRef(bucket="my-bucket", key=key)
+
+
+def _output_dest(key_prefix: str = "out/run-1") -> OutputDestination:
+    return OutputDestination(bucket="my-bucket", key_prefix=key_prefix)
+
+
+class TestIORefs:
+    def test_defaults_are_empty(self) -> None:
+        refs = IORefs()
+        assert refs.args == []
+        assert refs.inputs == []
+        assert refs.output is None
+        assert refs.error is None
+
+    def test_is_frozen(self) -> None:
+        import dataclasses
+
+        refs = IORefs()
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            refs.error = "nope"  # type: ignore[misc]
+
+
+class TestExtractIORefs:
     def test_no_args(self) -> None:
-        assert _check_no_volumes([]) is None
+        refs = _extract_io_refs([])
+        assert refs.error is None
+        assert refs.args == []
+        assert refs.inputs == []
+        assert refs.output is None
 
     def test_no_param_flags(self) -> None:
-        assert _check_no_volumes(["run", "--foo", "bar"]) is None
+        refs = _extract_io_refs(["run", "--foo", "bar"])
+        assert refs.error is None
+        assert refs.args == ["run", "--foo", "bar"]
 
-    def test_detects_volumes_in_test_params(self) -> None:
+    def test_malformed_json_passes_through(self) -> None:
+        refs = _extract_io_refs(["run", "--test-params", "not-json"])
+        assert refs.error is None
+        assert refs.args == ["run", "--test-params", "not-json"]
+
+    def test_legacy_volumes_in_test_params_fails_closed(self) -> None:
         import json
 
-        params = json.dumps(
-            {"key": "val", "__volumes": {"input": "/in", "output": "/out"}}
-        )
-        result = _check_no_volumes(["run", "--test-params", params])
-        assert result is not None
-        assert "__volumes" in result
+        params = json.dumps({"k": "v", "__volumes": {"input": "/in"}})
+        refs = _extract_io_refs(["run", "--test-params", params])
+        assert refs.error is not None
+        assert "__volumes" in refs.error
+        assert "RUN_BACKEND=docker" in refs.error
 
-    def test_detects_volumes_in_generation_params(self) -> None:
+    def test_legacy_volumes_in_generation_params_fails_closed(self) -> None:
         import json
 
         params = json.dumps({"__volumes": {"input": "/in"}})
-        result = _check_no_volumes(["run", "--generation-params", params])
-        assert result is not None
-        assert "__volumes" in result
+        refs = _extract_io_refs(["run", "--generation-params", params])
+        assert refs.error is not None
+        assert "__volumes" in refs.error
 
-    def test_no_volumes_key_returns_none(self) -> None:
+    def test_inputs_extracted_and_stripped(self) -> None:
         import json
 
-        params = json.dumps({"key": "val"})
-        assert _check_no_volumes(["run", "--test-params", params]) is None
-
-    def test_malformed_json_returns_none(self) -> None:
-        assert _check_no_volumes(["run", "--test-params", "not-json"]) is None
-
-    def test_detects_volumes_in_first_matching_flag(self) -> None:
-        import json
-
-        tp = json.dumps({"key": "val", "__volumes": {"a": "/a"}})
-        gp = json.dumps({"gen": "ok", "__volumes": {"b": "/b"}})
-        result = _check_no_volumes(
-            ["run", "--test-params", tp, "--generation-params", gp]
+        params = json.dumps(
+            {
+                "model": "gpt-x",
+                "__inputs": [
+                    {"bucket": "my-bucket", "key": "in/a.json"},
+                    {"bucket": "my-bucket", "key": "in/b.json", "checksum": "deadbeef"},
+                ],
+            }
         )
-        assert result is not None
+        refs = _extract_io_refs(["run", "--test-params", params])
+        assert refs.error is None
+        assert len(refs.inputs) == 2
+        assert refs.inputs[0].key == "in/a.json"
+        assert refs.inputs[1].checksum == "deadbeef"
+        # Workload sees the stripped payload — no __inputs key.
+        stripped = json.loads(refs.args[2])
+        assert "__inputs" not in stripped
+        assert stripped == {"model": "gpt-x"}
+
+    def test_output_extracted_and_stripped(self) -> None:
+        import json
+
+        params = json.dumps(
+            {
+                "model": "gpt-x",
+                "__output": {"bucket": "my-bucket", "key_prefix": "out/run-1"},
+            }
+        )
+        refs = _extract_io_refs(["run", "--test-params", params])
+        assert refs.error is None
+        assert refs.output is not None
+        assert refs.output.key_prefix == "out/run-1"
+        stripped = json.loads(refs.args[2])
+        assert "__output" not in stripped
+
+    def test_inputs_must_be_list(self) -> None:
+        import json
+
+        params = json.dumps({"__inputs": {"bucket": "b", "key": "k"}})
+        refs = _extract_io_refs(["run", "--test-params", params])
+        assert refs.error is not None
+        assert "__inputs" in refs.error
+
+    def test_malformed_input_ref_fails_closed(self) -> None:
+        import json
+
+        params = json.dumps({"__inputs": [{"bucket": "b"}]})  # missing key
+        refs = _extract_io_refs(["run", "--test-params", params])
+        assert refs.error is not None
+        assert "__inputs[0]" in refs.error
+
+    def test_malformed_output_ref_fails_closed(self) -> None:
+        import json
+
+        params = json.dumps({"__output": {"bucket": "b"}})  # missing key_prefix
+        refs = _extract_io_refs(["run", "--test-params", params])
+        assert refs.error is not None
+        assert "__output" in refs.error
+
+    def test_duplicate_output_across_flags_fails_closed(self) -> None:
+        import json
+
+        tp = json.dumps({"__output": {"bucket": "my-bucket", "key_prefix": "out/a"}})
+        gp = json.dumps({"__output": {"bucket": "my-bucket", "key_prefix": "out/b"}})
+        refs = _extract_io_refs(["run", "--test-params", tp, "--generation-params", gp])
+        assert refs.error is not None
+        assert "more than once" in refs.error
+
+    def test_original_args_not_mutated(self) -> None:
+        import json
+
+        params = json.dumps({"k": "v", "__inputs": [{"bucket": "my-bucket", "key": "in/a"}]})
+        original = ["run", "--test-params", params]
+        original_copy = list(original)
+        _extract_io_refs(original)
+        assert original == original_copy
+
+    def test_payload_string_preserved_when_no_io_refs(self) -> None:
+        """When no `__inputs` / `__output` keys are present, the JSON string
+        is passed through byte-for-byte (no whitespace/key-order churn)."""
+        # Whitespace + non-alphabetical key order — would be lost on a
+        # naive json.dumps round-trip.
+        raw = '{ "z": 1,    "a": 2 }'
+        refs = _extract_io_refs(["run", "--test-params", raw])
+        assert refs.error is None
+        assert refs.args[2] == raw  # byte-for-byte identical
+
+
+class TestBuildIORefsConfigmapBody:
+    def test_metadata_fields(self) -> None:
+        body = _build_io_refs_configmap_body(
+            configmap_name="job-x-io-refs",
+            namespace="prod",
+            io_refs=IORefs(inputs=[_input_ref()], output=_output_dest()),
+            workflow_id="wf-abc",
+        )
+        assert body["kind"] == "ConfigMap"
+        assert body["apiVersion"] == "v1"
+        assert body["metadata"]["name"] == "job-x-io-refs"
+        assert body["metadata"]["namespace"] == "prod"
+        assert body["metadata"]["labels"]["workflow_id"] == "wf-abc"
+
+    def test_data_payload_round_trips(self) -> None:
+        import json
+
+        body = _build_io_refs_configmap_body(
+            configmap_name="cm-1",
+            namespace="default",
+            io_refs=IORefs(
+                inputs=[_input_ref("in/a.json"), _input_ref("in/b.json")],
+                output=_output_dest("out/run-1"),
+            ),
+            workflow_id="wf-1",
+        )
+        payload = json.loads(body["data"][_IO_REFS_CONFIGMAP_KEY])
+        assert [i["key"] for i in payload["inputs"]] == ["in/a.json", "in/b.json"]
+        assert payload["output"]["key_prefix"] == "out/run-1"
+
+    def test_empty_refs_serialise_to_empty_inputs_and_null_output(self) -> None:
+        import json
+
+        body = _build_io_refs_configmap_body(
+            configmap_name="cm-1",
+            namespace="default",
+            io_refs=IORefs(),
+            workflow_id="wf-1",
+        )
+        payload = json.loads(body["data"][_IO_REFS_CONFIGMAP_KEY])
+        assert payload["inputs"] == []
+        assert payload["output"] is None
 
 
 # ── Job manifest builder ───────────────────────────────────────────────────────
 
 
-class TestBuildJobBody:
-    def _default_config(self) -> ContainerConfig:
-        return ContainerConfig()
+def _build_default_job_body(
+    *,
+    job_name: str = "job-1",
+    image: str = "img:1",
+    args: list[str] | None = None,
+    environment: dict[str, str] | None = None,
+    config: ContainerConfig | None = None,
+    workflow_id: str = "wf1",
+    namespace: str = "default",
+    sidecar_image: str = "sidecar:test",
+    io_refs_configmap_name: str = "job-1-io-refs",
+) -> dict[str, Any]:
+    return _build_job_body(
+        job_name=job_name,
+        image=image,
+        args=list(args) if args is not None else [],
+        environment=environment,
+        container_config=config or ContainerConfig(),
+        workflow_id=workflow_id,
+        namespace=namespace,
+        sidecar_image=sidecar_image,
+        io_refs_configmap_name=io_refs_configmap_name,
+    )
 
+
+def _workload(body: dict[str, Any]) -> dict[str, Any]:
+    containers = body["spec"]["template"]["spec"]["containers"]
+    return next(c for c in containers if c["name"] == _WORKLOAD_CONTAINER_NAME)
+
+
+def _sidecar(body: dict[str, Any]) -> dict[str, Any]:
+    init_containers = body["spec"]["template"]["spec"].get("initContainers", [])
+    return next(c for c in init_containers if c["name"] == _SIDECAR_CONTAINER_NAME)
+
+
+class TestBuildJobBody:
     def test_api_version(self) -> None:
-        body = _build_job_body(
-            "job-1", "img:1", [], None, self._default_config(), "wf1", "default"
-        )
-        assert body["apiVersion"] == "batch/v1"
+        assert _build_default_job_body()["apiVersion"] == "batch/v1"
 
     def test_job_name_in_metadata(self) -> None:
-        body = _build_job_body(
-            "my-job", "img:1", [], None, self._default_config(), "wf1", "default"
-        )
+        body = _build_default_job_body(job_name="my-job")
         assert body["metadata"]["name"] == "my-job"
 
     def test_namespace_in_metadata(self) -> None:
-        body = _build_job_body(
-            "job-1", "img:1", [], None, self._default_config(), "wf1", "prod"
-        )
+        body = _build_default_job_body(namespace="prod")
         assert body["metadata"]["namespace"] == "prod"
 
     def test_workflow_id_label(self) -> None:
-        body = _build_job_body(
-            "job-1", "img:1", [], None, self._default_config(), "wf-abc", "default"
-        )
+        body = _build_default_job_body(workflow_id="wf-abc")
         assert body["metadata"]["labels"]["workflow_id"] == "wf-abc"
 
     def test_restart_policy_never(self) -> None:
-        body = _build_job_body(
-            "job-1", "img:1", [], None, self._default_config(), "wf1", "default"
-        )
+        body = _build_default_job_body()
         assert body["spec"]["template"]["spec"]["restartPolicy"] == "Never"
 
     def test_backoff_limit_zero(self) -> None:
-        body = _build_job_body(
-            "job-1", "img:1", [], None, self._default_config(), "wf1", "default"
-        )
-        assert body["spec"]["backoffLimit"] == 0
+        assert _build_default_job_body()["spec"]["backoffLimit"] == 0
 
-    def test_image_in_container(self) -> None:
-        body = _build_job_body(
-            "job-1",
-            "my-image:latest",
-            [],
-            None,
-            self._default_config(),
-            "wf1",
-            "default",
-        )
-        container = body["spec"]["template"]["spec"]["containers"][0]
-        assert container["image"] == "my-image:latest"
+    def test_image_in_workload_container(self) -> None:
+        body = _build_default_job_body(image="my-image:latest")
+        assert _workload(body)["image"] == "my-image:latest"
 
-    def test_args_in_container(self) -> None:
-        body = _build_job_body(
-            "job-1",
-            "img:1",
-            ["--foo", "bar"],
-            None,
-            self._default_config(),
-            "wf1",
-            "default",
-        )
-        container = body["spec"]["template"]["spec"]["containers"][0]
-        assert container["args"] == ["--foo", "bar"]
+    def test_args_in_workload_container(self) -> None:
+        body = _build_default_job_body(args=["--foo", "bar"])
+        assert _workload(body)["args"] == ["--foo", "bar"]
 
-    def test_environment_injected(self) -> None:
-        body = _build_job_body(
-            "job-1",
-            "img:1",
-            [],
-            {"KEY": "val"},
-            self._default_config(),
-            "wf1",
-            "default",
-        )
-        container = body["spec"]["template"]["spec"]["containers"][0]
-        assert {"name": "KEY", "value": "val"} in container["env"]
+    def test_environment_injected_into_workload(self) -> None:
+        body = _build_default_job_body(environment={"KEY": "val"})
+        assert {"name": "KEY", "value": "val"} in _workload(body)["env"]
 
     def test_memory_limit_converted(self) -> None:
-        body = _build_job_body(
-            "job-1", "img:1", [], None, self._default_config(), "wf1", "default"
-        )
-        resources = body["spec"]["template"]["spec"]["containers"][0]["resources"]
-        assert resources["limits"]["memory"] == "2Gi"
+        body = _build_default_job_body()
+        assert _workload(body)["resources"]["limits"]["memory"] == "2Gi"
 
     def test_cpu_limit_converted(self) -> None:
-        body = _build_job_body(
-            "job-1", "img:1", [], None, self._default_config(), "wf1", "default"
-        )
-        resources = body["spec"]["template"]["spec"]["containers"][0]["resources"]
-        assert resources["limits"]["cpu"] == "2"
+        body = _build_default_job_body()
+        assert _workload(body)["resources"]["limits"]["cpu"] == "2"
+
+    # ── Sidecar / shared-volume coverage (AIP-2473) ────────────────────────────
+
+    def test_sidecar_uses_native_pattern(self) -> None:
+        """Sidecar is an initContainer with restartPolicy=Always (K8s >= 1.28)."""
+        body = _build_default_job_body(sidecar_image="my-sidecar:1.2.3")
+        sidecar = _sidecar(body)
+        assert sidecar["image"] == "my-sidecar:1.2.3"
+        assert sidecar["restartPolicy"] == "Always"
+
+    def test_sidecar_env_carries_job_handle_and_paths(self) -> None:
+        body = _build_default_job_body(workflow_id="wf-abc")
+        env = {e["name"]: e["value"] for e in _sidecar(body)["env"]}
+        assert env["AIP_JOB_HANDLE"] == "wf-abc"
+        assert env["AIP_IO_REFS_PATH"] == f"{_IO_REFS_CONFIGMAP_MOUNT}/{_IO_REFS_CONFIGMAP_KEY}"
+        assert env["AIP_SHARED_DIR"] == _SHARED_MOUNT_SIDECAR
+
+    def test_sidecar_mounts_shared_volume_and_configmap(self) -> None:
+        body = _build_default_job_body()
+        mounts = {m["name"]: m for m in _sidecar(body)["volumeMounts"]}
+        assert mounts[_SHARED_VOLUME_NAME]["mountPath"] == _SHARED_MOUNT_SIDECAR
+        cm_mount = mounts[_IO_REFS_VOLUME_NAME]
+        assert cm_mount["mountPath"] == _IO_REFS_CONFIGMAP_MOUNT
+        assert cm_mount.get("readOnly") is True
+
+    def test_workload_mounts_shared_volume_via_subpaths(self) -> None:
+        body = _build_default_job_body()
+        mounts = _workload(body)["volumeMounts"]
+        by_subpath = {m["subPath"]: m for m in mounts}
+        assert by_subpath[_SHARED_INPUT_SUBPATH]["mountPath"] == _WORKLOAD_INPUT_MOUNT
+        assert by_subpath[_SHARED_OUTPUT_SUBPATH]["mountPath"] == _WORKLOAD_OUTPUT_MOUNT
+        assert all(m["name"] == _SHARED_VOLUME_NAME for m in mounts)
+
+    def test_workload_does_not_mount_io_refs_configmap(self) -> None:
+        body = _build_default_job_body()
+        for mount in _workload(body)["volumeMounts"]:
+            assert mount["name"] != _IO_REFS_VOLUME_NAME
+
+    def test_pod_volumes_include_emptydir_and_configmap(self) -> None:
+        body = _build_default_job_body(io_refs_configmap_name="job-x-io-refs")
+        vols = {v["name"]: v for v in body["spec"]["template"]["spec"]["volumes"]}
+        assert "emptyDir" in vols[_SHARED_VOLUME_NAME]
+        assert vols[_IO_REFS_VOLUME_NAME]["configMap"]["name"] == "job-x-io-refs"
+
+    def test_termination_grace_period_set(self) -> None:
+        body = _build_default_job_body()
+        assert body["spec"]["template"]["spec"]["terminationGracePeriodSeconds"] == _TERMINATION_GRACE_PERIOD_SECONDS
+
+    def test_only_one_workload_container(self) -> None:
+        body = _build_default_job_body()
+        containers = body["spec"]["template"]["spec"]["containers"]
+        assert len(containers) == 1
+        assert containers[0]["name"] == _WORKLOAD_CONTAINER_NAME
+
+    def test_sidecar_has_resource_requests_and_limits(self) -> None:
+        """Sidecar must declare resources so the kubelet does not evict it
+        first under memory pressure — that would break the upload window."""
+        body = _build_default_job_body()
+        resources = _sidecar(body)["resources"]
+        assert "requests" in resources and "limits" in resources
+        for kind in ("requests", "limits"):
+            assert resources[kind].get("cpu")
+            assert resources[kind].get("memory")
 
 
 # ── KubernetesBackend.check_images / pull_images ───────────────────────────────
@@ -314,9 +525,7 @@ class TestKubernetesBackendRun:
         mock_load.return_value = (batch_api, core_api)
 
         backend = KubernetesBackend(namespace="test-ns")
-        result = backend.run(
-            image="img:1", args=["--foo"], container_config=ContainerConfig()
-        )
+        result = backend.run(image="img:1", args=["--foo"], container_config=ContainerConfig())
 
         assert result["success"] is True
         assert result["exit_code"] == 0
@@ -348,9 +557,7 @@ class TestKubernetesBackendRun:
         batch_api, core_api = _make_mock_clients(succeeded=0, failed=1)
         pod = MagicMock()
         pod.metadata.name = "pod-1"
-        pod.status.container_statuses = [
-            MagicMock(state=MagicMock(terminated=MagicMock(exit_code=1)))
-        ]
+        pod.status.container_statuses = [MagicMock(state=MagicMock(terminated=MagicMock(exit_code=1)))]
         core_api.list_namespaced_pod.return_value = MagicMock(items=[pod])
         mock_load.return_value = (batch_api, core_api)
 
@@ -361,15 +568,11 @@ class TestKubernetesBackendRun:
         assert result["exit_code"] == 1
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
-    def test_create_job_api_error_returns_error_dict(
-        self, mock_load: MagicMock
-    ) -> None:
+    def test_create_job_api_error_returns_error_dict(self, mock_load: MagicMock) -> None:
         from kubernetes.client.rest import ApiException  # requires kubernetes test dep
 
         batch_api = MagicMock()
-        batch_api.create_namespaced_job.side_effect = ApiException(
-            status=403, reason="Forbidden"
-        )
+        batch_api.create_namespaced_job.side_effect = ApiException(status=403, reason="Forbidden")
         core_api = MagicMock()
         mock_load.return_value = (batch_api, core_api)
 
@@ -403,9 +606,7 @@ class TestKubernetesBackendRun:
         assert "timed out" in result["error"].lower()
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
-    def test_volumes_in_args_returns_failure_without_creating_job(
-        self, mock_load: MagicMock
-    ) -> None:
+    def test_volumes_in_args_returns_failure_without_creating_job(self, mock_load: MagicMock) -> None:
         import json
 
         params = json.dumps({"key": "val", "__volumes": {"input": "/in"}})
@@ -421,6 +622,96 @@ class TestKubernetesBackendRun:
         assert "__volumes" in result["error"]
         assert "RUN_BACKEND=docker" in result["error"]
         mock_load.assert_not_called()
+
+    # ── ConfigMap lifecycle (AIP-2473) ─────────────────────────────────────────
+
+    @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
+    def test_configmap_created_before_job_and_named_after_it(self, mock_load: MagicMock) -> None:
+        batch_api, core_api = _make_mock_clients(succeeded=1)
+        mock_load.return_value = (batch_api, core_api)
+
+        KubernetesBackend(namespace="test-ns").run(image="img:1", args=[], container_config=ContainerConfig())
+
+        core_api.create_namespaced_config_map.assert_called_once()
+        cm_call = core_api.create_namespaced_config_map.call_args
+        cm_body = cm_call.kwargs["body"]
+        assert cm_call.kwargs["namespace"] == "test-ns"
+        # Job manifest must reference the same ConfigMap name.
+        job_body = batch_api.create_namespaced_job.call_args.kwargs["body"]
+        vols = {v["name"]: v for v in job_body["spec"]["template"]["spec"]["volumes"]}
+        assert vols[_IO_REFS_VOLUME_NAME]["configMap"]["name"] == cm_body["metadata"]["name"]
+        assert cm_body["metadata"]["name"].endswith("-io-refs")
+
+    @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
+    def test_configmap_deleted_on_normal_completion(self, mock_load: MagicMock) -> None:
+        batch_api, core_api = _make_mock_clients(succeeded=1)
+        mock_load.return_value = (batch_api, core_api)
+
+        KubernetesBackend().run(image="img:1", args=[], container_config=ContainerConfig())
+
+        core_api.delete_namespaced_config_map.assert_called_once()
+
+    @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
+    def test_configmap_deleted_when_job_create_fails(self, mock_load: MagicMock) -> None:
+        from kubernetes.client.rest import ApiException
+
+        batch_api = MagicMock()
+        core_api = MagicMock()
+        batch_api.create_namespaced_job.side_effect = ApiException(status=403, reason="Forbidden")
+        mock_load.return_value = (batch_api, core_api)
+
+        result = KubernetesBackend().run(image="img:1", args=[], container_config=ContainerConfig())
+
+        assert result["success"] is False
+        # ConfigMap was created up-front, so it must be deleted on the failure path.
+        core_api.delete_namespaced_config_map.assert_called_once()
+
+    @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
+    def test_configmap_create_failure_short_circuits_before_job(self, mock_load: MagicMock) -> None:
+        from kubernetes.client.rest import ApiException
+
+        batch_api = MagicMock()
+        core_api = MagicMock()
+        core_api.create_namespaced_config_map.side_effect = ApiException(status=403, reason="Forbidden")
+        mock_load.return_value = (batch_api, core_api)
+
+        result = KubernetesBackend().run(image="img:1", args=[], container_config=ContainerConfig())
+
+        assert result["success"] is False
+        assert "ConfigMap" in result["error"]
+        batch_api.create_namespaced_job.assert_not_called()
+
+    @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
+    def test_sidecar_image_propagated_into_job_body(self, mock_load: MagicMock) -> None:
+        batch_api, core_api = _make_mock_clients(succeeded=1)
+        mock_load.return_value = (batch_api, core_api)
+
+        KubernetesBackend(sidecar_image="custom-sidecar:9.9").run(
+            image="img:1", args=[], container_config=ContainerConfig()
+        )
+
+        job_body = batch_api.create_namespaced_job.call_args.kwargs["body"]
+        sidecar = next(
+            c for c in job_body["spec"]["template"]["spec"]["initContainers"] if c["name"] == _SIDECAR_CONTAINER_NAME
+        )
+        assert sidecar["image"] == "custom-sidecar:9.9"
+
+
+class TestKubernetesBackendSidecarImageResolution:
+    def test_explicit_constructor_arg_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(_SIDECAR_IMAGE_ENV, "from-env:1")
+        backend = KubernetesBackend(sidecar_image="explicit:1")
+        assert backend._sidecar_image == "explicit:1"
+
+    def test_env_var_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(_SIDECAR_IMAGE_ENV, "from-env:2")
+        backend = KubernetesBackend()
+        assert backend._sidecar_image == "from-env:2"
+
+    def test_placeholder_default_when_no_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv(_SIDECAR_IMAGE_ENV, raising=False)
+        backend = KubernetesBackend()
+        assert backend._sidecar_image == _DEFAULT_SIDECAR_IMAGE
 
 
 # ── KubernetesBackend.shutdown ─────────────────────────────────────────────────
@@ -581,9 +872,7 @@ class TestKubernetesBackendExtractManifest:
         from kubernetes.client.rest import ApiException
 
         batch_api = MagicMock()
-        batch_api.create_namespaced_job.side_effect = ApiException(
-            status=403, reason="Forbidden"
-        )
+        batch_api.create_namespaced_job.side_effect = ApiException(status=403, reason="Forbidden")
         core_api = MagicMock()
         mock_load.return_value = (batch_api, core_api)
 
