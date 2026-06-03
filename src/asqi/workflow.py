@@ -523,6 +523,62 @@ class TestExecutionResult:
         }
 
 
+def _k8s_backend_selected() -> bool:
+    """Return True iff ``RUN_BACKEND`` is set to ``k8s`` (case-insensitive)."""
+    return os.environ.get("RUN_BACKEND", "docker").strip().lower() == "k8s"
+
+
+def _stage_k8s_io_if_needed(workflow_id: str, item_id: str, command_args: list[str]):
+    """Run :func:`asqi.storage.k8s_io_staging.stage_k8s_io` on the K8s path only.
+
+    Returns ``None`` when ``RUN_BACKEND != k8s``, so the Docker path stays
+    bit-identical to its pre-AIP-2474 behaviour. boto3 / asqi.storage are
+    imported lazily so Docker-only installs (no ``asqi-engineer[k8s]``
+    extra) do not need them.
+    """
+    if not _k8s_backend_selected():
+        return None
+    # Lazy imports: keeps Docker-only installs free of boto3 / asqi.storage.
+    from asqi.storage.k8s_io_staging import s3_config_from_env, stage_k8s_io
+    from asqi.storage.s3 import make_s3_client
+
+    try:
+        config, bucket, key_prefix = s3_config_from_env()
+    except RuntimeError as e:
+        DBOS.logger.error("K8s I/O staging skipped — env misconfigured: %s", e)
+        raise
+
+    s3_client = make_s3_client(config)
+    return stage_k8s_io(
+        workflow_id=workflow_id,
+        item_id=item_id,
+        command_args=command_args,
+        s3_client=s3_client,
+        bucket=bucket,
+        key_prefix=key_prefix,
+    )
+
+
+def _fetch_k8s_outputs_safely(staging) -> None:
+    """Best-effort post-run output mirror; failures are logged, not raised.
+
+    Errors here would otherwise mask the container's own success/failure
+    signal. Downstream :func:`_translate_container_output_paths` already
+    tolerates a missing output directory; surfacing the S3 error in the
+    log is enough to debug a misconfigured bucket without aborting the
+    DBOS step.
+    """
+    from asqi.storage.k8s_io_staging import fetch_k8s_outputs, s3_config_from_env
+    from asqi.storage.s3 import make_s3_client
+
+    try:
+        config, _, _ = s3_config_from_env()
+        s3_client = make_s3_client(config)
+        fetch_k8s_outputs(staging, s3_client)
+    except Exception as e:
+        DBOS.logger.warning("Failed to fetch K8s outputs from S3: %s", e)
+
+
 def _execute_container_job(
     item_name: str,
     item_id: str,
@@ -581,15 +637,30 @@ def _execute_container_job(
     # Generate container name: {id}-{short_uuid}
     container_name = f"{item_id}-{str(uuid.uuid4())[:8]}"
 
+    # K8s execution path (AIP-2474): upload local inputs to S3, splice
+    # __inputs / __output into the test/generation-params payload, and
+    # rewrite the plain `volumes` key to the AIP-2473 mount paths so the
+    # workload sees /input and /output. Docker path is untouched.
+    workflow_id = DBOS.workflow_id or "unknown-wf"
+    staging = _stage_k8s_io_if_needed(workflow_id, item_id, command_args)
+    effective_args = staging.command_args if staging is not None else command_args
+
     container_result = _get_container_backend().run(
         image=image,
-        args=command_args,
+        args=effective_args,
         environment=container_env,
         container_config=container_config,
         name=container_name,
-        workflow_id=DBOS.workflow_id or "",
+        workflow_id=workflow_id,
         manifest=manifest,
     )
+
+    # After the K8s Job completes the sidecar has published outputs to
+    # the OutputDestination prefix; mirror them back to the original
+    # __volumes["output"] local path so _translate_container_output_paths
+    # finds them where Docker would have written them directly.
+    if staging is not None:
+        _fetch_k8s_outputs_safely(staging)
 
     result.end_time = time.time()
     result.container_id = container_result["container_id"]
