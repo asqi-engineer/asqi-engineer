@@ -22,6 +22,7 @@ Unsupported Docker-semantics fields (fail-closed):
     ``__volumes``   — the legacy Docker volume-passing key is rejected by
                        ``_extract_io_refs`` (use ``__inputs`` / ``__output``
                        with AIP-2207 ``InputRef`` / ``OutputDestination``).
+    ``host_access`` — Docker socket / Docker-in-Docker access is not supported in K8s Jobs.
 """
 
 import json
@@ -297,6 +298,20 @@ def _build_io_refs_configmap_body(
         },
         "data": {_IO_REFS_CONFIGMAP_KEY: json.dumps(payload)},
     }
+
+
+def _check_host_access(manifest: Manifest | None) -> str | None:
+    """Return an error message if ``manifest.host_access`` is ``True``, else ``None``.
+
+    Docker socket / Docker-in-Docker access (``host_access``) is not supported by the K8s backend.
+    Callers should fail-closed when a non-``None`` value is returned.
+    """
+    if manifest is not None and manifest.host_access:
+        return (
+            "KubernetesBackend does not support host_access=True. "
+            "Use RUN_BACKEND=docker for tests that require Docker socket or Docker-in-Docker access."
+        )
+    return None
 
 
 # ── Job manifest builder ───────────────────────────────────────────────────────
@@ -632,7 +647,8 @@ class KubernetesBackend:
             name: Optional human-readable hint used to build the Job name.
             workflow_id: Workflow identifier attached as a Job label and as
                 the sidecar's ``AIP_JOB_HANDLE`` env var.
-            manifest: Unused by the K8s backend (kept for interface compatibility).
+            manifest: Optional manifest for the container image. ``host_access=True``
+                causes an immediate fail-closed return without creating a Job.
 
         Returns:
             Dict with ``success``, ``exit_code``, ``output``, ``error``, ``container_id``.
@@ -644,6 +660,16 @@ class KubernetesBackend:
                 "exit_code": -1,
                 "output": "",
                 "error": io_refs.error,
+                "container_id": "",
+            }
+
+        host_access_error = _check_host_access(manifest)
+        if host_access_error:
+            return {
+                "success": False,
+                "exit_code": -1,
+                "output": "",
+                "error": host_access_error,
                 "container_id": "",
             }
 

@@ -623,6 +623,23 @@ class TestKubernetesBackendRun:
         assert "RUN_BACKEND=docker" in result["error"]
         mock_load.assert_not_called()
 
+    @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
+    def test_host_access_true_returns_failure_without_creating_job(self, mock_load: MagicMock) -> None:
+        manifest = Manifest(name="host-test", version="1.0.0", host_access=True)
+        backend = KubernetesBackend()
+        result = backend.run(
+            image="img:1",
+            args=[],
+            container_config=ContainerConfig(),
+            manifest=manifest,
+        )
+
+        assert result["success"] is False
+        assert result["exit_code"] == -1
+        assert "host_access" in result["error"]
+        assert "RUN_BACKEND=docker" in result["error"]
+        mock_load.assert_not_called()
+
     # ── ConfigMap lifecycle (AIP-2473) ─────────────────────────────────────────
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
