@@ -22,8 +22,11 @@ from asqi.backends.kubernetes_backend import (
     _SHARED_MOUNT_SIDECAR,
     _SHARED_OUTPUT_SUBPATH,
     _SHARED_VOLUME_NAME,
+    _SIDECAR_CONFIGMAP_ENV,
     _SIDECAR_CONTAINER_NAME,
     _SIDECAR_IMAGE_ENV,
+    _SIDECAR_SA_NAME_ENV,
+    _SIDECAR_SECRET_ENV,
     _TERMINATION_GRACE_PERIOD_SECONDS,
     _WORKLOAD_CONTAINER_NAME,
     _WORKLOAD_INPUT_MOUNT,
@@ -466,6 +469,93 @@ class TestBuildJobBody:
             assert resources[kind].get("cpu")
             assert resources[kind].get("memory")
 
+    # ── Helm sidecar wiring: ServiceAccount + envFrom (AIP-2475) ───────────────
+
+    def test_no_service_account_by_default(self) -> None:
+        """Unset sidecar_sa_name → field omitted so the Pod uses the namespace
+        default SA (local / MinIO, no IRSA)."""
+        spec = _build_default_job_body()["spec"]["template"]["spec"]
+        assert "serviceAccountName" not in spec
+
+    def test_service_account_set_when_provided(self) -> None:
+        body = _build_job_body(
+            job_name="job-1",
+            image="img:1",
+            args=[],
+            environment=None,
+            container_config=ContainerConfig(),
+            workflow_id="wf1",
+            namespace="default",
+            sidecar_image="sidecar:test",
+            io_refs_configmap_name="job-1-io-refs",
+            sidecar_sa_name="asqi-runner-sidecar",
+        )
+        assert body["spec"]["template"]["spec"]["serviceAccountName"] == "asqi-runner-sidecar"
+
+    def test_no_envfrom_on_sidecar_by_default(self) -> None:
+        """Unset ConfigMap/Secret refs → sidecar has no envFrom (only the
+        per-Job artifact env vars are present)."""
+        assert "envFrom" not in _sidecar(_build_default_job_body())
+
+    def test_sidecar_envfrom_references_configmap_and_secret(self) -> None:
+        body = _build_job_body(
+            job_name="job-1",
+            image="img:1",
+            args=[],
+            environment=None,
+            container_config=ContainerConfig(),
+            workflow_id="wf1",
+            namespace="default",
+            sidecar_image="sidecar:test",
+            io_refs_configmap_name="job-1-io-refs",
+            sidecar_configmap_name="asqi-runner-sidecar",
+            sidecar_secret_name="asqi-runner-sidecar",
+        )
+        env_from = _sidecar(body)["envFrom"]
+        assert {"configMapRef": {"name": "asqi-runner-sidecar"}} in env_from
+        assert {"secretRef": {"name": "asqi-runner-sidecar"}} in env_from
+
+    def test_sidecar_envfrom_only_configmap_when_secret_unset(self) -> None:
+        body = _build_job_body(
+            job_name="job-1",
+            image="img:1",
+            args=[],
+            environment=None,
+            container_config=ContainerConfig(),
+            workflow_id="wf1",
+            namespace="default",
+            sidecar_image="sidecar:test",
+            io_refs_configmap_name="job-1-io-refs",
+            sidecar_configmap_name="asqi-runner-sidecar",
+        )
+        env_from = _sidecar(body)["envFrom"]
+        assert env_from == [{"configMapRef": {"name": "asqi-runner-sidecar"}}]
+
+    def test_artifact_env_preserved_alongside_envfrom(self) -> None:
+        """The AIP-2473 per-Job artifact contract (env) must survive even when
+        Helm wires envFrom. env is evaluated after envFrom, so it wins on
+        collision — but more importantly the three keys must still be present."""
+        body = _build_job_body(
+            job_name="job-1",
+            image="img:1",
+            args=[],
+            environment=None,
+            container_config=ContainerConfig(),
+            workflow_id="wf-abc",
+            namespace="default",
+            sidecar_image="sidecar:test",
+            io_refs_configmap_name="job-1-io-refs",
+            sidecar_configmap_name="cm",
+            sidecar_secret_name="sec",
+        )
+        sidecar = _sidecar(body)
+        env = {e["name"]: e["value"] for e in sidecar["env"]}
+        assert env["AIP_JOB_HANDLE"] == "wf-abc"
+        assert env["AIP_IO_REFS_PATH"] == f"{_IO_REFS_CONFIGMAP_MOUNT}/{_IO_REFS_CONFIGMAP_KEY}"
+        assert env["AIP_SHARED_DIR"] == _SHARED_MOUNT_SIDECAR
+        # envFrom present too — both wiring mechanisms coexist.
+        assert sidecar["envFrom"]
+
 
 # ── KubernetesBackend.check_images / pull_images ───────────────────────────────
 
@@ -729,6 +819,70 @@ class TestKubernetesBackendSidecarImageResolution:
         monkeypatch.delenv(_SIDECAR_IMAGE_ENV, raising=False)
         backend = KubernetesBackend()
         assert backend._sidecar_image == _DEFAULT_SIDECAR_IMAGE
+
+
+class TestKubernetesBackendSidecarWiringResolution:
+    """SA / ConfigMap / Secret refs resolve constructor-arg > env var > None
+    (AIP-2475), mirroring the sidecar-image precedence."""
+
+    def test_explicit_constructor_args_win(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(_SIDECAR_SA_NAME_ENV, "env-sa")
+        monkeypatch.setenv(_SIDECAR_CONFIGMAP_ENV, "env-cm")
+        monkeypatch.setenv(_SIDECAR_SECRET_ENV, "env-sec")
+        backend = KubernetesBackend(
+            sidecar_sa_name="arg-sa",
+            sidecar_configmap_name="arg-cm",
+            sidecar_secret_name="arg-sec",
+        )
+        assert backend._sidecar_sa_name == "arg-sa"
+        assert backend._sidecar_configmap_name == "arg-cm"
+        assert backend._sidecar_secret_name == "arg-sec"
+
+    def test_env_var_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(_SIDECAR_SA_NAME_ENV, "env-sa")
+        monkeypatch.setenv(_SIDECAR_CONFIGMAP_ENV, "env-cm")
+        monkeypatch.setenv(_SIDECAR_SECRET_ENV, "env-sec")
+        backend = KubernetesBackend()
+        assert backend._sidecar_sa_name == "env-sa"
+        assert backend._sidecar_configmap_name == "env-cm"
+        assert backend._sidecar_secret_name == "env-sec"
+
+    def test_none_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        for var in (_SIDECAR_SA_NAME_ENV, _SIDECAR_CONFIGMAP_ENV, _SIDECAR_SECRET_ENV):
+            monkeypatch.delenv(var, raising=False)
+        backend = KubernetesBackend()
+        assert backend._sidecar_sa_name is None
+        assert backend._sidecar_configmap_name is None
+        assert backend._sidecar_secret_name is None
+
+    def test_empty_env_var_treated_as_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An empty Helm value (e.g. serviceAccount left as default) must not
+        emit an empty serviceAccountName / envFrom ref."""
+        monkeypatch.setenv(_SIDECAR_SA_NAME_ENV, "")
+        monkeypatch.setenv(_SIDECAR_CONFIGMAP_ENV, "")
+        monkeypatch.setenv(_SIDECAR_SECRET_ENV, "")
+        backend = KubernetesBackend()
+        assert backend._sidecar_sa_name is None
+        assert backend._sidecar_configmap_name is None
+        assert backend._sidecar_secret_name is None
+
+    @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
+    def test_wiring_propagated_into_job_body(self, mock_load: MagicMock) -> None:
+        batch_api, core_api = _make_mock_clients(succeeded=1)
+        mock_load.return_value = (batch_api, core_api)
+
+        KubernetesBackend(
+            sidecar_sa_name="asqi-runner",
+            sidecar_configmap_name="asqi-runner-sidecar",
+            sidecar_secret_name="asqi-runner-sidecar",
+        ).run(image="img:1", args=[], container_config=ContainerConfig())
+
+        job_body = batch_api.create_namespaced_job.call_args.kwargs["body"]
+        pod_spec = job_body["spec"]["template"]["spec"]
+        assert pod_spec["serviceAccountName"] == "asqi-runner"
+        sidecar = next(c for c in pod_spec["initContainers"] if c["name"] == _SIDECAR_CONTAINER_NAME)
+        assert {"configMapRef": {"name": "asqi-runner-sidecar"}} in sidecar["envFrom"]
+        assert {"secretRef": {"name": "asqi-runner-sidecar"}} in sidecar["envFrom"]
 
 
 # ── KubernetesBackend.shutdown ─────────────────────────────────────────────────

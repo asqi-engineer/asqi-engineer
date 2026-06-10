@@ -55,6 +55,13 @@ _MANIFEST_EXTRACT_TIMEOUT = 60
 # image explicitly via the KubernetesBackend constructor.
 _DEFAULT_SIDECAR_IMAGE = "aip-runtime-sidecar:placeholder"
 _SIDECAR_IMAGE_ENV = "AIP_SIDECAR_IMAGE"
+# Helm (AIP-2475) publishes these so the backend can schedule Job Pods under
+# the IRSA-bound ServiceAccount and `envFrom` the sidecar's connection/S3 env
+# off a ConfigMap + Secret. All optional: unset (local/dev) leaves Pods on the
+# namespace default SA with only the per-Job artifact env vars.
+_SIDECAR_SA_NAME_ENV = "AIP_SIDECAR_SA_NAME"
+_SIDECAR_CONFIGMAP_ENV = "AIP_SIDECAR_CONFIGMAP"
+_SIDECAR_SECRET_ENV = "AIP_SIDECAR_SECRET"  # noqa: S105 — env-var name, not a secret value
 _SIDECAR_CONTAINER_NAME = "aip-runtime-sidecar"
 _WORKLOAD_CONTAINER_NAME = "asqi-container"
 _SHARED_VOLUME_NAME = "shared"
@@ -327,6 +334,9 @@ def _build_job_body(
     namespace: str,
     sidecar_image: str,
     io_refs_configmap_name: str,
+    sidecar_sa_name: str | None = None,
+    sidecar_configmap_name: str | None = None,
+    sidecar_secret_name: str | None = None,
 ) -> dict[str, Any]:
     """Return a K8s Job manifest as a plain dict ready for the API client.
 
@@ -340,6 +350,17 @@ def _build_job_body(
       ``initContainers`` entry with ``restartPolicy: Always``) running
       ``sidecar_image`` with mounts of the shared ``emptyDir`` at ``/shared``
       and the per-Job ConfigMap at ``/etc/aip``.
+
+    Helm-provided wiring (AIP-2475), all optional:
+
+    - ``sidecar_sa_name``: when set, the Pod runs under this ServiceAccount so
+      IRSA can grant the sidecar S3 access. When ``None`` the field is omitted
+      and the Pod uses the namespace default SA.
+    - ``sidecar_configmap_name`` / ``sidecar_secret_name``: when set, the
+      sidecar container gets an ``envFrom`` referencing them, layering the
+      runner-connection and S3 env underneath the per-Job artifact env vars.
+      ``env`` wins over ``envFrom`` on key collision, so the artifact contract
+      frozen by AIP-2473 is preserved.
     """
     env_list = [{"name": k, "value": v} for k, v in (environment or {}).items()]
 
@@ -401,6 +422,36 @@ def _build_job_body(
         ],
     }
 
+    # Helm-provided runner-connection + S3 env (AIP-2475). envFrom is evaluated
+    # before env, so the per-Job artifact vars above always win on collision —
+    # the AIP-2473 contract stays frozen. Only emit envFrom for the refs that
+    # are actually wired (unset → local/dev with no connection env).
+    env_from: list[dict[str, Any]] = []
+    if sidecar_configmap_name:
+        env_from.append({"configMapRef": {"name": sidecar_configmap_name}})
+    if sidecar_secret_name:
+        env_from.append({"secretRef": {"name": sidecar_secret_name}})
+    if env_from:
+        sidecar_container["envFrom"] = env_from
+
+    pod_spec: dict[str, Any] = {
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": _TERMINATION_GRACE_PERIOD_SECONDS,
+        "initContainers": [sidecar_container],
+        "containers": [workload_container],
+        "volumes": [
+            {"name": _SHARED_VOLUME_NAME, "emptyDir": {}},
+            {
+                "name": _IO_REFS_VOLUME_NAME,
+                "configMap": {"name": io_refs_configmap_name},
+            },
+        ],
+    }
+    # Schedule the Pod under the IRSA-bound ServiceAccount when Helm supplies
+    # one; otherwise leave the field unset so the namespace default SA is used.
+    if sidecar_sa_name:
+        pod_spec["serviceAccountName"] = sidecar_sa_name
+
     return {
         "apiVersion": "batch/v1",
         "kind": "Job",
@@ -414,19 +465,7 @@ def _build_job_body(
             "backoffLimit": 0,
             "template": {
                 "metadata": {"labels": labels},
-                "spec": {
-                    "restartPolicy": "Never",
-                    "terminationGracePeriodSeconds": _TERMINATION_GRACE_PERIOD_SECONDS,
-                    "initContainers": [sidecar_container],
-                    "containers": [workload_container],
-                    "volumes": [
-                        {"name": _SHARED_VOLUME_NAME, "emptyDir": {}},
-                        {
-                            "name": _IO_REFS_VOLUME_NAME,
-                            "configMap": {"name": io_refs_configmap_name},
-                        },
-                    ],
-                },
+                "spec": pod_spec,
             },
         },
     }
@@ -607,6 +646,9 @@ class KubernetesBackend:
         namespace: str = _DEFAULT_NAMESPACE,
         *,
         sidecar_image: str | None = None,
+        sidecar_sa_name: str | None = None,
+        sidecar_configmap_name: str | None = None,
+        sidecar_secret_name: str | None = None,
     ) -> None:
         """Initialise the backend.
 
@@ -619,9 +661,23 @@ class KubernetesBackend:
                 greppable placeholder (``aip-runtime-sidecar:placeholder``).
                 Helm wires the production value via the env var; tests
                 inject an explicit string here.
+            sidecar_sa_name: ServiceAccount the per-Job Pods run under so IRSA
+                can grant the sidecar S3 access (AIP-2475). ``None`` falls back
+                to ``AIP_SIDECAR_SA_NAME``; absent → namespace default SA.
+            sidecar_configmap_name: ConfigMap of runner-connection + S3 env
+                ``envFrom``-ed onto each sidecar. ``None`` falls back to
+                ``AIP_SIDECAR_CONFIGMAP``; absent → no ConfigMap envFrom.
+            sidecar_secret_name: Secret of the runner admin token (and MinIO
+                S3 keys) ``envFrom``-ed onto each sidecar. ``None`` falls back
+                to ``AIP_SIDECAR_SECRET``; absent → no Secret envFrom.
         """
         self._namespace = namespace
         self._sidecar_image = sidecar_image or os.environ.get(_SIDECAR_IMAGE_ENV, _DEFAULT_SIDECAR_IMAGE)
+        # Empty strings (e.g. an unset Helm value) are treated as "not wired"
+        # so we never emit an empty serviceAccountName / envFrom ref.
+        self._sidecar_sa_name = sidecar_sa_name or os.environ.get(_SIDECAR_SA_NAME_ENV) or None
+        self._sidecar_configmap_name = sidecar_configmap_name or os.environ.get(_SIDECAR_CONFIGMAP_ENV) or None
+        self._sidecar_secret_name = sidecar_secret_name or os.environ.get(_SIDECAR_SECRET_ENV) or None
 
     def run(
         self,
@@ -693,6 +749,9 @@ class KubernetesBackend:
             namespace=self._namespace,
             sidecar_image=self._sidecar_image,
             io_refs_configmap_name=configmap_name,
+            sidecar_sa_name=self._sidecar_sa_name,
+            sidecar_configmap_name=self._sidecar_configmap_name,
+            sidecar_secret_name=self._sidecar_secret_name,
         )
 
         try:
