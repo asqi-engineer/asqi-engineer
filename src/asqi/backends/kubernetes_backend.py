@@ -31,6 +31,7 @@ import os
 import re
 import time
 import uuid
+from ast import literal_eval
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -115,6 +116,7 @@ def _load_k8s_clients() -> tuple[Any, Any]:
     try:
         k8s_config.load_incluster_config()  # type: ignore[reportUnknownMemberType]
         logger.debug("Loaded in-cluster K8s config")
+        return k8s_client.BatchV1Api(), k8s_client.CoreV1Api()
     except k8s_config.ConfigException:
         k8s_config.load_kube_config()  # type: ignore[reportUnknownMemberType]
         logger.debug("Loaded local kubeconfig")
@@ -490,7 +492,22 @@ def _collect_pod_logs(core_api: Any, job_name: str, namespace: str) -> str:
             logger.warning("No pods found for job '%s'", job_name)
             return ""
         pod_name = pods.items[0].metadata.name
-        return core_api.read_namespaced_pod_log(name=pod_name, namespace=namespace) or ""
+        response = core_api.read_namespaced_pod_log(
+            name=pod_name,
+            namespace=namespace,
+            _preload_content=False,
+        )
+        logs = getattr(response, "data", response) or ""
+        if isinstance(logs, bytes):
+            return logs.decode("utf-8", errors="replace")
+        if isinstance(logs, str) and logs.startswith(("b'", 'b"')):
+            try:
+                raw_logs = literal_eval(logs)
+            except (SyntaxError, ValueError):
+                return logs
+            if isinstance(raw_logs, bytes):
+                return raw_logs.decode("utf-8", errors="replace")
+        return logs
     except ApiException as e:
         logger.warning("Failed to collect logs for job '%s': %s", job_name, e)
         return ""

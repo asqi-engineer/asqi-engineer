@@ -233,7 +233,7 @@ requires-dist = [
     { name = "dbos", extras = ["otel"], specifier = "==2.7.0" },
     { name = "docker", specifier = ">=7.1.0" },
     { name = "filelock", specifier = ">=3.20.3" },
-    { name = "kubernetes", marker = "extra == 'k8s'", specifier = ">=32.0.1" },
+    { name = "kubernetes", marker = "extra == 'k8s'", specifier = ">=32.0.1,!=36.0.0,!=36.0.1" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "pyyaml", specifier = ">=6.0.2" },

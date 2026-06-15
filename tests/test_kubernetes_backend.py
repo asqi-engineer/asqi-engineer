@@ -4,7 +4,8 @@ All Kubernetes API calls are mocked -- no cluster is required.
 The ``kubernetes`` package must be installed (added to the ``k8s`` optional dependency group).
 """
 
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -35,8 +36,10 @@ from asqi.backends.kubernetes_backend import (
     KubernetesBackend,
     _build_io_refs_configmap_body,
     _build_job_body,
+    _collect_pod_logs,
     _cpu_quota_to_k8s,
     _extract_io_refs,
+    _load_k8s_clients,
     _make_job_name,
     _mem_limit_to_k8s,
 )
@@ -126,6 +129,60 @@ class TestCpuQuotaToK8s:
     def test_tiny_quota_enforces_minimum(self) -> None:
         result = _cpu_quota_to_k8s(100000, 1)
         assert float(result) >= 0.001
+
+
+class TestLoadK8sClients:
+    @patch("kubernetes.client.CoreV1Api")
+    @patch("kubernetes.client.BatchV1Api")
+    @patch("kubernetes.config.load_incluster_config")
+    def test_incluster_config_uses_default_refreshing_client(
+        self,
+        load_incluster_config: MagicMock,
+        batch_api_cls: MagicMock,
+        core_api_cls: MagicMock,
+    ) -> None:
+        batch_api = MagicMock()
+        core_api = MagicMock()
+        batch_api_cls.return_value = batch_api
+        core_api_cls.return_value = core_api
+
+        assert _load_k8s_clients() == (batch_api, core_api)
+
+        load_incluster_config.assert_called_once_with()
+        batch_api_cls.assert_called_once_with()
+        core_api_cls.assert_called_once_with()
+
+    def test_incluster_config_maps_token_to_bearer_auth_and_keeps_refresh_hook(self, tmp_path: Path) -> None:
+        from kubernetes.client import Configuration
+        from kubernetes.config.incluster_config import (
+            SERVICE_HOST_ENV_NAME,
+            SERVICE_PORT_ENV_NAME,
+            InClusterConfigLoader,
+        )
+
+        token_file = tmp_path / "token"
+        token_file.write_text("token-value", encoding="utf-8")
+        cert_file = tmp_path / "ca.crt"
+        cert_file.write_text("ca", encoding="utf-8")
+        env = {
+            SERVICE_HOST_ENV_NAME: "10.0.0.1",
+            SERVICE_PORT_ENV_NAME: "443",
+        }
+        config = Configuration()
+
+        loader = InClusterConfigLoader(
+            token_filename=str(token_file),
+            cert_filename=str(cert_file),
+            environ=env,
+        )
+        cast(Any, loader).load_and_set(config)
+
+        auth = cast(dict[str, dict[str, str]], config.auth_settings())
+
+        assert "BearerToken" in auth
+        assert auth["BearerToken"]["key"] == "authorization"
+        assert auth["BearerToken"]["value"] == "bearer token-value"
+        assert config.refresh_api_key_hook is not None
 
 
 # ── Args validation ────────────────────────────────────────────────────────────
@@ -609,6 +666,40 @@ def _make_mock_clients(
 
 
 class TestKubernetesBackendRun:
+    def test_collect_pod_logs_reads_raw_response_without_deserializing_json(self) -> None:
+        core_api = MagicMock()
+        pod = MagicMock()
+        pod.metadata.name = "pod-1"
+        core_api.list_namespaced_pod.return_value = MagicMock(items=[pod])
+        response = MagicMock()
+        response.data = b'{"test_results": {"success": true}}\n'
+        core_api.read_namespaced_pod_log.return_value = response
+
+        assert _collect_pod_logs(core_api, "job-1", "test-ns") == '{"test_results": {"success": true}}\n'
+        core_api.read_namespaced_pod_log.assert_called_once_with(
+            name="pod-1",
+            namespace="test-ns",
+            _preload_content=False,
+        )
+
+    def test_collect_pod_logs_decodes_bytes(self) -> None:
+        core_api = MagicMock()
+        pod = MagicMock()
+        pod.metadata.name = "pod-1"
+        core_api.list_namespaced_pod.return_value = MagicMock(items=[pod])
+        core_api.read_namespaced_pod_log.return_value = b'{"success": true}\n'
+
+        assert _collect_pod_logs(core_api, "job-1", "test-ns") == '{"success": true}\n'
+
+    def test_collect_pod_logs_decodes_stringified_bytes(self) -> None:
+        core_api = MagicMock()
+        pod = MagicMock()
+        pod.metadata.name = "pod-1"
+        core_api.list_namespaced_pod.return_value = MagicMock(items=[pod])
+        core_api.read_namespaced_pod_log.return_value = "b'{\"success\": true}\\n'"
+
+        assert _collect_pod_logs(core_api, "job-1", "test-ns") == '{"success": true}\n'
+
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
     def test_successful_run_returns_success(self, mock_load: MagicMock) -> None:
         batch_api, core_api = _make_mock_clients(succeeded=1)
@@ -715,7 +806,16 @@ class TestKubernetesBackendRun:
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
     def test_host_access_true_returns_failure_without_creating_job(self, mock_load: MagicMock) -> None:
-        manifest = Manifest(name="host-test", version="1.0.0", host_access=True)
+        manifest = Manifest(
+            name="host-test",
+            version="1.0.0",
+            input_systems=[],
+            input_schema=[],
+            input_datasets=[],
+            output_metrics=[],
+            environment_variables=[],
+            host_access=True,
+        )
         backend = KubernetesBackend()
         result = backend.run(
             image="img:1",
