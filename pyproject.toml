@@ -79,6 +79,7 @@ testpaths = ["tests"]
 [tool.uv]
 package = true
 constraint-dependencies = [
+    "msgpack>=1.2.1",
     "pillow>=12.2.0",
     "pygments>=2.20.0",
 ]
