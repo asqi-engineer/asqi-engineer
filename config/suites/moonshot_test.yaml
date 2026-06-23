@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../src/asqi/schemas/asqi_suite_config.schema.json
+suite_name: "Benchmarking LLMs with Moonshot"
+test_suite_default:
+  systems_under_test: 
+    - "nova_lite"
+  volumes:
+    output: /Users/linus/resaro/asqi-engineer/logs
+test_suite:
+
+  - id: "moonshot_singapore_facts"
+    name: "moonshot_singapore_facts"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "singapore-facts"
+      prompt_selection_percentage: 1
+    
+  - id: "moonshot_truthfulqa_mcq"
+    name: "moonshot_truthfulqa_mcq"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "truthfulqa-mcq"
+      prompt_selection_percentage: 1
+
+  - id: "moonshot_truthfulqa_open_ended"
+    name: "moonshot_truthfulqa_open_ended"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "truthfulqa-open-ended"
+      prompt_selection_percentage: 1
+
+  - id: "moonshot_winobias"
+    name: "moonshot_winobias"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "winobias"
+      prompt_selection_percentage: 10
+
+  - id: "moonshot_winobias"
+    name: "moonshot_winobias"
+    image: "asqiengineer/test-container:moonshot-latest"
+    params:
+      recipe: "winobias"
+      prompt_selection_percentage: 1
