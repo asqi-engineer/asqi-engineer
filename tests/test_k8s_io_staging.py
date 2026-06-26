@@ -25,7 +25,10 @@ def _params(payload: dict[str, Any]) -> str:
     return json.dumps(payload)
 
 
-def _build_args(test_payload: dict[str, Any] | None = None, gen_payload: dict[str, Any] | None = None) -> list[str]:
+def _build_args(
+    test_payload: dict[str, Any] | None = None,
+    gen_payload: dict[str, Any] | None = None,
+) -> list[str]:
     args: list[str] = ["run"]
     if test_payload is not None:
         args.extend(["--test-params", _params(test_payload)])
@@ -75,7 +78,10 @@ class TestStageK8sIoUploads:
 
         args = _build_args(
             {
-                "__volumes": {"input": str(tmp_path / "in"), "output": str(tmp_path / "out")},
+                "__volumes": {
+                    "input": str(tmp_path / "in"),
+                    "output": str(tmp_path / "out"),
+                },
                 "volumes": {"input": "/local/in", "output": "/local/out"},
                 "params": {"k": "v"},
             }
@@ -93,7 +99,10 @@ class TestStageK8sIoUploads:
         # put_object called once per input file
         assert client.put_object.call_count == 2
         # Two inputs uploaded under the expected prefix
-        assert sorted(result.input_keys) == ["wf1/it1/input/a.txt", "wf1/it1/input/sub/b.txt"]
+        assert sorted(result.input_keys) == [
+            "wf1/it1/input/a.txt",
+            "wf1/it1/input/sub/b.txt",
+        ]
         # Output destination captured for post-run fetch
         assert result.output_bucket == "aip-test"
         assert result.output_prefix == "wf1/it1/output"
@@ -129,7 +138,14 @@ class TestStageK8sIoUploads:
     def test_global_key_prefix_is_applied(self, tmp_path: Path) -> None:
         (tmp_path / "in").mkdir()
         (tmp_path / "in" / "a.txt").write_text("a")
-        args = _build_args({"__volumes": {"input": str(tmp_path / "in"), "output": str(tmp_path / "out")}})
+        args = _build_args(
+            {
+                "__volumes": {
+                    "input": str(tmp_path / "in"),
+                    "output": str(tmp_path / "out"),
+                }
+            }
+        )
         client = MagicMock()
         result = stage_k8s_io(
             workflow_id="wf1",
@@ -151,7 +167,9 @@ class TestStageK8sIoPayloadRewrite:
     def test_strips_volumes_reserved_key(self, tmp_path: Path) -> None:
         (tmp_path / "in").mkdir()
         (tmp_path / "in" / "a.txt").write_text("a")
-        args = _build_args({"__volumes": {"input": str(tmp_path / "in")}, "params": {"k": "v"}})
+        args = _build_args(
+            {"__volumes": {"input": str(tmp_path / "in")}, "params": {"k": "v"}}
+        )
         client = MagicMock()
         result = stage_k8s_io(
             workflow_id="wf1",
@@ -169,7 +187,10 @@ class TestStageK8sIoPayloadRewrite:
         (tmp_path / "in" / "a.txt").write_text("a")
         args = _build_args(
             {
-                "__volumes": {"input": str(tmp_path / "in"), "output": str(tmp_path / "out")},
+                "__volumes": {
+                    "input": str(tmp_path / "in"),
+                    "output": str(tmp_path / "out"),
+                },
             }
         )
         client = MagicMock()
@@ -181,16 +202,28 @@ class TestStageK8sIoPayloadRewrite:
             bucket="aip-test",
         )
         payload = self._staged_payload(result.command_args, "--test-params")
-        assert payload["__inputs"] == [{"bucket": "aip-test", "key": "wf1/it1/input/a.txt", "checksum": None}]
-        assert payload["__output"] == {"bucket": "aip-test", "key_prefix": "wf1/it1/output"}
+        assert payload["__inputs"] == [
+            {"bucket": "aip-test", "key": "wf1/it1/input/a.txt", "checksum": None}
+        ]
+        assert payload["__output"] == {
+            "bucket": "aip-test",
+            "key_prefix": "wf1/it1/output",
+        }
 
     def test_rewrites_plain_volumes_to_container_paths(self, tmp_path: Path) -> None:
         (tmp_path / "in").mkdir()
         (tmp_path / "in" / "a.txt").write_text("a")
         args = _build_args(
             {
-                "__volumes": {"input": str(tmp_path / "in"), "output": str(tmp_path / "out")},
-                "volumes": {"input": "/host/in", "output": "/host/out", "cache": "/host/cache"},
+                "__volumes": {
+                    "input": str(tmp_path / "in"),
+                    "output": str(tmp_path / "out"),
+                },
+                "volumes": {
+                    "input": "/host/in",
+                    "output": "/host/out",
+                    "cache": "/host/cache",
+                },
             }
         )
         client = MagicMock()
@@ -228,8 +261,18 @@ class TestStageK8sIoPayloadRewrite:
         (tmp_path / "in_g").mkdir()
         (tmp_path / "in_g" / "g.txt").write_text("g")
         args = _build_args(
-            test_payload={"__volumes": {"input": str(tmp_path / "in_t"), "output": str(tmp_path / "out_t")}},
-            gen_payload={"__volumes": {"input": str(tmp_path / "in_g"), "output": str(tmp_path / "out_g")}},
+            test_payload={
+                "__volumes": {
+                    "input": str(tmp_path / "in_t"),
+                    "output": str(tmp_path / "out_t"),
+                }
+            },
+            gen_payload={
+                "__volumes": {
+                    "input": str(tmp_path / "in_g"),
+                    "output": str(tmp_path / "out_g"),
+                }
+            },
         )
         client = MagicMock()
         result = stage_k8s_io(
@@ -241,8 +284,12 @@ class TestStageK8sIoPayloadRewrite:
         )
         # Both payloads should have been rewritten; second pass overwrites the
         # output destination (matches the single-output K8s sidecar contract).
-        test_payload = json.loads(result.command_args[result.command_args.index("--test-params") + 1])
-        gen_payload = json.loads(result.command_args[result.command_args.index("--generation-params") + 1])
+        test_payload = json.loads(
+            result.command_args[result.command_args.index("--test-params") + 1]
+        )
+        gen_payload = json.loads(
+            result.command_args[result.command_args.index("--generation-params") + 1]
+        )
         assert "__inputs" in test_payload
         assert "__inputs" in gen_payload
         # Final tracked output prefix is the last one encountered (gen).
@@ -265,7 +312,9 @@ class TestFetchK8sOutputs:
         )
         client = MagicMock()
         paginator = MagicMock()
-        paginator.paginate.return_value = [{"Contents": [{"Key": "wf1/it1/output/result.json"}]}]
+        paginator.paginate.return_value = [
+            {"Contents": [{"Key": "wf1/it1/output/result.json"}]}
+        ]
         client.get_paginator.return_value = paginator
 
         def fake_download(*, Bucket: str, Key: str, Fileobj: Any) -> None:
@@ -278,7 +327,9 @@ class TestFetchK8sOutputs:
 
 
 class TestS3ConfigFromEnv:
-    def test_raises_when_required_envvars_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_raises_when_required_envvars_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         for name in (
             "AIP_ASQI_RUNNER_S3_BUCKET",
             "AIP_ASQI_RUNNER_S3_ENDPOINT",
@@ -305,7 +356,9 @@ class TestS3ConfigFromEnv:
         assert bucket == "b"
         assert prefix == "customer/x"
 
-    def test_rejects_invalid_addressing_style(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_rejects_invalid_addressing_style(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("AIP_ASQI_RUNNER_S3_BUCKET", "b")
         monkeypatch.setenv("AIP_ASQI_RUNNER_S3_ENDPOINT", "x")
         monkeypatch.setenv("AIP_ASQI_RUNNER_S3_REGION", "r")

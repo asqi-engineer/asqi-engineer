@@ -92,7 +92,11 @@ def ensure_bucket_exists(s3_client: Any, bucket: str, region: str) -> None:
         if error_code not in {"404", "NoSuchBucket", "NotFound"}:
             logger.warning("Bucket '%s' head_bucket failed with %s", bucket, error_code)
             raise
-        logger.debug("Bucket '%s' missing via head_bucket (%s); will attempt create", bucket, error_code)
+        logger.debug(
+            "Bucket '%s' missing via head_bucket (%s); will attempt create",
+            bucket,
+            error_code,
+        )
     except Exception as e:
         logger.debug(
             "Bucket '%s' not reachable via head_bucket (%s); will attempt create",
@@ -186,7 +190,13 @@ def upload_folder(
         upload_file(s3_client, local_path, bucket, key)
         written.append(key)
 
-    logger.debug("Uploaded %d file(s) from '%s' to s3://%s/%s/", len(written), root, bucket, prefix)
+    logger.debug(
+        "Uploaded %d file(s) from '%s' to s3://%s/%s/",
+        len(written),
+        root,
+        bucket,
+        prefix,
+    )
     return written
 
 
@@ -215,15 +225,27 @@ def download_prefix_to_folder(
         for obj in page.get("Contents", []) or []:
             key = cast(str, obj["Key"])
             # Strip the prefix to recover the relative path under local_dir.
-            rel = key[len(paginated_prefix) :] if paginated_prefix and key.startswith(paginated_prefix) else key
+            rel = (
+                key[len(paginated_prefix) :]
+                if paginated_prefix and key.startswith(paginated_prefix)
+                else key
+            )
             if not rel or rel.endswith("/"):
                 continue
             # Defence in depth: refuse keys that would escape local_dir.
             target = (root / rel).resolve()
             if not target.is_relative_to(root_resolved):
-                raise ValueError(f"Refusing to write outside local_dir; suspicious S3 key: {key!r}")
+                raise ValueError(
+                    f"Refusing to write outside local_dir; suspicious S3 key: {key!r}"
+                )
             download_file_to_path(s3_client, bucket, key, target)
             written.append(rel)
 
-    logger.debug("Downloaded %d file(s) from s3://%s/%s -> '%s'", len(written), bucket, paginated_prefix, root)
+    logger.debug(
+        "Downloaded %d file(s) from s3://%s/%s -> '%s'",
+        len(written),
+        bucket,
+        paginated_prefix,
+        root,
+    )
     return written

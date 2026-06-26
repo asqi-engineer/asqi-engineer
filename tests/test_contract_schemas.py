@@ -105,7 +105,10 @@ class TestArtifactRefContract:
             {"bucket": "my.-bucket", "key": "runs/run-123/input/dataset.jsonl"},
             {"bucket": "xn--bucket", "key": "runs/run-123/input/dataset.jsonl"},
             {"bucket": "sthree-bucket", "key": "runs/run-123/input/dataset.jsonl"},
-            {"bucket": "amzn-s3-demo-bucket", "key": "runs/run-123/input/dataset.jsonl"},
+            {
+                "bucket": "amzn-s3-demo-bucket",
+                "key": "runs/run-123/input/dataset.jsonl",
+            },
             {"bucket": "bucket-s3alias", "key": "runs/run-123/input/dataset.jsonl"},
             {"bucket": "bucket--ol-s3", "key": "runs/run-123/input/dataset.jsonl"},
             {"bucket": "bucket.mrap", "key": "runs/run-123/input/dataset.jsonl"},
@@ -405,7 +408,9 @@ class TestInputParameterContract:
         assert outer.items.name == "inner"
 
     def test_ui_config_is_arbitrary_dict(self):
-        p = InputParameter(name="p", type="string", ui_config={"widget": "textarea", "rows": 4})
+        p = InputParameter(
+            name="p", type="string", ui_config={"widget": "textarea", "rows": 4}
+        )
         assert p.ui_config == {"widget": "textarea", "rows": 4}
 
 

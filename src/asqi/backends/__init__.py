@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 _VALID_BACKENDS = ("docker", "k8s")
 
 
-def create_backend(backend: str | None = None, namespace: str | None = None) -> ContainerBackend:
+def create_backend(
+    backend: str | None = None, namespace: str | None = None
+) -> ContainerBackend:
     """Create the appropriate ContainerBackend based on the ``RUN_BACKEND`` env var.
 
     Reads the provided backend value or ``RUN_BACKEND`` environment variable
@@ -41,12 +43,21 @@ def create_backend(backend: str | None = None, namespace: str | None = None) -> 
                 "Install asqi-engineer[k8s] or include the kubernetes package in the runner image."
             )
 
-        selected_namespace = namespace if namespace is not None else os.environ.get("K8S_NAMESPACE", "default")
-        logger.info("RUN_BACKEND=k8s — using KubernetesBackend (namespace=%s)", selected_namespace)
+        selected_namespace = (
+            namespace
+            if namespace is not None
+            else os.environ.get("K8S_NAMESPACE", "default")
+        )
+        logger.info(
+            "RUN_BACKEND=k8s — using KubernetesBackend (namespace=%s)",
+            selected_namespace,
+        )
         return KubernetesBackend(namespace=selected_namespace)
 
     if backend_key != "docker":
-        raise ValueError(f"Unknown RUN_BACKEND={raw!r} (valid: {', '.join(_VALID_BACKENDS)})")
+        raise ValueError(
+            f"Unknown RUN_BACKEND={raw!r} (valid: {', '.join(_VALID_BACKENDS)})"
+        )
 
     logger.debug("RUN_BACKEND=%s — using DockerBackend", backend_key)
     return DockerBackend()
