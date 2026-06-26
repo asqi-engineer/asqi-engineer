@@ -1,4 +1,14 @@
 # Changelog
+## [0.5.5] - 2026-06-26
+
+### 🚀 Features
+
+- Add cpu_request to docker_container.yaml defaults (ed20831)
+- Decouple CPU requests from limits in workload resources (ed20831)
+
+### 🧪 Testing
+
+- Add coverage for decoupled CPU requests and limits (ed20831)
 ## [0.5.4] - 2026-05-20
 
 ### 🐛 Bug Fixes
