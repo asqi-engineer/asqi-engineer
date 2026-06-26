@@ -368,10 +368,18 @@ def _build_job_body(
 
     run_params = container_config.run_params
     k8s_mem = _mem_limit_to_k8s(str(run_params.get("mem_limit", "2g")))
-    k8s_cpu = _cpu_quota_to_k8s(
+    k8s_cpu_limit = _cpu_quota_to_k8s(
         int(run_params.get("cpu_period", 100000)),
         int(run_params.get("cpu_quota", 200000)),
     )
+    # By default K8s reserves the same CPU for scheduling (request) as the
+    # max the container can use (limit).  That's safe but means a 2-core job
+    # blocks 2 cores even while idle — so a small cluster can't run several
+    # jobs at once.  Setting cpu_request in run_params (e.g. "500m") tells
+    # the scheduler to reserve less, letting more jobs run concurrently
+    # while still allowing each one to burst up to the full limit.
+    # If cpu_request is not set we keep the old behaviour (request == limit).
+    k8s_cpu_request = str(run_params.get("cpu_request") or k8s_cpu_limit)
 
     labels: dict[str, str] = {"workflow_id": workflow_id, "service": _K8S_SERVICE_LABEL}
 
@@ -381,8 +389,8 @@ def _build_job_body(
         "args": args,
         "env": env_list,
         "resources": {
-            "limits": {"memory": k8s_mem, "cpu": k8s_cpu},
-            "requests": {"memory": k8s_mem, "cpu": k8s_cpu},
+            "limits": {"memory": k8s_mem, "cpu": k8s_cpu_limit},
+            "requests": {"memory": k8s_mem, "cpu": k8s_cpu_request},
         },
         "volumeMounts": [
             {

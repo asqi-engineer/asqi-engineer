@@ -463,6 +463,20 @@ class TestBuildJobBody:
         body = _build_default_job_body()
         assert _workload(body)["resources"]["limits"]["cpu"] == "2"
 
+    def test_cpu_request_defaults_to_limit(self) -> None:
+        """Without cpu_request in run_params, the request equals the limit (Guaranteed QoS)."""
+        body = _build_default_job_body()
+        resources = _workload(body)["resources"]
+        assert resources["requests"]["cpu"] == resources["limits"]["cpu"]
+
+    def test_cpu_request_configurable(self) -> None:
+        """cpu_request in run_params sets a lower request while the limit stays derived from cpu_quota."""
+        config = ContainerConfig.from_run_params(cpu_request="500m")
+        body = _build_default_job_body(config=config)
+        resources = _workload(body)["resources"]
+        assert resources["requests"]["cpu"] == "500m"
+        assert resources["limits"]["cpu"] == "2"
+
     # ── Sidecar / shared-volume coverage (AIP-2473) ────────────────────────────
 
     def test_sidecar_uses_native_pattern(self) -> None:
