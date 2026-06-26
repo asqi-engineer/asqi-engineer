@@ -173,7 +173,10 @@ class TestAC1InputUpload:
             assert ref["bucket"] == ensured_bucket
             assert ref["key"].startswith(expected_prefix + "/")
         assert rewritten["__output"]["bucket"] == ensured_bucket
-        assert rewritten["__output"]["key_prefix"] == f"{isolated_prefix}/wf-it/item-it/output"
+        assert (
+            rewritten["__output"]["key_prefix"]
+            == f"{isolated_prefix}/wf-it/item-it/output"
+        )
 
         # Cleanup: best-effort
         for key in uploaded:
@@ -276,6 +279,8 @@ class TestAC2OutputDownload:
         assert fetch_k8s_outputs(staging, s3_client) == []
 
         # Cleanup uploaded input
-        uploaded = _list_keys(s3_client, ensured_bucket, f"{isolated_prefix}/wf/it/input")
+        uploaded = _list_keys(
+            s3_client, ensured_bucket, f"{isolated_prefix}/wf/it/input"
+        )
         for key in uploaded:
             s3_client.delete_object(Bucket=ensured_bucket, Key=key)

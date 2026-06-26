@@ -65,7 +65,7 @@ _ENV_ENDPOINT = "AIP_ASQI_RUNNER_S3_ENDPOINT"
 _ENV_REGION = "AIP_ASQI_RUNNER_S3_REGION"
 _ENV_ADDRESSING_STYLE = "AIP_ASQI_RUNNER_S3_ADDRESSING_STYLE"
 _ENV_ACCESS_KEY = "AIP_ASQI_RUNNER_S3_ACCESS_KEY"
-_ENV_SECRET_KEY = "AIP_ASQI_RUNNER_S3_SECRET_KEY"  # noqa: S105 — env var name, not a secret
+_ENV_SECRET_KEY = "AIP_ASQI_RUNNER_S3_SECRET_KEY"  # nosec B105 -- env var name, not a secret
 _ENV_KEY_PREFIX = "AIP_ASQI_RUNNER_S3_KEY_PREFIX"
 
 
@@ -109,15 +109,23 @@ def s3_config_from_env() -> tuple[S3ClientConfig, str, str]:
     Raises:
         RuntimeError: If a required env var is missing.
     """
-    missing = [name for name in (_ENV_BUCKET, _ENV_ENDPOINT, _ENV_REGION) if not os.environ.get(name)]
+    missing = [
+        name
+        for name in (_ENV_BUCKET, _ENV_ENDPOINT, _ENV_REGION)
+        if not os.environ.get(name)
+    ]
     if missing:
         raise RuntimeError(
-            "K8s S3 staging requires " + ", ".join(missing) + " — set these env vars in the asqi-runner deployment."
+            "K8s S3 staging requires "
+            + ", ".join(missing)
+            + " — set these env vars in the asqi-runner deployment."
         )
 
     addressing = os.environ.get(_ENV_ADDRESSING_STYLE, "auto").strip().lower()
     if addressing not in ("auto", "path", "virtual"):
-        raise RuntimeError(f"{_ENV_ADDRESSING_STYLE}={addressing!r} is invalid; expected 'auto', 'path', or 'virtual'.")
+        raise RuntimeError(
+            f"{_ENV_ADDRESSING_STYLE}={addressing!r} is invalid; expected 'auto', 'path', or 'virtual'."
+        )
 
     config = S3ClientConfig(
         endpoint_url=os.environ[_ENV_ENDPOINT],
@@ -131,7 +139,9 @@ def s3_config_from_env() -> tuple[S3ClientConfig, str, str]:
     return config, bucket, key_prefix
 
 
-def _scoped_prefix(global_prefix: str, workflow_id: str, item_id: str, leaf: str) -> str:
+def _scoped_prefix(
+    global_prefix: str, workflow_id: str, item_id: str, leaf: str
+) -> str:
     """Build ``<global_prefix>/<workflow_id>/<item_id>/<leaf>`` (skipping empty parts)."""
     parts = [p.strip("/") for p in (global_prefix, workflow_id, item_id, leaf) if p]
     return "/".join(parts)
@@ -241,7 +251,9 @@ def stage_k8s_io(
         local_input = volumes_dict.get("input")
         if isinstance(local_input, str) and local_input:
             input_prefix = _scoped_prefix(key_prefix, workflow_id, item_id, "input")
-            uploaded_keys = _upload_input_path(s3_client, local_input, bucket, input_prefix)
+            uploaded_keys = _upload_input_path(
+                s3_client, local_input, bucket, input_prefix
+            )
             input_refs = [InputRef(bucket=bucket, key=k) for k in uploaded_keys]
             all_input_keys.extend(uploaded_keys)
 
@@ -257,7 +269,9 @@ def stage_k8s_io(
         # ── Payload rewrite ────────────────────────────────────────────────────
         payload_dict.pop(_VOLUMES_KEY, None)
         if input_refs:
-            payload_dict[_INPUTS_KEY] = [ref.model_dump(mode="json") for ref in input_refs]
+            payload_dict[_INPUTS_KEY] = [
+                ref.model_dump(mode="json") for ref in input_refs
+            ]
         if output_dest is not None:
             payload_dict[_OUTPUT_KEY] = output_dest.model_dump(mode="json")
         _rewrite_payload_volumes(payload_dict)
@@ -280,7 +294,9 @@ def stage_k8s_io(
     )
 
 
-def _upload_input_path(s3_client: Any, local: str, bucket: str, key_prefix: str) -> list[str]:
+def _upload_input_path(
+    s3_client: Any, local: str, bucket: str, key_prefix: str
+) -> list[str]:
     """Upload ``local`` (file or directory) and return the uploaded S3 keys."""
     if os.path.isdir(local):
         return upload_folder(s3_client, local, bucket, key_prefix)
@@ -300,7 +316,11 @@ def fetch_k8s_outputs(staging: StagingResult, s3_client: Any) -> list[str]:
     workload without ``__volumes["output"]``). Returns the list of relative
     paths written (for logging / diagnostics).
     """
-    if not staging.output_bucket or not staging.output_prefix or not staging.local_output_path:
+    if (
+        not staging.output_bucket
+        or not staging.output_prefix
+        or not staging.local_output_path
+    ):
         return []
     written = download_prefix_to_folder(
         s3_client,

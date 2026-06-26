@@ -34,7 +34,9 @@ class TestS3ClientConfig:
     def test_is_hashable_for_cache_key(self) -> None:
         cfg = S3ClientConfig(endpoint_url="http://m:9000", region="us-east-1")
         # Frozen dataclass; hashable means it can be used as an lru_cache key.
-        assert hash(cfg) == hash(S3ClientConfig(endpoint_url="http://m:9000", region="us-east-1"))
+        assert hash(cfg) == hash(
+            S3ClientConfig(endpoint_url="http://m:9000", region="us-east-1")
+        )
 
     def test_distinct_configs_hash_differently(self) -> None:
         a = S3ClientConfig(endpoint_url="http://m:9000", region="us-east-1")
@@ -62,7 +64,9 @@ class TestMakeS3Client:
         assert a is b
         assert len(calls) == 1
 
-    def test_omits_credentials_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_omits_credentials_when_unset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         captured: dict[str, Any] = {}
 
         def fake_client(_service: str, **kwargs: Any) -> Any:
@@ -74,7 +78,9 @@ class TestMakeS3Client:
         assert "aws_access_key_id" not in captured
         assert "aws_secret_access_key" not in captured
 
-    def test_includes_credentials_when_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_includes_credentials_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         captured: dict[str, Any] = {}
 
         def fake_client(_service: str, **kwargs: Any) -> Any:
@@ -82,7 +88,11 @@ class TestMakeS3Client:
             return MagicMock()
 
         monkeypatch.setattr("asqi.storage.s3.boto3.client", fake_client)
-        make_s3_client(S3ClientConfig(endpoint_url="x", region="r", access_key="ak", secret_key="sk"))  # noqa: S106 — test fixture
+        make_s3_client(
+            S3ClientConfig(
+                endpoint_url="x", region="r", access_key="ak", secret_key="sk"
+            )
+        )  # noqa: S106 — test fixture
         assert captured["aws_access_key_id"] == "ak"
         assert captured["aws_secret_access_key"] == "sk"  # noqa: S105 — boto3 kwarg name, not a secret
 
@@ -143,14 +153,21 @@ class TestUploadFile:
         local.write_bytes(b"\x00\x01")
         client = MagicMock()
         upload_file(client, local, "b", "k", content_type="application/x-custom")
-        assert client.put_object.call_args.kwargs["ContentType"] == "application/x-custom"
+        assert (
+            client.put_object.call_args.kwargs["ContentType"] == "application/x-custom"
+        )
 
-    def test_falls_back_to_octet_stream_for_unknown_extension(self, tmp_path: Path) -> None:
+    def test_falls_back_to_octet_stream_for_unknown_extension(
+        self, tmp_path: Path
+    ) -> None:
         local = tmp_path / "x.unknownext"
         local.write_text("hi")
         client = MagicMock()
         upload_file(client, local, "b", "k")
-        assert client.put_object.call_args.kwargs["ContentType"] == "application/octet-stream"
+        assert (
+            client.put_object.call_args.kwargs["ContentType"]
+            == "application/octet-stream"
+        )
 
     def test_raises_when_local_missing(self, tmp_path: Path) -> None:
         client = MagicMock()
@@ -173,7 +190,9 @@ class TestDownloadFileToPath:
 
 
 class TestUploadFolder:
-    def test_uploads_files_under_prefix_preserving_relative_paths(self, tmp_path: Path) -> None:
+    def test_uploads_files_under_prefix_preserving_relative_paths(
+        self, tmp_path: Path
+    ) -> None:
         (tmp_path / "a.txt").write_text("a")
         (tmp_path / "sub").mkdir()
         (tmp_path / "sub" / "b.txt").write_text("b")
