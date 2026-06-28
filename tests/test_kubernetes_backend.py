@@ -469,9 +469,18 @@ class TestBuildJobBody:
         body = _build_default_job_body()
         assert _workload(body)["resources"]["limits"]["cpu"] == "2"
 
-    def test_cpu_request_defaults_to_limit(self) -> None:
-        """Without cpu_request in run_params, the request equals the limit (Guaranteed QoS)."""
+    def test_cpu_request_default_is_500m(self) -> None:
+        """DEFAULT_RUN_PARAMS includes cpu_request="500m"."""
         body = _build_default_job_body()
+        resources = _workload(body)["resources"]
+        assert resources["requests"]["cpu"] == "500m"
+        assert resources["limits"]["cpu"] == "2"
+
+    def test_cpu_request_absent_defaults_to_limit(self) -> None:
+        """When cpu_request is absent from run_params, request falls back to limit (Guaranteed QoS)."""
+        config = ContainerConfig()
+        config.run_params.pop("cpu_request")
+        body = _build_default_job_body(config=config)
         resources = _workload(body)["resources"]
         assert resources["requests"]["cpu"] == resources["limits"]["cpu"]
 
