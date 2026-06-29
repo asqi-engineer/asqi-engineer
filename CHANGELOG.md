@@ -1,4 +1,14 @@
 # Changelog
+## [0.5.7] - 2026-06-29
+
+### 🐛 Bug Fixes
+
+- Add cpu_request "500m" to DEFAULT_RUN_PARAMS (119fca4)
+
+### 📚 Documentation
+
+- Add cpu_request to DEFAULT_RUN_PARAMS in interface-spec (119fca4)
+
 ## [0.5.6] - 2026-06-26
 
 ### 🚀 Features
