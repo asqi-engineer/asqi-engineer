@@ -51,6 +51,7 @@ class TestContainerConfigContract:
             "mem_limit": "2g",
             "cpu_period": 100000,
             "cpu_quota": 200000,
+            "cpu_request": "500m",
             "cap_drop": ["ALL"],
         }
         assert ContainerConfig.DEFAULT_RUN_PARAMS == expected

@@ -308,7 +308,7 @@ Pydantic `BaseModel` controlling Docker container execution.
 | Name | Type | Value |
 |---|---|---|
 | `MANIFEST_PATH` | `ClassVar[str]` | `"/app/manifest.yaml"` |
-| `DEFAULT_RUN_PARAMS` | `ClassVar[Dict[str, Any]]` | `{"detach": True, "remove": False, "network_mode": "host", "mem_limit": "2g", "cpu_period": 100000, "cpu_quota": 200000, "cap_drop": ["ALL"]}` |
+| `DEFAULT_RUN_PARAMS` | `ClassVar[Dict[str, Any]]` | `{"detach": True, "remove": False, "network_mode": "host", "mem_limit": "2g", "cpu_period": 100000, "cpu_quota": 200000, "cpu_request": "500m", "cap_drop": ["ALL"]}` |
 
 **Instance fields:**
 

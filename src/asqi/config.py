@@ -77,6 +77,7 @@ class ContainerConfig(BaseModel):
         "mem_limit": "2g",
         "cpu_period": 100000,
         "cpu_quota": 200000,
+        "cpu_request": "500m",
         "cap_drop": ["ALL"],
     }
 
