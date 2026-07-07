@@ -62,9 +62,13 @@ _SIDECAR_IMAGE_ENV = "AIP_SIDECAR_IMAGE"
 # namespace default SA with only the per-Job artifact env vars.
 _SIDECAR_SA_NAME_ENV = "AIP_SIDECAR_SA_NAME"
 _SIDECAR_CONFIGMAP_ENV = "AIP_SIDECAR_CONFIGMAP"
-_SIDECAR_SECRET_ENV = "AIP_SIDECAR_SECRET"  # nosec B105 -- env-var name, not a secret value
+_SIDECAR_SECRET_ENV = "AIP_SIDECAR_SECRET"  # noqa: S105 -- env-var name, not a secret value
 _SIDECAR_CONTAINER_NAME = "aip-runtime-sidecar"
 _WORKLOAD_CONTAINER_NAME = "asqi-container"
+# OTEL service.name for the workload/test container. The ADR + AIP-2890 AC name
+# the test-container telemetry identity `asqi-test-container`; this is passed
+# down so a future in-container OTEL SDK reports under that identity.
+_WORKLOAD_OTEL_SERVICE_NAME = "asqi-test-container"
 _SHARED_VOLUME_NAME = "shared"
 _IO_REFS_VOLUME_NAME = "io-refs"
 _IO_REFS_CONFIGMAP_KEY = "io.json"
@@ -151,9 +155,7 @@ def _cpu_quota_to_k8s(cpu_period: int, cpu_quota: int) -> str:
     """Convert Docker CPU quota / period to a K8s CPU string (e.g. ``200000 / 100000`` → ``'2'``)."""
     if cpu_period and cpu_quota:
         cores = cpu_quota / cpu_period
-        return (
-            str(int(cores)) if cores == int(cores) else str(max(0.001, round(cores, 3)))
-        )
+        return str(int(cores)) if cores == int(cores) else str(max(0.001, round(cores, 3)))
     return "2"
 
 
@@ -246,9 +248,7 @@ def _extract_io_refs(args: list[str]) -> IORefs:
             if not isinstance(raw_inputs, list):
                 return IORefs(
                     args=list(args),
-                    error=(
-                        f"{_PARAM_INPUTS_KEY} must be a list of InputRef objects; got {type(raw_inputs).__name__}."
-                    ),
+                    error=(f"{_PARAM_INPUTS_KEY} must be a list of InputRef objects; got {type(raw_inputs).__name__}."),
                 )
             raw_inputs_list = cast(list[Any], raw_inputs)
             for j, item in enumerate(raw_inputs_list):
@@ -299,9 +299,7 @@ def _build_io_refs_configmap_body(
     """
     payload: dict[str, Any] = {
         "inputs": [ref.model_dump(mode="json") for ref in io_refs.inputs],
-        "output": io_refs.output.model_dump(mode="json")
-        if io_refs.output is not None
-        else None,
+        "output": io_refs.output.model_dump(mode="json") if io_refs.output is not None else None,
     }
     return {
         "apiVersion": "v1",
@@ -330,6 +328,60 @@ def _check_host_access(manifest: Manifest | None) -> str | None:
 
 
 # ── Job manifest builder ───────────────────────────────────────────────────────
+
+
+def _merge_otel_resource_attributes(existing: str, overrides: dict[str, str]) -> str:
+    """Merge per-Job resource attributes onto the runner's own.
+
+    ``existing`` is the runner process's own OTEL_RESOURCE_ATTRIBUTES (e.g.
+    ``service.version``/``deployment.environment.name`` set via the Helm
+    chart's env, see deploy/environments/*/values/aip.yaml). Overriding it
+    outright would drop those attributes from every child Job's spans/metrics;
+    instead we parse it and only add/override the workflow-specific keys.
+    """
+    attrs: dict[str, str] = {}
+    for pair in existing.split(","):
+        pair = pair.strip()
+        if not pair or "=" not in pair:
+            continue
+        key, _, value = pair.partition("=")
+        key = key.strip()
+        if key:
+            attrs[key] = value.strip()
+
+    attrs.update(overrides)
+
+    return ",".join(f"{key}={value}" for key, value in attrs.items())
+
+
+def _otel_env(workflow_id: str, namespace: str, service_name: str) -> list[dict[str, str]]:
+    """Propagate OTLP wiring to a per-Job container.
+
+    The backend runs inside the asqi-runner process, which is configured with
+    OTEL_EXPORTER_OTLP_ENDPOINT when observability is enabled. We pass that same
+    endpoint down to each per-Job container (OTLP HTTP on obs-alloy per repo
+    convention) with the given ``service_name`` and shared resource attributes
+    so its spans and RED metrics are attributable to the workflow. Returns an
+    empty list when the endpoint is unset, keeping local and CI runs no-op (the
+    Go sidecar only installs providers when the endpoint is present, and test
+    images that don't yet embed an OTEL SDK simply ignore the vars).
+    """
+    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+    if not endpoint:
+        return []
+    resource_attributes = _merge_otel_resource_attributes(
+        os.environ.get("OTEL_RESOURCE_ATTRIBUTES", ""),
+        {"aip.workflow_id": workflow_id, "k8s.namespace.name": namespace},
+    )
+    env = [
+        {"name": "OTEL_EXPORTER_OTLP_ENDPOINT", "value": endpoint},
+        {"name": "OTEL_SERVICE_NAME", "value": service_name},
+        {"name": "OTEL_RESOURCE_ATTRIBUTES", "value": resource_attributes},
+    ]
+    protocol = os.environ.get("OTEL_EXPORTER_OTLP_PROTOCOL", "").strip()
+    if protocol:
+        env.append({"name": "OTEL_EXPORTER_OTLP_PROTOCOL", "value": protocol})
+    return env
 
 
 def _build_job_body(
@@ -371,6 +423,11 @@ def _build_job_body(
       frozen by AIP-2473 is preserved.
     """
     env_list = [{"name": k, "value": v} for k, v in (environment or {}).items()]
+    # AIP-2890 AC1: propagate OTLP wiring into the workload/test container spec
+    # too (not just the sidecar), so a future in-container OTEL SDK reports under
+    # `asqi-test-container`. OTEL_* keys don't appear in caller ``environment``,
+    # so no collision; the list is empty when observability is disabled.
+    env_list += _otel_env(workflow_id, namespace, _WORKLOAD_OTEL_SERVICE_NAME)
 
     run_params = container_config.run_params
     k8s_mem = _mem_limit_to_k8s(str(run_params.get("mem_limit", "2g")))
@@ -433,6 +490,7 @@ def _build_job_body(
                 "value": f"{_IO_REFS_CONFIGMAP_MOUNT}/{_IO_REFS_CONFIGMAP_KEY}",
             },
             {"name": "AIP_SHARED_DIR", "value": _SHARED_MOUNT_SIDECAR},
+            *_otel_env(workflow_id, namespace, _SIDECAR_CONTAINER_NAME),
         ],
         "volumeMounts": [
             {"name": _SHARED_VOLUME_NAME, "mountPath": _SHARED_MOUNT_SIDECAR},
@@ -610,9 +668,7 @@ def _wait_for_job(
                         failure_msg = cond.message or ""
                         break
             result["exit_code"] = exit_code
-            result["error"] = (
-                failure_msg or f"Job '{job_name}' failed with exit code {exit_code}"
-            )
+            result["error"] = failure_msg or f"Job '{job_name}' failed with exit code {exit_code}"
             result["output"] = _collect_pod_logs(core_api, job_name, namespace)
             return result
 
@@ -711,20 +767,12 @@ class KubernetesBackend:
                 to ``AIP_SIDECAR_SECRET``; absent → no Secret envFrom.
         """
         self._namespace = namespace
-        self._sidecar_image = sidecar_image or os.environ.get(
-            _SIDECAR_IMAGE_ENV, _DEFAULT_SIDECAR_IMAGE
-        )
+        self._sidecar_image = sidecar_image or os.environ.get(_SIDECAR_IMAGE_ENV, _DEFAULT_SIDECAR_IMAGE)
         # Empty strings (e.g. an unset Helm value) are treated as "not wired"
         # so we never emit an empty serviceAccountName / envFrom ref.
-        self._sidecar_sa_name = (
-            sidecar_sa_name or os.environ.get(_SIDECAR_SA_NAME_ENV) or None
-        )
-        self._sidecar_configmap_name = (
-            sidecar_configmap_name or os.environ.get(_SIDECAR_CONFIGMAP_ENV) or None
-        )
-        self._sidecar_secret_name = (
-            sidecar_secret_name or os.environ.get(_SIDECAR_SECRET_ENV) or None
-        )
+        self._sidecar_sa_name = sidecar_sa_name or os.environ.get(_SIDECAR_SA_NAME_ENV) or None
+        self._sidecar_configmap_name = sidecar_configmap_name or os.environ.get(_SIDECAR_CONFIGMAP_ENV) or None
+        self._sidecar_secret_name = sidecar_secret_name or os.environ.get(_SIDECAR_SECRET_ENV) or None
 
     def run(
         self,
@@ -804,14 +852,10 @@ class KubernetesBackend:
         try:
             from kubernetes.client.rest import ApiException
         except ImportError as e:
-            raise ImportError(
-                "kubernetes package is required for KubernetesBackend"
-            ) from e
+            raise ImportError("kubernetes package is required for KubernetesBackend") from e
 
         try:
-            core_api.create_namespaced_config_map(
-                namespace=self._namespace, body=configmap_body
-            )
+            core_api.create_namespaced_config_map(namespace=self._namespace, body=configmap_body)
             logger.debug("Created io-refs ConfigMap '%s'", configmap_name)
         except ApiException as e:
             return {
@@ -877,9 +921,7 @@ class KubernetesBackend:
                 for job in jobs.items:
                     _delete_job(batch_api, job.metadata.name, self._namespace)
             except Exception as e:
-                logger.error(
-                    "Failed to list/delete jobs for workflow '%s': %s", wf_id, e
-                )
+                logger.error("Failed to list/delete jobs for workflow '%s': %s", wf_id, e)
 
     def check_images(self, images: list[str]) -> dict[str, bool]:
         """Return ``True`` for every image -- K8s does not support pre-flight image checks.
@@ -899,9 +941,7 @@ class KubernetesBackend:
             len(images),
         )
 
-    def extract_manifest(
-        self, image: str, manifest_path: str = ContainerConfig.MANIFEST_PATH
-    ) -> Manifest | None:
+    def extract_manifest(self, image: str, manifest_path: str = ContainerConfig.MANIFEST_PATH) -> Manifest | None:
         """Extract ``manifest.yaml`` from an image by running a one-shot K8s Job.
 
         The Job runs ``cat <manifest_path>``; the pod stdout is parsed as YAML.
@@ -948,9 +988,7 @@ class KubernetesBackend:
         try:
             from kubernetes.client.rest import ApiException
         except ImportError as e:
-            raise ImportError(
-                "kubernetes package is required for KubernetesBackend"
-            ) from e
+            raise ImportError("kubernetes package is required for KubernetesBackend") from e
 
         try:
             batch_api.create_namespaced_job(namespace=self._namespace, body=job_body)
