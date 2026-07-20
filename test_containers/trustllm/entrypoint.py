@@ -4,7 +4,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, ClassVar
 
 from asqi.utils import get_openai_tracking_kwargs
 from trustllm import config
@@ -30,9 +30,9 @@ from trustllm.utils import file_process
 
 
 class OpenAILLMGenerationWithMetadata(OpenAILLMGeneration):
-    """OpenAILLMGeneration subclass that injects ASQI execution metadata into OpenAI/LiteLLM requests without modifying TrustLLM internals."""
+    """Inject ASQI execution metadata into OpenAI/LiteLLM requests without modifying TrustLLM internals."""
 
-    def __init__(self, *args, metadata: Optional[Dict[str, Any]] = None, **kwargs):
+    def __init__(self, *args, metadata: dict[str, Any] | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.metadata = metadata or {}
 
@@ -70,7 +70,7 @@ class TrustLLMTester:
     """TrustLLM evaluation container for ASQI framework"""
 
     # Map test types to their corresponding dataset enums
-    DATASET_MAP = {
+    DATASET_MAP: ClassVar[dict[str, Any]] = {
         "ethics": EthicsDataset,
         "privacy": PrivacyDataset,
         "fairness": FairnessDataset,
@@ -80,7 +80,7 @@ class TrustLLMTester:
     }
 
     # Default datasets for each test type (without .json extension)
-    DEFAULT_DATASETS = {
+    DEFAULT_DATASETS: ClassVar[dict[str, list[str]]] = {
         "ethics": [
             "awareness",
             "explicit_moralchoice",
@@ -115,9 +115,7 @@ class TrustLLMTester:
         "safety": ["jailbreak", "exaggerated_safety", "misuse"],
     }
 
-    def __init__(
-        self, systems_params: Dict[str, Any], test_params: Dict[str, Any] = None
-    ):
+    def __init__(self, systems_params: dict[str, Any], test_params: dict[str, Any] | None = None):
         """Initialize with systems parameters and optional test parameters"""
         self.sut_params = systems_params.get("system_under_test", {})
         self.systems_params = systems_params
@@ -144,9 +142,7 @@ class TrustLLMTester:
         if not dataset_enum_class:
             return None
 
-        dataset_filename = (
-            dataset_name if dataset_name.endswith(".json") else f"{dataset_name}.json"
-        )
+        dataset_filename = dataset_name if dataset_name.endswith(".json") else f"{dataset_name}.json"
         for enum_value in dataset_enum_class:
             if enum_value.value.lower() == dataset_filename.lower():
                 return enum_value
@@ -163,9 +159,7 @@ class TrustLLMTester:
         }
         return test_type_map.get(test_type.lower())
 
-    def _evaluate_results(
-        self, test_type: str, dataset_name: str, generated_data: Any
-    ) -> Dict[str, Any]:
+    def _evaluate_results(self, test_type: str, dataset_name: str, generated_data: Any) -> dict[str, Any]:
         try:
             evaluator = self.evaluators.get(test_type.lower())
             if not evaluator:
@@ -185,23 +179,15 @@ class TrustLLMTester:
                 if dataset_name.lower() == "awareness":
                     evaluation_results = evaluator.awareness_eval(generated_data)
                 elif dataset_name.lower() == "explicit_moralchoice":
-                    evaluation_results = evaluator.explicit_ethics_eval(
-                        generated_data, eval_type="low"
-                    )
+                    evaluation_results = evaluator.explicit_ethics_eval(generated_data, eval_type="low")
                 elif dataset_name.lower() == "implicit_ethics":
-                    evaluation_results = evaluator.implicit_ethics_eval(
-                        generated_data, eval_type="ETHICS"
-                    )
+                    evaluation_results = evaluator.implicit_ethics_eval(generated_data, eval_type="ETHICS")
                 elif dataset_name.lower() == "implicit_socialchemistry101":
-                    evaluation_results = evaluator.implicit_ethics_eval(
-                        generated_data, eval_type="social_norm"
-                    )
+                    evaluation_results = evaluator.implicit_ethics_eval(generated_data, eval_type="social_norm")
 
             elif test_type.lower() == "safety":
                 if dataset_name.lower() == "jailbreak":
-                    evaluation_results = evaluator.jailbreak_eval(
-                        generated_data, eval_type="total"
-                    )
+                    evaluation_results = evaluator.jailbreak_eval(generated_data, eval_type="total")
                 elif dataset_name.lower() == "exaggerated_safety":
                     evaluation_results = evaluator.exaggerated_eval(generated_data)
                 elif dataset_name.lower() == "misuse":
@@ -213,13 +199,9 @@ class TrustLLMTester:
                 elif dataset_name.lower() == "preference":
                     evaluation_results = evaluator.preference_eval(generated_data)
                 elif dataset_name.lower() == "stereotype_recognition":
-                    evaluation_results = evaluator.stereotype_recognition_eval(
-                        generated_data
-                    )
+                    evaluation_results = evaluator.stereotype_recognition_eval(generated_data)
                 elif dataset_name.lower() == "stereotype_agreement":
-                    evaluation_results = evaluator.stereotype_agreement_eval(
-                        generated_data
-                    )
+                    evaluation_results = evaluator.stereotype_agreement_eval(generated_data)
                 elif dataset_name.lower() == "stereotype_query_test":
                     evaluation_results = evaluator.stereotype_query_eval(generated_data)
 
@@ -227,9 +209,7 @@ class TrustLLMTester:
                 if dataset_name.lower() == "privacy_awareness_confaide":
                     evaluation_results = evaluator.ConfAIDe_eval(generated_data)
                 elif dataset_name.lower() == "privacy_awareness_query":
-                    evaluation_results = evaluator.awareness_query_eval(
-                        generated_data, type="normal"
-                    )
+                    evaluation_results = evaluator.awareness_query_eval(generated_data, type="normal")
                 elif dataset_name.lower() == "privacy_leakage":
                     evaluation_results = evaluator.leakage_eval(generated_data)
 
@@ -239,25 +219,21 @@ class TrustLLMTester:
                 elif dataset_name.lower() == "hallucination":
                     evaluation_results = evaluator.hallucination_eval(generated_data)
                 elif dataset_name.lower() == "sycophancy":
-                    evaluation_results = evaluator.sycophancy_eval(
-                        generated_data, eval_type="persona"
-                    )
+                    evaluation_results = evaluator.sycophancy_eval(generated_data, eval_type="persona")
                 elif dataset_name.lower() == "internal":
                     evaluation_results = evaluator.internal_eval(generated_data)
                 elif dataset_name.lower() == "external":
                     evaluation_results = evaluator.external_eval(generated_data)
 
             if evaluation_results is None:
-                return {
-                    "error": f"No evaluation method found for {test_type}/{dataset_name}"
-                }
+                return {"error": f"No evaluation method found for {test_type}/{dataset_name}"}
 
             return {"evaluation_results": evaluation_results}
 
         except Exception as e:
-            return {"error": f"Evaluation failed: {str(e)}"}
+            return {"error": f"Evaluation failed: {e!s}"}
 
-    def run_trustllm_evaluation(self, test_params: Dict[str, Any]) -> Dict[str, Any]:
+    def run_trustllm_evaluation(self, test_params: dict[str, Any]) -> dict[str, Any]:
         """Execute TrustLLM evaluation"""
         try:
             # Extract test parameters
@@ -274,9 +250,7 @@ class TrustLLMTester:
             # Validate directory name to prevent directory traversal
             output_dir_path = Path(output_dir_name)
             if len(output_dir_path.parts) != 1:
-                raise ValueError(
-                    "Invalid output_dir: must be a directory name only, no directory traversal allowed."
-                )
+                raise ValueError("Invalid output_dir: must be a directory name only, no directory traversal allowed.")
 
             test_type = test_type.lower()
             if test_type not in self.DATASET_MAP:
@@ -298,9 +272,10 @@ class TrustLLMTester:
                     invalid_datasets.append(dataset_name)
 
             if invalid_datasets:
+                valid = self.DEFAULT_DATASETS[test_type]
                 return {
                     "success": False,
-                    "error": f"Invalid datasets for {test_type}: {invalid_datasets}. Valid datasets: {self.DEFAULT_DATASETS[test_type]}",
+                    "error": f"Invalid datasets for {test_type}: {invalid_datasets}. Valid datasets: {valid}",
                 }
 
             max_new_tokens = test_params.get("max_new_tokens", 1024)
@@ -318,9 +293,7 @@ class TrustLLMTester:
                 try:
                     dataset_enum = self._get_dataset_enum(test_type, dataset_name)
                     if not dataset_enum:
-                        dataset_results[dataset_name] = {
-                            "error": f"Failed to find dataset enum for {dataset_name}"
-                        }
+                        dataset_results[dataset_name] = {"error": f"Failed to find dataset enum for {dataset_name}"}
                         continue
                     llm_gen = OpenAILLMGenerationWithMetadata(
                         test_type=test_type_enum,
@@ -337,33 +310,21 @@ class TrustLLMTester:
 
                     generation_status = llm_gen.generation_results()
                     if generation_status == "OK":
-                        results_file_path = f"generation_results/{self.sut_params['model']}/{test_type}/{dataset_enum.value}"
+                        results_file_path = (
+                            f"generation_results/{self.sut_params['model']}/{test_type}/{dataset_enum.value}"
+                        )
 
                         try:
-                            generated_results = file_process.load_json(
-                                results_file_path
-                            )
+                            generated_results = file_process.load_json(results_file_path)
                         except Exception as e:
-                            print(
-                                f"Failed to load results from {results_file_path}: {e}"
-                            )
-                            dataset_results[dataset_name] = {
-                                "error": f"Failed to load generated results: {e}"
-                            }
+                            print(f"Failed to load results from {results_file_path}: {e}")
+                            dataset_results[dataset_name] = {"error": f"Failed to load generated results: {e}"}
                             continue
 
-                        actual_sample_count = (
-                            len(generated_results)
-                            if isinstance(generated_results, list)
-                            else 1
-                        )
-                        evaluation_result = self._evaluate_results(
-                            test_type, dataset_name, generated_results
-                        )
+                        actual_sample_count = len(generated_results) if isinstance(generated_results, list) else 1
+                        evaluation_result = self._evaluate_results(test_type, dataset_name, generated_results)
                         combined_results = {
-                            "evaluation_results": evaluation_result.get(
-                                "evaluation_results"
-                            ),
+                            "evaluation_results": evaluation_result.get("evaluation_results"),
                             "evaluation_error": evaluation_result.get("error"),
                             "actual_sample_count": actual_sample_count,
                         }
@@ -371,9 +332,7 @@ class TrustLLMTester:
                         dataset_results[dataset_name] = combined_results
                         datasets_tested.append(dataset_name)
                     else:
-                        dataset_results[dataset_name] = {
-                            "error": f"Generation failed with status: {generation_status}"
-                        }
+                        dataset_results[dataset_name] = {"error": f"Generation failed with status: {generation_status}"}
 
                 except Exception as e:
                     dataset_results[dataset_name] = {"error": str(e)}
@@ -389,14 +348,31 @@ class TrustLLMTester:
                 }
 
             summary_results = {}
-            for dataset_name in datasets_tested:
-                dataset_result = dataset_results[dataset_name]
+            failed_datasets = []
+            # Iterate over every requested dataset, not just datasets_tested.
+            # A dataset that failed during generation never enters
+            # datasets_tested, so iterating only over that list would silently
+            # drop its failure and let the run be masked as success.
+            for dataset_name in datasets:
+                dataset_result = dataset_results.get(dataset_name, {})
+
+                evaluation_score = dataset_result.get("evaluation_results")
+                # Capture failures from both the evaluation phase
+                # (evaluation_error) and the generation/loading phase (error).
+                evaluation_error = dataset_result.get("evaluation_error") or dataset_result.get("error")
 
                 summary_results[dataset_name] = {
-                    "evaluation_score": dataset_result.get("evaluation_results"),
-                    "evaluation_error": dataset_result.get("evaluation_error"),
+                    "evaluation_score": evaluation_score,
+                    "evaluation_error": evaluation_error,
                     "sample_count": dataset_result.get("actual_sample_count", 0),
                 }
+
+                # A dataset is a real success only when it produced a non-null
+                # evaluation score and raised no error. A null score or any
+                # error means the evaluation did not actually run, so it
+                # must not be masked as a pass.
+                if evaluation_score is None or evaluation_error is not None:
+                    failed_datasets.append(dataset_name)
 
             # Copy relevant generation results to user-specified directory
             try:
@@ -406,17 +382,10 @@ class TrustLLMTester:
                 if generation_results_dir.exists():
                     # Create target directory structure: {output_dir}/generation_results/{model}/{test_type}/
                     target_base_dir = output_mount_path / output_dir_name
-                    model_dir = (
-                        generation_results_dir / self.sut_params["model"] / test_type
-                    )
+                    model_dir = generation_results_dir / self.sut_params["model"] / test_type
 
                     if model_dir.exists():
-                        target_dir = (
-                            target_base_dir
-                            / "generation_results"
-                            / self.sut_params["model"]
-                            / test_type
-                        )
+                        target_dir = target_base_dir / "generation_results" / self.sut_params["model"] / test_type
                         target_dir.mkdir(parents=True, exist_ok=True)
 
                         # Copy only the relevant test_type results
@@ -429,31 +398,40 @@ class TrustLLMTester:
                             file=sys.stderr,
                         )
                     else:
-                        print(
-                            f"Warning: No results found in {model_dir}", file=sys.stderr
-                        )
+                        print(f"Warning: No results found in {model_dir}", file=sys.stderr)
                 else:
                     print(
                         "Warning: No generation_results directory found to copy",
                         file=sys.stderr,
                     )
-            except (OSError, IOError, PermissionError) as e:
+            except (OSError, PermissionError) as e:
                 print(
                     f"Warning: Could not copy TrustLLM results to volume: {e}",
                     file=sys.stderr,
                 )
 
-            return {
-                "success": True,
+            # Only report success when every tested dataset produced a real
+            # (non-null) evaluation score without error. An empty summary or any
+            # failed dataset means the evaluation did not actually run, so we must
+            # not mask that as a pass (mirrors inspect_evals failure semantics).
+            success = bool(summary_results) and not failed_datasets
+            result = {
+                "success": success,
                 "test_type": test_type,
                 "datasets_tested": datasets_tested,
                 "results_summary": summary_results,
             }
+            if not success:
+                if not summary_results:
+                    result["error"] = "No evaluation results were produced"
+                else:
+                    result["error"] = f"Evaluation failed - no valid score for datasets: {failed_datasets}"
+            return result
 
         except Exception as e:
             return {
                 "success": False,
-                "error": f"TrustLLM evaluation failed: {str(e)}",
+                "error": f"TrustLLM evaluation failed: {e!s}",
                 "test_type": test_params.get("test_type", "unknown"),
                 "datasets_tested": [],
                 "results_summary": {},
@@ -463,12 +441,8 @@ class TrustLLMTester:
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="TrustLLM test container")
-    parser.add_argument(
-        "--systems-params", required=True, help="Systems parameters as JSON string"
-    )
-    parser.add_argument(
-        "--test-params", required=True, help="Test parameters as JSON string"
-    )
+    parser.add_argument("--systems-params", required=True, help="Systems parameters as JSON string")
+    parser.add_argument("--test-params", required=True, help="Test parameters as JSON string")
 
     args = parser.parse_args()
 
@@ -477,10 +451,10 @@ def parse_arguments():
         test_params = json.loads(args.test_params)
         return systems_params, test_params
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in arguments: {e}")
+        raise ValueError(f"Invalid JSON in arguments: {e}") from e
 
 
-def validate_inputs(systems_params: Dict[str, Any], test_params: Dict[str, Any]):
+def validate_inputs(systems_params: dict[str, Any], test_params: dict[str, Any]):
     """Validate input parameters"""
     # Validate system_under_test params
     sut_params = systems_params.get("system_under_test", {})
@@ -509,17 +483,12 @@ def validate_inputs(systems_params: Dict[str, Any], test_params: Dict[str, Any])
         "safety",
     ]
     if test_type.lower() not in valid_test_types:
-        raise ValueError(
-            f"Invalid test_type: {test_type}. Must be one of: {valid_test_types}"
-        )
+        raise ValueError(f"Invalid test_type: {test_type}. Must be one of: {valid_test_types}")
 
     # Validate optional numeric parameters
     for param in ["max_new_tokens", "max_rows"]:
         if param in test_params:
-            if (
-                not isinstance(test_params[param], (int, float))
-                or test_params[param] <= 0
-            ):
+            if not isinstance(test_params[param], (int, float)) or test_params[param] <= 0:
                 raise ValueError(f"Parameter '{param}' must be a positive number")
 
 

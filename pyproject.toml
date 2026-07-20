@@ -83,7 +83,8 @@ testpaths = ["tests"]
 [tool.uv]
 package = true
 constraint-dependencies = [
+    "click>=8.3.3",
     "msgpack>=1.2.1",
-    "pillow>=12.2.0",
+    "pillow>=12.3.0",
     "pygments>=2.20.0",
 ]
