@@ -1,7 +1,10 @@
 name: "inspect_evals"
 version: "1.0"
 description: "Run an Inspect Evals task (e.g. gsm8k, mmlu_0_shot, truthfulqa). Provide: evaluation (task name), optional evaluation_params (task args), and limit (sample cap). See https://ukgovernmentbeis.github.io/inspect_evals/ for task docs."
-host_access: true
+# Was `true`, which made KubernetesBackend fail-closed on every task from
+# this image. None of the configured tasks use the Docker sandbox path, so
+# none need it. Set back to `true` if a future task needs Docker-in-Docker.
+host_access: false
 
 input_systems:
   - name: "system_under_test"
