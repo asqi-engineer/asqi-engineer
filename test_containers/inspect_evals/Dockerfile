@@ -23,7 +23,7 @@ RUN uv python install 3.11
 # Set environment variable to allow remote code execution for datasets
 ENV HF_DATASETS_TRUST_REMOTE_CODE=1
 
-# Clone inspect_evals 
+# Clone inspect_evals
 RUN git clone https://github.com/UKGovernmentBEIS/inspect_evals.git && \
     cd inspect_evals && \
     git checkout 0ec1127
@@ -49,6 +49,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/tmp/docker-cache \
     apt-get update && apt-get install -y \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/* && \
     curl -fsSL https://get.docker.com -o get-docker.sh && \
     sh get-docker.sh && \

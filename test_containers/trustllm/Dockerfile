@@ -42,6 +42,12 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
+# Install ca-certificates so the Rust hf-xet backend can validate HuggingFace
+# Hub TLS certificates (the slim base image ships without a system trust store).
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends ca-certificates
+
 # Copy venv, Python installation and set path
 COPY --from=builder /tmp/.venv /app/.venv
 COPY --from=builder /python /python
@@ -84,7 +90,7 @@ find /app/.cache -name "*.log" -delete 2>/dev/null || true
 
 # Set optimized environment variables
 ENV HF_HOME=/app/.cache/huggingface
-ENV TRANSFORMERS_CACHE=/app/.cache/huggingface  
+ENV TRANSFORMERS_CACHE=/app/.cache/huggingface
 ENV HF_HUB_CACHE=/app/.cache/huggingface
 ENV HUGGINGFACE_HUB_CACHE=/app/.cache/huggingface
 ENV HF_HUB_DISABLE_TELEMETRY=1
