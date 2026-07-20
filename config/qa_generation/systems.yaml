@@ -1,0 +1,9 @@
+systems:
+  openai_gpt4o:
+    type: llm_api
+    description: "OpenAI GPT-4o for Q&A generation"
+    provider: openai
+    params:
+      base_url: "https://api.openai.com/v1"
+      model: "gpt-4o-mini"
+      env_file: ".env"
