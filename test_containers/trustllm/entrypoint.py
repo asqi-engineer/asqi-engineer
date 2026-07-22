@@ -159,11 +159,33 @@ class TrustLLMTester:
         }
         return test_type_map.get(test_type.lower())
 
+    @staticmethod
+    def _normalize_generated_data(generated_data: Any) -> Any:
+        """Guarantee every generated record carries a ``res`` key.
+
+        The ``res`` field holds the model response written during the generation
+        phase. Several upstream TrustLLM evaluators (e.g. ``PrivacyEval.leakage_eval``)
+        access it via a hard ``el["res"]`` subscript and only guard the *value*
+        (``el["res"] != None``), not the *presence* of the key. If a record slips
+        through generation without ``res`` being written (silently dropped API call,
+        thread exception, small-sample edge cases), that subscript raises
+        ``KeyError: 'res'`` and the whole dataset evaluation aborts with a generic
+        ``Evaluation failed: 'res'``. Backfilling the key with ``None`` keeps those
+        records flowing into the existing value-level guards instead of crashing.
+        See sibling-slice diagnosis: docs/trustllm_res_keyerror_diagnosis.md.
+        """
+        if isinstance(generated_data, list):
+            for element in generated_data:
+                if isinstance(element, dict) and "res" not in element:
+                    element["res"] = None
+        return generated_data
+
     def _evaluate_results(self, test_type: str, dataset_name: str, generated_data: Any) -> dict[str, Any]:
         try:
             evaluator = self.evaluators.get(test_type.lower())
             if not evaluator:
                 return {"error": f"No evaluator found for test_type: {test_type}"}
+            generated_data = self._normalize_generated_data(generated_data)
             evaluation_results = None
             if test_type.lower() == "robustness":
                 if dataset_name.lower() == "advglue":
