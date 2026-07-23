@@ -10,7 +10,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-pytest.importorskip("kubernetes", reason="kubernetes package not installed — skipping K8s backend tests")
+pytest.importorskip(
+    "kubernetes", reason="kubernetes package not installed — skipping K8s backend tests"
+)
 
 import yaml
 from asqi.backends.base import ContainerBackend
@@ -153,7 +155,9 @@ class TestLoadK8sClients:
         batch_api_cls.assert_called_once_with()
         core_api_cls.assert_called_once_with()
 
-    def test_incluster_config_maps_token_to_bearer_auth_and_keeps_refresh_hook(self, tmp_path: Path) -> None:
+    def test_incluster_config_maps_token_to_bearer_auth_and_keeps_refresh_hook(
+        self, tmp_path: Path
+    ) -> None:
         from kubernetes.client import Configuration
         from kubernetes.config.incluster_config import (
             SERVICE_HOST_ENV_NAME,
@@ -322,7 +326,9 @@ class TestExtractIORefs:
     def test_original_args_not_mutated(self) -> None:
         import json
 
-        params = json.dumps({"k": "v", "__inputs": [{"bucket": "my-bucket", "key": "in/a"}]})
+        params = json.dumps(
+            {"k": "v", "__inputs": [{"bucket": "my-bucket", "key": "in/a"}]}
+        )
         original = ["run", "--test-params", params]
         original_copy = list(original)
         _extract_io_refs(original)
@@ -500,7 +506,10 @@ class TestBuildJobBody:
         body = _build_default_job_body(workflow_id="wf-abc")
         env = {e["name"]: e["value"] for e in _sidecar(body)["env"]}
         assert env["AIP_JOB_HANDLE"] == "wf-abc"
-        assert env["AIP_IO_REFS_PATH"] == f"{_IO_REFS_CONFIGMAP_MOUNT}/{_IO_REFS_CONFIGMAP_KEY}"
+        assert (
+            env["AIP_IO_REFS_PATH"]
+            == f"{_IO_REFS_CONFIGMAP_MOUNT}/{_IO_REFS_CONFIGMAP_KEY}"
+        )
         assert env["AIP_SHARED_DIR"] == _SHARED_MOUNT_SIDECAR
 
     def test_sidecar_mounts_shared_volume_and_configmap(self) -> None:
@@ -532,7 +541,10 @@ class TestBuildJobBody:
 
     def test_termination_grace_period_set(self) -> None:
         body = _build_default_job_body()
-        assert body["spec"]["template"]["spec"]["terminationGracePeriodSeconds"] == _TERMINATION_GRACE_PERIOD_SECONDS
+        assert (
+            body["spec"]["template"]["spec"]["terminationGracePeriodSeconds"]
+            == _TERMINATION_GRACE_PERIOD_SECONDS
+        )
 
     def test_only_one_workload_container(self) -> None:
         body = _build_default_job_body()
@@ -571,7 +583,10 @@ class TestBuildJobBody:
             io_refs_configmap_name="job-1-io-refs",
             sidecar_sa_name="asqi-runner-sidecar",
         )
-        assert body["spec"]["template"]["spec"]["serviceAccountName"] == "asqi-runner-sidecar"
+        assert (
+            body["spec"]["template"]["spec"]["serviceAccountName"]
+            == "asqi-runner-sidecar"
+        )
 
     def test_no_envfrom_on_sidecar_by_default(self) -> None:
         """Unset ConfigMap/Secret refs → sidecar has no envFrom (only the
@@ -632,7 +647,10 @@ class TestBuildJobBody:
         sidecar = _sidecar(body)
         env = {e["name"]: e["value"] for e in sidecar["env"]}
         assert env["AIP_JOB_HANDLE"] == "wf-abc"
-        assert env["AIP_IO_REFS_PATH"] == f"{_IO_REFS_CONFIGMAP_MOUNT}/{_IO_REFS_CONFIGMAP_KEY}"
+        assert (
+            env["AIP_IO_REFS_PATH"]
+            == f"{_IO_REFS_CONFIGMAP_MOUNT}/{_IO_REFS_CONFIGMAP_KEY}"
+        )
         assert env["AIP_SHARED_DIR"] == _SHARED_MOUNT_SIDECAR
         # envFrom present too — both wiring mechanisms coexist.
         assert sidecar["envFrom"]
@@ -646,7 +664,9 @@ class TestOtelEnvInjection:
     OTEL_EXPORTER_OTLP_ENDPOINT is set in the runner's environment, and to
     neither when it is unset (local/CI no-op)."""
 
-    def test_no_otel_env_when_endpoint_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_otel_env_when_endpoint_unset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
         body = _build_default_job_body()
         for container in (_workload(body), _sidecar(body)):
@@ -654,7 +674,9 @@ class TestOtelEnvInjection:
             assert "OTEL_EXPORTER_OTLP_ENDPOINT" not in names
             assert "OTEL_SERVICE_NAME" not in names
 
-    def test_workload_gets_otel_env_with_test_container_service_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_workload_gets_otel_env_with_test_container_service_name(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://obs-alloy:4318")
         monkeypatch.delenv("OTEL_EXPORTER_OTLP_PROTOCOL", raising=False)
         monkeypatch.delenv("OTEL_RESOURCE_ATTRIBUTES", raising=False)
@@ -663,18 +685,28 @@ class TestOtelEnvInjection:
         assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://obs-alloy:4318"
         assert env["OTEL_SERVICE_NAME"] == _WORKLOAD_OTEL_SERVICE_NAME
         assert env["OTEL_SERVICE_NAME"] == "asqi-test-container"
-        assert env["OTEL_RESOURCE_ATTRIBUTES"] == "aip.workflow_id=wf-abc,k8s.namespace.name=aip"
+        assert (
+            env["OTEL_RESOURCE_ATTRIBUTES"]
+            == "aip.workflow_id=wf-abc,k8s.namespace.name=aip"
+        )
 
-    def test_sidecar_gets_otel_env_with_sidecar_service_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_sidecar_gets_otel_env_with_sidecar_service_name(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://obs-alloy:4318")
         monkeypatch.delenv("OTEL_RESOURCE_ATTRIBUTES", raising=False)
         body = _build_default_job_body(workflow_id="wf-abc", namespace="aip")
         env = {e["name"]: e["value"] for e in _sidecar(body)["env"]}
         assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://obs-alloy:4318"
         assert env["OTEL_SERVICE_NAME"] == _SIDECAR_CONTAINER_NAME
-        assert env["OTEL_RESOURCE_ATTRIBUTES"] == "aip.workflow_id=wf-abc,k8s.namespace.name=aip"
+        assert (
+            env["OTEL_RESOURCE_ATTRIBUTES"]
+            == "aip.workflow_id=wf-abc,k8s.namespace.name=aip"
+        )
 
-    def test_otel_resource_attributes_merge_with_runner_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_otel_resource_attributes_merge_with_runner_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """The runner's own resource attributes (service.version,
         deployment.environment.name, ...) must survive into the child Job's
         env rather than being clobbered by the workflow-specific overrides."""
@@ -684,9 +716,7 @@ class TestOtelEnvInjection:
             "service.version=0.2.4,deployment.environment.name=eks-dev,k8s.namespace.name=old-ns",
         )
         body = _build_default_job_body(workflow_id="wf-abc", namespace="aip")
-        expected = (
-            "service.version=0.2.4,deployment.environment.name=eks-dev,k8s.namespace.name=aip,aip.workflow_id=wf-abc"
-        )
+        expected = "service.version=0.2.4,deployment.environment.name=eks-dev,k8s.namespace.name=aip,aip.workflow_id=wf-abc"
 
         workload_env = {e["name"]: e["value"] for e in _workload(body)["env"]}
         assert workload_env["OTEL_RESOURCE_ATTRIBUTES"] == expected
@@ -694,13 +724,19 @@ class TestOtelEnvInjection:
         sidecar_env = {e["name"]: e["value"] for e in _sidecar(body)["env"]}
         assert sidecar_env["OTEL_RESOURCE_ATTRIBUTES"] == expected
 
-    def test_workload_otel_protocol_passed_through_when_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_workload_otel_protocol_passed_through_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://obs-alloy:4318")
         monkeypatch.setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
-        env = {e["name"]: e["value"] for e in _workload(_build_default_job_body())["env"]}
+        env = {
+            e["name"]: e["value"] for e in _workload(_build_default_job_body())["env"]
+        }
         assert env["OTEL_EXPORTER_OTLP_PROTOCOL"] == "http/protobuf"
 
-    def test_workload_otel_env_does_not_clobber_caller_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_workload_otel_env_does_not_clobber_caller_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://obs-alloy:4318")
         body = _build_default_job_body(environment={"KEY": "val"})
         env = {e["name"]: e["value"] for e in _workload(body)["env"]}
@@ -771,7 +807,10 @@ class TestKubernetesBackendRun:
         response.data = b'{"test_results": {"success": true}}\n'
         core_api.read_namespaced_pod_log.return_value = response
 
-        assert _collect_pod_logs(core_api, "job-1", "test-ns") == '{"test_results": {"success": true}}\n'
+        assert (
+            _collect_pod_logs(core_api, "job-1", "test-ns")
+            == '{"test_results": {"success": true}}\n'
+        )
         core_api.read_namespaced_pod_log.assert_called_once_with(
             name="pod-1",
             namespace="test-ns",
@@ -802,7 +841,9 @@ class TestKubernetesBackendRun:
         mock_load.return_value = (batch_api, core_api)
 
         backend = KubernetesBackend(namespace="test-ns")
-        result = backend.run(image="img:1", args=["--foo"], container_config=ContainerConfig())
+        result = backend.run(
+            image="img:1", args=["--foo"], container_config=ContainerConfig()
+        )
 
         assert result["success"] is True
         assert result["exit_code"] == 0
@@ -834,7 +875,9 @@ class TestKubernetesBackendRun:
         batch_api, core_api = _make_mock_clients(succeeded=0, failed=1)
         pod = MagicMock()
         pod.metadata.name = "pod-1"
-        pod.status.container_statuses = [MagicMock(state=MagicMock(terminated=MagicMock(exit_code=1)))]
+        pod.status.container_statuses = [
+            MagicMock(state=MagicMock(terminated=MagicMock(exit_code=1)))
+        ]
         core_api.list_namespaced_pod.return_value = MagicMock(items=[pod])
         mock_load.return_value = (batch_api, core_api)
 
@@ -845,11 +888,15 @@ class TestKubernetesBackendRun:
         assert result["exit_code"] == 1
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
-    def test_create_job_api_error_returns_error_dict(self, mock_load: MagicMock) -> None:
+    def test_create_job_api_error_returns_error_dict(
+        self, mock_load: MagicMock
+    ) -> None:
         from kubernetes.client.rest import ApiException  # requires kubernetes test dep
 
         batch_api = MagicMock()
-        batch_api.create_namespaced_job.side_effect = ApiException(status=403, reason="Forbidden")
+        batch_api.create_namespaced_job.side_effect = ApiException(
+            status=403, reason="Forbidden"
+        )
         core_api = MagicMock()
         mock_load.return_value = (batch_api, core_api)
 
@@ -883,7 +930,9 @@ class TestKubernetesBackendRun:
         assert "timed out" in result["error"].lower()
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
-    def test_volumes_in_args_returns_failure_without_creating_job(self, mock_load: MagicMock) -> None:
+    def test_volumes_in_args_returns_failure_without_creating_job(
+        self, mock_load: MagicMock
+    ) -> None:
         import json
 
         params = json.dumps({"key": "val", "__volumes": {"input": "/in"}})
@@ -901,7 +950,9 @@ class TestKubernetesBackendRun:
         mock_load.assert_not_called()
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
-    def test_host_access_true_returns_failure_without_creating_job(self, mock_load: MagicMock) -> None:
+    def test_host_access_true_returns_failure_without_creating_job(
+        self, mock_load: MagicMock
+    ) -> None:
         manifest = Manifest(
             name="host-test",
             version="1.0.0",
@@ -929,11 +980,15 @@ class TestKubernetesBackendRun:
     # ── ConfigMap lifecycle (AIP-2473) ─────────────────────────────────────────
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
-    def test_configmap_created_before_job_and_named_after_it(self, mock_load: MagicMock) -> None:
+    def test_configmap_created_before_job_and_named_after_it(
+        self, mock_load: MagicMock
+    ) -> None:
         batch_api, core_api = _make_mock_clients(succeeded=1)
         mock_load.return_value = (batch_api, core_api)
 
-        KubernetesBackend(namespace="test-ns").run(image="img:1", args=[], container_config=ContainerConfig())
+        KubernetesBackend(namespace="test-ns").run(
+            image="img:1", args=[], container_config=ContainerConfig()
+        )
 
         core_api.create_namespaced_config_map.assert_called_once()
         cm_call = core_api.create_namespaced_config_map.call_args
@@ -942,7 +997,10 @@ class TestKubernetesBackendRun:
         # Job manifest must reference the same ConfigMap name.
         job_body = batch_api.create_namespaced_job.call_args.kwargs["body"]
         vols = {v["name"]: v for v in job_body["spec"]["template"]["spec"]["volumes"]}
-        assert vols[_IO_REFS_VOLUME_NAME]["configMap"]["name"] == cm_body["metadata"]["name"]
+        assert (
+            vols[_IO_REFS_VOLUME_NAME]["configMap"]["name"]
+            == cm_body["metadata"]["name"]
+        )
         assert cm_body["metadata"]["name"].endswith("-io-refs")
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
@@ -950,35 +1008,49 @@ class TestKubernetesBackendRun:
         batch_api, core_api = _make_mock_clients(succeeded=1)
         mock_load.return_value = (batch_api, core_api)
 
-        KubernetesBackend().run(image="img:1", args=[], container_config=ContainerConfig())
+        KubernetesBackend().run(
+            image="img:1", args=[], container_config=ContainerConfig()
+        )
 
         core_api.delete_namespaced_config_map.assert_called_once()
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
-    def test_configmap_deleted_when_job_create_fails(self, mock_load: MagicMock) -> None:
+    def test_configmap_deleted_when_job_create_fails(
+        self, mock_load: MagicMock
+    ) -> None:
         from kubernetes.client.rest import ApiException
 
         batch_api = MagicMock()
         core_api = MagicMock()
-        batch_api.create_namespaced_job.side_effect = ApiException(status=403, reason="Forbidden")
+        batch_api.create_namespaced_job.side_effect = ApiException(
+            status=403, reason="Forbidden"
+        )
         mock_load.return_value = (batch_api, core_api)
 
-        result = KubernetesBackend().run(image="img:1", args=[], container_config=ContainerConfig())
+        result = KubernetesBackend().run(
+            image="img:1", args=[], container_config=ContainerConfig()
+        )
 
         assert result["success"] is False
         # ConfigMap was created up-front, so it must be deleted on the failure path.
         core_api.delete_namespaced_config_map.assert_called_once()
 
     @patch("asqi.backends.kubernetes_backend._load_k8s_clients")
-    def test_configmap_create_failure_short_circuits_before_job(self, mock_load: MagicMock) -> None:
+    def test_configmap_create_failure_short_circuits_before_job(
+        self, mock_load: MagicMock
+    ) -> None:
         from kubernetes.client.rest import ApiException
 
         batch_api = MagicMock()
         core_api = MagicMock()
-        core_api.create_namespaced_config_map.side_effect = ApiException(status=403, reason="Forbidden")
+        core_api.create_namespaced_config_map.side_effect = ApiException(
+            status=403, reason="Forbidden"
+        )
         mock_load.return_value = (batch_api, core_api)
 
-        result = KubernetesBackend().run(image="img:1", args=[], container_config=ContainerConfig())
+        result = KubernetesBackend().run(
+            image="img:1", args=[], container_config=ContainerConfig()
+        )
 
         assert result["success"] is False
         assert "ConfigMap" in result["error"]
@@ -995,13 +1067,17 @@ class TestKubernetesBackendRun:
 
         job_body = batch_api.create_namespaced_job.call_args.kwargs["body"]
         sidecar = next(
-            c for c in job_body["spec"]["template"]["spec"]["initContainers"] if c["name"] == _SIDECAR_CONTAINER_NAME
+            c
+            for c in job_body["spec"]["template"]["spec"]["initContainers"]
+            if c["name"] == _SIDECAR_CONTAINER_NAME
         )
         assert sidecar["image"] == "custom-sidecar:9.9"
 
 
 class TestKubernetesBackendSidecarImageResolution:
-    def test_explicit_constructor_arg_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_explicit_constructor_arg_wins(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv(_SIDECAR_IMAGE_ENV, "from-env:1")
         backend = KubernetesBackend(sidecar_image="explicit:1")
         assert backend._sidecar_image == "explicit:1"
@@ -1011,7 +1087,9 @@ class TestKubernetesBackendSidecarImageResolution:
         backend = KubernetesBackend()
         assert backend._sidecar_image == "from-env:2"
 
-    def test_placeholder_default_when_no_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_placeholder_default_when_no_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv(_SIDECAR_IMAGE_ENV, raising=False)
         backend = KubernetesBackend()
         assert backend._sidecar_image == _DEFAULT_SIDECAR_IMAGE
@@ -1021,7 +1099,9 @@ class TestKubernetesBackendSidecarWiringResolution:
     """SA / ConfigMap / Secret refs resolve constructor-arg > env var > None
     (AIP-2475), mirroring the sidecar-image precedence."""
 
-    def test_explicit_constructor_args_win(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_explicit_constructor_args_win(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv(_SIDECAR_SA_NAME_ENV, "env-sa")
         monkeypatch.setenv(_SIDECAR_CONFIGMAP_ENV, "env-cm")
         monkeypatch.setenv(_SIDECAR_SECRET_ENV, "env-sec")
@@ -1051,7 +1131,9 @@ class TestKubernetesBackendSidecarWiringResolution:
         assert backend._sidecar_configmap_name is None
         assert backend._sidecar_secret_name is None
 
-    def test_empty_env_var_treated_as_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_empty_env_var_treated_as_unset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """An empty Helm value (e.g. serviceAccount left as default) must not
         emit an empty serviceAccountName / envFrom ref."""
         monkeypatch.setenv(_SIDECAR_SA_NAME_ENV, "")
@@ -1076,7 +1158,11 @@ class TestKubernetesBackendSidecarWiringResolution:
         job_body = batch_api.create_namespaced_job.call_args.kwargs["body"]
         pod_spec = job_body["spec"]["template"]["spec"]
         assert pod_spec["serviceAccountName"] == "asqi-runner"
-        sidecar = next(c for c in pod_spec["initContainers"] if c["name"] == _SIDECAR_CONTAINER_NAME)
+        sidecar = next(
+            c
+            for c in pod_spec["initContainers"]
+            if c["name"] == _SIDECAR_CONTAINER_NAME
+        )
         assert {"configMapRef": {"name": "asqi-runner-sidecar"}} in sidecar["envFrom"]
         assert {"secretRef": {"name": "asqi-runner-sidecar"}} in sidecar["envFrom"]
 
@@ -1239,7 +1325,9 @@ class TestKubernetesBackendExtractManifest:
         from kubernetes.client.rest import ApiException
 
         batch_api = MagicMock()
-        batch_api.create_namespaced_job.side_effect = ApiException(status=403, reason="Forbidden")
+        batch_api.create_namespaced_job.side_effect = ApiException(
+            status=403, reason="Forbidden"
+        )
         core_api = MagicMock()
         mock_load.return_value = (batch_api, core_api)
 

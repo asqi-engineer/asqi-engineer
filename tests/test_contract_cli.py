@@ -364,7 +364,9 @@ class TestExecuteCommand:
             patch("asqi.main.load_score_card_file") as mock_load_card,
             patch(
                 "asqi.main.resolve_audit_options",
-                side_effect=AuditResponsesRequiredError(score_card_name="X", audit_indicators=[{"id": "a1"}]),
+                side_effect=AuditResponsesRequiredError(
+                    score_card_name="X", audit_indicators=[{"id": "a1"}]
+                ),
             ),
             patch("asqi.workflow.DBOS"),
         ):
@@ -530,7 +532,9 @@ class TestExecuteTestsCommand:
         # Patch the local import target inside execute_tests
         import asqi.workflow as workflow_module
 
-        with patch.object(workflow_module, "start_test_execution", side_effect=ImportError):
+        with patch.object(
+            workflow_module, "start_test_execution", side_effect=ImportError
+        ):
             result = runner.invoke(
                 app,
                 [
@@ -856,7 +860,9 @@ class TestEvaluateScoreCardsCommand:
             patch("asqi.main.load_score_card_file") as mock_load_card,
             patch(
                 "asqi.main.resolve_audit_options",
-                side_effect=AuditResponsesRequiredError(score_card_name="X", audit_indicators=[{"id": "a1"}]),
+                side_effect=AuditResponsesRequiredError(
+                    score_card_name="X", audit_indicators=[{"id": "a1"}]
+                ),
             ),
             patch("asqi.workflow.DBOS"),
         ):
@@ -976,7 +982,9 @@ class TestContainerAndDatasetsConfigFlags:
         # --datasets-config not given → None
         assert kwargs["datasets_config_path"] is None
 
-    def test_execute_tests_forwards_container_and_datasets_config(self, runner, tmp_path):
+    def test_execute_tests_forwards_container_and_datasets_config(
+        self, runner, tmp_path
+    ):
         cfg = tmp_path / "container.yaml"
         cfg.write_text("timeout_seconds: 42\n")
 
@@ -1003,7 +1011,9 @@ class TestContainerAndDatasetsConfigFlags:
         assert kwargs["container_config"].timeout_seconds == 42
         assert kwargs["datasets_config_path"] == "ds.yaml"
 
-    def test_generate_dataset_forwards_container_and_datasets_config(self, runner, tmp_path):
+    def test_generate_dataset_forwards_container_and_datasets_config(
+        self, runner, tmp_path
+    ):
         cfg = tmp_path / "container.yaml"
         cfg.write_text("timeout_seconds: 7\n")
 
@@ -1064,7 +1074,9 @@ class TestAuditFlagMutualExclusion:
         # resolve_audit_options raises typer.Exit(1) when both are provided
         assert result.exit_code == 1
 
-    def test_execute_forwards_audit_responses_yaml_into_workflow(self, runner, tmp_path):
+    def test_execute_forwards_audit_responses_yaml_into_workflow(
+        self, runner, tmp_path
+    ):
         """When ``--audit-responses`` is supplied, the loaded responses dict
         must reach ``start_test_execution`` as ``audit_responses_data``. Pin
         the positive path — the negative ``AuditResponsesRequiredError`` case
@@ -1367,7 +1379,9 @@ class TestStartupSignalHandlers:
         # atexit registered twice: OTEL shutdown/flush (AIP-2890) and the
         # pre-existing container-cleanup handler.
         assert mock_atexit.call_count == 2
-        registered_funcs = {call.args[0].__name__ for call in mock_atexit.call_args_list}
+        registered_funcs = {
+            call.args[0].__name__ for call in mock_atexit.call_args_list
+        }
         assert registered_funcs == {"shutdown", "_handle_shutdown"}
         # Both SIGINT and SIGTERM registered.
         registered_signals = {call.args[0] for call in mock_signal.call_args_list}
