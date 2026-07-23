@@ -29,14 +29,18 @@ def test_k8s_only_run_params_stripped_before_docker_run():
 
     with (
         patch("asqi.backends.docker_backend.docker_client") as mock_docker_client,
-        patch("asqi.backends.docker_backend._extract_mounts_from_args") as mock_extract_mounts,
+        patch(
+            "asqi.backends.docker_backend._extract_mounts_from_args"
+        ) as mock_extract_mounts,
         patch("asqi.backends.docker_backend.create_container_logger"),
     ):
         mock_docker_client.return_value.__enter__.return_value = mock_client
         mock_extract_mounts.return_value = (["--test"], None)
 
         # Real defaults include cpu_request; add mem_request to cover both keys.
-        container_config = ContainerConfig(run_params={**ContainerConfig.DEFAULT_RUN_PARAMS, "mem_request": "256Mi"})
+        container_config = ContainerConfig(
+            run_params={**ContainerConfig.DEFAULT_RUN_PARAMS, "mem_request": "256Mi"}
+        )
         assert "cpu_request" in container_config.run_params
         assert "mem_request" in container_config.run_params
 

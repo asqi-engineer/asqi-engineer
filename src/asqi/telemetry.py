@@ -64,7 +64,9 @@ def bootstrap() -> None:
         if _initialized:
             return
 
-        _meter_provider = MeterProvider(metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())])
+        _meter_provider = MeterProvider(
+            metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())]
+        )
         metrics.set_meter_provider(_meter_provider)
 
         _tracer_provider = TracerProvider()

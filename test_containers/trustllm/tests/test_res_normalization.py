@@ -41,7 +41,9 @@ class TestNormalizeGeneratedData:
 
     def test_non_list_input_is_passed_through(self):
         assert entrypoint.TrustLLMTester._normalize_generated_data(None) is None
-        assert entrypoint.TrustLLMTester._normalize_generated_data({"res": 1}) == {"res": 1}
+        assert entrypoint.TrustLLMTester._normalize_generated_data({"res": 1}) == {
+            "res": 1
+        }
 
 
 class TestPrivacyLeakageNoLongerCrashesOnMissingRes:
