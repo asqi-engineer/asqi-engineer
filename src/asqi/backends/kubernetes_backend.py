@@ -48,7 +48,7 @@ _K8S_SERVICE_LABEL = "asqi_engineer"
 _JOB_NAME_PREFIX = "asqi-job-"
 _DEFAULT_NAMESPACE = "default"
 _POLL_INTERVAL_SECONDS = 2
-_MANIFEST_EXTRACT_TIMEOUT = 60
+_MANIFEST_EXTRACT_TIMEOUT = 300
 
 # ── Sidecar / shared-volume constants ──────────────────────────────────────────
 # Default sidecar image is a greppable placeholder so misconfiguration is
