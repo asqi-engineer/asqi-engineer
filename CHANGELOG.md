@@ -1,4 +1,10 @@
 # Changelog
+## [0.5.8] - 2026-07-23
+
+### 🐛 Bug Fixes
+
+- Increased _MANIFEST_EXTRACT_TIMEOUT to 300 seconds to prevent manifest extraction timeouts
+
 ## [0.5.7] - 2026-06-29
 
 ### 🐛 Bug Fixes
