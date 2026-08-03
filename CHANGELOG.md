@@ -1,4 +1,10 @@
 # Changelog
+## [0.5.9] - 2026-08-03
+
+### 🐛 Bug Fixes
+
+- Annotate eval Job pod templates with `karpenter.sh/do-not-disrupt` to prevent EKS Auto Mode consolidation from evicting short-lived pods mid-run (backoffLimit: 0 means a single eviction fails the whole Job)
+- Replace last-`{`/last-`}` JSON heuristic in `parse_container_json_output` with `JSONDecoder.raw_decode` to reliably return the last complete top-level JSON object, tolerating log noise, progress bars, and trailing debug dicts on stdout (fixes BFCL / HumanEval / BBQ false-failures)
 ## [0.5.8] - 2026-07-23
 
 ### 🐛 Bug Fixes
