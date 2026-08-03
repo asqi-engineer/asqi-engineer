@@ -43,31 +43,38 @@ def parse_container_json_output(output: str) -> dict[str, Any]:
             "Empty container output - test container produced no output (check container logs for details)"
         )
 
-    # Try direct parsing first
+    # Fast path: the whole output is already a single JSON object.
     if output.startswith("{") and output.endswith("}"):
         try:
             return json.loads(output)
         except json.JSONDecodeError:
             pass
 
-    # Strategy: Find the LAST complete JSON object in the output
-    # This handles cases where logs are mixed with JSON output
-    lines = output.split("\n")
+    # Robust path: scan for JSON objects and keep the LAST complete top-level
+    # dict. Skipping past each parsed object (via raw_decode's end index) means
+    # nested braces and trailing log lines like "DEBUG: ... {..}" cannot derail
+    # extraction.
+    decoder = json.JSONDecoder()
+    result: dict[str, Any] | None = None
+    idx = output.find("{")
+    while idx != -1:
+        try:
+            obj, end = decoder.raw_decode(output, idx)
+        except json.JSONDecodeError:
+            idx = output.find("{", idx + 1)
+            continue
+        if isinstance(obj, dict):
+            result = obj
+        idx = output.find("{", max(end, idx + 1))
 
-    # Try parsing from each line that starts with { to the end
-    # Start from the end and work backwards to find the last valid JSON
-    for i in range(len(lines) - 1, -1, -1):
-        if lines[i].strip().startswith("{"):
-            json_str = "\n".join(lines[i:])
-            end = json_str.rfind("}")
-            if end == -1:
-                raise ValueError(f"JSON object not properly closed: {json_str}")
-            json_str = json_str[: end + 1]
-            try:
-                result = json.loads(json_str)
-                return result
-            except json.JSONDecodeError:
-                continue
+    if result is not None:
+        return result
+
+    # A brace opened but nothing closed it: report the truncation specifically
+    # rather than the generic "no JSON" so a cut-off result is distinguishable
+    # from pure log noise.
+    if "{" in output and "}" not in output:
+        raise ValueError(f"JSON object not properly closed: {output}")
 
     raise ValueError(
         f"No valid JSON found in container output. Output preview: '{output[:100]}{'...' if len(output) > 100 else ''}'"
@@ -119,9 +126,7 @@ def extract_container_json_output_fields(
         DBOS.logger.warning(f"Container output validation failed: {e}, using fallback")
 
         # Extract what we can and return ContainerOutput with available data
-        results = container_json_output.get("results") or container_json_output.get(
-            "test_results"
-        )
+        results = container_json_output.get("results") or container_json_output.get("test_results")
         # If results is empty dict, set to None to avoid validator error
         if results == {}:
             results = None
@@ -193,18 +198,14 @@ def format_execution_summary(
     """
     success_rate = successful_tests / total_tests if total_tests > 0 else 0.0
 
-    status_color = (
-        "green" if failed_tests == 0 else "yellow" if successful_tests > 0 else "red"
-    )
+    status_color = "green" if failed_tests == 0 else "yellow" if successful_tests > 0 else "red"
 
     message = f"{successful_tests}/{total_tests} tests passed ({success_rate:.0%}) in {execution_time:.1f}s"
 
     return status_color, message
 
 
-def format_failure_summary(
-    failed_results: list, console: Console, max_displayed: int = 3
-) -> None:
+def format_failure_summary(failed_results: list, console: Console, max_displayed: int = 3) -> None:
     """
     Display summary of failed tests.
 
@@ -222,9 +223,7 @@ def format_failure_summary(
             result.error_message
             or f"Test id '{result.test_id}' returned failure status (exit code: {result.exit_code})"
         )
-        console.print(
-            f"  • id: {result.test_id} (system under test: {result.sut_name}): {error_msg}"
-        )
+        console.print(f"  • id: {result.test_id} (system under test: {result.sut_name}): {error_msg}")
 
     if len(failed_results) > max_displayed:
         remaining = len(failed_results) - max_displayed
@@ -276,9 +275,7 @@ def create_workflow_summary(
     return summary
 
 
-def _translate_container_path(
-    container_path_str: str, host_output_volume: str, item_type: str
-) -> str:
+def _translate_container_path(container_path_str: str, host_output_volume: str, item_type: str) -> str:
     """
     Translate a container path to the host path.
 
@@ -309,9 +306,7 @@ def _translate_container_path(
         return translated_path
 
 
-def translate_report_paths(
-    generated_reports: list[GeneratedReport], host_output_volume: str
-) -> list[GeneratedReport]:
+def translate_report_paths(generated_reports: list[GeneratedReport], host_output_volume: str) -> list[GeneratedReport]:
     """
     Translate the test container report path to the host path for each report.
 
@@ -328,9 +323,7 @@ def translate_report_paths(
     translated_reports = []
     for report in generated_reports:
         if report.report_path:
-            translated_path = _translate_container_path(
-                report.report_path, host_output_volume, "report"
-            )
+            translated_path = _translate_container_path(report.report_path, host_output_volume, "report")
             # Create new GeneratedReport with translated path
             translated_reports.append(
                 GeneratedReport(
@@ -365,9 +358,7 @@ def translate_dataset_paths(
     translated_datasets = []
     for dataset in generated_datasets:
         if dataset.dataset_path:
-            translated_path = _translate_container_path(
-                dataset.dataset_path, host_output_volume, "dataset"
-            )
+            translated_path = _translate_container_path(dataset.dataset_path, host_output_volume, "dataset")
             # Create new GeneratedDataset with translated path
             translated_datasets.append(
                 GeneratedDataset(
@@ -413,9 +404,7 @@ def _verify_and_display_output_item(
             metadata_str = ""
             if metadata:
                 metadata_parts = [f"{k}: {v}" for k, v in metadata.items()]
-                metadata_str = (
-                    f" ({', '.join(metadata_parts)})" if metadata_parts else ""
-                )
+                metadata_str = f" ({', '.join(metadata_parts)})" if metadata_parts else ""
 
             console.print(
                 f"{item_context}: {item_type.capitalize()} [bold]{item_name}[/bold] "
@@ -458,9 +447,7 @@ def display_score_card_reports(all_evaluations: list[dict[str, Any]]) -> None:
             report_name = Path(report_path_str).name
             context = f"Indicator id [bold]'{indicator_id}'[/bold]"
 
-            if _verify_and_display_output_item(
-                report_path_str, report_name, context, "report"
-            ):
+            if _verify_and_display_output_item(report_path_str, report_name, context, "report"):
                 reports_count += 1
 
     if reports_count == 0:
@@ -484,9 +471,7 @@ def display_generated_datasets(all_results: list[dict[str, Any]]) -> None:
         if not generated_datasets:
             continue
 
-        job_name = result.get("metadata", {}).get("test_name") or result.get(
-            "metadata", {}
-        ).get("job_id", "unknown")
+        job_name = result.get("metadata", {}).get("test_name") or result.get("metadata", {}).get("job_id", "unknown")
 
         for dataset in generated_datasets:
             dataset_name = dataset.get("dataset_name", "unnamed")
@@ -503,15 +488,9 @@ def display_generated_datasets(all_results: list[dict[str, Any]]) -> None:
 
                 # Add type to context for clarity
                 context = f"Job [bold]'{job_name}'[/bold]"
-                type_label = (
-                    f"dataset ({dataset_type})"
-                    if dataset_type != "unknown"
-                    else "dataset"
-                )
+                type_label = f"dataset ({dataset_type})" if dataset_type != "unknown" else "dataset"
 
-                if _verify_and_display_output_item(
-                    dataset_path, dataset_name, context, type_label, metadata
-                ):
+                if _verify_and_display_output_item(dataset_path, dataset_name, context, type_label, metadata):
                     datasets_count += 1
 
     if datasets_count == 0:
