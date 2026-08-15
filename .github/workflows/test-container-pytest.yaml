@@ -20,7 +20,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96
         with:
           files: |
             test_containers/**
@@ -76,7 +76,7 @@ jobs:
 
       - name: Install uv
         if: ${{ matrix.skip != true }}
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
 
       - name: Run pytest for ${{ matrix.name }}
         if: ${{ matrix.skip != true }}
