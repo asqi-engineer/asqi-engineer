@@ -1,0 +1,5 @@
+datasets:
+  sample_documentation:
+    type: "txt"
+    description: "Sample technical documentation for Q&A generation"
+    file_path: "test_data/sample_documentation.txt"
