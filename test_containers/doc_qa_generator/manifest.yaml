@@ -1,0 +1,65 @@
+name: "doc_qa_generator"
+version: "1.0.0"
+description: "Generate question-answer pairs from PDF or TXT documents for RAG evaluation and training"
+
+input_systems:
+  - name: "generation_system"
+    type: "llm_api"
+    required: true
+    description: "LLM for generating Q&A pairs from document content"
+
+input_datasets:
+  - name: "source_documents"
+    type: "pdf"
+    required: true
+    description: "Documents to process for Q&A generation (PDF or TXT files)"
+
+input_schema:
+  - name: "num_questions"
+    type: "integer"
+    required: false
+    description: "Number of questions to generate per chunk (default: 3)"
+  - name: "chunk_size"
+    type: "integer"
+    required: false
+    description: "Size of text chunks in characters (default: 1000)"
+  - name: "chunk_overlap"
+    type: "integer"
+    required: false
+    description: "Overlap between chunks in characters (default: 200)"
+  - name: "output_dataset_name"
+    type: "string"
+    required: false
+    description: "Name for the output HuggingFace dataset (default: 'qa_dataset')"
+
+output_metrics:
+  - name: "success"
+    type: "boolean"
+    description: "Whether generation completed successfully"
+  - name: "questions_generated"
+    type: "integer"
+    description: "Total number of questions created"
+  - name: "chunks_processed"
+    type: "integer"
+    description: "Number of text chunks processed"
+  - name: "processing_time_seconds"
+    type: "float"
+    description: "Total execution time in seconds"
+  - name: "output_dataset_path"
+    type: "string"
+    description: "Path to the generated HuggingFace dataset"
+
+output_datasets:
+  - name: "qa_dataset"
+    type: "huggingface"
+    description: "Generated question-answer pairs with context"
+    features:
+      - name: "question"
+        dtype: "string"
+        description: "Generated question from the document"
+      - name: "answer"
+        dtype: "string"
+        description: "Corresponding answer to the question"
+      - name: "context"
+        dtype: "string"
+        description: "Source text from document used to generate Q&A"
